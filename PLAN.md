@@ -104,6 +104,7 @@ the strongest available argument that skipping VSCodium costs less than it would
 | Review surface | **Artifacts**, not transcripts. Plans, diffs, diagrams, screenshots, recordings, and a walkthrough on completion — all commentable, and a comment steers the agent that made it. |
 | Harness contract | **Declaration plus materialization.** A TOML file says where each of the eight extensions goes; a **materializer** puts it there. Four strategies are generic and parameterized by that TOML; the fifth is a plugin, for the harnesses whose config is code. A harness needing code is a directory, one that does not is a file. |
 | Tokens | **A design constraint, not a bill.** Prefix stability is a rule the materializer obeys, tool output is compacted before it reaches context, and every surface hands an agent a summary with a handle rather than a body. Cache rate and payload-by-tool are dashboard metrics because both are already columns. |
+| Navigation | **Six categories on a rail** — Dashboard, Plan, Develop, Automate, Review, Workshop. Five are named for an activity; **Dashboard is mine** — Inbox and Status, what I need to do and what I need to know, where a decision resolves in place and work routes out. Agents and workflows are *operated* in Automate and *authored* in Workshop, and a session lives with the agent it belongs to. **One control plane across every project**: project is a scope filter, never a window boundary. **One locator scheme** addresses everything, which is what lets project be a filter at all. |
 | Handoffs | **Ownership transfers with a payload, never a transcript.** `done`, `remaining`, `attempted`, `decisions`, `open` — the successor reads that, not the predecessor's history. Kill-and-reassign already existed; this is what it hands over. |
 | Tools | **Just-in-time.** A one-line catalog per allowlisted tool; the page arrives only when an agent asks for it. Installation stays eager, because the allowlist is a privilege boundary. |
 | Filesystem | **No virtual filesystem.** Docker layers and `git clone --reference` already give copy-on-write; exposing Locus state as files is the thing the store exists to stop. |
@@ -124,7 +125,6 @@ Recorded so they are not rediscovered as gaps. Each was considered and set aside
 | **Packaging, signing, auto-update** | Single-user local tool that does not exist yet. Returns at a second machine or a second person. The one non-deferrable piece — migrations before there is data worth losing — is already M1's backup/restore. |
 | **Failure and degraded-mode handling** | Docker not running, Postgres down, a registered harness not installed. Application-level exception handling, not architecture. |
 | **Detailed table definitions** | The eight schemas are named; only `memory` and `board` are specified in full. The rest get written properly when their migration does, and writing them twice is waste. |
-| **UI and navigation** | The surfaces are decided — terminals, board, canvas, editor, inbox, wiki. How they are laid out and moved between is not. |
 | **The question-topic checklist** | Whether planning's topic list is hand-written once or derived per project. |
 | **The "I don't know what I want yet" entry point** | Planning requires a goal up front, so something has to turn a vague idea into one. Separate mode or separate module, undecided. |
 | **Compiling successful runs into recipes** | A 2026 result line — Skill-DisCo, SkillRT, the LOOP engine — compiles successful agent traces into branch-free procedures, reporting savings above 90% on repeated tasks. Locus is unusually well placed for it, since every run's normalized event sequence is already stored and every workflow already has a goal and a verify. It is deferred because it is worth nothing until there are many successful runs of the same shape to compile, which is an M6 condition, not an M1 one. |
@@ -454,7 +454,7 @@ permission requests. That is exactly what spec work and questions need.
 - Agents speaking it: **Claude Agent**, **Codex CLI**, **Cline**, **Cursor**, **Gemini CLI**,
   **Goose**, **Factory Droid**, Docker's **cagent**, **GitHub Copilot** (preview), and more.
 
-**ACP is not how the agent fleet runs.** Those run in terminals, one session each. Two reasons the
+**ACP is not how agent sessions run.** Those run in terminals, one session each. Two reasons the
 protocol does not fit there: `session/new` accepts only `cwd` and `mcpServers`, so **a client cannot
 inject a system prompt or any instructions** — prompt assembly belongs entirely to the harness; and a
 conversation abstraction hides the thing terminals exist to show, which is the agent working.
@@ -1939,6 +1939,132 @@ lands at M4; image baking and install land at M8.
 pinned, and who is trusted to publish into it are questions the installer makes real and the resolver
 does not — so they are answered then, not now.
 
+### Navigation — six categories, one address space
+
+Six top-level categories, on a rail. The split is **by what you are doing**, not by what the data is —
+which is why agents and workflows appear twice: operated in one place, authored in another.
+
+| Category | Holds | The question it answers |
+| --- | --- | --- |
+| **Dashboard** | **Inbox** — my queue; **Status** — the numbers, at a glance | what I need to do, and what I need to know |
+| **Plan** | the planning module — interviewer, researcher, auditor; specs and the recommendation | what should we build, and is it understood |
+| **Develop** | editor, diff review, file tree, search, git — branches, PRs, merge-back, and terminals I drive myself | the hands-on work, mine |
+| **Automate** | agents and their sessions, the board, running workflows, schedules | what is assigned, and what is running |
+| **Review** | telemetry, run history, cost, verify and spec-gap rates, artifacts and walkthroughs | what happened, and was it any good |
+| **Workshop** | settings, harnesses and model tiers, the eight extension types, agent definitions, the workflow canvas, the marketplace | the tools themselves |
+
+**A session lives with the thing it belongs to.** A session is one agent's thread of work, so its home
+is Automate, beside the agent it belongs to and the board task it serves. Dashboard is where you find
+out that something needs you; Automate is where you go and watch it. The same rule places the other
+two session kinds without argument: the planning conversation lives in **Plan**, because its purpose
+is the spec, and a terminal you drive yourself lives in **Develop**, because it is not an agent's
+session at all.
+
+**Dashboard is the category defined by whose it is, not by what it holds.** The other five are named
+for an activity; Dashboard is *mine* — the things I need to do, and the information I need in order to
+do them. That is why Inbox and Status sit together despite looking like different kinds of thing: one
+is my queue, the other is my context for working it.
+
+Its two views are named separately for a reason. **Status is the at-a-glance half** — is anything on
+fire, what is running, what did today cost — and it deliberately does not grow a query tool, because
+that is Review's job. A category called Dashboard containing a view called Dashboard would guarantee
+the two blur.
+
+Which sets the rule for how much happens there. **A decision resolves in place; work routes out.**
+Approving a goal, accepting or rejecting a proposed learning, answering a `locus ask`, waving through
+a `Gate` — those are answers, and making me travel to give one is the cost this category exists to
+remove. Anything that is *work* — editing the spec the gate was about, fixing the code the review
+found — opens where that work lives, and Dashboard hands me the locator rather than growing a second
+copy of the surface.
+
+**Dashboard is now; Review is after.** Status says whether the system is healthy at a glance; Review is
+where you dig into a run that was not. Keeping them apart stops Status growing into a query tool and
+stops the history growing a live view that nobody watches.
+
+**Automate operates; Workshop authors.** An agent you are assigning work to and an agent definition
+you are editing are different activities on the same object — one is a thing doing work, the other is
+a document under version control. Same for workflows: the canvas is Workshop, a running execution with
+its live overlay is Automate.
+
+**Workshop is where the meta-harness actually lives.** Skills, rules, commands, hooks, output-styles,
+linters, agents, base-context — authored once, materialized into every runtime. That is the product's
+central claim, and it deserves a place rather than a settings page.
+
+#### The inbox
+
+Its home is Dashboard, and **its count is on the rail**, so silence is legible without navigating. That
+is the whole property worth protecting: a session working normally puts nothing in it, and you should
+be able to see that from anywhere.
+
+Every item resolves to something — a `Gate` opens the artifact it waits on, a `locus ask` opens that
+session's chat, a contradiction opens both wiki pages. An item that only reports that something
+happened is a notification, not inbox work.
+
+#### One window. Project is a filter, not a boundary
+
+A window per project would rebuild the thing this design exists to remove: one inbox per window, one
+board per window, one place per window to notice an agent has been idle for an hour. Every layer
+beneath the UI was built to be a single surface across every runtime; sharding at the last layer
+throws that away.
+
+So **project is a scope control, defaulting to all**. You filter, never switch — switching means
+leaving somewhere that was still running. Cross-project questions are the useful ones: everything in
+Reviewing, every idle agent, every guardrail trip today.
+
+The cost, stated: every project-scoped surface carries a scope control, and every cross-project row
+shows which project it belongs to. That is real work in the board and in Status, and it is cheaper
+than a window per project.
+
+Additional windows still exist for detaching a pane onto a second monitor. That is a display choice,
+not the organising principle.
+
+#### Sessions do not all fit, so most are strips
+
+One session per terminal was chosen for observability, which creates the obvious problem at ten
+sessions. **Automate** holds **one to four focused panes**; everything else is a strip entry — the
+minimize-to-tile behaviour already specified, made the default rather than the exception. The strip
+persists across categories, because walking away from Automate is not a reason to lose sight of what
+is running.
+
+A strip entry carries what you need to decide whether to look: project, agent and role, its task,
+status, the tool it is running, tokens so far, and an **idle icon** when the guardrail says so. Sorted
+by needs-attention then recent activity — never by project and never alphabetically, either of which
+would put the same session in the same place whether or not anything is happening to it.
+
+Promoting an entry demotes the least recently focused pane. Nothing is closed by promotion: a session
+you stopped watching is not a session you ended.
+
+#### One address space, so there is one resolver
+
+Every addressable thing has a locator:
+
+```
+locus://<project>/session/<id>[/run/<id>]
+locus://<project>/task/<id>       artifact/<id>       page/<slug>
+locus://<project>/workflow/<id>[/execution/<id>]      agent/<name>@<version>
+```
+
+This is the structural decision, and it is what lets project be a filter at all: the project is a path
+segment, so a cross-project view is a query over locators rather than a different kind of screen. The
+command palette, global search, inbox items, board-card links, artifact comments, notification deep
+links, and a detached window's identity are otherwise seven navigation paths that drift apart; against
+one locator they are one resolver with seven callers. `Cmd-K` resolves a locator, `Cmd-P` searches for
+one, and back/forward per window is a stack of them.
+
+A locator also crosses categories cleanly, which the six-way split needs: the same session opens as a
+pane in Automate, as the source of an Inbox item, and as a row in Review — one object, three contexts,
+no duplicated navigation.
+
+#### Three rules that keep it from sprawling
+
+- **Detail opens in place.** A task, an artifact, a page opens as a sheet over the current category,
+  not as a new category or a new window. You came from somewhere and you are going back there.
+- **One viewer per kind, several entry points.** An artifact looks the same in Automate, in Review,
+  and reached from the inbox — one component, because a diff that renders differently depending on how
+  you got to it is two components that will disagree.
+- **The category list is closed.** Six, and a new surface joins one of them rather than adding a
+  seventh. A rail that grows is a rail nobody reads.
+
 ### Frontend and IPC constraints
 
 Three rules that are cheap to follow from the start and expensive to retrofit.
@@ -2080,7 +2206,7 @@ Write the spec set, then answer the two questions that could invalidate it.
   | `0006-shared-services-in-rust.md` | Memory, mail, and the rest implemented once |
   | `0007-agents-markdown-workflows-canvas.md` | Agents are Markdown + a tool list; only workflows are graphs, and why the split falls there |
   | `0008-tauri-over-electron.md` | The Electron case rests on in-process SDK orchestration, which this design rules out; accepted costs are webview inconsistency and terminal keyboard work |
-  | `0009-acp-for-planning-only.md` | Why ACP fits the chat module and not the agent fleet: no system-prompt control, and a conversation hides the work |
+  | `0009-acp-for-planning-only.md` | Why ACP fits the chat module and not agent sessions: no system-prompt control, and a conversation hides the work |
   | `0010-human-gated-context-promotion.md` | The ETH Zurich finding, and what agents may not write |
   | `0011-workflow-is-the-team.md` | Why there is no `Team` entity, and the reproducibility that buys |
   | `0012-session-run-turn.md` | The session/run split, and why the session is what survives a reset |
@@ -2091,6 +2217,7 @@ Write the spec set, then answer the two questions that could invalidate it.
   | `0017-materializers-declare-then-generate.md` | Why the harness contract has a code half; the four generic strategies; why the fifth returns files instead of writing them |
   | `0018-harness-in-the-image.md` | The harness binary is baked, not host-installed; the two-layer image and its cache key; why config is never a layer |
   | `0019-artifacts-two-representations.md` | Stored for the human, derived for the model; OCR before pixels; why the original is never overwritten |
+  | `0027-six-categories-one-address-space.md` | The operate-versus-author split behind the six; why project is a filter and not a window; why one locator scheme keeps seven navigation paths from drifting apart |
   | `0026-no-virtual-filesystem.md` | Where COW already exists, and why Locus state as a mounted tree re-creates the failure the store was built to end |
   | `0025-handoff-carries-a-payload.md` | Ownership transfer without a transcript; `attempted[]` as the half that pays for it |
   | `0024-calibration-is-human-gated.md` | The retro agent's four proposal types, and why none applies without a person — the same gate as memory promotion |
@@ -2102,6 +2229,10 @@ Write the spec set, then answer the two questions that could invalidate it.
 - `docs/handoffs.md` — the payload, the four triggers, and why it is neither mail nor a nested invoke
 - `docs/token-discipline.md` — prefix stability rules, the tool-boundary hook, the offender query,
   and the summary-with-a-handle rule that four surfaces already share
+- `docs/navigation.md` — the six categories (Dashboard, Plan, Develop, Automate, Review, Workshop) and
+  what lands in each, the operate-versus-author split,
+  where each of the three session kinds lives, project as a scope filter, the session strip, and the
+  locator grammar every entry point resolves against
 - `docs/frontend-constraints.md` — Channels vs events, one webview per window, keyboard capture
 - `harnesses/*` — **all eleven written**, every one of the eight extensions declared with a `via`
   strategy and every downgrade carrying `weaker_than_native`. Two are UNVERIFIED against a running
@@ -2157,15 +2288,20 @@ Daemon, store, registry, containers, terminals.
   and the derived-representation cache arrive with the browser at M3.5
 - Run supervisor: spawn → stream → normalize → persist → cancel
 - Credential broker and egress policy, whichever shape Spike 1 settles on
-- Tauri + SolidJS shell: JS-side pane manager over **one webview per window**, terminals (xterm.js)
-  with one session each, minimize-to-tile
+- Tauri + SolidJS shell: JS-side pane manager over **one webview per window**, one window holding
+  every project, the category rail with **Automate** live — it is where sessions are — and the other
+  five stubbed, terminals (xterm.js) with one session each, and the project-labelled session strip as
+  the default home for anything not focused
+- **The locator resolver from the first navigation**, because retrofitting one address space onto four
+  navigation paths costs more than starting with it
 - All streaming over `tauri::ipc::Channel`, coalesced per pane on a frame tick, from the first commit
 - **CI for Locus itself** — `cargo test`, `cargo clippy`, the harness lint, and the materialization
   smoke test on every push. Cheap now, and the smoke test is the only thing standing between a harness
   release and a silent non-load
 
 `verify:` two agents from different harnesses run concurrently in their own terminals and containers
-against the same repo; their events are indistinguishable downstream; every event lands in Postgres;
+against the same repo, and a third on a **different project** appears in the same tile strip beside
+them; their events are indistinguishable downstream; every event lands in Postgres;
 both minimize to informative tiles. A canary skill and a canary rule materialize into **every**
 registered harness and the agent can see both — including pi, where they arrive as generated
 TypeScript rather than as files. Materializing the same agent twice produces byte-identical trees:
@@ -2316,7 +2452,8 @@ rather than two quietly conflicting pages.
   that agent's verify pass rate over its last 20 runs, discounted by guardrail trips, by artifacts a
   human rejected, and **by tokens spent per passing run**. Every term is already a row, so it is a
   query rather than new instrumentation
-- Discoverability: command palette, global search across code, wiki, tasks, and run history
+- Discoverability: command palette and global search across code, wiki, tasks, and run history —
+  both resolving locators, so neither is a second navigation system
 
 `verify:` a scheduled workflow runs unattended overnight and reports green from its verify command;
 a second one trips its token budget, auto-pauses at 85%, and notifies rather than draining.
