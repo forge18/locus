@@ -1,0 +1,15 @@
+
+# agent tooling
+.cache/agent/
+.codanna/
+.agents/
+.claude/
+.codex/
+.github/agents/
+.github/instructions/
+.github/prompts/
+.omp/
+.opencode/
+.pi/
+AGENTS.md
+CLAUDE.md

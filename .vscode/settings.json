@@ -1,0 +1,14 @@
+{
+  "files.exclude": {
+    "_comment_local_dx": false,
+    ".claude": true,
+    ".codex": true,
+    ".github/agents": true,
+    ".github/instructions": true,
+    ".github/prompts": true,
+    ".omp": true,
+    ".opencode": true,
+    ".pi": true,
+    "CLAUDE.md": true
+  }
+}
