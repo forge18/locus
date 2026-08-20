@@ -22,7 +22,20 @@ enable_in = "~/.hermes/config.yaml"  # plugins.enabled must list the name
                                      # discovery alone loads nothing.
 
 [layout]
-skills = { dir = "/locus/config/skills", format = "markdown+frontmatter" }
+# Hooks are a generated Python plugin, so hooks and anything routed through them
+# need the materializer. UNVERIFIED: hermes has no local-dx entry, so every path
+# below comes from its own docs rather than from a working installation.
+agents        = { via = "merged-into", target = "context", strip_frontmatter = true, weaker_than_native = "no agent directory; nested work goes through `locus agent invoke`" }
+commands      = { via = "merged-into", target = "context", strip_frontmatter = true, weaker_than_native = "always-on; not invocable" }
+hooks         = { via = "plugin", emits = "/locus/config/plugins/locus/plugin.yaml", enable_in = "/locus/config/config.yaml", key = "plugins.enabled" }
+linters       = { via = "dir", dir = "/locus/config/linters", format = "shell+markdown" }
+output-styles = { via = "merged-into", target = "context", strip_frontmatter = true, weaker_than_native = "appended to context; a native style REPLACES the prompt's communication section" }
+rules         = { via = "merged-into", target = "context", strip_frontmatter = true, weaker_than_native = "always-on; no path scoping exists" }
+skills        = { via = "dir", dir = "/locus/config/skills", format = "markdown+frontmatter" }
+context       = { via = "file", file = "/locus/config/AGENTS.md" }
+
+# Discovery alone loads nothing: the plugin name must also appear in
+# plugins.enabled, which is the failure mode to test for first.
 
 [memory]
 # Hermes is the one harness with its own bounded memory: ~/.hermes/memories/

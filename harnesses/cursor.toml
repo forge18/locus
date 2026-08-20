@@ -22,5 +22,13 @@ env      = ["CURSOR_API_KEY", "CURSOR_AUTH_TOKEN"]
 pre_auth = "agent login --api-key"
 
 [layout]
-rules   = { dir = "/locus/config/rules", format = "markdown+frontmatter" }
-context = { file = "/locus/config/AGENTS.md" }
+# Rules are native. Everything else arrives through AGENTS.md, since the CLI
+# exposes no directory for agents, commands, skills, or styles.
+agents        = { via = "merged-into", target = "context", strip_frontmatter = true, weaker_than_native = "no CLI subagent directory; nested work goes through `locus agent invoke`" }
+commands      = { via = "merged-into", target = "context", strip_frontmatter = true, weaker_than_native = "always-on; not invocable" }
+hooks         = { via = "core-driven", weaker_than_native = "CLI hook coverage is partial; capture is ACP, so hooks fire from the core" }
+linters       = { via = "dir", dir = "/locus/config/linters", format = "shell+markdown" }
+output-styles = { via = "merged-into", target = "context", strip_frontmatter = true, weaker_than_native = "appended to context; a native style REPLACES the prompt's communication section" }
+rules         = { via = "dir", dir = "/locus/config/rules", format = "markdown+frontmatter" }
+skills        = { via = "merged-into", target = "context", strip_frontmatter = true, weaker_than_native = "catalog inlined; not model-invocable" }
+context       = { via = "file", file = "/locus/config/AGENTS.md" }

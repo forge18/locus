@@ -26,6 +26,13 @@ events = ["PreToolUse", "PostToolUse", "Stop"]
 pre_auth = "agy"
 
 [layout]
-# Antigravity reads .agents/ — the same directory local-dx treats as human-owned.
-skills  = { dir = "/locus/config/skills", format = "markdown+frontmatter" }
-context = { file = "/locus/config/AGENTS.md" }
+# Reads .agents/ — the directory local-dx treats as human-owned. Hooks exist but
+# are tool-scoped, so session-level events come from the stream instead.
+agents        = { via = "merged-into", target = "context", strip_frontmatter = true, weaker_than_native = "no agent directory; nested work goes through `locus agent invoke`" }
+commands      = { via = "merged-into", target = "context", strip_frontmatter = true, weaker_than_native = "always-on; not invocable" }
+hooks         = { via = "entries-in", dir = "/locus/config/hooks", format = "shell", target = "/locus/config/hooks.json", events = ["PreToolUse", "PostToolUse", "Stop"] }
+linters       = { via = "dir", dir = "/locus/config/linters", format = "shell+markdown" }
+output-styles = { via = "merged-into", target = "context", strip_frontmatter = true, weaker_than_native = "appended to context; a native style REPLACES the prompt's communication section" }
+rules         = { via = "merged-into", target = "context", strip_frontmatter = true, weaker_than_native = "always-on; no path scoping exists" }
+skills        = { via = "dir", dir = "/locus/config/skills", format = "markdown+frontmatter" }
+context       = { via = "file", file = "/locus/config/AGENTS.md" }

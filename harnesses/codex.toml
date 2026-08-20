@@ -32,8 +32,8 @@ agents        = { via = "entries-in", dir = "/locus/config/agents", target = "/l
 commands      = { via = "dir", dir = "/locus/config/prompts", format = "markdown+frontmatter", flat = true }
 hooks         = { via = "entries-in", dir = "/locus/config/hooks", format = "shell", target = "/locus/config/config.toml", key = "hooks" }
 linters       = { via = "dir", dir = "/locus/config/linters", format = "shell+markdown" }
-output-styles = { via = "merged-into", target = "context", strip_frontmatter = true }
-rules         = { via = "merged-into", target = "context", strip_frontmatter = true }
+output-styles = { via = "merged-into", target = "context", strip_frontmatter = true, weaker_than_native = "appended to context; a native style REPLACES the prompt's communication section" }
+rules         = { via = "merged-into", target = "context", strip_frontmatter = true, weaker_than_native = "always-on; path scoping is lost, so scoped rules are skipped rather than made permanent" }
 skills        = { via = "dir", dir = "/locus/config/skills", format = "markdown+frontmatter" }
 context       = { via = "file", file = "/locus/config/AGENTS.override.md" }
 

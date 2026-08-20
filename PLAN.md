@@ -70,7 +70,7 @@ the strongest available argument that skipping VSCodium costs less than it would
 | Fork | Decision |
 | --- | --- |
 | Editor | CodeMirror 6, used directly — no abstraction seam. **One editor at two zoom levels**: a side pane beside an agent, and a full-window module. No second editor, no VSCodium. |
-| Debug | A **DAP client in Rust**, because agents need to debug. Not VS Code's debug UI. |
+| Debug | A **DAP client in Rust**, because agents need to debug. **No debug UI at all** — the whole surface is `locus debug` in a container, and a human debugs in their own editor. |
 | Harness I/O | **Agents run in real terminals, one session per terminal.** Parallel sessions get more terminal instances. **ACP is for the planning/chat module**, which is a conversation rather than a terminal. |
 | `local-dx` relationship | Inspiration, not dependency. Locus owns its own registry and schema. |
 | Sandbox | One container per agent run. The workspace is a **clone from a local bare remote**, not a mount. Credential handling must be easy and secure; the mechanism is Spike 1's to settle. |
@@ -86,6 +86,7 @@ the strongest available argument that skipping VSCodium costs less than it would
 | Teams | **The workflow is the team.** Its agent nodes are the roster, each node carries a role, and the edges are the dependencies. No separate `Team` entity. |
 | Review surface | **Artifacts**, not transcripts. Plans, diffs, diagrams, screenshots, recordings, and a walkthrough on completion — all commentable, and a comment steers the agent that made it. |
 | Harness contract | **Declaration plus materialization.** A TOML file says where each of the eight extensions goes; a **materializer** puts it there. Four strategies are generic and parameterized by that TOML; the fifth is a plugin, for the harnesses whose config is code. A harness needing code is a directory, one that does not is a file. |
+| Artifacts on disk | **Text in Postgres, media as files the row points at.** Media is stored once for you and **derived on demand for a model** — OCR before pixels, keyframes before clips. Two representations, because a human and a model want opposite things. |
 | Plugins | **One manifest + one executable speaking JSON-RPC 2.0 over stdio**, in any language. Core services stay internal and are never plugins. **Data-driven: a plugin declares and returns data; the first-party UI knows how to render it.** No third-party UI code, ever. |
 | Board | **Fixed columns across every project**, not configurable: Ready → In Progress → Testing → Reviewing → Waiting For Approval → Done. **`blocked` is a status, not a column.** Two gating rules only. |
 | Planning | **Three agents** — interviewer, researcher, auditor — over ACP. Goal is an input, not an output. Nothing reaches the board until one approval at the end. |
@@ -186,15 +187,41 @@ Mounts into an agent container:
 | `/run/locus.sock` | rw | Host daemon socket |
 | `/locus/config` | ro | Harness config materialized for this run |
 
-Plus a `$LOCUS_PORT` unique to the run, and the project's setup/run/teardown scripts.
+Plus a `$LOCUS_PORT` unique to the run, and the project's setup/run/teardown scripts. **The core
+allocates it from 43000–43999** and records it on the run row; the browser container reaches the app
+at `http://locus-agent-<run_id>:$LOCUS_PORT` by container DNS on the project network. Allocation is
+the core's because two agents on one project otherwise collide on whatever the repo's dev server
+defaults to — the failure Emdash had to invent `$EMDASH_PORT` to fix.
 
 **Project configuration lives in Locus, not in a repo.** Services, scripts, ports, and the default
 verify command are project settings in the `core` schema, edited in the app. **A repo is a resource
 the project holds** — Locus does not write a config file into one, because half of them are your own
 checkouts and the whole point of the git model is that Locus stays out of them.
 
+A service's credentials go through the **same broker as harness auth**: project settings hold a
+reference, never the secret. One secret path, one audit trail, one place to rotate.
+
 **The workspace is not mounted.** `/workspace` is a *clone* on the container's own filesystem — see
 the git model below. **No long-lived credential lives in the container** — see Credentials.
+
+#### Images — two layers, one cache key
+
+**The harness binary lives in the image, never on the host.** That is what makes a run reproducible
+and what keeps eleven harnesses from becoming eleven host installs. `detect` runs at *image build*,
+not on your machine, and its job is to fail the build when the binary is missing rather than to find
+one you already have.
+
+| Layer | Contains | Rebuilt when |
+| --- | --- | --- |
+| `locus/base-<harness>:<version>` | OS, git, the harness CLI, `locus` and `locus-hook` | the harness version pins change |
+| `locus/agent-<hash>` | the agent's `tools` allowlist, installed from the marketplace index | the agent's tool list or a tool's pin changes |
+
+`<hash>` is over (base image digest, sorted tools list, resolved marketplace pins), so two agents with
+the same tools share one image and a changed prose body rebuilds nothing. **Config is not a layer** —
+it is materialized per run into `/locus/config`, so editing a skill never invalidates an image.
+
+A cold build is minutes and a warm start is seconds; the first run of a new agent pays once. Auth is
+injected at run start and never baked, which is the constraint Spike 1 is testing.
 
 ### Adding a repo
 
@@ -382,6 +409,12 @@ conversation abstraction hides the thing terminals exist to show, which is the a
 
 `mcpServers` is passed empty. Always.
 
+**The planning agents run in containers like every other agent.** ACP is stdio, and stdio attaches to
+a container process as readily as to a host one — the only difference from a terminal run is that
+there is no PTY. Running them on the host would give the researcher your real filesystem and your real
+credentials while it indexes repos, which is precisely the exposure the container model exists to
+remove. A conversation is not a reason to leave the sandbox.
+
 ### Harness contract
 
 A harness is described by one TOML file. ACP does not replace this — it standardises a conversation
@@ -489,6 +522,20 @@ last needs a plugin:
 | `listed-in` | write the files' paths into a key of the harness's config | opencode rules and styles → `opencode.json:instructions` |
 | `entries-in` | convert each file into one structured entry in a config file | codex agents → TOML; dsh agents → `cordis.patch.yml`; claude hooks → `settings.json` |
 | `plugin` | **run an executable that returns the files to write** | pi and omp hooks and rules (TS extension); opencode hooks (plugin); hermes (Python plugin) |
+| `core-driven` | Locus fires the extension itself at the boundaries it owns | aider and cursor hooks — neither has a hook mechanism, so `session_start` and `session_end` come from the container's own lifetime |
+
+**Every entry that is weaker than native says so.** A rule folded into always-on context is not the
+same thing as a rule the harness loads when a matching file is touched, and an entry that hides the
+difference is how you end up believing in a capability you do not have. So a downgraded strategy
+carries `weaker_than_native` naming the loss:
+
+```toml
+rules = { via = "merged-into", target = "context", strip_frontmatter = true,
+          weaker_than_native = "always-on; path scoping is lost" }
+```
+
+Twenty-seven of the eighty-eight entries across the eleven harnesses are downgrades. That number is
+the honest measure of how uneven the field is, and it is only visible because the files say it.
 
 The first four are parameterized data — `format`, `suffix`, `flat`, `strip_frontmatter`, the target
 key — and live in `crates/locus-core/src/materialize/` as five generic implementations that name no
@@ -578,7 +625,7 @@ Postgres, and git, all first-class in Rust. **Tauri's real cost is webview incon
 | Schema | Holds |
 | --- | --- |
 | `core` | projects, repos (multi-repo per project), local remotes, settings |
-| `agents` | `agent_defs` (versioned; frontmatter JSONB + Markdown body), sessions, runs, parent/child run edges, normalized events, **artifacts and their comment threads** |
+| `agents` | `agent_defs` (versioned; frontmatter JSONB + Markdown body), sessions, runs, parent/child run edges, normalized events, **artifacts and their comment threads** — an artifact row carries kind, text body or blob path, media type, `sha256`, and the derived-representation cache |
 | `board` | tasks (fixed columns, blocked as a status), **dependency edges**, transitions, assignments, task↔run links, evidence links, **linked GitHub issues** |
 | `wiki` | pages (**typed by kind**), revisions, links, contradictions, ingest log, embeddings (`pgvector`) |
 | `memory` | **core** (bounded, per-agent and per-project, materialized per run) and **store** (facts, scope, provenance, embeddings, confidence, decay) |
@@ -651,7 +698,49 @@ after a session's last run has exited is delivered by starting the next one. It 
 the PR review interaction, applied to plans and images rather than only code — and it is the same
 mechanism as the agent-authored PR flow in M7, so it is one implementation, not two.
 
-Artifacts are rows attached to a session, and they arrive in the inbox when they need you.
+**Text artifacts are rows; media is a file the row points at.** A plan, a diff, and a walkthrough are
+text and live in Postgres, which compresses them at rest already. A screenshot or a recording is
+megabytes, so the bytes land under `/var/lib/locus/artifacts/<project>/<run>/` and the row carries the
+path, the media type, and a `sha256`. Backup covers both trees or it covers neither — that is the
+reason to decide it here rather than at the first 40MB recording.
+
+#### Two representations: one you look at, one the agent reads
+
+Media is stored once for the human and derived on demand for a model, because the two want opposite
+things. The rules come straight from `local-dx`'s `image-processing` skill, which exists for exactly
+this problem:
+
+| | Stored | Agent-facing |
+| --- | --- | --- |
+| `image` | WebP q80, longest edge capped at 2560 | **OCR text if the shot carries text**; otherwise downscaled to 1500px |
+| `recording` | WebM as the browser produced it, capped by duration | extracted keyframes, never the clip |
+| `diff` · `plan` · `walkthrough` | text in Postgres | the same text |
+
+**Text is cheaper, searchable, and quotable; pixels are none of those.** An error dialog, a terminal
+capture, or a failing assertion is text wearing a screenshot's clothes, so `locus artifact get
+--for-context` OCRs it and returns characters. Only appearance — a layout, a rendering bug, a diagram
+— justifies sending pixels, and 1500px on the longest edge carries all of it. Past that you pay tokens
+for detail no model uses.
+
+Three rules that keep this from going wrong:
+
+- **The stored copy is the original.** Derived representations are cached beside it and regenerable;
+  nothing overwrites the artifact a human will open.
+- **OCR is lossy on tables and low-resolution text.** When it looks wrong, the agent gets the image
+  instead — a bad transcription asserted as fact is worse than the pixels it saved.
+- **Dimensions are metadata.** Deciding how to handle a shot never requires loading it.
+- **Media has a retention policy; text does not.** Recordings and screenshots are pruned with their
+  run after 30 days unless the run is linked to a PR or to a task in Done — the two cases where the
+  evidence is the point. Text artifacts are small enough to keep forever, and the trace depends on
+  them surviving.
+- **Encoding is host-side and in Rust** — the `image` crate for resize and WebP, `ffmpeg` for
+  keyframes, `tesseract` for OCR. The skill's `sips` is macOS-only and Locus ships on Linux too, so
+  the tool list differs even though the rules do not.
+
+This is also why the walkthrough is affordable. A session that produced forty screenshots inlines
+forty OCR blocks and a handful of images, not forty megabytes.
+
+Artifacts arrive in the inbox when they need you.
 
 ### The user inbox
 
@@ -697,9 +786,82 @@ board card. Cursor 3 ships this as "cloud agents generate demos and screenshots 
 don't need to pull code to review" — here it falls out of capabilities we needed anyway.
 
 **And it settles the DAP question.** An earlier draft accepted "no debugger" as CodeMirror's cost.
-That was wrong once agents need to debug: the core needs a **DAP client** regardless. What it does not
-need is VS Code's debug *UI* — and a client is a fraction of the cost of an extension host. A human
-debug pane, if ever wanted, is then a view over a client that already exists.
+That was wrong once agents need to debug: the core needs a **DAP client** regardless.
+
+**The debugger is for agents. There is no debug UI, and that is a decision.** No breakpoint gutter, no
+variables pane, no step buttons — the entire surface is `locus debug` inside a container. You debug in
+your own editor, on your own checkout, with the tools you already have; Locus does not compete for
+that job. What you see of an agent's debugging is what it reports: the stack it captured, the value it
+found, the artifact it filed.
+
+Two things follow. The client is a fraction of the cost of an extension host, because a UI is most of
+what makes a debugger expensive. And the design does not carry a half-built pane waiting for someone
+to want it — if that changes, it changes as a new decision against a client that already works.
+
+#### Debugging — the session is the core's, the CLI is stateless
+
+A breakpoint set by one command has to still exist when the next one runs, and each `locus debug`
+invocation is a separate process that exits. So **the debug session lives in the core, not in the
+CLI**: `locus debug` opens or attaches to a session keyed by run id, the adapter process is long-lived
+inside the agent's container, and every command is a request against it. The CLI holds nothing.
+
+```
+locus debug start [--config NAME]     launch under the adapter; --config names a project run config
+locus debug break FILE:LINE [--if EXPR] [--log FMT]
+locus debug run|step|next|finish|continue
+locus debug stack|vars [--frame N]|eval EXPR
+locus debug stop
+```
+
+Five things this has to get right, each of which is a way agents lose time:
+
+- **Logpoints before breakpoints.** `--log` prints a formatted message and keeps running; `break`
+  stops the world. An agent that stops the world then has to remember to continue it, and a stopped
+  process that nobody resumes looks exactly like a hung run. Logpoints are the default advice in the
+  tool's own docs blob.
+- **A paused program is not an idle agent.** The idle guardrail counts events on the run's stream; a
+  debug session parked at a breakpoint suppresses it, because the agent is working and the program is
+  not. Without this every real debugging session trips a guardrail at 60 seconds.
+- **`--config` comes from project settings**, the same place the run script lives. Debugging is not a
+  different way to start the app; it is the same command under an adapter.
+- **Adapters are tools.** `codelldb`, `debugpy`, `js-debug` are marketplace entries in the agent's
+  allowlist, so they are in the image or they are not available — same rule as every other tool, and
+  the reason `locus debug` has honest coverage limits rather than pretending.
+- **The adapter dies with the run.** No cleanup path, because the container takes it.
+
+#### Browser testing — one container, one context per run
+
+The browser container is shared by a project's agents, which makes isolation the whole problem: two
+agents driving one page is two agents fighting. **Each run gets its own Playwright browser context** —
+own cookies, own storage, own pages, cheap to create — inside the one shared browser. The container is
+per project; the context is per run.
+
+```
+locus browse open URL              relative to the run's own app: http://<its container>:$LOCUS_PORT
+locus browse click|fill|press SELECTOR [VALUE]
+locus browse assert SELECTOR [--text S] [--visible] [--count N]
+locus browse screenshot [SELECTOR]  → an image artifact
+locus browse record start|stop      → a recording artifact
+locus browse console|network        what the page logged, what it fetched
+```
+
+- **The app is started by the container, not by the agent.** If the project declares a run script it
+  starts at container start, backgrounded, and `locus browse open` blocks until the readiness probe
+  passes. An agent should not have to remember to start its own app, and an agent that forgets
+  produces a screenshot of a connection error and reports it as a UI bug.
+- **`assert` exits non-zero and prints structured JSON**, so a workflow's `Verify` node can use it
+  directly. This is the difference between a browser an agent plays with and a browser that gates a
+  merge.
+- **Auto-waiting, not sleeps.** Playwright waits for actionability by default. An agent writing
+  `sleep 2` is a flaky test being born, and the docs blob says so.
+- **The browser gets no egress by default.** It exists to reach the agent's app on the project
+  network. A test that genuinely needs a third-party origin is a project setting, named and audited —
+  otherwise the browser is a clean way around the egress policy the whole sandbox model rests on.
+- **`console` and `network` matter more than pixels.** A failing UI usually explains itself in a
+  console error, which is text; a screenshot of it costs tokens to say less. Same rule as the OCR
+  path: text first, pixels when appearance is the question.
+- **Screenshots and recordings land as artifacts automatically**, with the derived agent-facing
+  representation built on demand. The agent does not upload anything.
 
 ### The wiki — ingested and typed, not a blank page
 
@@ -1017,7 +1179,7 @@ survives becomes a named weakness in the recommendation, not a blocker.
 | `goal` | required | The frame. Set first, not derived |
 | `project` | required | |
 | target repo | required | Where the branch is cut and the PR lands |
-| involved repos | optional, N | Read-only context. Indexed, never written |
+| involved repos | optional, N | Read-only context. Cloned to `/context/<repo>` beside `/workspace`, indexed by `codanna`, and never pushed — the run's branch exists only on the target repo's remote |
 | tools | optional | Added to whatever research finds |
 | workflow | optional | Overrides the proposal |
 
@@ -1204,8 +1366,10 @@ Two consequences worth stating:
 - **`tools` is enforced, not advisory.** It is the container's install set *and* the allowlist. A tool
   absent from the list is absent from the image, so the agent cannot reach for it.
 - **Composition moves to workflows.** An agent no longer nests other agents structurally. It can still
-  call `locus agent invoke` at runtime if that is in its tool list — bounded by a hard depth cap and
-  fan-out cap in the core — but *authored* composition is what the Workflow Canvas is for.
+  call `locus agent invoke` at runtime if that is in its tool list — bounded in the core at **depth 3
+  and fan-out 4**, which a workflow may lower and never raise — but *authored* composition is what the
+  Workflow Canvas is for. Depth 3 with fan-out 4 is at most 21 containers, which one machine survives;
+  depth 4 is 85, which it does not.
 
 Agent definitions live in Postgres like everything else, with import and export as `.md` so they can
 be reviewed in a PR or copied between machines when that is what you want.
@@ -1253,6 +1417,27 @@ file) are one queryable, scoped store here.
 | `Verify` | the runnable success criterion. Required |
 | `Guardrails` | the limits below, attached to the workflow |
 
+**Where `Verify` runs.** In a **fresh container from the agent's own image, on the run's branch** —
+never in the agent's container. Two reasons, and both are the same reason: the agent's container may
+already be gone, and its filesystem holds whatever the agent did outside git. A check that passes only
+on the machine that made the change has verified nothing. The command comes from the task or the node,
+the exit code is the result, and stdout plus stderr are captured as the evidence the board requires
+for Done.
+
+**What a `Condition` can say.** A small total expression language over facts the run already produced
+— no code, no model, no I/O, and no way to hang the orchestrator:
+
+```
+verify.passed · verify.exit_code · iteration · elapsed · tokens.used
+events.count(tool_error) · events.last(kind) · artifact.exists(kind)
+task.status · mail.pending
+```
+
+with `== != < > <= >=`, `and or not`, and parentheses. It is deliberately not a scripting language:
+every operand is a column, so a `Condition` is a `WHERE` clause against the run, evaluable in the core
+in microseconds and reproducible from stored events. Anything it cannot express is a `Gate` — which is
+to say, a decision that deserved a person or an agent rather than an operator.
+
 **Workflow guardrails.** Each is borrowed from a measured failure in an existing tool. Defaults apply
 to any agent run; a workflow may tighten or relax them, and they are what make leaving a loop
 unattended defensible:
@@ -1262,9 +1447,16 @@ unattended defensible:
 | `max_iterations` | 8 | Agents loop endlessly retrying the same broken approach without a hard stop |
 | Forced reflection before retry | on | "What failed? What specific change would fix it? Am I repeating myself?" — reported to substantially cut stuck agents |
 | Kill-and-reassign after 3 stuck iterations | on | A fresh context beats a confused one |
+| Waiting ≠ idle | — | A run carries a `waiting` state with a reason — `ask`, `mail`, `debug-paused`, `gate` — and idle counts only time outside it. One mechanism, four callers: `locus ask`, `locus mail wait`, a debug session at a breakpoint, and a `Gate`. Without it every deliberate block reads as a stall |
 | Idle detection | 60s | **No event on the run's stream for 60s**, while not blocked on `locus ask` — waiting on you is an inbox item, not idleness. The tile gets an **idle icon** and a **toast fires once per idle stretch**, never repeatedly. Agent Orchestrator's measured flaw was agents idling 90+s with nobody told |
 | Wall-clock ceiling | none | Optional; a loop that cannot finish overnight should stop, not run to morning |
 | **Token budget** | **none — optional** | When set, auto-pause at 85% and notify rather than draining silently. Nested agents multiply spend, so a ceiling is worth having available even if rarely used |
+
+**Pause means the loop stops being fed, not that a process is frozen.** The supervisor lets the current
+turn finish, holds before the next iteration, and notifies; the container stays up so its state is
+still inspectable. `SIGSTOP` on a harness mid-request would leave sockets half-written and a model
+call in flight, which is a worse problem than the spend it saved. A held workflow is resumed or
+cancelled by you, and holding is recorded as an event like anything else.
 
 **Reviewer agents need no special machinery.** A reviewer is an ordinary agent with read-only tools,
 wired to a `Gate` that triggers on task completion — roughly one reviewer per three or four builders.
@@ -1334,17 +1526,23 @@ locus wiki ingest <path|url>                 read a document into typed pages; f
 locus wiki query <question>                  synthesize an answer, filed back as a synthesis page
 locus wiki lint                              orphans, broken links, missing entities, unsourced facts
 locus lsp def|refs|hover|symbols|rename       semantic navigation over this run's clone
-locus debug break|run|step|stack|eval|vars    DAP, against the code as it actually runs
-locus browse open|click|fill|assert|screenshot  drive the project browser; shots become artifacts
+locus debug start|break|step|stack|vars|eval  DAP; the session lives in the core, keyed by run
+                                             `break --log` is a logpoint: prints, never stops
+locus browse open|click|fill|assert|screenshot  the project browser, own context per run
+locus browse record|console|network          flow recording, and the text a page produced
 locus agent invoke <name>@<version>          run a nested agent: own container, own clone
 locus svc up|down <name>                     start a project service container; agents get no Docker socket
 locus ask <question>                         escalate to the human via the Chat pane; blocks
 locus run status|artifacts                   this run's own state
 locus artifact put <kind> <path>             publish a plan, diagram, or image for review
+locus artifact get <id> [--for-context]      read one back; --for-context returns OCR text or a
+                                             downscaled frame, never the raw bytes
 locus artifact comments                      feedback left on your artifacts, threaded
 locus tools list|docs <name>                 marketplace docs for allowlisted CLIs
 locus lint [--changed|--only NAME]           run this project's linters; the one extension
-                                             no harness reads
+                                             no harness reads. Called by the agent before it
+                                             commits, and by a workflow's `Verify` node —
+                                             never from a hook, which would tax every tool call
 ```
 
 `--json` on every command, because the caller is usually a model.
@@ -1442,6 +1640,11 @@ CodeMirror 6 used directly, no wrapper interface.
   find-references, diagnostics, and its `Workspace` abstraction for multi-file.
 - `@codemirror/merge` — `MergeView` with `collapseUnchanged` and per-chunk revert controls. This is
   the **primary** editor surface: reviewing what an agent changed.
+- **The editor opens an ordinary clone.** For a **linked** repo that is your own checkout, where
+  `git fetch locus && git checkout agent/<run-id>` is the motion you already know. For a **managed**
+  repo Locus keeps one normal clone per project beside the bare remote and opens that. No worktrees
+  anywhere in the design — a clone is what the git model already produces, and adding a second
+  checkout mechanism would mean two ways to be on the wrong branch.
 - Language servers are spawned and supervised **on the host** by the LSP supervisor, one set per
   project, shared across panes. Agents' containers do not run language servers.
 
@@ -1452,12 +1655,17 @@ move between them — and would re-import the whole extension-host cost for the 
 in an agent-first IDE. File tree, tabs, splits, find-in-files, go-to-symbol, and multi-cursor are all
 either native to CodeMirror or chrome built once and reused at both sizes.
 
-Accepted gaps, restated so they are not rediscovered later: no VS Code extensions, and Lezer grammar
+Declined on purpose, restated so they are not rediscovered later: **no debug UI** — no gutter, no
+variables pane, no step controls, because `locus debug` serves the side that needed it. Accepted gaps:
+no VS Code extensions, and Lezer grammar
 coverage thins out in the tail — Odin and GDScript have none. Mitigation when it bites is LSP semantic
 tokens for color plus tree-sitter-WASM decorations for structure.
 
-**No longer a gap: debugging.** Agents need to debug, so a DAP client lands in the core regardless of
-editor choice. A human debug pane, if ever wanted, becomes a view over a client that already exists.
+**Debugging is not an editor feature here.** The DAP client lands in the core because *agents* need to
+debug, and it is reached only through `locus debug` in a container. The editor gets no debug UI — no
+gutter, no variables pane, no step controls — so CodeMirror's lack of one costs nothing. That was the
+one real gap in the CodeMirror trade, and it closed by moving the capability to the side that needed
+it.
 
 ---
 
@@ -1471,13 +1679,17 @@ Write the spec set, then answer the two questions that could invalidate it.
 
 - `docs/architecture.md`, `docs/harness-contract.md`, `docs/data-model.md`, `docs/agent-cli.md`,
   `docs/marketplace.md`, `docs/roadmap.md`
+- `docs/data-model.md` carries the eight schema names, their boundaries, and full tables for
+  `memory` and `board` only — the rest point at `migrations/`, per the deferral already recorded
 - `docs/knowledge-model.md` — the three layers (core memory, store memory, wiki), what writes each,
   the bounded-core mechanics, and contradiction handling across memory and wiki
 - `docs/sandbox-model.md` — credentials, network policy, the git model, and the threat model
 - `docs/session-model.md` — session vs run vs turn, and what survives a reset
-- `docs/artifacts.md` — the artifact kinds, the walkthrough, and how comments steer
-- `docs/agent-capabilities.md` — `locus lsp`, `locus debug`, `locus browse`: where each server runs
-  and why the client is shared but the server is not
+- `docs/artifacts.md` — the artifact kinds, the walkthrough, how comments steer, and the storage
+  split: what is a row, what is a file, and how the agent-facing representation is derived
+- `docs/agent-capabilities.md` — `locus lsp`, `locus debug`, `locus browse`: where each server runs,
+  why the client is shared but the server is not, the core-held debug session, and the per-run browser
+  context inside the per-project browser
 - `docs/agent-format.md` — the frontmatter schema, the tool allowlist, and how it materializes
 - `docs/materializers.md` — the five strategies, the plugin contract and its JSON shape, and why a
   materializer returns files rather than writing them
@@ -1506,22 +1718,24 @@ Write the spec set, then answer the two questions that could invalidate it.
   | `0010-human-gated-context-promotion.md` | The ETH Zurich finding, and what agents may not write |
   | `0011-workflow-is-the-team.md` | Why there is no `Team` entity, and the reproducibility that buys |
   | `0012-session-run-turn.md` | The session/run split, and why the session is what survives a reset |
-  | `0013-one-editor-two-zoom-levels.md` | Why no second editor for the full module, and that DAP arrives as a client regardless |
+  | `0013-one-editor-two-zoom-levels.md` | Why no second editor for the full module, and why the missing debug UI stopped being a cost once debugging became an agent capability |
   | `0014-planning-is-three-agents.md` | Interviewer, researcher, auditor; the goal as an input; why nothing reaches the board without one approval |
   | `0015-fixed-board-columns.md` | Six columns for every project, `blocked` as a status, and the two gating rules — why configurability was refused |
   | `0016-declared-permissions-no-prompts.md` | The human is never prompted; the allowlist is the privilege set; workflow nodes narrow and never widen |
   | `0017-materializers-declare-then-generate.md` | Why the harness contract has a code half; the four generic strategies; why the fifth returns files instead of writing them |
+  | `0018-harness-in-the-image.md` | The harness binary is baked, not host-installed; the two-layer image and its cache key; why config is never a layer |
+  | `0019-artifacts-two-representations.md` | Stored for the human, derived for the model; OCR before pixels; why the original is never overwritten |
+  | `0020-debug-and-browser-for-agents.md` | Why the debug session is core-held and the CLI stateless; logpoints over breakpoints; one browser container, one context per run; why the browser has no egress |
 
 - `docs/frontend-constraints.md` — Channels vs events, one webview per window, keyboard capture
-- `harnesses/*` — all eleven, every one of the eight extensions declared with its `via` strategy.
-  **Seven are complete**: `claude`, `codex`, `copilot`, `pi`, `omp`, `dsh`, `opencode`. **Five remain**:
-  `aider`, `antigravity`, `cursor`, `gemini`, `hermes` — each declares one or two extensions today, and
-  `hermes` is the one with no `local-dx` entry to source from, so its layout comes from its own docs or
-  ships marked UNVERIFIED the way `dsh` does
+- `harnesses/*` — **all eleven written**, every one of the eight extensions declared with a `via`
+  strategy and every downgrade carrying `weaker_than_native`. Two are UNVERIFIED against a running
+  binary — `dsh` and `hermes`, neither installed here and neither present in `local-dx` — and say so
+  in the file. What remains is confirming each against its harness, which is Spike 1's other half
 - Fill in the stub `AGENTS.md` at the repo root
-- **Spike 1** `spikes/01-sandboxed-harness/` — does a harness run in a container, authenticated
-  without holding a long-lived secret, against its own clone, emitting a parseable event
-  stream? This is the highest-risk unknown in the whole design: if harness auth cannot be injected
+- **Spike 1** `spikes/01-sandboxed-harness/` — does a harness run in a container built from
+  `locus/base-<harness>`, authenticated without holding a long-lived secret, against its own clone,
+  emitting a parseable event stream? This is the highest-risk unknown in the whole design: if harness auth cannot be injected
   without baking a secret into an image, the sandbox model changes.
 - **Spike 2** `spikes/02-editor-embed/` — CodeMirror 6 + `@codemirror/lsp-client` against a real
   `rust-analyzer` inside a Tauri window, plus a `MergeView` over a real git diff.
@@ -1542,8 +1756,11 @@ consistent; `locus harness lint` passes for all eleven.
 
 Daemon, store, registry, containers, terminals.
 
-- `locus-postgres` lifecycle, migrations (`sqlx`), and **backup/restore**, since memory and mail will
-  live here and cannot be rebuilt
+- `locus-postgres` lifecycle, migrations (`sqlx`), and **backup/restore**: `locus backup` dumps the
+  eight schemas and the artifact blob tree together, nightly and before every migration, retaining
+  seven dailies and four weeklies. `locus restore --drill` restores into a scratch database and
+  asserts row counts against the source — because a backup nobody has restored is a belief, not a
+  backup, and this is the one piece the deferral table calls non-deferrable
 - **ACP client** on the `agent-client-protocol` crate — for the planning/chat module
 - Harness registry and TOML schema validation, refusing any entry that leaves an extension undeclared
 - **Materializers**: the four generic strategies (`dir`, `merged-into`, `listed-in`, `entries-in`), plus
@@ -1555,12 +1772,17 @@ Daemon, store, registry, containers, terminals.
 - Container supervisor (`bollard`), image build, mount and credential injection
 - **Session and run model**: sessions persist across runs, runs bounded by the container
 - **Artifacts**: plan, diff, and walkthrough kinds, attached to sessions, with comment threads that
-  route feedback back into the session. Media kinds arrive with the browser at M3.5
+  route feedback back into the session. Text in Postgres and the blob tree under
+  `/var/lib/locus/artifacts/` from the first artifact, so backup covers it from day one. Media kinds
+  and the derived-representation cache arrive with the browser at M3.5
 - Run supervisor: spawn → stream → normalize → persist → cancel
 - Credential broker and egress policy, whichever shape Spike 1 settles on
 - Tauri + SolidJS shell: JS-side pane manager over **one webview per window**, terminals (xterm.js)
   with one session each, minimize-to-tile
 - All streaming over `tauri::ipc::Channel`, coalesced per pane on a frame tick, from the first commit
+- **CI for Locus itself** — `cargo test`, `cargo clippy`, the harness lint, and the materialization
+  smoke test on every push. Cheap now, and the smoke test is the only thing standing between a harness
+  release and a silent non-load
 
 `verify:` two agents from different harnesses run concurrently in their own terminals and containers
 against the same repo; their events are indistinguishable downstream; every event lands in Postgres;
@@ -1576,7 +1798,8 @@ Option-as-Meta, Cmd chords reaching the app rather than the menu bar, and IME co
 - LSP supervisor and multiplexing, host-side, serving the editor panes
 - **`locus lsp` for agents** — the same Rust client, but running in the agent's container against that
   run's clone. Lands here because it shares the client with the editor's
-- `MergeView` diff review over an agent's pushed branch
+- `MergeView` diff review over an agent's pushed branch, opened in an ordinary clone — your own
+  checkout for a linked repo, Locus's working clone for a managed one
 - Search across the project
 - Exercise the editor on **all three webviews** — WKWebView, WebView2, WebKitGTK. This is Tauri's
   real tax and the only place it lands hard
@@ -1613,15 +1836,23 @@ report a structured conflict.
 Small, and it belongs before the canvas because a workflow that cannot verify a UI or inspect a stack
 is a workflow that escalates to you constantly.
 
-- **DAP client in Rust** → `locus debug`. Adapters run in the agent's container
+- **DAP client in Rust** → `locus debug`. Adapters run in the agent's container, sessions are held by
+  the core and keyed by run, logpoints are the default path, and a paused program suppresses the idle
+  guardrail
 - **Browser container per project** → `locus browse`. Playwright driving Chromium on the project
-  network, reaching the agent's app on `$LOCUS_PORT`
+  network, reaching the agent's app on `$LOCUS_PORT`, **one browser context per run** so concurrent
+  agents cannot see each other's pages, cookies, or storage. No egress unless a project grants it.
+  `assert` exits non-zero with structured JSON so `Verify` can gate on it
 - **Image and recording artifacts** from `locus browse`, attached to the session and the board card,
-  so a UI change is reviewable without checking out the branch
+  so a UI change is reviewable without checking out the branch — stored once for you, derived on
+  demand for a model, OCR before pixels
 
 `verify:` an agent sets a breakpoint, inspects a variable, and fixes a bug it could not have found
-from print statements; a second agent changes a page, records the flow, and the recording appears as a
-commentable artifact — and a comment left on it reaches the agent.
+from print statements — and sitting at that breakpoint for five minutes trips no idle guardrail. Two
+agents drive the shared browser at once without seeing each other's cookies or pages. A second agent
+changes a page, records the flow, and the recording appears as a commentable artifact — and a comment
+left on it reaches the agent. `locus browse assert` fails a workflow's `Verify` node on a real
+regression and passes on a real fix.
 
 ### M4 — Workflow Canvas
 
@@ -1669,7 +1900,9 @@ rather than two quietly conflicting pages.
 ### M6 — Automation and discoverability
 
 - Schedules: cron → workflow, with executions recorded against their verify result
-- Dashboard: runs, spend, verify pass rate, guardrail trips, board throughput, agent trust
+- Dashboard: runs, spend, verify pass rate, guardrail trips, board throughput, and **agent trust** —
+  that agent's verify pass rate over its last 20 runs, discounted by guardrail trips and by artifacts
+  a human rejected. Every term is already a row, so it is a query rather than new instrumentation
 - Discoverability: command palette, global search across code, wiki, tasks, and run history
 
 `verify:` a scheduled workflow runs unattended overnight and reports green from its verify command;

@@ -29,4 +29,14 @@ inject_session = "SessionStart"    # catalog goes here
 inject_turn    = "BeforeAgent"     # appended; research task_class only
 
 [layout]
-context = { file = "/locus/config/GEMINI.md" }
+# Full native hook set with two injection points, so the catalog lands through
+# SessionStart rather than through the context file. Extensions themselves have
+# no native directories beyond context — UNVERIFIED against a current release.
+agents        = { via = "merged-into", target = "context", strip_frontmatter = true, weaker_than_native = "no agent directory; nested work goes through `locus agent invoke`" }
+commands      = { via = "dir", dir = "/locus/config/commands", format = "markdown+frontmatter" }
+hooks         = { via = "entries-in", dir = "/locus/config/hooks", format = "shell", target = "/locus/config/settings.json", key = "hooks" }
+linters       = { via = "dir", dir = "/locus/config/linters", format = "shell+markdown" }
+output-styles = { via = "merged-into", target = "context", strip_frontmatter = true, weaker_than_native = "appended to context; a native style REPLACES the prompt's communication section" }
+rules         = { via = "merged-into", target = "context", strip_frontmatter = true, weaker_than_native = "always-on; no path scoping exists" }
+skills        = { via = "dir", dir = "/locus/config/skills", format = "markdown+frontmatter" }
+context       = { via = "file", file = "/locus/config/GEMINI.md" }

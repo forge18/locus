@@ -24,10 +24,10 @@ emits     = ["tool_call", "tool_result", "tool_error"]
 [layout]
 agents        = { via = "dir", dir = "/locus/config/agents", format = "markdown+frontmatter" }
 commands      = { via = "dir", dir = "/locus/config/command", format = "markdown+frontmatter" }
-hooks         = { via = "plugin", emits = "/locus/config/plugin/locus-hooks.ts" }
+hooks         = { via = "plugin", emits = "/locus/config/plugin/locus-hooks.ts", weaker_than_native = "tool lifecycle only; session-level events are core-driven from the container boundary" }
 linters       = { via = "dir", dir = "/locus/config/linters", format = "shell+markdown" }
-output-styles = { via = "listed-in", dir = "/locus/config/output-styles", target = "/locus/config/opencode.json", key = "instructions", active = "brief-bright-gone" }
-rules         = { via = "listed-in", dir = "/locus/config/rules", target = "/locus/config/opencode.json", key = "instructions" }
+output-styles = { via = "listed-in", dir = "/locus/config/output-styles", target = "/locus/config/opencode.json", key = "instructions", active = "brief-bright-gone", weaker_than_native = "listed as an instruction; a native style REPLACES the prompt's communication section" }
+rules         = { via = "listed-in", dir = "/locus/config/rules", target = "/locus/config/opencode.json", key = "instructions", weaker_than_native = "everything in instructions loads every turn; path scoping is lost" }
 skills        = { via = "dir", dir = "/locus/config/skills", format = "markdown+frontmatter" }
 context       = { via = "file", file = "/locus/config/AGENTS.md" }
 

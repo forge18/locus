@@ -14,7 +14,14 @@ source = "session-log"
 log = ".aider.chat.history.md"
 
 [layout]
-# Injection is entirely file-based: --read loads a conventions file read-only,
-# which is where the memory catalog goes.
-context = { file = "/locus/config/CONVENTIONS.md", flag = "--read" }
-config  = ".aider.conf.yml"
+# The weakest of the set: no agents, no commands, no skills, no hooks, no styles.
+# Everything Locus authors reaches aider through one read-only context file.
+agents        = { via = "merged-into", target = "context", strip_frontmatter = true, weaker_than_native = "no subagent mechanism; nested work goes through `locus agent invoke` instead" }
+commands      = { via = "merged-into", target = "context", strip_frontmatter = true, weaker_than_native = "always-on; not invocable" }
+hooks         = { via = "core-driven", weaker_than_native = "no hook mechanism; Locus fires them at the container boundary only" }
+linters       = { via = "dir", dir = "/locus/config/linters", format = "shell+markdown" }
+output-styles = { via = "merged-into", target = "context", strip_frontmatter = true, weaker_than_native = "appended to context; a native style REPLACES the prompt's communication section" }
+rules         = { via = "merged-into", target = "context", strip_frontmatter = true, weaker_than_native = "always-on; no path scoping exists" }
+skills        = { via = "merged-into", target = "context", strip_frontmatter = true, weaker_than_native = "not model-invocable; the catalog is inlined, so skills cost tokens whether used or not" }
+context       = { via = "file", file = "/locus/config/CONVENTIONS.md", flag = "--read" }
+config        = ".aider.conf.yml"

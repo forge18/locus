@@ -26,11 +26,11 @@ env = ["GH_TOKEN", "GITHUB_TOKEN"]
 
 [layout]
 agents        = { via = "dir", dir = "/locus/config/agents", format = "markdown+frontmatter", suffix = ".agent.md" }
-commands      = { via = "dir", dir = "/locus/config/instructions", format = "markdown+frontmatter", suffix = ".instructions.md" }
+commands      = { via = "dir", dir = "/locus/config/instructions", format = "markdown+frontmatter", suffix = ".instructions.md", weaker_than_native = "an instruction is always-on context, so every command costs tokens whether invoked or not" }
 hooks         = { via = "entries-in", dir = "/locus/config/hooks", format = "shell", target = "/locus/config/hooks/locus.json" }
 linters       = { via = "dir", dir = "/locus/config/linters", format = "shell+markdown" }
-output-styles = { via = "merged-into", target = "context", strip_frontmatter = true }
-rules         = { via = "merged-into", target = "context", strip_frontmatter = true }
+output-styles = { via = "merged-into", target = "context", strip_frontmatter = true, weaker_than_native = "appended to context; a native style REPLACES the prompt's communication section" }
+rules         = { via = "merged-into", target = "context", strip_frontmatter = true, weaker_than_native = "always-on; no path scoping exists" }
 skills        = { via = "dir", dir = "/locus/config/skills", format = "markdown+frontmatter" }
 context       = { via = "file", file = "/locus/config/AGENTS.md" }
 
