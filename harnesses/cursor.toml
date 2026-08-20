@@ -1,0 +1,26 @@
+# Cursor CLI — capture over ACP, not hooks. The CLI's hook coverage is partial;
+# its ACP implementation is complete.
+name   = "cursor"
+binary = "agent"
+detect = ["--version"]
+
+[launch]
+argv = ["--mode", "agent"]         # modes: agent | plan | ask
+tui  = false
+
+[telemetry]
+source = "acp"
+# `agent acp` speaks JSON-RPC 2.0 over stdio, newline-delimited.
+#   initialize -> authenticate(cursor_login) -> session/new | session/load
+#   -> session/prompt -> session/update* -> session/request_permission
+# Alternative for one-shot work: --print --output-format stream-json.
+# The json envelope carries session_id, duration_ms, duration_api_ms, result.
+
+[auth]
+# Pre-authenticate before the container starts; never bake the key into an image.
+env      = ["CURSOR_API_KEY", "CURSOR_AUTH_TOKEN"]
+pre_auth = "agent login --api-key"
+
+[layout]
+rules   = { dir = "/locus/config/rules", format = "markdown+frontmatter" }
+context = { file = "/locus/config/AGENTS.md" }

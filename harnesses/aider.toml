@@ -1,0 +1,20 @@
+# Aider — the weakest of the set. No hook system at all.
+name   = "aider"
+binary = "aider"
+detect = ["--version"]
+
+[launch]
+argv = ["--message-file", "-", "--yes-always"]
+tui  = false
+
+[telemetry]
+source = "session-log"
+# Aider keeps a markdown chat history in the repo. Parsing it is the only
+# capture path, and it is the least structured of any harness here.
+log = ".aider.chat.history.md"
+
+[layout]
+# Injection is entirely file-based: --read loads a conventions file read-only,
+# which is where the memory catalog goes.
+context = { file = "/locus/config/CONVENTIONS.md", flag = "--read" }
+config  = ".aider.conf.yml"

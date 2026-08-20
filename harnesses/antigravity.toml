@@ -1,0 +1,31 @@
+# Antigravity (agy) — capture via stream-json; hooks are tool-scoped only.
+name   = "antigravity"
+binary = "agy"
+detect = ["--version"]
+
+[launch]
+argv = []
+tui  = false
+
+[telemetry]
+source = "stream-json"
+argv   = ["-p", "{prompt}", "--output-format", "stream-json"]
+# stdout is the event stream; stderr carries diagnostics, auth prompts, progress.
+# The `json` envelope reports usage.{input,output,thinking,cache_read,total}_tokens
+# — cache_read_tokens is how injection stability gets measured rather than assumed.
+
+[hooks]
+config = ".agents/hooks.json"      # or ~/.gemini/config/hooks.json
+events = ["PreToolUse", "PostToolUse", "Stop"]
+# Observation and gating only. Stop handlers may set decision="continue"
+# to re-enter the loop.
+
+[auth]
+# Headless uses cached credentials; an unauthenticated non-TTY run exits with
+# `authentication required` rather than hanging. Authenticate once interactively.
+pre_auth = "agy"
+
+[layout]
+# Antigravity reads .agents/ — the same directory local-dx treats as human-owned.
+skills  = { dir = "/locus/config/skills", format = "markdown+frontmatter" }
+context = { file = "/locus/config/AGENTS.md" }

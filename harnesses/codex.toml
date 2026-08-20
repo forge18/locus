@@ -1,0 +1,43 @@
+# Codex — native skills and hooks, but rules, agents and output-styles all need
+# conversion. Agents are TOML here, not markdown; the materializer converts.
+name   = "codex"
+binary = "codex"
+detect = ["--version"]
+
+[launch]
+argv = ["exec", "--skip-git-repo-check"]
+tui  = false                        # `codex` alone opens a TUI; `codex exec` does not
+
+[config]
+home_env = "CODEX_HOME"
+home     = "/locus/config"
+
+[telemetry]
+source = "hooks"
+# [[hooks.<Event>]] entries in config.toml. Events: PreToolUse, PermissionRequest,
+# PostToolUse, PreCompact, PostCompact, SessionStart, SessionEnd,
+# UserPromptSubmit, SubagentStart, SubagentStop, Stop.
+log_dir = "/locus/config/sessions"
+format  = "codex-rollout-jsonl"
+emits   = ["session_start", "user", "assistant", "tool_call", "tool_result",
+           "tool_error", "permission_request", "subagent_start",
+           "subagent_stop", "session_end"]
+# no `thinking` — Codex does not surface reasoning through hooks
+
+[auth]
+env = ["OPENAI_API_KEY"]
+
+[layout]
+agents        = { via = "entries-in", dir = "/locus/config/agents", target = "/locus/config/agents", format = "toml", keys = ["name", "description", "developer_instructions"] }
+commands      = { via = "dir", dir = "/locus/config/prompts", format = "markdown+frontmatter", flat = true }
+hooks         = { via = "entries-in", dir = "/locus/config/hooks", format = "shell", target = "/locus/config/config.toml", key = "hooks" }
+linters       = { via = "dir", dir = "/locus/config/linters", format = "shell+markdown" }
+output-styles = { via = "merged-into", target = "context", strip_frontmatter = true }
+rules         = { via = "merged-into", target = "context", strip_frontmatter = true }
+skills        = { via = "dir", dir = "/locus/config/skills", format = "markdown+frontmatter" }
+context       = { via = "file", file = "/locus/config/AGENTS.override.md" }
+
+# AGENTS.override.md is read BEFORE AGENTS.md and is the personal file — which
+# makes it both the context file and the sink for rules and the output style.
+# Agents are TOML here, one file each, not the markdown every other harness reads.
+# Commands are FLAT ONLY: subdirectories and non-.md files are ignored.

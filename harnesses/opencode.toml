@@ -1,0 +1,36 @@
+# opencode — the weakest telemetry of the hook-capable set: its hook points are
+# tool lifecycle ONLY, so a run produces no session-level events at all.
+name   = "opencode"
+binary = "opencode"
+detect = ["--version"]
+
+[launch]
+argv = ["run"]
+tui  = false                        # bare `opencode` is a TUI; `run` is not
+
+[config]
+home = "/locus/config"              # global config is <XDG>/opencode, NOT ~/.opencode
+
+[telemetry]
+source = "hooks"
+# Registered in plugin code via ctx.tool.hook(point, cb). Points are
+# execute.before and execute.after — nothing else exists to fire on.
+generated = "/locus/config/plugin/locus-hooks.ts"
+format    = "opencode-plugin-json"
+emits     = ["tool_call", "tool_result", "tool_error"]
+# Session bounds come from the run supervisor instead: the container's start and
+# exit ARE session_start and session_end for this harness.
+
+[layout]
+agents        = { via = "dir", dir = "/locus/config/agents", format = "markdown+frontmatter" }
+commands      = { via = "dir", dir = "/locus/config/command", format = "markdown+frontmatter" }
+hooks         = { via = "plugin", emits = "/locus/config/plugin/locus-hooks.ts" }
+linters       = { via = "dir", dir = "/locus/config/linters", format = "shell+markdown" }
+output-styles = { via = "listed-in", dir = "/locus/config/output-styles", target = "/locus/config/opencode.json", key = "instructions", active = "brief-bright-gone" }
+rules         = { via = "listed-in", dir = "/locus/config/rules", target = "/locus/config/opencode.json", key = "instructions" }
+skills        = { via = "dir", dir = "/locus/config/skills", format = "markdown+frontmatter" }
+context       = { via = "file", file = "/locus/config/AGENTS.md" }
+
+# `command` is SINGULAR — the one difference here that fails silently: the
+# directory exists, the files are there, and nothing loads them.
+# Rules cannot be path-scoped: everything in `instructions` loads every turn.

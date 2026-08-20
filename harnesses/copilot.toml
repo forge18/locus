@@ -1,0 +1,39 @@
+# GitHub Copilot CLI — every extension needs a REQUIRED filename suffix, and a
+# plain .md is silently ignored. That is this harness's one failure mode.
+name   = "copilot"
+binary = "copilot"
+detect = ["--version"]
+
+[launch]
+argv = ["--allow-all-tools"]
+tui  = false
+
+[config]
+home_env = "COPILOT_HOME"
+home     = "/locus/config"
+
+[telemetry]
+source = "hooks"
+# User-level hooks are JSON files in <home>/hooks/. Events are camelCase:
+# sessionStart, sessionEnd, userPromptSubmitted, preToolUse, postToolUse,
+# agentStop, subagentStop, errorOccurred. No PostCompact equivalent.
+format = "copilot-hooks-json"
+emits  = ["session_start", "user", "assistant", "tool_call", "tool_result",
+          "tool_error", "subagent_stop", "aborted", "session_end"]
+
+[auth]
+env = ["GH_TOKEN", "GITHUB_TOKEN"]
+
+[layout]
+agents        = { via = "dir", dir = "/locus/config/agents", format = "markdown+frontmatter", suffix = ".agent.md" }
+commands      = { via = "dir", dir = "/locus/config/instructions", format = "markdown+frontmatter", suffix = ".instructions.md" }
+hooks         = { via = "entries-in", dir = "/locus/config/hooks", format = "shell", target = "/locus/config/hooks/locus.json" }
+linters       = { via = "dir", dir = "/locus/config/linters", format = "shell+markdown" }
+output-styles = { via = "merged-into", target = "context", strip_frontmatter = true }
+rules         = { via = "merged-into", target = "context", strip_frontmatter = true }
+skills        = { via = "dir", dir = "/locus/config/skills", format = "markdown+frontmatter" }
+context       = { via = "file", file = "/locus/config/AGENTS.md" }
+
+# `suffix` is REQUIRED, not cosmetic: <name>.md in either directory loads nothing.
+# Commands are weaker here than elsewhere — an instruction is always-on context,
+# so every one of them costs tokens whether invoked or not.

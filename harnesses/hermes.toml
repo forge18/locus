@@ -1,0 +1,34 @@
+# Hermes Agent (Nous Research) — hooks exist, but as in-process Python plugins
+# rather than shell commands. Needs a generated plugin, the way pi and omp do.
+name   = "hermes"
+binary = "hermes"
+detect = ["--version"]
+
+[launch]
+argv = ["chat", "--query-file", "-"]   # prompt on stdin; nothing shell-interpreted
+tui  = false
+
+[telemetry]
+source = "hooks"
+
+[hooks]
+# Not shell scripts. A Hermes plugin is a directory with plugin.yaml plus a
+# Python module exposing register(ctx), which registers tools and hooks.
+# So this needs a GENERATED plugin, exactly as local-dx generates TypeScript
+# extensions for pi and omp.
+generated = "~/.hermes/plugins/locus/plugin.yaml"
+enable_in = "~/.hermes/config.yaml"  # plugins.enabled must list the name
+
+                                     # discovery alone loads nothing.
+
+[layout]
+skills = { dir = "/locus/config/skills", format = "markdown+frontmatter" }
+
+[memory]
+# Hermes is the one harness with its own bounded memory: ~/.hermes/memories/
+# MEMORY.md (2,200 chars) and USER.md (1,375), injected as a frozen snapshot.
+# Locus does NOT write these. Hermes explicitly forbids two processes sharing a
+# memory home, and its docs point shared memory at an external provider —
+# which is the role Locus occupies. Its core tier stays its own.
+native      = "~/.hermes/memories/"
+locus_owns  = false

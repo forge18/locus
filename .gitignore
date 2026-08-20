@@ -13,3 +13,10 @@
 .pi/
 AGENTS.md
 CLAUDE.md
+
+# rust
+/target/
+
+# node
+node_modules/
+apps/desktop/dist/

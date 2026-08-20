@@ -71,11 +71,13 @@ the strongest available argument that skipping VSCodium costs less than it would
 | --- | --- |
 | Editor | CodeMirror 6, used directly — no abstraction seam. **One editor at two zoom levels**: a side pane beside an agent, and a full-window module. No second editor, no VSCodium. |
 | Debug | A **DAP client in Rust**, because agents need to debug. Not VS Code's debug UI. |
-| Harness I/O | **ACP first, adapter fallback.** Locus is an Agent Client Protocol client; harnesses that do not speak ACP get a hand-written TOML adapter. Structured output is required either way — no PTY for agents, ever. |
+| Harness I/O | **Agents run in real terminals, one session per terminal.** Parallel sessions get more terminal instances. **ACP is for the planning/chat module**, which is a conversation rather than a terminal. |
 | `local-dx` relationship | Inspiration, not dependency. Locus owns its own registry and schema. |
 | Sandbox | One container per agent run. The workspace is a **clone from a local bare remote**, not a mount. Credential handling must be easy and secure; the mechanism is Spike 1's to settle. |
+| Projects | A Locus project holds **one or more repos** and owns the board, wiki, and memory across all of them. **Unrelated to GitHub Projects** — the name collision is unfortunate and means nothing. |
+| Git invariant | **Locus never works in `main`/`master`. It always branches.** Reaching `main` is a human action through a PR. |
 | Kanban + wiki store | Both in Postgres, including wiki revisions. |
-| GitHub | Version control, CI/CD, and PRs only. Never Issues or Projects. |
+| GitHub | Version control, CI/CD, PRs, **and Issues as an input to the Locus board**. Never GitHub Projects. |
 | Marketplace | Git-backed manifest index of CLIs. No MCP servers, ever. |
 | Chat | A designated harness session, not a provider API layer. Locus holds no model API keys. |
 | Shared services | **Memory, communication, and every other cross-cutting agent capability are implemented in Rust, in `locus-core`, once. Every harness uses that one implementation.** No per-harness variants, no shell-script services, no external daemons. |
@@ -83,19 +85,43 @@ the strongest available argument that skipping VSCodium costs less than it would
 | Workflows | **A visual canvas** (`solid-flow`). A workflow is a **loop toward a goal**; the **goal is the approval gate**; guardrails bound it; `verify` is required and the token budget is optional. |
 | Teams | **The workflow is the team.** Its agent nodes are the roster, each node carries a role, and the edges are the dependencies. No separate `Team` entity. |
 | Review surface | **Artifacts**, not transcripts. Plans, diffs, diagrams, screenshots, recordings, and a walkthrough on completion — all commentable, and a comment steers the agent that made it. |
+| Harness contract | **Declaration plus materialization.** A TOML file says where each of the eight extensions goes; a **materializer** puts it there. Four strategies are generic and parameterized by that TOML; the fifth is a plugin, for the harnesses whose config is code. A harness needing code is a directory, one that does not is a file. |
+| Plugins | **One manifest + one executable speaking JSON-RPC 2.0 over stdio**, in any language. Core services stay internal and are never plugins. **Data-driven: a plugin declares and returns data; the first-party UI knows how to render it.** No third-party UI code, ever. |
+| Board | **Fixed columns across every project**, not configurable: Ready → In Progress → Testing → Reviewing → Waiting For Approval → Done. **`blocked` is a status, not a column.** Two gating rules only. |
+| Planning | **Three agents** — interviewer, researcher, auditor — over ACP. Goal is an input, not an output. Nothing reaches the board until one approval at the end. |
+| Testing Locus | **Event-based.** Every run normalizes into `memory.event`, so a test is "run this, assert these events appeared" — identical across all eleven harnesses, no test-only instrumentation. |
+| Permissions | **You are never prompted.** A run that stops to ask has nobody watching it. What an agent may do is *declared* — the tool allowlist on the agent definition, narrowed per role by the workflow's `Agent` node — and enforced by the container, not by the harness's own gate. |
 | UI components | **Kobalte** headless primitives + **shadcn-solid** components copied into the repo + **Tailwind**. Headless, because an IDE's chrome is small and its large surfaces are all bespoke or bring their own DOM. |
+
+### Deliberately deferred
+
+Recorded so they are not rediscovered as gaps. Each was considered and set aside, not overlooked.
+
+| Deferred | Why, and when it returns |
+| --- | --- |
+| **Packaging, signing, auto-update** | Single-user local tool that does not exist yet. Returns at a second machine or a second person. The one non-deferrable piece — migrations before there is data worth losing — is already M1's backup/restore. |
+| **Failure and degraded-mode handling** | Docker not running, Postgres down, a registered harness not installed. Application-level exception handling, not architecture. |
+| **Detailed table definitions** | The eight schemas are named; only `memory` and `board` are specified in full. The rest get written properly when their migration does, and writing them twice is waste. |
+| **UI and navigation** | The surfaces are decided — terminals, board, canvas, editor, inbox, wiki. How they are laid out and moved between is not. |
+| **The question-topic checklist** | Whether planning's topic list is hand-written once or derived per project. |
+| **The "I don't know what I want yet" entry point** | Planning requires a goal up front, so something has to turn a vague idea into one. Separate mode or separate module, undecided. |
+| **Where the marketplace index is hosted** | The manifest schema is settled and a local directory of them carries M4's resolver perfectly well. Hosting, pinning, and the trust model are M8's problem, with the installer that makes them matter. |
 
 ### One clarification carried into the design
 
-The request says both "multi-agent run through terminals, no TUI allowed" and "terminal for coding,
-multiple terminals in a UI". These are two different things, and the plan names them separately:
+**No TUI, because one session belongs to one terminal.** A TUI harness manages several sessions inside
+a single terminal, which hides them from Locus — it could not display, count, or own them
+individually. Banning TUIs preserves a 1:1 mapping between sessions and terminals. Want more sessions
+in parallel? More terminal instances.
 
-- **Agent Pane** — a typed event stream from one harness. No PTY, no terminal emulator, no TTY
-  allocated on the container. Minimizes to a tile showing status and current task. One agent, always.
-- **Shell Pane** — a real PTY into a container or the host, for the human. Ordinary terminal.
+- **Terminal** — a real PTY. **One session per terminal, always.** Some hold an agent so you can watch
+  it work; some are yours, for running things by hand. Same pane type either way. Minimizes to a tile
+  showing status and current task.
+- **Planning / chat module** — a conversation for spec work and questions, over **ACP**. Structured,
+  not a terminal.
 
-"No TUI" is therefore structural, not a convention: there is no code path that could render one in an
-Agent Pane.
+This is about observability, not rendering style. Locus spawns and owns every terminal, so every
+session is visible by construction.
 
 ---
 
@@ -107,10 +133,11 @@ Agent Pane.
 Tauri application  (locus)
 │
 ├── webview — SolidJS
-│     Agent Panes · Shell Panes · Editor · Board · Wiki · Chat · Dashboard
+│     Terminals · Editor · Board · Wiki · Planning chat · Dashboard
 │                            │ typed IPC (tauri::ipc, serde)
 └── Rust core — locusd  (in-process; also runnable headless for cron/CI)
-      ├── harness registry     load harnesses/*.toml, select adapter by stream format
+      ├── harness registry     load harnesses/*, materialize config per run,
+      │                        select the telemetry adapter by source
       ├── run supervisor       spawn, stream, normalize, persist, cancel
       ├── container supervisor bollard → Docker Engine API
       ├── repo manager         local bare remote, per-run clones, branch merge-back
@@ -140,11 +167,17 @@ is the endpoint those interventions are converging toward, reached directly.
 | Container | Lifetime | Purpose |
 | --- | --- | --- |
 | `locus-postgres` | per machine | The store. `pgvector` + `tsvector` + window functions. |
-| `locus-agent-<run_id>` | per agent run | One harness, headless, no TTY. |
-| `locus-svc-<project>-<name>` | per project | Services the *project* needs — its own Postgres, Redis, etc., declared in `locus.toml`. |
+| `locus-agent-<run_id>` | per agent run | One harness process, one session. **No TUI**; a PTY is attached from the host. |
+| `locus-svc-<project>-<name>` | per project | Services the *project* needs — its own Postgres, Redis, etc., declared in the project's settings. |
 
 Network `locus-<project>` joins a project's agents and service containers. Agents reach each other and
 the project's services; they do not reach other projects.
+
+**"Headless" means no TUI, not no terminal.** The core runs the harness with a PTY attached from the
+host, so a terminal pane shows exactly what the process wrote. What `tui = false` asserts is that the
+harness does not multiplex several sessions inside that PTY. The **registry enforces it, not the
+harness**: a harness file claiming `tui = true` is refused at registration, which is why the field is
+required rather than defaulted.
 
 Mounts into an agent container:
 
@@ -153,10 +186,32 @@ Mounts into an agent container:
 | `/run/locus.sock` | rw | Host daemon socket |
 | `/locus/config` | ro | Harness config materialized for this run |
 
-Plus a `$LOCUS_PORT` unique to the run, and per-project setup/run/teardown scripts from `locus.toml`.
+Plus a `$LOCUS_PORT` unique to the run, and the project's setup/run/teardown scripts.
+
+**Project configuration lives in Locus, not in a repo.** Services, scripts, ports, and the default
+verify command are project settings in the `core` schema, edited in the app. **A repo is a resource
+the project holds** — Locus does not write a config file into one, because half of them are your own
+checkouts and the whole point of the git model is that Locus stays out of them.
 
 **The workspace is not mounted.** `/workspace` is a *clone* on the container's own filesystem — see
 the git model below. **No long-lived credential lives in the container** — see Credentials.
+
+### Adding a repo
+
+A project holds a list of repos, each added one of two ways:
+
+| Mode | Where the code lives | You work through |
+| --- | --- | --- |
+| **Linked** | `~/Repos/foo` stays yours; Locus syncs with it | your own checkout, and Locus |
+| **Managed** | cloned from GitHub, lives only inside Locus | Locus only |
+
+Board, wiki, and memory are **project-wide** and span every repo in the project. A session names the
+repo it is working in. That is what makes four repos that are one system — `tapestry`, `loom-db`,
+`weaver`, `texere` — share one memory instead of four that never learn from each other.
+
+**Locus never works in `main`/`master`.** Every agent run branches. The bare local remote holds `main`
+and nothing Locus does writes to it; reaching `main` is a human action through a PR. This is an
+invariant, not a default, and the merge-back path enforces it.
 
 ### The git model — a local remote, not shared worktrees
 
@@ -185,11 +240,9 @@ uses, for three reasons:
 
 Two consequences to be honest about:
 
-- **Overlap is detected at merge, not at claim.** With independent clones, two agents *can* both edit
-  the same file — the filesystem cannot stop them the way a shared worktree could. So the claims
-  registry becomes **advisory**: it prevents overlapping work from being *assigned*, and the board
-  refuses to hand two agents tasks over the same paths, but the hard failure surfaces as a merge
-  conflict. Tiered conflict handling matters more here, not less.
+- **Overlap surfaces at merge.** With independent clones, two agents *can* both edit the same file.
+  Each works on its own branch and merges when it is done, so this is the conflict every team already
+  has and resolves the same way — not a new problem the design has to invent machinery for.
 - **Clones cost disk and time.** Mitigated by cloning `--reference` against a shared object store on
   the host, so N agents on one repo do not mean N full copies.
 
@@ -237,17 +290,41 @@ services — but the boundary is a kernel boundary, not a hypervisor one.
 
 ### The one surface
 
-An agent definition, skill, rule, or command is authored **once**, in Locus. At run start the core
-reads `harnesses/<name>.toml` and writes those definitions into the paths and file formats that
-harness expects, into `/locus/config` for that run only.
+**Eight extension types, the same set for every harness.** An extension is authored **once**, in
+Locus. At run start the core reads `harnesses/<name>.toml` and writes it into the path and file
+format that harness expects, under `/locus/config`, for that run only.
+
+| Extension | Is | Consumed by |
+| --- | --- | --- |
+| `agents` | agent definitions — frontmatter over prose | the harness |
+| `commands` | invocable prompt templates, worth writing only when they take arguments | the harness |
+| `hooks` | shell scripts declaring their events, JSON in and out, exit 0 always | the harness |
+| `linters` | a check plus the rule saying why, per directory | **`locus lint`** — not the harness |
+| `output-styles` | how the agent writes; one is active per harness | the harness |
+| `rules` | path-scoped instructions, loaded when a matching file is touched | the harness |
+| `skills` | `SKILL.md` per directory, model-invocable | the harness |
+| `base-context` | the always-loaded instructions every session starts with | the harness |
+
+Two of the eight do not behave like the rest, and the registry has to say so per harness:
+
+- **`linters` are tool-facing, not harness-facing.** No harness reads them. The directory exists so
+  `locus lint` can find it, which means every harness supports linters trivially and identically.
+- **`output-styles` is the most divergent.** Some harnesses have a real mechanism; others have no
+  concept of it and the style has to be folded into `base-context` instead. Where that happens the
+  registry records it, because a style silently merged into context is a different thing from a style
+  the harness selects — and the entry should say which one you got.
+
+`base-context` is near-uniform in practice — `AGENTS.md` almost everywhere, with `CLAUDE.md` and
+`AGENTS.override.md` as the two exceptions — which is why it also serves as the **fallback injection
+path** for the four harnesses that cannot inject at session start.
 
 This inverts `local-dx`'s hardest problem. There is no propagation, no symlink graph, no `--prune`,
 no drift: the target filesystem is destroyed when the run ends.
 
 Three rules carried over verbatim from `local-dx`, because each earned its place:
 
-1. **Nothing in core names a harness.** Adding one is a TOML file, plus a stream-format module only
-   if its wire format is new.
+1. **Nothing in core names a harness.** Adding one is a TOML file, plus a materializer plugin and a
+   stream-format module only where that harness needs code — and neither is compiled into core.
 2. **Every entry is complete — nothing inherited.** A harness file states every path and format it
    uses, so it reads cold.
 3. **The database is derived where it can be.** Harness output, git, and the marketplace index are
@@ -265,7 +342,7 @@ CLI over `/run/locus.sock`.
 crates/locus-core/src/
   memory/      recall, write, embed, decay, scope   ← Rust, one implementation
   mail/        threads, delivery, wait, drain       ← Rust, one implementation
-  board/       tasks, transitions, claims
+  board/       tasks, transitions, dependencies
   wiki/        pages, revisions, search
   telemetry/   normalized events, aggregates
   tools/       marketplace resolution, allowlist
@@ -287,37 +364,66 @@ else.
 `amq` and `memsearch` are **inspiration only** — read for their verb sets and scoping model, never
 linked or shelled out to. Both would put the data back in files.
 
-### Harness contract — ACP first
+### ACP — the planning module only
 
-**Locus is an [Agent Client Protocol](https://agentclientprotocol.com) client.** ACP is JSON-RPC 2.0
-over stdio — LSP-for-agents — created by Zed in August 2025 and co-maintained with JetBrains. It is
-precisely the layer this design was otherwise going to hand-roll.
+**The planning/chat module is an [Agent Client Protocol](https://agentclientprotocol.com) client.**
+ACP is JSON-RPC 2.0 over stdio — LSP-for-agents — created by Zed in August 2025 and co-maintained with
+JetBrains. It fits a conversation: `session/new`, `session/prompt`, streamed updates, tool-call
+permission requests. That is exactly what spec work and questions need.
 
-- Rust crates `agent-client-protocol` and `agent-client-protocol-schema` are on crates.io and current
-  as of mid-2026, giving the wire model natively in the language the core is written in.
-- Agents already speaking it: **Claude Agent** (Zed's SDK adapter), **Codex CLI**, **Cline**,
-  **Cursor**, **Gemini CLI**, **Goose**, **Factory Droid**, Docker's **cagent**, **GitHub Copilot**
-  (public preview), and a growing roster.
-- Clients: Zed and JetBrains natively; Neovim and Emacs via community plugins.
+- Rust crates `agent-client-protocol` and `agent-client-protocol-schema` are on crates.io and current.
+- Agents speaking it: **Claude Agent**, **Codex CLI**, **Cline**, **Cursor**, **Gemini CLI**,
+  **Goose**, **Factory Droid**, Docker's **cagent**, **GitHub Copilot** (preview), and more.
 
-**This does not breach the no-MCP rule.** ACP *re-uses MCP types* — JSON type shapes, so integrators
-do not invent another representation of a tool call. That is a schema decision, not a server. ACP also
-lets a client offer MCP servers to an agent; Locus simply never does.
+**ACP is not how the agent fleet runs.** Those run in terminals, one session each. Two reasons the
+protocol does not fit there: `session/new` accepts only `cwd` and `mcpServers`, so **a client cannot
+inject a system prompt or any instructions** — prompt assembly belongs entirely to the harness; and a
+conversation abstraction hides the thing terminals exist to show, which is the agent working.
 
-Two paths, one vocabulary:
+`mcpServers` is passed empty. Always.
 
-| Path | When | Cost |
-| --- | --- | --- |
-| **ACP client** | The harness speaks ACP | None per harness — it just works |
-| **Native adapter** (`harnesses/<name>.toml` + a stream module) | It does not | Written and maintained by us |
+### Harness contract
 
-Both normalize into the same canonical event set below, so nothing downstream — telemetry, panes,
-canvas overlay — knows which path a run came through.
+A harness is described by one TOML file. ACP does not replace this — it standardises a conversation
+loop, and says nothing about where a harness reads its skills, rules, or context. That knowledge is
+per-harness whether the harness speaks ACP or not.
 
-Watch: ACP's remote-agent support is explicitly still in progress. Locus runs agents in local
-containers, so the stdio path is the one that matters, but do not build on the remote half yet.
+**Registered harnesses.** One entry each in `harnesses/` — a file where declaration is enough, a
+directory where the harness needs a materializer plugin. Every entry complete, nothing inherited:
 
-### Native adapter contract
+| Harness | Binary | Capture | Session injection reaches it by |
+| --- | --- | --- | --- |
+| claude | `claude` | hooks | its own `SessionStart` hook |
+| codex | `codex` | hooks | its own `SessionStart` hook |
+| copilot | `copilot` | hooks | its own `sessionStart` hook |
+| pi · omp | `pi` · `omp` | hooks, via a generated TS extension | the generated extension |
+| **gemini** | `gemini` | hooks | its own hook |
+| **hermes** | `hermes` | hooks, via a generated Python plugin | the generated plugin |
+| **cursor** | `agent` | **ACP** (`agent acp`) | `[layout].context` |
+| **antigravity** | `agy` | **stream-json** | `[layout].context` |
+| **aider** | `aider` | **session log** | `--read`, a context file |
+| dsh | `dsh` | hooks, via a Claude-Code bridge | `[layout].context` |
+| opencode | `opencode` | tool lifecycle only | `[layout].context` |
+
+`[telemetry].source` is a real switch rather than documentation: **hooks, ACP, a structured stream, or
+a session log**, whichever a harness actually does best. All four normalize into the one event
+vocabulary below, and nothing downstream knows which path a run arrived through.
+
+**Every harness has every capability. Only the mechanism differs.** This is `local-dx`'s rule and it
+carries over unchanged: where a harness has no native mechanism, a loader bridges it, and the harness
+file records *how* rather than *whether*. There is no capability matrix and no feature flag to branch
+on, because a flag would let a capability silently not arrive — the failure `local-dx` names as worst,
+a file present, plausible, and loaded by nobody.
+
+So the four that cannot inject at session start still get injection: it lands in `[layout].context`,
+which every harness reads. That fallback is why the layout table survives everything else. The same
+holds for the rest — an agent with no native subagent mechanism gets `locus agent invoke`, and resume
+is Locus's, not the harness's: a new run is primed from the event store whether or not the harness has
+a native session id to hand back.
+
+**The harness file declares mechanism, never policy.** No `[capabilities]` block, and **no model
+routing** — tier resolution is the app's, so changing which model `high` means is a setting rather
+than eleven file edits.
 
 ```toml
 # harnesses/claude.toml
@@ -325,60 +431,147 @@ name    = "claude"
 binary  = "claude"
 detect  = ["--version"]
 
-[invoke]
-argv    = ["-p", "{prompt}", "--output-format", "stream-json", "--verbose"]
-stream  = "anthropic-stream-json"     # selects the adapter module
-tty     = false                       # never true; the schema rejects true
+[launch]                              # how to start ONE session in ONE terminal
+argv    = ["--permission-mode", "bypassPermissions"]   # the harness's own gate is OFF:
+                                      # the container is the boundary, and there is
+                                      # nobody attached to answer a prompt.
+tui     = false                       # REQUIRED false. A TUI multiplexes sessions
+                                      # inside one terminal and hides them from Locus.
 
-[events]                              # native name → canonical vocabulary
-system            = "session_start"
-assistant         = "assistant"
-tool_use          = "tool_call"
-tool_result       = "tool_result"
-result            = "session_end"
+[telemetry]                           # where structured events come from
+source  = "hooks"                     # hooks | acp | stream-json | session-log
+log_dir = "~/.claude/projects"        # transcripts, for backfill
+format  = "claude-jsonl"
 
-[layout]                              # where THIS harness reads things, in-container
-agents        = { dir = "/locus/config/agents",  format = "markdown+frontmatter" }
-skills        = { dir = "/locus/config/skills",  format = "markdown+frontmatter" }
-rules         = { dir = "/locus/config/rules",   format = "markdown+frontmatter" }
-commands      = { dir = "/locus/config/commands", format = "markdown+frontmatter" }
-context       = { file = "/locus/config/AGENTS.md" }
+[layout]                              # all eight, and where THIS harness reads each
+agents        = { dir  = "/locus/config/agents",        format = "markdown+frontmatter" }
+commands      = { dir  = "/locus/config/commands",      format = "markdown+frontmatter" }
+hooks         = { dir  = "/locus/config/hooks",         format = "shell" }
+linters       = { dir  = "/locus/config/linters",       format = "shell+markdown" }
+output-styles = { dir  = "/locus/config/output-styles", format = "markdown+frontmatter", active = "brief-bright-gone" }
+rules         = { dir  = "/locus/config/rules",         format = "markdown+frontmatter" }
+skills        = { dir  = "/locus/config/skills",        format = "markdown+frontmatter" }
+context       = { file = "/locus/config/CLAUDE.md" }   # the `base-context` extension
 
-[capabilities]
-resume = true
-subagents = true
-tool_permissions = true
+# When a harness has no mechanism for an extension, say so rather than omitting it:
+#   output-styles = { merged-into = "context" }
 
-[model_routing]                       # null = tier absent; fall back UP, never down
-low = "haiku" ; medium = "sonnet" ; high = "opus" ; xhigh = "opus-max"
 ```
 
-**Canonical event vocabulary** — every adapter normalizes to exactly this set:
+No `[capabilities]`, no `[model_routing]`: what the harness *can* do is universal, and which model a
+tier resolves to is set in the app.
+
+**Telemetry does not come from scraping the terminal.** Terminal output is for you to read; parsing it
+would rot with every harness release. Structured events come from the harness's own session log on
+disk, from hooks it fires, or both — normalized into one vocabulary. `dx-telemetry` in `local-dx`
+already does exactly this across four harness dialects, and its normalization pass is the reference.
+
+### Materializers — the code half of the contract
+
+Declaring *where* an extension goes is not enough. A harness with no rules directory needs its rules
+turned into something it does read, and that is a transformation, not a path. `local-dx` needed a
+loader script per harness per extension for exactly this reason, and Locus needs the same work done —
+it just gets to do it into a scratch directory instead of into your home.
+
+**Materializing into a fresh tree removes most of the work, not all of it.** `local-dx` wrote into
+`~/.codex/AGENTS.override.md`, a file you also own, so every loader carried markers, idempotency, and
+a prune path. Locus builds the whole config tree per run and throws it away after, so it **generates
+whole files**. No markers, no merge, no prune, nothing to reconcile — the same inversion the design
+already claims for propagation, applied to the loaders.
+
+What survives is real: format conversion and code generation. Five strategies cover it, and only the
+last needs a plugin:
+
+| Strategy | Does | Used by |
+| --- | --- | --- |
+| `dir` | copy the extension's files as they are, optionally renaming | claude, pi, omp, opencode skills; copilot agents (`suffix = ".agent.md"`) |
+| `merged-into` | render the files into one target file as prose, frontmatter stripped | codex and copilot rules and output-styles; dsh commands |
+| `listed-in` | write the files' paths into a key of the harness's config | opencode rules and styles → `opencode.json:instructions` |
+| `entries-in` | convert each file into one structured entry in a config file | codex agents → TOML; dsh agents → `cordis.patch.yml`; claude hooks → `settings.json` |
+| `plugin` | **run an executable that returns the files to write** | pi and omp hooks and rules (TS extension); opencode hooks (plugin); hermes (Python plugin) |
+
+The first four are parameterized data — `format`, `suffix`, `flat`, `strip_frontmatter`, the target
+key — and live in `crates/locus-core/src/materialize/` as five generic implementations that name no
+harness.
+
+**The plugin contract, for the fifth.** Same shape as every other plugin here: one executable,
+JSON-RPC 2.0 over stdio, any language. It is called once per run with the extension set as JSON and
+**returns the files to write** — it never writes them itself:
+
+```
+→ materialize { harness, extension, root: "/locus/config", entries: [{name, frontmatter, body}] }
+← { files: [{ path, mode, content }] }
+```
+
+Core writes the returned files after checking every path resolves under `root`. Three things fall out
+of returning data rather than writing it: a materializer is a pure function and therefore testable
+without a container, a buggy one cannot escape the config tree, and the same JSON is the fixture for
+"did this harness get its rules" as an event-based test.
+
+**A harness that needs code is a directory; one that does not is a file.**
+
+```
+harnesses/
+  claude.toml            pure data — every extension is native
+  pi/
+    pi.toml
+    materialize          executable; generates the TS extension pi reads
+```
+
+**Canonical event vocabulary** — every source normalizes to exactly this set:
 
 ```
 session_start  user  assistant  thinking  tool_call  tool_result  tool_error
 permission_request  subagent_start  subagent_stop  aborted  session_end
 ```
 
-An adapter that cannot produce `session_start` and `session_end` is rejected at registry load, not at
-run time.
+Every event carries `run_id`, `seq`, `ts`, and a `raw` JSONB of the source record it was built from,
+so a normalization bug is repairable by replay rather than by re-running the agent.
 
-**Consequence:** a harness that speaks neither ACP nor a headless structured mode cannot be used at
-all — not degraded, not PTY-fallback, unsupported. This is the deliberate price of complete, uniform
-telemetry and of making "no TUI" structural. ACP shrinks the set this excludes considerably.
+**Token usage is an attribute, not a verb.** `assistant` and `session_end` carry
+`usage { input, output, cache_read, cache_write }` exactly as the harness reports it — the harness gets
+the number from the model API, and Locus never counts tokens itself. Where a harness reports nothing,
+`usage` is null and spend reads *unknown* rather than zero.
 
-**The SDK-only escape hatch.** If a harness ever ships only a TypeScript or Python SDK and no headless
-CLI, its adapter is a thin shim that drives that SDK and prints the canonical event stream — and the
-shim runs **inside that agent's container**, where a Node or Python runtime already belongs. The host
-application never gains a language runtime it did not have.
+**`permission_request` is a misconfiguration alarm.** Since every harness launches with its own gate
+off, one firing means a gate was left on and the run is about to hang. It stays in the vocabulary for
+exactly that reason — see Permissions below.
 
-This is why Tauri costs nothing here. The common argument for Electron is that an in-process Node
-runtime is free when the IDE drives agents through TypeScript SDKs. Locus drives agents through
-container lifecycles, process streams, Postgres, and git — all first-class in Rust, none better in
-Node — and the shared services are mandated Rust regardless, so Electron would mean Electron *plus* a
-Rust sidecar and an IPC boundary to own. **Tauri's real cost is webview inconsistency** (WKWebView /
-WebView2 / WebKitGTK) rather than runtime access; that is the thing to watch, and M2 should exercise
-CodeMirror on all three before the editor work is called done.
+**How each source normalizes.** `[telemetry].source` selects a module under
+`crates/locus-core/src/telemetry/`; nothing downstream knows which one ran:
+
+| Source | How it arrives | Mapped by |
+| --- | --- | --- |
+| `hooks` | `locus-hook` fires per harness hook event, JSON on stdin, appended to the run's buffer | hook event name → verb, one table per harness. The richest path: `tool_call` and `tool_result` arrive with name and arguments already separated |
+| `acp` | `session/update` notifications on the stream the ACP client already holds | `AgentMessageChunk` → `assistant`, `AgentThoughtChunk` → `thinking`, `ToolCall`/`ToolCallUpdate` → `tool_call`/`tool_result`/`tool_error` by its `status`, `RequestPermission` → `permission_request`. **One mapping for every ACP harness**, not one per harness |
+| `stream-json` | the harness's own newline-delimited JSON on stdout | the core **tees** stdout — the structured stream to the normalizer, the same bytes to the terminal. The TOML declares which key holds the record type and its value → verb table |
+| `session-log` | a file the harness writes; tailed while the run is live, re-read once at exit | a per-harness parser. Weakest path: ordering is file position, `thinking` is usually absent, and `usage` often appears only in the final record |
+
+**Teeing stdout is not terminal scraping.** The distinction is what the bytes *are*: `stream-json` is
+the harness's declared machine format, versioned as an interface. A TUI's paint output is its human
+rendering, which has no contract and rots on every release.
+
+Three rules keep the four paths interchangeable:
+
+- **Ordering is Locus's.** `seq` is assigned on arrival at the core, so a source with no ordering
+  guarantee still yields a totally ordered stream.
+- **A missing verb is recorded as missing, never synthesized.** A harness that cannot report `thinking`
+  produces no `thinking` events rather than empty ones. Each `harnesses/*.toml` declares the verb set
+  its source can emit, so an event-based test knows what to expect per harness — otherwise every
+  assertion would have to be written to the weakest path.
+- **`raw` is kept on every event.** Harness formats change between releases; replay against a fixed
+  parser is the repair, and it is the reason capture is separated from normalization at all.
+
+**What a harness must supply to be supported:** a launch command, a known config layout, and a
+telemetry source. A harness that only paints a TUI is unsupported — not because of its output format,
+but because it breaks the one-session-per-terminal mapping everything else depends on.
+
+**Why Tauri, restated for this model.** The usual argument for Electron is that an in-process Node
+runtime is free when the IDE drives agents through TypeScript SDKs. Locus drives agents as
+**subprocesses in terminals** — so no in-process language runtime is needed on either side of that
+choice, and the argument evaporates. What Locus does need is container lifecycle, PTY handling,
+Postgres, and git, all first-class in Rust. **Tauri's real cost is webview inconsistency**
+(WKWebView / WebView2 / WebKitGTK), and terminal keyboard fidelity on macOS.
 
 ### Data model — Postgres schemas
 
@@ -386,9 +579,9 @@ CodeMirror on all three before the editor work is called done.
 | --- | --- |
 | `core` | projects, repos (multi-repo per project), local remotes, settings |
 | `agents` | `agent_defs` (versioned; frontmatter JSONB + Markdown body), sessions, runs, parent/child run edges, normalized events, **artifacts and their comment threads** |
-| `board` | boards, columns, tasks, **dependency edges**, transitions, assignments, task↔run links, evidence links |
+| `board` | tasks (fixed columns, blocked as a status), **dependency edges**, transitions, assignments, task↔run links, evidence links, **linked GitHub issues** |
 | `wiki` | pages (**typed by kind**), revisions, links, contradictions, ingest log, embeddings (`pgvector`) |
-| `memory` | **core** (bounded, per-agent and per-project, always injected) and **store** (facts, scope, provenance, embeddings, confidence, decay) |
+| `memory` | **core** (bounded, per-agent and per-project, materialized per run) and **store** (facts, scope, provenance, embeddings, confidence, decay) |
 | `workflows` | `workflow_defs` (versioned; `graph` + `spec` JSONB), schedules, executions, iterations, guardrail trips, verify results |
 | `mail` | threads, messages, delivery state |
 | `market` | manifests, installs, per-image tool sets |
@@ -401,7 +594,7 @@ needs one definition, and this is it:
 ```
 Project
 └── Session          a durable, named thread of work with ONE agent
-    ├── Run          one container lifetime = one ACP session
+    ├── Run          one container lifetime = one terminal
     │    └── Turn    one prompt → one response
     ├── Run          (after a loop reset: new container, same session)
     └── Run
@@ -412,7 +605,7 @@ Project
 | Bounded by | you closing it | the container exiting |
 | Holds | agent@version, its branch on the local remote, the board task it serves, core-memory base, pane state | events, token usage, exit status, artifacts |
 | Resumable | yes — by starting another run | no; a run is over when it is over |
-| Maps to | the harness's own conversation id, where it has one | one ACP session instance |
+| Maps to | the harness's own conversation id, where it has one | one terminal, one harness process |
 | Cost | the sum of its runs | measured directly |
 
 **The session is what survives the reset.** That is the whole reason for the split. The Ralph-loop
@@ -423,10 +616,12 @@ session**, and memory, branch, and task linkage carry across because they belong
 
 Three consequences worth stating:
 
-- **A Locus session is not an ACP session.** An ACP session maps to a *run*. Where a harness supports
-  resume, the core stores its native session id on the run and hands it back on the next one.
-- **A Shell Pane is not a session.** It is a PTY attached to a container or the host. No agent, no
-  events, no cost attribution — deliberately a different thing.
+- **A Locus session is not the harness's session.** The harness's own session maps to a *run*, and
+  resume belongs to Locus rather than the harness: the next run is primed from the session's own
+  events. Where a harness has a native session id the core stores it on the run and hands it back,
+  which is an optimization, not the mechanism.
+- **A terminal you drive yourself is not a session.** Same pane type, but no agent, no events, no
+  cost attribution.
 - **Chat is a session**, with the designated spec agent. Nothing special about it.
 
 ### Artifacts — what you review instead of tool calls
@@ -450,7 +645,9 @@ summary of what changed — with the screenshots and recordings inline — so yo
 did not watch. That is the actual answer to "six agents ran overnight, now what."
 
 **Artifacts are commentable, and a comment steers.** You leave inline feedback on a plan, a diff, or a
-screenshot; the comment routes back into the session that produced it and the agent responds. It is
+screenshot; the comment routes back into the session that produced it and the agent responds — the
+run is still live while the task is unfinished, which is when comments actually arrive. A comment left
+after a session's last run has exited is delivered by starting the next one. It is
 the PR review interaction, applied to plans and images rather than only code — and it is the same
 mechanism as the agent-authored PR flow in M7, so it is one implementation, not two.
 
@@ -529,13 +726,13 @@ always fix a page — but the default path is that the wiki is *derived* and the
 from nothing.
 
 **Contradiction flags at ingest time, not query time.** This is the idea most worth stealing. When a
-new source contradicts an existing claim, the conflict is raised *when it lands* — as a row in
+new source contradicts an existing statement, the conflict is raised *when it lands* — as a row in
 `wiki.contradictions` and a card on the board — rather than discovered months later by whoever
 happened to read both pages. The same detection serves memory: a store-tier fact that conflicts with a
-wiki claim is the same problem.
+wiki statement is the same problem.
 
 **A wiki linter.** `locus wiki lint` reports orphan pages, broken links, entities mentioned but
-never given a page, and gaps where a claim has no source. This is the same discipline `dx-lint`
+never given a page, and assertions with no source. This is the same discipline `dx-lint`
 already applies to code, pointed at knowledge.
 
 **A graph view, nearly free.** Pages are nodes, `[[wikilinks]]` are edges. `solid-flow` is already in
@@ -543,98 +740,418 @@ the app for the Workflow Canvas, so rendering this costs a palette, not a subsys
 
 ### Knowledge, as one model
 
-Three layers, and it matters that they are distinct:
+Four kinds of knowledge, and three of them are **not** memory. This is the scoping decision that keeps
+the store small enough to be trustworthy:
 
-| Layer | Bounded? | Written by | Read by |
-| --- | --- | --- | --- |
-| **Core memory** | Yes — hard cap | The agent, under pressure to consolidate | Always in the prompt |
-| **Store memory** | No | Agents, provenance-tracked | `locus memory recall` |
-| **Wiki** | No | Ingest, then curated | `locus wiki search/read`, and humans |
-
-Core memory is what an agent *is*. Store memory is what it can *look up*. The wiki is what the
-*project* knows, in prose a human would want to read. Collapsing any two of them is how you get either
-a bloated prompt or a knowledge base nobody trusts.
-
-### Memory — two tiers, borrowed from Hermes
-
-Nous Research's Hermes Agent takes the opposite position to almost everyone else: memory is not
-retrieved, it is **bounded, curated, and always in the prompt**. `MEMORY.md` is capped at 2,200
-characters and `USER.md` at 1,375. Their argument is worth quoting because it is the correct one:
-
-> Context has no curation. It's a dump… Memory is curated. It's the distillation of experience into
-> something compact and actionable. It doesn't grow indefinitely — it consolidates, updates, and
-> forgets.
-
-Hermes also stacks *one optional external provider* beside those files for retrieval. **Locus is that
-external provider — for every harness at once.** So this is not a competing model, it is the other
-half of one, and Locus should implement both halves:
-
-| Tier | What | Mechanism |
+| Knowledge | Mechanism | Why not the memory store |
 | --- | --- | --- |
-| **Core** — always in the prompt | The agent's own bounded notes, plus a profile of the user and project | Hard character cap. **A write over the cap returns an error**; nothing is auto-compacted. The agent must consolidate or forget in the same turn before retrying |
-| **Store** — recalled on demand | Everything else: scoped, provenance-carrying, cross-agent, cross-harness | `locus memory recall`, hybrid retrieval, prefetch before a turn and sync after |
+| Code structure — signatures, call graphs, dependencies | `codanna`, queried live | AST-derived, always current, rebuildable, no LLM cost |
+| Subsystem specs — how a part works, and why | wiki, one page per subsystem | curated; consolidation cannot corrupt what a human wrote |
+| Project constitution — objectives, stack, conventions | small, always loaded, **human-written** | LLM-written context files measure ~3% worse at 20%+ more cost |
+| **Agent observations** — what failed, what was tried, preferences | **the memory store** | genuinely accumulated; nothing else can hold it |
 
-Four mechanisms taken directly from Hermes, each solving something the obvious design gets wrong:
+`codanna` is already installed and already does the code graph — `index`, `retrieve` over symbols and
+relationships, `parse` to AST JSONL, as a CLI. Embedding source text captures surface similarity and
+misses structure: knowing that `process_payment` calls `validate_card`, which depends on
+`CardProvider`, needs a graph, not a nearest neighbour.
 
-1. **Refuse, don't auto-compact.** Silent eviction lets memory rot invisibly. An error forces the
-   agent to decide what to forget, which is the only moment it has the context to decide well.
-2. **Freeze the core tier at run start.** Writes persist to Postgres immediately but do not change the
-   injected block mid-run — mutating the system prompt destroys the model's prefix cache. Tool
-   responses show live state, so the agent is never lied to.
-3. **No read tool for the core tier.** It is already in the prompt; a `recall` call against it would
-   be pure waste. Only the store tier answers queries.
-4. **Separate agent notes from user/project profile.** Different owners, different lifetimes, and
-   mixing them is how both get stale.
+Codified Context reached the same split empirically across 283 sessions, and states the reason
+plainly: single-file manifests **do not scale beyond modest codebases** — a 1,000-line prototype fits
+in one prompt, a 100,000-line system does not.
 
-Hermes ships one more warning that reads as a direct description of what Locus is building:
+### Memory
 
-> Don't point two agent processes at the same Hermes home directory… two writers sharing one home will
-> compound each other's entries into state neither of them (nor you) authored.
+Four layers, split by **lifetime**. Locus owns three; the one it does not own is the one every
+memory product tries to build twice.
 
-They solved it by forbidding it. **Locus solves it instead** — that is what scoping, provenance, and
-Postgres's MVCC with per-run advisory locks are for. A shared memory that several agents write
-concurrently is precisely the thing the field has not built, and it is why the store is a database and
-not a file.
+| Layer | Lives in | Dies when | Owner | Shared |
+| --- | --- | --- | --- | --- |
+| **Working** | the context window | the run ends | **sub-harness** | no |
+| **Short-term** | probation buffer | promoted, or aged out | Locus | no |
+| **Long-term** | Postgres | decays below threshold | Locus | yes, by role |
+| **Written** | **git** — artifacts | never | the repo | everyone |
 
-**Store-tier recall is hybrid, not embeddings-only.** Structured filters (scope, agent, recency,
-confidence) then `tsvector` then `pgvector`, in that order of selectivity. Gastown's "beads" pattern
-makes the case: immutable, provenance-carrying decision records that are *SQL-addressable* beat vector
-RAG for institutional memory, because the question is usually "what did we decide about X, and who
-decided it" rather than "what text is semantically near X".
+Written memory is **artifacts**: wiki pages, specs, ADRs, plans, walkthroughs. Agent-authored,
+permanent, committed, and needing no human gate — MetaGPT structures multi-agent shared memory as
+exactly this. The **constitution** is separate and is *not* a memory layer: human-authored
+instructions, where the ETH Zurich finding applies and nowhere else.
 
-**Provenance on every row** — which agent wrote it, in which run, from which source. That is what lets
-one agent's recall be filtered out of another's, and a wrong memory be traced back and deleted rather
-than merely contradicted.
+**There is no shared short-term.** Two agents sharing scratch state is Hermes's documented failure —
+*"two writers sharing one home will compound each other's entries into state neither of them (nor
+you) authored."* Sharing begins at long-term, after consolidation, so the promotion boundary and the
+trust boundary are the same line.
 
-**One boundary the two sources disagree about, resolved.** Hermes lets an agent write its own core
-memory freely. Gloaguen et al. (ETH Zurich) measured LLM-generated `AGENTS.md` files as giving no
-benefit — roughly 3% *worse* on average, with 20%+ higher inference cost — while human-written ones
-gave about 4% improvement. These are not in conflict, because they describe different files:
+**Probation is project-scoped, not session-scoped.** Cluster density is cross-session by nature: one
+session yields one observation, and the pattern only appears once three sessions have yielded three.
+What dies at session close is the session *context* — thread, branch pointer, pane.
 
-- **Agent-scoped core memory** — what *this* agent learned about its environment. Agent-writable,
-  under the cap. Hermes is right.
-- **Project context loaded for every agent** — the `AGENTS.md` equivalent. **Human-written and
-  human-gated.** The ETH finding is right. An agent proposes via a `REFLECTION` record after a run —
-  what surprised me, one pattern worth keeping, one prompt improvement — and a person accepts or
-  discards it.
+#### Capture — hooks, not tools
 
-Conflating those two is how a project's instructions fill with plausible machine-written noise.
+`locus-hook`, one binary, materialized into every container and registered through each harness's own
+hook config. JSON on stdin, plain text or JSON on stdout, **exit 0 on every failure path**.
 
-**`board` carries dependency edges.** A task can be `blocked_by` others; completing one flips its
-dependents from `blocked` to `pending` automatically, so a waiting agent picks up work the moment it
-is unblocked rather than when a human notices. This is the mechanism Claude Code's Agent Teams uses,
-and it is the difference between parallel execution and coordinated execution. When a workflow creates
-tasks, these edges are **generated from the workflow graph** — dependencies are declared once, on the
-canvas, not re-entered on the board.
+Tools are agent-initiated, so the model must *remember to remember* and consistency is not
+guaranteed. Hooks are passive and deterministic, and cost nothing in context when they emit nothing.
 
-**`board` also carries evidence links.** Every transition an agent makes cites the run and the specific
-events that justify it — terminal output, test results, the verify command's exit. Codex Web calls
-this verifiable evidence; the telemetry already stores it, so this is a join, not new capture.
+**Hooks log and inject. They never think.** A hook cannot reuse the agent's LLM, and it fires on every
+tool call — so any model call inside one taxes the whole run. Two rules follow: the injection path
+carries a **100ms timeout** and emits nothing on expiry; and the logging path **never touches the
+socket synchronously** — it appends to a local buffer and returns, with a background flush. That also
+makes the *"SessionStart fires before servers finish connecting"* gotcha a non-event.
 
-Postgres rather than SQLite for the reason `local-dx` measured: SQLite permits one writer, so
-concurrent agents either collide on `SQLITE_BUSY` or queue. Carry forward its two hard-won fixes —
-scrub NUL bytes at the insert boundary, and take a transaction-scoped advisory lock keyed on the run
-so only genuinely colliding writers serialize.
+#### Injection — a catalog, not content
+
+`SessionStart` emits **paths and one-line summaries**, capped at **800 tokens ≈ 40 entries**. Bodies
+arrive through `locus memory recall` when an agent asks. This is just-in-time retrieval, and it also
+dissolves the routing problem: bodies never pre-loaded means over-retrieval cannot occur.
+
+The cap is derived, not chosen. The maximum *effective* context window is far below the marketed one —
+11 of 12 frontier models drop below 50% of baseline at 32K tokens — and static anchors should hold
+under 10–15% of it. That leaves 3–5K tokens for system prompt, tools, and memory combined. Forty
+entries is comfortably above what real projects occupy: Codified Context's production system
+consolidated to 34 subsystem documents; one production memory store went from 444 memories to 16
+summaries.
+
+Exceeding 40 entries is a **consolidation trigger**, not an eviction.
+
+Output must not begin with `{`, which Claude Code parses as JSON rather than context.
+
+#### Promotion — three checks
+
+1. **Re-verification.** Locus can genuinely verify a subset, which most memory systems cannot: a fact
+   about a signature against `codanna retrieve`, a flaky test by running it, an approach against that
+   run's own verify result. Preferences fall through to provenance instead.
+2. **Deduplication.** Path addressing does it — same path means rewrite, bump version, set
+   `supersedes`. Subject-aware embedding runs first so entity confusion cannot merge unrelated facts.
+3. **Importance.** Not predicted — **measured.** Locus logs what was injected, what was recalled, and
+   whether the run passed verify. A memory recalled into a passing run is important; one never
+   recalled is not.
+
+Promotion is **event-driven on cluster density**, not on a timer: candidates wait until **three**
+target the same path. Two are coincidence; three are a pattern. Originals are archived, never deleted.
+On buffer overflow, promote by score and drop the rest **with a log line** — never silently.
+
+#### Decay — two drivers, selected by content
+
+Memories naming a **code symbol** invalidate on *change*, not time. Git blame gives the signal;
+`codanna` makes it precise:
+
+| Signal | Action |
+| --- | --- |
+| Signature changed | invalidate — actively misleading, not merely old |
+| Body changed, signature stable | flag for re-verification |
+| AST unchanged | no change — it was a formatting or rename commit |
+
+Everything else — preferences, strategies, process observations — ages on an Ebbinghaus curve, where
+`active_days` counts only days the project saw a run:
+
+```
+effective_λ = base_λ × (1 − importance × 0.8)
+strength    = clamp(importance × e^(−effective_λ × active_days)
+                    × (1 + recall_count × 0.2), 0, 1)
+prune below 0.05
+```
+
+Half-lives by category: `strategy` 38d · `fact` 24d · `assumption` 19d · `failure` 11d. Unpromoted
+candidates age on the shortest curve, which bounds buffer growth without a separate mechanism.
+
+**Chain-aware pruning** solves the problem that would otherwise sink this. A rare critical
+instruction — *"never call the production database directly"* — is exactly the low-frequency,
+high-importance detail that vanishes by the third compression pass, because frequency and importance
+are anticorrelated for the memories that matter most. The answer is not an exemption list: **a decayed
+memory survives if any graph neighbour is still strong.**
+
+**Cold-start guard:** a memory is not eligible for pruning until it has survived one keeper pass in
+which a query could plausibly have matched it. You cannot conclude a memory is useless if it was never
+given the chance to be useful — and without this, a new store prunes its own seed corpus.
+
+#### Recall and routing
+
+Two rounds — role and visibility filter, then BM25 + vector hybrid, then graph expansion — ranked by
+**similarity × strength**, so decay both prunes and demotes.
+
+Retrieval depth is the lever, and it **reverses by task class**. On factual QA accuracy rises
+monotonically with *k*. On agentic tasks the sign flips: success falls from 32.1% at k=1 to ~25% at
+k=5, and flat retrievers drop *below* the 22.4% no-memory baseline — over-retrieved agents do not
+simply fail, they wander.
+
+| Task class | Substrate | k | Graph expansion |
+| --- | --- | --- | --- |
+| Code generation / edit | flat, similarity only | 1 | off |
+| Planning / strategy | distilled procedural cues | 1 | off |
+| Research / review | structural, hierarchical | high | on |
+
+`task_class: code | plan | research` sits on the agent definition, defaulting to `code`; a workflow's
+`Agent` node overrides per role. Turn-level body injection is **off** for `code` and `plan` — a missed
+injection costs one tool call, while a wrong one measured below the no-memory baseline.
+
+Heavy machinery is not free: on code generation, graph and hierarchical substrates incurred 3.7–8.0×
+overhead while landing *strictly below* having no memory at all. Causal-parent traversal survives
+because it fires on demand during debugging rather than expanding every query.
+
+#### The keeper
+
+An ordinary agent definition — Markdown, versioned, nothing special — running at `high` tier because
+it is not latency-bound, triggered on **genuine idle** — the same signal the guardrail uses, raised to
+the project: no run on this project has appended an event for the idle window. Locus can detect it
+because every run's events land in one place. The primary agent has **no memory-edit tools at all**; memory management is the keeper's
+job exclusively.
+
+Per pass: read events since the watermark → cluster candidates → run the three checks → merge into
+notes at their paths → recompute strength → prune with chain-awareness → archive originals.
+
+#### Seeding
+
+An empty store degrades cleanly: no catalog, no injection, no recall — agents run exactly as they
+would with no memory layer, which is the correct baseline. But it need not stay empty. Every project
+here already has written memory in git — ADRs, specs, READMEs, existing `AGENTS.md` files. `locus wiki
+ingest` reads those on day one, so the first keeper pass has a corpus rather than a blank store.
+
+### The board
+
+Deliberately small. Fixed columns across every project — not configurable — and only the gating that
+something else already depends on.
+
+```
+Ready → In Progress → Testing → Reviewing → Waiting For Approval → Done
+```
+
+Four of the six map onto machinery already in the plan: **In Progress** is a run, **Testing** is the
+task's verify command, **Reviewing** is a reviewer agent or a `Gate` node, and **Waiting For Approval**
+is a human decision — which means it is an inbox item, not a place to go looking.
+
+**Blocked is a status, not a column.** It shows as an icon and is orthogonal to progress, because a
+task can be blocked at any point on the line, not only before it starts. Dependency auto-unblock
+clears the *status* when a predecessor completes; it never moves the card.
+
+```
+task
+  summary · description
+  column                Ready | In Progress | Testing | Reviewing | Waiting For Approval | Done
+  blocked               status, with the reason and what would clear it
+  assigned_agent        nullable — unassigned is normal
+  project · repo        which of the project's repos
+  session               nullable — the session working it
+  blocked_by[]          generated from the workflow graph, not hand-drawn
+  verify                the runnable check
+  evidence[]            run + the events that justify a transition
+  github_issue          nullable, linked by explicit action in either direction
+```
+
+**Two gating rules, and no more:**
+
+- An agent cannot move a card to **Done** without evidence.
+- **Blocked** clears automatically and never manually — it is derived from `blocked_by`, so clearing it
+  by hand would just be lying about a dependency.
+
+Everything else is unrestricted. You can drag anything anywhere; the constraints exist to stop an
+agent asserting completion, not to stop you working.
+
+### The planning module
+
+A guided conversation that produces a reviewable plan. It runs over **ACP**, because it is a
+conversation rather than a terminal, and nothing it produces reaches the board until you approve it.
+
+**Three agents, not one.** The split is structural, not stylistic: measured on ProgramBench, single-pass
+agents *"terminate early by agent choice, consuming a median of only 22–177 turns"* — exploration and
+implementation compete for the same attention and implementation wins. Splitting them lifted test pass
+rates 6.9–21.3% relative. Separately, ClarifyCodeBench found **capability decoupling**: strong code
+generation does not translate to effective clarification, and more reasoning effort yields only
+marginal gains at spotting ambiguity.
+
+| Agent | `task_class` | Job |
+| --- | --- | --- |
+| **Interviewer** | `plan` | Drives the questions, holds the state, writes the artifacts |
+| **Researcher** | `research` | Facts, prior art, feasibility. Never asked for intent |
+| **Auditor** | `plan` | Fresh context, adversarial. Grades the spec it did not write |
+
+That the three roles want the three different retrieval regimes — `research` broad, `plan` and `code`
+narrow — is a useful cross-check on the `task_class` enum, which was derived for memory and not for
+this.
+
+#### The sequence
+
+```
+1  INPUTS       goal · project · target repo · involved repos
+                optional: extra tools, workflow override
+                     ↓
+2  ORIENT       researcher, bounded and once
+                  index target + involved repos · pull relevant wiki and decisions
+                  prior art for the goal · resolve the marketplace index
+                     ↓
+3  CONVERSE     interviewer drives the question loop
+                  ├─ ask you              intent, priorities, trade-offs
+                  ├─ dispatch researcher  fact, feasibility, prior art  ──┐
+                  ├─ scope decision → you inline, not a separate gate     │
+                  └─ drop                 answered or irrelevant          │
+                ←────────────────────────────────────────────────────────┘
+                     ↓  nothing relevant left unanswered
+4  SYNTHESISE   spec · tasks · tool list · proposed workflow
+                     ↓
+5  AUDIT        auditor, fresh context: ISO/IEC/IEEE 29148 + the two-reader test
+                  ├─ finding is a missed question → back to 3, ONCE
+                  └─ residual → recommendation.open[] and confidence
+                     ↓
+6  RECOMMEND    the recommendation object, shown
+                     ↓
+7  OVERRIDE     you change anything
+                     ↓
+8  APPROVE  →   tasks land on the board
+   REJECT   →   the draft stays here
+```
+
+**Orientation is separate from on-demand research** because inferring what you need and checking which
+tools exist both require knowing what is already there — and doing that per question would repeat the
+same lookups a dozen times. It is bounded because unbounded research before the questions are known is
+where scope quietly triples.
+
+**The audit loops back at most once.** A finding that says "this is ambiguous" is really saying "a
+question was missed", which belongs back in the loop rather than in a report. But clarification quality
+*degrades* as ambiguity density rises, so a third pass rarely helps where the second did not. Whatever
+survives becomes a named weakness in the recommendation, not a blocker.
+
+#### Human inputs
+
+| Input | | Note |
+| --- | --- | --- |
+| `goal` | required | The frame. Set first, not derived |
+| `project` | required | |
+| target repo | required | Where the branch is cut and the PR lands |
+| involved repos | optional, N | Read-only context. Indexed, never written |
+| tools | optional | Added to whatever research finds |
+| workflow | optional | Overrides the proposal |
+
+**Write scope and read scope are different.** Only the target repo receives commits; involved repos
+inform. A capability needed against an involved repo is a read capability, which is a different risk
+from a write one.
+
+**The goal is an input, not an output**, and that is what makes the question loop work: topics are
+ranked by how much they bear on the goal, dropped when they do not, and the interview ends when
+nothing unresolved still does. Without a stated goal every topic is equally relevant and the ranking
+is arbitrary. The goal then does three jobs — it frames elicitation, it is what you approve, and it is
+what `verify` checks against.
+
+#### Scope changes are approvals, never automatic
+
+Research can widen scope (a dependency nobody mentioned) or narrow it (prior art shows it is already
+solved). **Both require you.** Narrowing is the more dangerous direction: an increase is visible in a
+growing spec, while a silent reduction ships something missing and leaves no trace of which step
+removed it.
+
+They are a different interaction from a question, and are counted separately — a well-run interview
+that surfaces three legitimate scope decisions should not score as inefficient questioning. A rejected
+increase is recorded as a `decision`, so the next research pass does not propose it again.
+
+This is also the concrete guard against Specification Overfitting: a researcher that cannot
+unilaterally widen scope cannot inflate the spec.
+
+#### Latent requirements
+
+After the interview, a LENS-style pass infers capabilities that were described but never requested,
+reasoning over the transcript together with what the infrastructure already is. Reported hit rate is
+**75% judged useful by domain experts** — which also means a quarter are noise, so these are always
+*proposed*, never adopted, each carrying the excerpt that implied it.
+
+#### The audit rubric
+
+ISO/IEC/IEEE 29148 turns "is this spec any good" into pass/fail questions: necessary,
+implementation-independent, unambiguous, consistent, complete, singular, feasible, traceable,
+verifiable, understandable. The set as a whole is graded on completeness, consistency, modifiability,
+traceability. Acceptance criteria are the standard's *verifiable* characteristic, which is the bridge
+to a task's verify command.
+
+**One criterion is mechanised rather than judged.** *Unambiguous* asks whether two readers would reach
+the same understanding — so give the requirement to two agents with no shared context, ask each to
+restate what it requires, and diff the restatements. **Divergence is the ambiguity, and it names
+itself.** This matters because a model faced with ambiguity silently picks one reading and builds it,
+and this makes the fork visible before code exists.
+
+The auditor also checks that the recommendation's restatement of the goal still means what you wrote —
+the highest-leverage single check in the sequence, since everything downstream inherits that reading.
+
+#### Outputs
+
+| Output | Committed on approval |
+| --- | --- |
+| **spec** | wiki page, contract separated from design |
+| **tasks** | board — vertical slices, hardest first, dependency edges drawn, verify command each |
+| **tools** | required capabilities resolved against the index, gaps flagged |
+| **workflow** | **proposed, not drawn** |
+| **recommendation** | the object you approve |
+
+The workflow is proposed rather than committed because a graph you did not lay out is one you will not
+trust, and the goal it carries is your approval gate.
+
+Vertical slices ordered **hardest first** — Walking Skeleton — so architectural risk surfaces before
+later slices anchor on assumptions the hardest one invalidates.
+
+```
+recommendation
+  goal            restated as understood   ← drift check against what you set
+  approach        the recommended one
+  alternatives[]  considered, each with why-not
+  findings[]      research results, each → source
+  risks[]         severity + trigger
+  scope           in / out, explicit
+  confidence      + what would raise or lower it
+  open[]          unresolved, and whether it blocks
+  → spec · tasks · tools · proposed workflow
+```
+
+`alternatives[]` is what stops a rejected approach being re-proposed every planning pass, and
+`confidence` is a named condition rather than a number — *"medium; high once the migration path is
+confirmed"* is an action, a percentage is not.
+
+#### Traceability, both directions
+
+```
+excerpt → requirement → task → run → evidence → PR
+   ◀──────── why does this exist? and why doesn't it? ────────
+```
+
+Excerpts follow the W3C Web Annotation model: a quote selector (`exact` with `prefix`/`suffix`) beside
+a position selector, because quote-anchoring survives re-rendering and offsets are precise, and each
+repairs the other. An `exact` that matches more than once is **flagged for audit rather than silently
+anchored to the first hit**. Since the transcript is immutable append-only events, an excerpt is
+`(event_id, start, end)` plus the quote text, kept so the citation reads without a lookup.
+
+The backward trace earns its keep on deletions: a requirement that was **removed** leaves no artifact
+at all unless the decision is recorded.
+
+#### Re-planning keeps spec and tasks in sync
+
+Amend, never supersede — the same rule the memory store uses, where a path collision rewrites and bumps
+`supersedes`. Tasks cannot all be rewritten, so:
+
+| Task state when its requirement changes | Rule |
+| --- | --- |
+| Not started | rewrite in place |
+| **In progress** | flag it and notify the session — never silently mutate a task an agent is working from |
+| **Done** | never touch. Emit a *new* task for the delta, linked to the original |
+| Requirement deleted | close as `superseded`, never delete — the trace has to survive |
+
+#### Effort scales by a ratchet, not a question
+
+Blast radius cannot be assessed up front, because determining it is what planning does — and asking you
+to estimate it asks for a number you do not have. So planning **starts minimal and escalates on
+evidence, never de-escalating**: more than one repo involved, a scope decision raised, research finding
+no prior art, an answer contradicting an earlier one, or unresolved topics outnumbering resolved ones.
+
+A one-line fix trips none of them and stays three questions. A new subsystem trips several in the first
+few turns. This is the resolution of a real tension in the literature: dependence on good specs *rises*
+with model capability, yet one team rebuilt a feature with **3.5+ hours and 2,577 lines of spec against
+23 minutes of iterative prompting, for comparable bug counts**. Elicitation pays; document volume does
+not.
+
+#### Open
+
+- **The topic checklist.** The questions are chosen from a fixed list of topics — actors, triggers,
+  inputs and outputs, error paths, limits, persistence, concurrency, permissions, observability,
+  migration and rollback, failure modes, out-of-scope — scored against the goal and dropped when
+  irrelevant. Whether that list is hand-written once or derived per project is **undecided**.
+- **The "I don't know what I want yet" entry point.** A goal is required up front, so something has to
+  turn a vague idea into a goal worth grilling against. Whether that is a mode of this module or a
+  separate one is **undecided**.
 
 ### Lego blocks
 
@@ -660,11 +1177,17 @@ An agent is a Markdown file with frontmatter. Not a graph, not a compile step:
 name: reviewer
 description: Read-only critic; runs on task completion
 harness: any            # or a specific one, when it matters
-model_tier: high        # low | medium | high | xhigh — resolved per harness
+model_tier: high        # low | medium | high | xhigh — resolved in the app, not the harness file
+task_class: research    # code | plan | research — sets retrieval depth; defaults to code
 tools: [rg, gh, cargo]  # allowlist, resolved against the marketplace index
 skills: [audit-code]
 rules: [no-secrets]
-memory: { scope: project, write: propose }
+memory:
+  scope: project        # agent | project — never cross-project
+  write: propose        # none | propose | direct
+                        #   none    cannot write memory at all
+                        #   propose writes land in the probation buffer for the keeper
+                        #   direct  writes straight to the store — the keeper only
 ---
 
 You review code you did not write. Find the defect, not the style...
@@ -687,6 +1210,25 @@ Two consequences worth stating:
 Agent definitions live in Postgres like everything else, with import and export as `.md` so they can
 be reviewed in a PR or copied between machines when that is what you want.
 
+#### Permissions are declared, never prompted
+
+The human is never asked mid-run, because a headless run that stops to ask has nobody to answer it.
+What an agent may do is set in two places, and the second may only ever **narrow** the first:
+
+| Set on | Declares | Rule |
+| --- | --- | --- |
+| the **agent definition** | `tools` — the install set *and* the allowlist | the baseline. Absent from the list means absent from the image |
+| the workflow's **`Agent` node** | a `tools` subset, a `network` tier, and `write` scope for this role | **subtracts only.** A node can take the reviewer's write access away; it cannot grant a capability the definition did not have |
+
+Narrowing-only matters because the definition is what was reviewed. If a graph could widen, every
+workflow would be a place to re-grant privileges, and reading an agent would stop telling you what it
+can do.
+
+Enforcement is the container, not the harness: an unlisted tool is not installed, the network tier is
+applied at the proxy, and the run's branch is the only writable thing in reach. The harness's own
+permission gate is switched **off** at launch, by the `argv` its harness file declares — which is why
+`permission_request` firing means a misconfiguration rather than a decision waiting for you.
+
 ### The Workflow Canvas
 
 `solid-flow` (`/dsnchz/solid-flow`) — a SolidJS port of React Flow with custom nodes, typed node
@@ -703,7 +1245,7 @@ file) are one queryable, scoped store here.
 | Node | Contributes |
 | --- | --- |
 | `Goal` | what the loop is *for*. **This is the approval gate** — a person approves the goal before the loop runs — and it is also the termination condition |
-| `Agent` | an agent definition, pinned by version, **plus a `role`** — the definition is reusable, the role is per-workflow |
+| `Agent` | an agent definition, pinned by version, **plus a `role`** — the definition is reusable, the role is per-workflow. Carries this role's permission narrowing: a `tools` subset, a `network` tier, `write` scope |
 | `Task` | a unit of work, optionally sourced from the board |
 | `Loop` | the iteration construct: what repeats, and what resets between passes |
 | `Condition` | deterministic routing. **No model in the orchestration path** — the graph decides, not an LLM |
@@ -720,7 +1262,7 @@ unattended defensible:
 | `max_iterations` | 8 | Agents loop endlessly retrying the same broken approach without a hard stop |
 | Forced reflection before retry | on | "What failed? What specific change would fix it? Am I repeating myself?" — reported to substantially cut stuck agents |
 | Kill-and-reassign after 3 stuck iterations | on | A fresh context beats a confused one |
-| Idle detection | 60s | Agent Orchestrator's measured flaw was agents idling 90+s on tool approval with nobody told. Idle shows on the tile and notifies |
+| Idle detection | 60s | **No event on the run's stream for 60s**, while not blocked on `locus ask` — waiting on you is an inbox item, not idleness. The tile gets an **idle icon** and a **toast fires once per idle stretch**, never repeatedly. Agent Orchestrator's measured flaw was agents idling 90+s with nobody told |
 | Wall-clock ceiling | none | Optional; a loop that cannot finish overnight should stop, not run to morning |
 | **Token budget** | **none — optional** | When set, auto-pause at 85% and notify rather than draining silently. Nested agents multiply spend, so a ceiling is worth having available even if rarely used |
 
@@ -739,7 +1281,6 @@ There is no `Team` entity. A workflow already declares everything a team is:
 | Who waits on whom | the edges between them |
 | A shared task list | the board scope the workflow owns |
 | Peer messaging | `locus mail`, available to every agent regardless |
-| File-level conflict prevention | claims with path-overlap rejection, already in M3 |
 | A lead | **the graph itself** |
 
 Two things fall out of this that are worth having on purpose:
@@ -776,7 +1317,7 @@ to disagree about — the file *is* the definition.
 
 **Live overlay.** Opening a running workflow shows its graph with run state painted on it: which node
 is executing, which `Verify` passed or failed, which iteration the loop is on, tokens and wall-clock
-per node. The Agent Pane remains the event stream; the canvas is the map. Both read the same
+per node. The terminal shows the agent working; the canvas is the map. Both read the same
 normalized events, so there is one source and two renderings.
 
 ### Agent CLI (`locus`, inside the container)
@@ -787,11 +1328,11 @@ locus memory recall <query>                   the store tier: structured + FTS +
 locus memory write --scope … --why …          a fact, with provenance attached automatically
 locus memory forget <id>                      traced back to its writer, then deleted
 locus mail send|list|read|reply|drain|wait   agent↔agent, Rust-native
-locus task list|show|move|claim|comment      board, agent-driven
+locus task list|show|move|assign|comment     board, agent-driven
 locus wiki search|read|write|history         wiki, with revisions attributed to the run
 locus wiki ingest <path|url>                 read a document into typed pages; flags contradictions
 locus wiki query <question>                  synthesize an answer, filed back as a synthesis page
-locus wiki lint                              orphans, broken links, missing entities, unsourced claims
+locus wiki lint                              orphans, broken links, missing entities, unsourced facts
 locus lsp def|refs|hover|symbols|rename       semantic navigation over this run's clone
 locus debug break|run|step|stack|eval|vars    DAP, against the code as it actually runs
 locus browse open|click|fill|assert|screenshot  drive the project browser; shots become artifacts
@@ -802,6 +1343,8 @@ locus run status|artifacts                   this run's own state
 locus artifact put <kind> <path>             publish a plan, diagram, or image for review
 locus artifact comments                      feedback left on your artifacts, threaded
 locus tools list|docs <name>                 marketplace docs for allowlisted CLIs
+locus lint [--changed|--only NAME]           run this project's linters; the one extension
+                                             no harness reads
 ```
 
 `--json` on every command, because the caller is usually a model.
@@ -828,6 +1371,10 @@ The marketplace splits across two milestones, because agents need the *index* lo
 the *installer*: reading manifests to validate an agent's `tools` list and inject docs is cheap and
 lands at M4; image baking and install land at M8.
 
+**Until M8 the index is a local directory of manifests**, read from disk. Where it is hosted, how it is
+pinned, and who is trusted to publish into it are questions the installer makes real and the resolver
+does not — so they are answered then, not now.
+
 ### Frontend and IPC constraints
 
 Three rules that are cheap to follow from the start and expensive to retrofit.
@@ -839,10 +1386,10 @@ high-frequency path here is a Channel:
 
 | Path | Mechanism |
 | --- | --- |
-| Shell Pane PTY bytes | `Channel<&[u8]>` |
-| Agent Pane normalized events, including token deltas | `Channel<Event>` |
+| Terminal PTY bytes | `Channel<&[u8]>` |
+| Normalized session events, including token deltas | `Channel<Event>` |
 | LSP diagnostics and semantic tokens | `Channel<T>` |
-| "a run finished", "a task moved", "a claim was refused" | `emit` — low frequency, many listeners |
+| "a run finished", "a task moved", "a guardrail tripped" | `emit` — low frequency, many listeners |
 
 Coalesce per pane on an animation-frame tick regardless of mechanism. A thousand small sends per
 second will drop frames whatever the transport.
@@ -866,7 +1413,7 @@ own DOM, so the library only has to cover chrome:
 | Workflow Canvas | `solid-flow` |
 | Agent editor | a Markdown editor — CodeMirror, already present |
 | Editor and diff | CodeMirror 6 |
-| Shell Pane | xterm.js |
+| Terminals | xterm.js |
 | Board, wiki, dashboard | bespoke |
 | Dialogs, context menus, tabs, tooltips, combobox, toast, palette | **Kobalte**, styled via **shadcn-solid** copied into `src/ui/` |
 | Long lists | `@tanstack/solid-virtual` |
@@ -876,9 +1423,8 @@ resizable split panes and no tree — correctly, because both of those are the p
 tree, which are product here rather than components. shadcn-solid is copied in rather than depended
 on, so nothing visual is version-locked, and it sits on Kobalte so there is one primitive layer.
 
-**Keyboard capture is a Shell Pane problem, not an app problem.** Agent Panes render typed events and
-need no raw key access; this design has no PTY for agents at all. The Shell Pane is the only true
-terminal, and it is where macOS eats keystrokes before JS sees them.
+**Keyboard capture is a terminal problem.** Every terminal is a real PTY, so this lands across the
+board rather than in one corner, and macOS eats keystrokes before JS sees them.
 
 - Option-as-Meta and pre-processing hooks are xterm.js configuration — `macOptionIsMeta` and
   `attachCustomKeyEventHandler` — not code to invent.
@@ -933,7 +1479,15 @@ Write the spec set, then answer the two questions that could invalidate it.
 - `docs/agent-capabilities.md` — `locus lsp`, `locus debug`, `locus browse`: where each server runs
   and why the client is shared but the server is not
 - `docs/agent-format.md` — the frontmatter schema, the tool allowlist, and how it materializes
+- `docs/materializers.md` — the five strategies, the plugin contract and its JSON shape, and why a
+  materializer returns files rather than writing them
 - `docs/workflow-canvas.md` — node vocabulary, loop semantics, guardrails, the compile pipeline
+- `docs/planning-module.md` — the three-agent sequence, the question loop, scope changes as approvals,
+  the 29148 audit rubric and the two-reader test, traceability in both directions, and the re-planning
+  rules that keep spec and tasks in sync
+- `docs/board.md` — the fixed columns, `blocked` as a status, the two gating rules, evidence links,
+  and where dependency edges come from
+- `docs/permissions.md` — what an agent may do, where it is declared, and why nothing prompts you
 - `docs/landscape.md` — what the 2026 field has, what it lacks, and which features were taken from
   where. Keeps the borrowed ideas attributed and the bet legible
 - `docs/adr/`, in order:
@@ -941,26 +1495,34 @@ Write the spec set, then answer the two questions that could invalidate it.
   | ADR | Records |
   | --- | --- |
   | `0001-codemirror-over-vscodium.md` | The editor choice and the gaps accepted with it |
-  | `0002-structured-output-required.md` | Why no PTY for agents, and what that excludes |
+  | `0002-one-session-per-terminal.md` | Why TUIs are banned, and what it buys in observability |
   | `0003-container-per-agent.md` | The sandbox boundary and credential injection |
   | `0004-postgres-single-store.md` | One store; what is derived and what is not |
   | `0005-cli-not-mcp.md` | The agent surface is a binary, not a server |
   | `0006-shared-services-in-rust.md` | Memory, mail, and the rest implemented once |
   | `0007-agents-markdown-workflows-canvas.md` | Agents are Markdown + a tool list; only workflows are graphs, and why the split falls there |
-  | `0008-tauri-over-electron.md` | The Electron case rests on in-process SDK orchestration, which this design rules out; accepted costs are webview inconsistency and Shell Pane keyboard work |
-  | `0009-acp-as-primary-harness-protocol.md` | ACP first, native adapters as fallback — including why re-using MCP *types* is not running MCP *servers* |
+  | `0008-tauri-over-electron.md` | The Electron case rests on in-process SDK orchestration, which this design rules out; accepted costs are webview inconsistency and terminal keyboard work |
+  | `0009-acp-for-planning-only.md` | Why ACP fits the chat module and not the agent fleet: no system-prompt control, and a conversation hides the work |
   | `0010-human-gated-context-promotion.md` | The ETH Zurich finding, and what agents may not write |
   | `0011-workflow-is-the-team.md` | Why there is no `Team` entity, and the reproducibility that buys |
   | `0012-session-run-turn.md` | The session/run split, and why the session is what survives a reset |
   | `0013-one-editor-two-zoom-levels.md` | Why no second editor for the full module, and that DAP arrives as a client regardless |
+  | `0014-planning-is-three-agents.md` | Interviewer, researcher, auditor; the goal as an input; why nothing reaches the board without one approval |
+  | `0015-fixed-board-columns.md` | Six columns for every project, `blocked` as a status, and the two gating rules — why configurability was refused |
+  | `0016-declared-permissions-no-prompts.md` | The human is never prompted; the allowlist is the privilege set; workflow nodes narrow and never widen |
+  | `0017-materializers-declare-then-generate.md` | Why the harness contract has a code half; the four generic strategies; why the fifth returns files instead of writing them |
 
 - `docs/frontend-constraints.md` — Channels vs events, one webview per window, keyboard capture
+- `harnesses/*` — all eleven, every one of the eight extensions declared with its `via` strategy.
+  **Seven are complete**: `claude`, `codex`, `copilot`, `pi`, `omp`, `dsh`, `opencode`. **Five remain**:
+  `aider`, `antigravity`, `cursor`, `gemini`, `hermes` — each declares one or two extensions today, and
+  `hermes` is the one with no `local-dx` entry to source from, so its layout comes from its own docs or
+  ships marked UNVERIFIED the way `dsh` does
 - Fill in the stub `AGENTS.md` at the repo root
 - **Spike 1** `spikes/01-sandboxed-harness/` — does a harness run in a container, authenticated
   without holding a long-lived secret, against its own clone, emitting a parseable event
   stream? This is the highest-risk unknown in the whole design: if harness auth cannot be injected
-  without baking a secret into an image, the sandbox model changes. **Do this over ACP**, so it also
-  proves the `agent-client-protocol` crate carries a real session end to end.
+  without baking a secret into an image, the sandbox model changes.
 - **Spike 2** `spikes/02-editor-embed/` — CodeMirror 6 + `@codemirror/lsp-client` against a real
   `rust-analyzer` inside a Tauri window, plus a `MergeView` over a real git diff.
 - **Spike 3** `spikes/03-workflow-canvas/` — `solid-flow` with custom typed nodes, a graph that
@@ -968,17 +1530,25 @@ Write the spec set, then answer the two questions that could invalidate it.
   time. Its reputation on Context7 is Medium, not High, so confirm it carries this weight before M4
   depends on it.
 
+```bash
+# every harness declares all eight extensions, each with a known `via` strategy
+locus harness lint          # refuses an undeclared extension or an unknown strategy
+```
+
 `verify:` all three spikes produce a written answer in their directory; `docs/` is internally
-consistent.
+consistent; `locus harness lint` passes for all eleven.
 
 ### M1 — Core runtime
 
-Daemon, store, registry, containers, Agent Panes.
+Daemon, store, registry, containers, terminals.
 
 - `locus-postgres` lifecycle, migrations (`sqlx`), and **backup/restore**, since memory and mail will
   live here and cannot be rebuilt
-- **ACP client** on the `agent-client-protocol` crate — the primary path
-- Harness registry, TOML schema validation, **one** native adapter to prove the fallback path exists
+- **ACP client** on the `agent-client-protocol` crate — for the planning/chat module
+- Harness registry and TOML schema validation, refusing any entry that leaves an extension undeclared
+- **Materializers**: the four generic strategies (`dir`, `merged-into`, `listed-in`, `entries-in`), plus
+  the `plugin` host and **one** real plugin — pi's, because a generated TypeScript extension is the
+  furthest a harness gets from copying a directory, so it proves the contract at its hardest point
 - **Agent definitions**: Markdown + frontmatter, versioned, materialized per run. Because agents are
   not a graph, they land here rather than waiting for M4 — the product is usable four milestones
   earlier than the previous draft implied
@@ -988,15 +1558,15 @@ Daemon, store, registry, containers, Agent Panes.
   route feedback back into the session. Media kinds arrive with the browser at M3.5
 - Run supervisor: spawn → stream → normalize → persist → cancel
 - Credential broker and egress policy, whichever shape Spike 1 settles on
-- Tauri + SolidJS shell: JS-side pane manager over **one webview per window**, Agent Pane rendering
-  typed events, minimize-to-tile
-- Shell Pane with a real PTY (xterm.js), clearly a separate pane type — and the keyboard work lives
-  here and nowhere else
+- Tauri + SolidJS shell: JS-side pane manager over **one webview per window**, terminals (xterm.js)
+  with one session each, minimize-to-tile
 - All streaming over `tauri::ipc::Channel`, coalesced per pane on a frame tick, from the first commit
 
-`verify:` two agents run concurrently in separate containers against the same repo — **one over ACP,
-one through a native adapter** — and their events are indistinguishable downstream; every event lands
-in Postgres; both minimize to informative tiles. A Shell Pane survives a `vim` session with
+`verify:` two agents from different harnesses run concurrently in their own terminals and containers
+against the same repo; their events are indistinguishable downstream; every event lands in Postgres;
+both minimize to informative tiles. A canary skill and a canary rule materialize into **every**
+registered harness and the agent can see both — including pi, where they arrive as generated
+TypeScript rather than as files. A terminal survives a `vim` session with
 Option-as-Meta, Cmd chords reaching the app rather than the menu bar, and IME composition intact.
 
 ### M2 — Workspace
@@ -1020,23 +1590,23 @@ definition through `locus lsp` and gets the same answer the editor does.
 The shared-services milestone. Everything here is Rust in `locus-core`, surfaced identically to every
 harness through the `locus` CLI.
 
-- **Memory, both tiers**: the bounded core (hard cap, refuse-don't-evict, frozen at run start to
-  preserve the prefix cache) and the store (scoped, provenance, hybrid recall, decay)
+- **Memory**: capture via `locus-hook` into `memory.event`; the store with role ACLs, provenance and
+  hybrid recall; the 800-token catalog injected at `SessionStart` where the harness supports it and
+  materialized into `[layout].context` where it does not; the keeper, promotion checks, and decay
 - **Mail**: threads, delivery, `wait`/`drain` semantics, `locus mail` verbs
 - Repo manager: bare local remote per project, per-run clones with `--reference` against a shared object store
-- Claims registry with path-overlap rejection across live claims — the mechanism `fleet` already
-  proved at `~/Repos/fleet`
 - **Agents push to a local git remote; you `git fetch && git checkout` from your normal repo.**
   Sculptor's pattern, and better than bind-mounting a workspace into the human's editor: it
   keeps Locus out of your editor, your merge tool, and your shell, and it means reviewing an agent's
   work uses the git you already know
-- Merge-back with tiered conflict handling
+- Merge-back: each agent merges its own branch when it is done, and a conflict it cannot resolve
+  becomes an inbox item
 - Run guardrails: `max_iterations`, forced reflection before retry, token budget with auto-pause, kill
   and reassign when stuck, idle detection surfaced on the tile
 
-`verify:` three agents on overlapping work; overlap is refused at claim time; two exchange mail; one
-writes a memory that a **different harness** later recalls; all three merge back or report a
-structured conflict.
+`verify:` three agents work the same repo concurrently from their own clones; two exchange mail; one
+writes a memory that a **different harness** later recalls; all three push branches that merge back or
+report a structured conflict.
 
 ### M3.5 — Agent capabilities: debug and browser
 
@@ -1079,20 +1649,20 @@ authored. A loop with no termination condition is refused at compile time, not a
 
 ### M5 — Project management
 
-- Board: projects, columns, tasks, drag, agent-driven transitions
-- **Dependency edges with auto-unblock** — completing a task flips its dependents to `pending` and a
-  waiting agent picks them up without a human noticing first. Edges are generated from the workflow
-  graph that created the tasks
+- Board: fixed columns, tasks, drag, agent-driven transitions, `blocked` as a status
+- **Dependency edges with auto-unblock** — completing a task clears the `blocked` status on its
+  dependents, and a waiting agent picks them up without a human noticing first. Edges are generated
+  from the workflow graph that created the tasks
 - **Evidence links** on every agent-made transition, citing the run and the events that justify it
 - Wiki: **typed pages** (source, entity, concept, synthesis, decision, overview), **ingest** via
   `markitdown`, **contradiction flags raised at ingest time** as board cards, `locus wiki lint`, a
   `solid-flow` graph view over `[[wikilinks]]`, GUI editor, revisions, `pgvector` search
-- Chat pane as a designated harness session that can draft tasks and answer questions
+- **The planning module** — the three-agent sequence, over ACP; approval lands tasks on the board
 - **Reflection review queue** — the human gate where an agent's proposed learnings are accepted into
   always-on project context or discarded
 
 `verify:` an agent moves a task to Done and cites the run and the test output that justifies it; a
-blocked task auto-unblocks and is claimed without human input; a wiki page edited in the GUI is read
+blocked task auto-unblocks and is picked up without human input; a wiki page edited in the GUI is read
 back by an agent in a container; ingesting two documents that disagree produces a contradiction card
 rather than two quietly conflicting pages.
 
@@ -1114,6 +1684,16 @@ Version control, CI/CD, and PRs only.
 - **CI babysitter** — a failing pipeline pulls its logs, feeds them to an agent, retries a bounded
   number of times, then escalates. Sculptor and Agent Orchestrator both ship this and it is the single
   most-cited reason people leave a run unattended
+
+**GitHub Issues, linked by explicit action in either direction.** No background sync, no polling, no
+conflict resolution — the link is established by a person, once:
+
+- **Attach an existing issue** to a Locus task → imports its title, body, and labels at that moment
+- **Create a GitHub issue** from a Locus task → pushes it out and records the link
+- Either way the task carries the issue number and URL, and the PR closes it with `Fixes #142`
+
+Nothing syncs in the background. That is the point: every tracker integration that tries to keep two
+systems continuously equal ends up owning a conflict-resolution problem nobody asked for.
 
 **Agent-authored PRs**, as a first-class flow rather than "the agent ran `gh pr create`". This reuses
 the artifact comment machinery — a PR review comment and an artifact comment are the same thing
@@ -1152,7 +1732,9 @@ the agent's context.
 Nothing exists yet, so all of these are new:
 
 - `docs/architecture.md` and the ADR set under `docs/adr/` — M0's whole output
-- `harnesses/*.toml` — one per harness; the file that keeps harness names out of core
+- `harnesses/*` — one entry per harness, file or directory; what keeps harness names out of core
+- `crates/locus-core/src/materialize/` — the four generic strategies and the plugin host, naming no
+  harness
 - `crates/locus-core/` — registry, adapters, supervisors, store, **and every shared service:
   `memory/`, `mail/`, `board/`, `wiki/`, `telemetry/`, `tools/`**
 - `crates/locus-cli/` — the in-container agent CLI; a thin socket client with no logic of its own
@@ -1163,15 +1745,11 @@ Nothing exists yet, so all of these are new:
 
 Reuse rather than rebuild:
 
-- **`agent-client-protocol`** (crates.io) — the ACP wire model in Rust. Replaces most of what the
-  harness registry was going to be.
+- **`agent-client-protocol`** (crates.io) — the ACP wire model in Rust, for the planning module.
 - **Vibe Kanban** (BloopAI, now community-maintained after bloop shut down in April 2026) — the
   closest prior art for board-drives-agents UX, open source and free to read.
 - **Sculptor** (Imbue, MIT) — container-per-agent and the local-git-remote handoff pattern.
 
-- `~/Repos/fleet` — claims registry, path-overlap rejection, tiered merge-back conflict handling, and
-  its overlap doctrine. Claude-Code-specific and worktree-based as written, but the conflict-tier
-  algorithms port to merge-time handling.
 - `~/Repos/local-dx/config/harnesses.json` — the field-by-field description of how each of seven
   harnesses reads each feature. The single most valuable input to `harnesses/*.toml`; read it before
   writing the first one.
@@ -1189,6 +1767,12 @@ Reuse rather than rebuild:
   putting memory and mail in Rust behind Postgres is meant to fix.
 
 ## Verification
+
+**How Locus is tested: event-based.** Every run normalizes into `memory.event` regardless of harness,
+capture path, or container — so a test is *"run this, assert these events appeared."* That works
+identically across all eleven harnesses and needs no test-only instrumentation, because the substrate
+is the one telemetry already requires. Unit tests cover the pure parts; everything above them asserts
+on the event stream.
 
 M0 is complete when:
 
@@ -1216,27 +1800,35 @@ harness will not authenticate from a runtime-injected, read-only credential, the
 short-lived credential broker on `/run/locus.sock` rather than a mounted file — more work, and it
 must be known before M1 rather than during it.
 
-**Risk — adapter-only excludes harnesses.** Some harness will speak neither ACP nor a headless
-structured mode. The decision is deliberate and ACP shrinks the excluded set considerably, but the
-exclusion is real and will be felt.
+**Risk — TUI-only harnesses are excluded.** A harness that insists on painting a full-screen
+interface cannot be supported, because it multiplexes sessions inside one terminal and breaks the
+mapping Locus depends on. Deliberate, but real.
 
-**Risk — ACP evolves under us.** Taking a dependency on someone else's protocol trades per-harness
-maintenance for protocol-churn maintenance. The mitigation is that the native adapter path stays
-built and tested from M1, so ACP is never the only way in. Its remote-agent half is explicitly
-unfinished; do not build on it.
+**Risk — harness surfaces rot, in both halves.** Structured events come from session logs and hooks;
+config layouts come from directories, filename suffixes, and config keys. All of it is the harness's
+private business and changes between releases — `opencode` reading `command` and not `commands`, or
+copilot ignoring a plain `.md`, are the kind of difference that fails **silently**: the tree is
+written, the run starts, and nothing loaded. `dx-telemetry` has absorbed four dialects already, so
+this is known recurring work rather than a surprise, and it is the price of not owning the harness.
 
-**Risk — no debugger.** CodeMirror buys a small, Solid-native surface at the cost of DAP. If
-step-debugging turns out to matter, the fix is a separate debug pane speaking DAP directly, not a
-change of editor.
+The mitigation is a **materialization smoke test per harness**, run on registration and in CI: start a
+run with a canary skill and a canary rule, and assert the agent can see both. That converts a silent
+non-load into a failing test, which is the only reason the `emits` and `via` declarations are worth
+writing down at all.
 
-**Risk — Shell Pane keyboard fidelity.** A webview terminal feels wrong when keystrokes go missing,
+**Risk — DAP adapter coverage.** The client is one implementation, but every language needs its own
+adapter and each must be installed in the agent's image — so `locus debug` is only as broad as the
+adapter set baked per project. Node, Python, and Rust (CodeLLDB) are well served; the tail is not.
+This replaces the earlier "no debugger" risk, which the decision to ship a DAP client retired.
+
+**Risk — terminal keyboard fidelity.** A webview terminal feels wrong when keystrokes go missing,
 and macOS is the worst case. `macOptionIsMeta` and `attachCustomKeyEventHandler` cover more than
 expected, but Cmd chords and IME composition are hand work with less prior art than Electron has.
 Contained to one pane type, but do not schedule it as an afternoon.
 
 **Risk — webview inconsistency.** Tauri ships no browser, so the UI runs on WKWebView, WebView2, or
 WebKitGTK depending on platform, and they differ. This is the genuine cost of choosing Tauri over
-Electron — not runtime access, which adapter-only makes irrelevant. WebKitGTK is historically the
+Electron — not runtime access, which the terminal model makes irrelevant. WebKitGTK is historically the
 weakest of the three; if CodeMirror or `solid-flow` misbehave there, the fallback is shipping the
 Linux build against a pinned newer WebKitGTK rather than changing framework.
 

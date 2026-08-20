@@ -1,0 +1,37 @@
+# pi — hooks and rules are TypeScript extensions, not files, so both are
+# generated per run. Its output-style REPLACES the system prompt's # Personality
+# block, which makes it as authoritative as Claude Code's.
+name   = "pi"
+binary = "pi"
+detect = ["--version"]
+
+[launch]
+argv = ["--print"]
+tui  = false
+
+[config]
+home = "/locus/config"              # pi's agent home; no env override, so HOME is set
+
+[telemetry]
+source = "hooks"
+# pi has no hooks directory: a generated TS extension registers them by path.
+generated = "/locus/config/extensions/locus-hooks.ts"
+format    = "pi-hooks-json"
+emits     = ["session_start", "user", "assistant", "tool_call", "tool_result",
+             "tool_error", "subagent_start", "subagent_stop", "session_end"]
+
+[layout]
+agents        = { via = "dir", dir = "/locus/config/agents", format = "markdown+frontmatter" }
+commands      = { via = "dir", dir = "/locus/config/prompts", format = "markdown+frontmatter" }
+hooks         = { via = "plugin", emits = "/locus/config/extensions/locus-hooks.ts" }
+linters       = { via = "dir", dir = "/locus/config/linters", format = "shell+markdown" }
+output-styles = { via = "dir", dir = "/locus/config/output-styles", format = "markdown+frontmatter", active = "brief-bright-gone" }
+rules         = { via = "plugin", emits = "/locus/config/extensions/locus-rules.ts" }
+skills        = { via = "dir", dir = "/locus/config/skills", format = "markdown+frontmatter" }
+context       = { via = "file", file = "/locus/config/AGENTS.md" }
+
+# Hooks and rules are CODE here, not files — the materializer returns TypeScript.
+# NEVER write to a `commands` directory: pi renames <home>/commands to prompts on
+# startup, so writing the old name silently moves the tree.
+# The output style REPLACES the system prompt's `# Personality` block, which makes
+# it as authoritative as a native Claude Code style.

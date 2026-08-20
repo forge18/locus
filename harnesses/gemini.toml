@@ -1,0 +1,32 @@
+# Gemini CLI — first-class. Full hook set with injection, plus ACP.
+name   = "gemini"
+binary = "gemini"
+detect = ["--version"]
+
+[launch]
+argv = []
+tui  = false
+
+[telemetry]
+source = "hooks"
+# Every hook payload carries `transcript_path` — an absolute path to the session
+# transcript JSON — so capture never has to reconstruct state from event order.
+# Payload: session_id, transcript_path, cwd, hook_event_name, timestamp.
+
+[hooks]
+config    = "~/.gemini/settings.json"
+key       = "hooks"
+# Exit 0 -> stdout parsed as JSON. Exit 2 -> blocked, stderr is the reason.
+events    = [
+  "SessionStart", "SessionEnd",
+  "BeforeAgent", "AfterAgent",
+  "BeforeTool", "AfterTool",
+  "BeforeModel", "AfterModel", "BeforeToolSelection",
+  "Notification", "PreCompress",
+]
+# Injection points, both via hookSpecificOutput.additionalContext:
+inject_session = "SessionStart"    # catalog goes here
+inject_turn    = "BeforeAgent"     # appended; research task_class only
+
+[layout]
+context = { file = "/locus/config/GEMINI.md" }

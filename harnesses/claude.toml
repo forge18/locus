@@ -1,0 +1,42 @@
+# Claude Code — the reference harness. Every extension type has a native
+# mechanism, so nothing is merged into context and no loader is needed.
+name   = "claude"
+binary = "claude"
+detect = ["--version"]
+
+[launch]
+argv = ["--permission-mode", "bypassPermissions"]   # own gate OFF: the container is
+                                                    # the boundary and nobody is
+                                                    # attached to answer a prompt.
+tui  = false
+
+[config]
+# Claude reads its home from this env var, so materializing elsewhere and
+# pointing at it beats writing into a real ~/.claude.
+home_env = "CLAUDE_CONFIG_DIR"
+home     = "/locus/config"
+
+[telemetry]
+source  = "hooks"
+log_dir = "/locus/config/projects"  # transcripts, for backfill
+format  = "claude-jsonl"
+emits   = ["session_start", "user", "assistant", "thinking", "tool_call",
+           "tool_result", "tool_error", "permission_request",
+           "subagent_start", "subagent_stop", "aborted", "session_end"]
+
+[auth]
+env = ["ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"]
+
+[layout]
+# Every extension is native, so every strategy is `dir`. This is the only
+# harness in the set that needs no conversion and no plugin.
+agents        = { via = "dir", dir = "/locus/config/agents",        format = "markdown+frontmatter" }
+commands      = { via = "dir", dir = "/locus/config/commands",      format = "markdown+frontmatter" }
+hooks         = { via = "entries-in", dir = "/locus/config/hooks",  format = "shell", target = "/locus/config/settings.json", key = "hooks" }
+linters       = { via = "dir", dir = "/locus/config/linters",       format = "shell+markdown" }
+output-styles = { via = "dir", dir = "/locus/config/output-styles", format = "markdown+frontmatter", active = "brief-bright-gone", target = "/locus/config/settings.json", key = "outputStyle" }
+rules         = { via = "dir", dir = "/locus/config/rules",         format = "markdown+frontmatter" }
+skills        = { via = "dir", dir = "/locus/config/skills",        format = "markdown+frontmatter" }
+context       = { via = "file", file = "/locus/config/CLAUDE.md" }
+
+# The active output style is selected by its frontmatter `name`, NOT its filename.

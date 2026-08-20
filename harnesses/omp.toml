@@ -1,0 +1,32 @@
+# oh-my-pi — a pi fork. Same shapes, but a SEPARATE file rather than an
+# inherited one, because its hook event set can drift at any omp release and a
+# shared entry would hide the drift.
+name   = "omp"
+binary = "omp"
+detect = ["--version"]
+
+[launch]
+argv = ["--print"]
+tui  = false
+
+[config]
+home = "/locus/config"
+
+[telemetry]
+source    = "hooks"
+generated = "/locus/config/extensions/locus-hooks.ts"
+format    = "pi-hooks-json"
+emits     = ["session_start", "user", "assistant", "tool_call", "tool_result",
+             "tool_error", "subagent_start", "subagent_stop", "session_end"]
+
+[layout]
+agents        = { via = "dir", dir = "/locus/config/agents", format = "markdown+frontmatter" }
+commands      = { via = "dir", dir = "/locus/config/prompts", format = "markdown+frontmatter" }
+hooks         = { via = "plugin", emits = "/locus/config/extensions/locus-hooks.ts" }
+linters       = { via = "dir", dir = "/locus/config/linters", format = "shell+markdown" }
+output-styles = { via = "dir", dir = "/locus/config/output-styles", format = "markdown+frontmatter", active = "brief-bright-gone" }
+rules         = { via = "dir", dir = "/locus/config/rules", format = "markdown+frontmatter" }
+skills        = { via = "dir", dir = "/locus/config/skills", format = "markdown+frontmatter" }
+context       = { via = "file", file = "/locus/config/AGENTS.md" }
+
+# Rules are native here, unlike pi. Same startup rename trap on prompts.
