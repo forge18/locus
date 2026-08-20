@@ -25,6 +25,10 @@ events = ["PreToolUse", "PostToolUse", "Stop"]
 # `authentication required` rather than hanging. Authenticate once interactively.
 pre_auth = "agy"
 
+[models]
+flag      = "--model"                 # UNVERIFIED against the installed binary
+list_argv = []
+
 [layout]
 # Reads .agents/ — the directory local-dx treats as human-owned. Hooks exist but
 # are tool-scoped, so session-level events come from the stream instead.

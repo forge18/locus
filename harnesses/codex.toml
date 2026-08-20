@@ -27,6 +27,10 @@ emits   = ["session_start", "user", "assistant", "tool_call", "tool_result",
 [auth]
 env = ["OPENAI_API_KEY"]
 
+[models]
+flag      = "--model"
+list_argv = []
+
 [layout]
 agents        = { via = "entries-in", dir = "/locus/config/agents", target = "/locus/config/agents", format = "toml", keys = ["name", "description", "developer_instructions"] }
 commands      = { via = "dir", dir = "/locus/config/prompts", format = "markdown+frontmatter", flat = true }

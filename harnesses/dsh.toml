@@ -21,6 +21,10 @@ bridge = { plugin = "@deepseek-ai/dsh-hooks-claude-code", config = "/locus/confi
 format = "claude-hooks-json"
 emits  = ["session_start", "user", "tool_call", "tool_result", "tool_error", "session_end"]
 
+[models]
+flag      = "--model"                 # UNVERIFIED — dsh is not installed here
+list_argv = []
+
 [layout]
 agents        = { via = "entries-in", dir = "/locus/config/agents", target = "/locus/config/cordis.patch.yml", key = "plugins", format = "yaml" }
 commands      = { via = "merged-into", target = "context", strip_frontmatter = true, weaker_than_native = "always-on; not invocable, so every command costs tokens whether used or not" }

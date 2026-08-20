@@ -42,6 +42,23 @@ Every Tier 2 tool solved isolation, because git worktrees made isolation easy. A
 survives the session") are hosted platforms. Shared memory and agent mail in Rust, available
 identically to every harness, is the thing this design has that the category does not.
 
+**The three-part decomposition is now converged on by name.** Rotifer's *Meta-Harness Convergence*
+argues that independent teams are landing on the same split — persistent context, capability
+configuration, and execution environment — and that it recurs because the three have different
+lifecycles: context changes continuously, capabilities change deliberately, environments are
+ephemeral. Anthropic calls them Session, Harness, and Sandbox; Rotifer calls them Agent Memory, Gene,
+and Binding. Locus arrived at the same three under different names, which is the useful part:
+
+| The pattern | In Locus |
+| --- | --- |
+| Persistent context | the **session**, and `memory.event` behind it — *"not a context window… a queryable, persistent log of everything the agent has done"* |
+| Capability configuration | the **agent definition**, versioned, plus its tool allowlist and the harness contract |
+| Execution environment | the **container per run**, and the clone inside it |
+
+Convergent naming is weak evidence for a design and strong evidence against a *different* one, so this
+is worth exactly what it is: confirmation that the seams are cut where others cut them, and a warning
+that anything Locus puts on the wrong side of those seams will be felt.
+
 Two other differences worth naming, since they were arrived at independently and the field validates
 both: **containers rather than worktrees alone** (Emdash had to invent `$EMDASH_PORT` injection
 because worktrees leave port and service collisions unsolved; Sculptor moved to containers for the
@@ -86,6 +103,10 @@ the strongest available argument that skipping VSCodium costs less than it would
 | Teams | **The workflow is the team.** Its agent nodes are the roster, each node carries a role, and the edges are the dependencies. No separate `Team` entity. |
 | Review surface | **Artifacts**, not transcripts. Plans, diffs, diagrams, screenshots, recordings, and a walkthrough on completion — all commentable, and a comment steers the agent that made it. |
 | Harness contract | **Declaration plus materialization.** A TOML file says where each of the eight extensions goes; a **materializer** puts it there. Four strategies are generic and parameterized by that TOML; the fifth is a plugin, for the harnesses whose config is code. A harness needing code is a directory, one that does not is a file. |
+| Tokens | **A design constraint, not a bill.** Prefix stability is a rule the materializer obeys, tool output is compacted before it reaches context, and every surface hands an agent a summary with a handle rather than a body. Cache rate and payload-by-tool are dashboard metrics because both are already columns. |
+| Handoffs | **Ownership transfers with a payload, never a transcript.** `done`, `remaining`, `attempted`, `decisions`, `open` — the successor reads that, not the predecessor's history. Kill-and-reassign already existed; this is what it hands over. |
+| Tools | **Just-in-time.** A one-line catalog per allowlisted tool; the page arrives only when an agent asks for it. Installation stays eager, because the allowlist is a privilege boundary. |
+| Filesystem | **No virtual filesystem.** Docker layers and `git clone --reference` already give copy-on-write; exposing Locus state as files is the thing the store exists to stop. |
 | Artifacts on disk | **Text in Postgres, media as files the row points at.** Media is stored once for you and **derived on demand for a model** — OCR before pixels, keyframes before clips. Two representations, because a human and a model want opposite things. |
 | Plugins | **One manifest + one executable speaking JSON-RPC 2.0 over stdio**, in any language. Core services stay internal and are never plugins. **Data-driven: a plugin declares and returns data; the first-party UI knows how to render it.** No third-party UI code, ever. |
 | Board | **Fixed columns across every project**, not configurable: Ready → In Progress → Testing → Reviewing → Waiting For Approval → Done. **`blocked` is a status, not a column.** Two gating rules only. |
@@ -106,7 +127,8 @@ Recorded so they are not rediscovered as gaps. Each was considered and set aside
 | **UI and navigation** | The surfaces are decided — terminals, board, canvas, editor, inbox, wiki. How they are laid out and moved between is not. |
 | **The question-topic checklist** | Whether planning's topic list is hand-written once or derived per project. |
 | **The "I don't know what I want yet" entry point** | Planning requires a goal up front, so something has to turn a vague idea into one. Separate mode or separate module, undecided. |
-| **Where the marketplace index is hosted** | The manifest schema is settled and a local directory of them carries M4's resolver perfectly well. Hosting, pinning, and the trust model are M8's problem, with the installer that makes them matter. |
+| **Compiling successful runs into recipes** | A 2026 result line — Skill-DisCo, SkillRT, the LOOP engine — compiles successful agent traces into branch-free procedures, reporting savings above 90% on repeated tasks. Locus is unusually well placed for it, since every run's normalized event sequence is already stored and every workflow already has a goal and a verify. It is deferred because it is worth nothing until there are many successful runs of the same shape to compile, which is an M6 condition, not an M1 one. |
+| **Where the marketplace index is hosted** | The manifest schema is settled and a local directory of them carries M4's resolver perfectly well. Hosting, pinning, and the trust model are M8's problem, with the installer that makes them matter. The axis to decide on then is **curation versus selection** — a vetted catalog with quality guarantees, or an open index where manifests compete and usage data does the ranking. Locus already collects the usage data, which points at selection, but that is an argument to have with the installer in front of us. |
 
 ### One clarification carried into the design
 
@@ -146,11 +168,22 @@ Tauri application  (locus)
       ├── LSP supervisor       host-side language servers, multiplexed to editor panes
       ├── store                Postgres (sqlx), the single source of truth
       ├── event bus            in-process broadcast + Postgres LISTEN/NOTIFY across processes
+      │                        NOTIFY carries an id only — the payload cap is 8000 bytes
       ├── shared services      memory · mail · board · wiki · telemetry · tools
       │                        one Rust implementation, identical for every harness
       ├── workflow engine      loop execution, guardrails, schedules
       └── agent socket         /run/locus.sock — bind-mounted into every agent container
 ```
+
+**`locusd` outlives the window.** It runs as a background service; closing the app detaches the UI and
+nothing else. Runs keep streaming into Postgres, schedules keep firing, and reopening the window
+re-attaches to state that never stopped. A scheduled workflow that only fires while a window happens
+to be open is not a scheduled workflow.
+
+**Every start reconciles.** On boot the supervisor compares runs marked `running` against Docker:
+container alive → re-attach its stream; container gone → close the run as `aborted`, emit the event,
+and put it in the inbox. Without this a crash leaves rows that claim to be running forever, and the
+dashboard slowly fills with work that ended weeks ago.
 
 **The agent-facing surface is a CLI, not a protocol.** Inside its container an agent calls `locus …`,
 which speaks to `/run/locus.sock`. This is the MCP replacement: a binary costs nothing until invoked;
@@ -222,6 +255,25 @@ it is materialized per run into `/locus/config`, so editing a skill never invali
 
 A cold build is minutes and a warm start is seconds; the first run of a new agent pays once. Auth is
 injected at run start and never baked, which is the constraint Spike 1 is testing.
+
+### No virtual filesystem
+
+Worth answering explicitly, because it looks attractive twice and is wrong both times.
+
+**For the workspace, the copy-on-write already exists.** Docker's storage driver is a COW filesystem —
+image layers are shared and only writes allocate — and `git clone --reference` against a shared object
+store means N agents on one repo do not mean N copies of its history. A FUSE layer on top would buy
+deduplication that is already there, and charge a daemon, a mount lifecycle, and a macOS/Linux
+behavioral difference for it.
+
+**For Locus's own state, files were the thing being fixed.** Exposing memory, mail, and the wiki as a
+mounted tree is tempting because harnesses are file-native — and it is exactly what `local-dx`, `amq`,
+and `memsearch` do, which is why the plan reads them for their verb sets and refuses to link them. A
+file tree cannot express scope, provenance, decay, or an ACL, and two agents writing one directory is
+Hermes's documented failure. The CLI over a socket answers the same need with a query behind it.
+
+The one honest cost of saying no: an agent that wants to `cat` something must call a command instead.
+That is one tool call against a mount daemon, and the command returns the compacted form anyway.
 
 ### Adding a repo
 
@@ -458,6 +510,38 @@ a native session id to hand back.
 routing** — tier resolution is the app's, so changing which model `high` means is a setting rather
 than eleven file edits.
 
+#### Model routing — mechanism in the file, policy in the UI
+
+An agent asks for `model_tier: high`. Turning that into an actual model takes two things the harness
+file must supply, because both are facts about the binary rather than preferences about the work:
+
+```toml
+[models]
+flag      = "--model"                 # how a model is passed to THIS harness
+list_argv = ["models", "list"]        # optional: how to ask it what it has
+```
+
+Everything else is a setting. **Settings → Harnesses** shows one row per registered harness with four
+cells — `low`, `medium`, `high`, `xhigh` — each a combobox over whatever `list_argv` returned, free
+text where a harness cannot enumerate. The mapping lives in `core.settings`, keyed by harness and
+tier, and changing which model `high` means is one edit that every agent picks up on its next run.
+
+Three rules make it safe to leave half-filled:
+
+- **A missing tier falls back UP, never down.** An agent asking for `xhigh` on a harness with no
+  `xhigh` gets `high`. Falling *down* would quietly answer a hard question with a cheap model, and the
+  result would look like a bad agent rather than a bad setting.
+- **Unset means the harness's default.** With no mapping at all Locus passes no `flag`, so a harness
+  that was never configured still runs — it just runs on whatever it would have chosen itself. A new
+  harness is usable the moment it is registered.
+- **The resolved model is recorded on the run.** Not the tier — the actual model id, on every run row,
+  so spend and verify pass rate are attributable to what really answered. Comparing tiers across a
+  setting change is otherwise guesswork.
+
+`list_argv` is discovery, not policy: it asks the harness what exists. Which of those is `high` is
+never the file's business, and a harness that gained a model overnight needs no file edit for it to
+appear in the combobox.
+
 ```toml
 # harnesses/claude.toml
 name    = "claude"
@@ -540,6 +624,12 @@ the honest measure of how uneven the field is, and it is only visible because th
 The first four are parameterized data — `format`, `suffix`, `flat`, `strip_frontmatter`, the target
 key — and live in `crates/locus-core/src/materialize/` as five generic implementations that name no
 harness.
+
+**Materialization is byte-deterministic**, which is a token decision more than a tidiness one. Sorted
+file order, sorted lists inside generated files, no timestamps, no run id, no hostname: the same agent
+with the same tools must produce a byte-identical tree, because that tree *is* the prompt prefix and
+an unstable prefix costs cache on every run that follows. A materializer that embeds the current time
+is not slightly untidy — it is a per-run cache miss for every agent that harness serves.
 
 **The plugin contract, for the fifth.** Same shape as every other plugin here: one executable,
 JSON-RPC 2.0 over stdio, any language. It is called once per run with the extension set as JSON and
@@ -650,7 +740,7 @@ Project
 | | **Session** | **Run** |
 | --- | --- | --- |
 | Bounded by | you closing it | the container exiting |
-| Holds | agent@version, its branch on the local remote, the board task it serves, core-memory base, pane state | events, token usage, exit status, artifacts |
+| Holds | agent@version, its branch on the local remote, the board task it serves, core-memory base, pane state | events, token usage, exit status, artifacts, **the resolved model id** |
 | Resumable | yes — by starting another run | no; a run is over when it is over |
 | Maps to | the harness's own conversation id, where it has one | one terminal, one harness process |
 | Cost | the sum of its runs | measured directly |
@@ -670,6 +760,45 @@ Three consequences worth stating:
 - **A terminal you drive yourself is not a session.** Same pane type, but no agent, no events, no
   cost attribution.
 - **Chat is a session**, with the designated spec agent. Nothing special about it.
+
+### Handoffs — a payload for a mechanism that already exists
+
+The guardrails already **kill and reassign after three stuck iterations**, and a session already
+belongs to exactly one agent. Put together, those mean work changes hands regularly and currently
+arrives with nothing: the successor inherits a branch and a task, and rediscovers everything else.
+
+A **handoff** is that missing payload. `locus handoff <agent> --why …` ends the current session and
+opens a new one on the same task and the same branch, linked by `handed_off_from`, carrying one
+structured artifact:
+
+```
+handoff
+  goal              what this work is for, restated
+  done[]            what is finished, each with the evidence
+  remaining[]       what is not, in the order it should be taken
+  attempted[]       what was tried and did not work — the expensive half
+  decisions[]       choices already made, so they are not re-litigated
+  open[]            questions the successor inherits
+  branch · task · artifacts[]
+```
+
+**The successor reads the handoff, never the predecessor's transcript.** That is the whole point: a
+transcript is long, mostly irrelevant, and replaying it hands over the confusion along with the
+context. `attempted[]` is the part that pays for the mechanism — without it the next agent's first act
+is to retry what just failed.
+
+Four things trigger one, and they are the same mechanism each time:
+
+| Trigger | Who decides |
+| --- | --- |
+| Stuck — three iterations with no progress | the guardrail |
+| Context exhausted | the run supervisor |
+| The work needs a different role — builder to reviewer, or to a specialist | the workflow graph |
+| You reassign it | you |
+
+A handoff is **not** mail and **not** `locus agent invoke`. Mail is a message between agents that both
+keep working; invoke is a nested run that returns to its caller. A handoff transfers ownership and does
+not come back.
 
 ### Artifacts — what you review instead of tool calls
 
@@ -697,6 +826,23 @@ run is still live while the task is unfinished, which is when comments actually 
 after a session's last run has exited is delivered by starting the next one. It is
 the PR review interaction, applied to plans and images rather than only code — and it is the same
 mechanism as the agent-authored PR flow in M7, so it is one implementation, not two.
+
+**Artifacts are also where context goes to be forgotten.** A 60KB test log or a long research pass
+does not belong in a context window, but it does need to be reachable — so the compaction hook writes
+anything over a threshold as an artifact and leaves **a one-line summary and an id** in its place. The
+agent fetches the body with `locus artifact get` if it turns out to matter. Same rule as memory, tool
+docs, and images; this is the fourth surface it applies to, and the one that catches everything the
+other three do not.
+
+That makes artifacts do two jobs, so the kinds split by **whether a human is meant to see them**:
+
+| | Kinds | Appears in the inbox |
+| --- | --- | --- |
+| **Review** | `plan` · `diff` · `diagram` · `image` · `recording` · `walkthrough` | yes, when it needs you |
+| **Reference** | `finding` (an agent's own research or summary) · `payload` (an offloaded tool result) | **never** — they are storage with a handle |
+
+Without that split the inbox fills with an agent's own scratch, and the one surface built to protect
+your attention becomes the one that spends it.
 
 **Text artifacts are rows; media is a file the row points at.** A plan, a diff, and a walkthrough are
 text and live in Postgres, which compresses them at rest already. A screenshot or a recording is
@@ -887,6 +1033,12 @@ HTML and the rest, and is already installed on this machine. The GUI editor stil
 always fix a page — but the default path is that the wiki is *derived* and then curated, not composed
 from nothing.
 
+**How a contradiction is found.** The new statement's embedding retrieves its *k* nearest existing
+assertions, and only those go to a model to adjudicate — agree, contradict, or unrelated. Bounded by
+construction: ingest cost scales with what the document says, not with how much the wiki already
+holds. A contradiction verdict carries both statements and both sources, because a flag you cannot
+adjudicate yourself is just an alarm.
+
 **Contradiction flags at ingest time, not query time.** This is the idea most worth stealing. When a
 new source contradicts an existing statement, the conflict is raised *when it lands* — as a row in
 `wiki.contradictions` and a card on the board — rather than discovered months later by whoever
@@ -1069,6 +1221,82 @@ would with no memory layer, which is the correct baseline. But it need not stay 
 here already has written memory in git — ADRs, specs, READMEs, existing `AGENTS.md` files. `locus wiki
 ingest` reads those on day one, so the first keeper pass has a corpus rather than a blank store.
 
+### Token discipline
+
+If token usage really explains most of the variance in how a run goes, then tokens are not an
+operational concern that gets attention when a bill arrives — they are a design constraint on every
+surface that puts bytes in front of a model. Four levers, in the order they pay.
+
+#### 1. Prefix stability, because cache rate is the number
+
+Cached reads bill at a fraction of fresh input, so **a long session with a stable prefix is cheaper
+than a short one that busts the cache every turn**. What breaks it is content that changes near the
+*front* of the prompt: a rotating timestamp, a re-ordered tool list, an instruction file edited
+mid-session. Locus writes that entire prefix — materialized config, base-context, the memory catalog —
+which makes cache rate something the design controls rather than observes.
+
+Five rules follow, and all of them are cheap if applied from the first commit:
+
+- **Materialization is deterministic.** Sorted file order, sorted tool lists, no timestamps, no run id,
+  no hostname. The same agent with the same tools produces a byte-identical config tree, so two runs
+  share a prefix instead of each paying to build one.
+- **The config tree is frozen for the life of the run.** It is already discarded at exit; nothing may
+  rewrite it mid-run. Editing a skill affects the *next* run.
+- **The memory catalog is a snapshot, not a live view.** Taken at `SessionStart`, unchanged until the
+  run ends — Hermes's frozen-snapshot mechanic, adopted for this reason and not only for memory
+  hygiene.
+- **Mutable content goes last.** Anything per-run — the canary token, the run's port, its branch name —
+  sits at the end of the assembled context, after everything shared. A per-run value near the front
+  costs every other run's cache.
+- **Turn-level injection stays off for `code` and `plan`.** Already the rule for retrieval quality;
+  it is also the single most reliable way to mutate a prefix mid-session.
+
+`usage.cache_read` against `usage.input` is already on every event, so **cache rate is a column, not a
+project.** Below ~80% on a long session means something in front is moving, and the run that did it is
+identifiable.
+
+#### 2. Prevention at the tool boundary
+
+The cheapest token is the one that never enters context. `local-dx` puts this in front of the tool
+rather than behind it: `rtk` rewrites verbose commands and compacts their output *before* the result
+is appended, reported at 60–90% savings on ordinary development operations. Locus already materializes
+hooks into every container, so **the same interception ships as a `PreToolUse` hook in the base image**
+— one implementation, every harness, and it needs no cooperation from the agent.
+
+The rule it enforces: a tool high on bytes but low on calls is returning too much per call. Narrow the
+read, add a line range, compact the output.
+
+#### 3. Diagnosis, as a query
+
+`token-optimizer top` ranks tools by how much result payload they put into history, because *halving
+the biggest contributor beats eliminating three small ones*. Every `tool_result` is already a
+normalized row here, so that ranking is a `GROUP BY` — per agent, per project, per harness — rather
+than a tool to build. The dashboard reports it beside spend, and it is what makes "this agent is
+expensive" actionable instead of merely true.
+
+#### 4. Summaries with handles, never bodies
+
+This is one rule the design already applies three times, and it is worth naming so the fourth case
+does not get decided differently:
+
+| Surface | What the agent gets | Body on demand via |
+| --- | --- | --- |
+| memory | 800-token catalog of paths and one-liners | `locus memory recall` |
+| tool docs | a one-line catalog, ~15 tokens per tool | `locus tools docs <name>` |
+| tool results over threshold | a summary line and an artifact id | `locus artifact get` |
+| artifacts | OCR text or a downscaled frame | `locus artifact get` |
+| code structure | `codanna` symbol and relationship queries | reading the file |
+
+**Nothing is pre-loaded that can be fetched.** Retrieval-augmented context beats whole-file loading for
+exactly this reason, and it also dissolves the over-retrieval problem: a body that was never injected
+cannot crowd out the work.
+
+One asymmetry worth stating because it aims the effort: **output tokens cost roughly five times
+input**. That is what the `output-styles` extension is actually for — an agent that answers in three
+sentences instead of thirty is a cost decision, not a style preference — and why every `locus` command
+emits compact JSON rather than pretty-printed, packing uniform tables where the row count justifies it
+(50–60% smaller than minified JSON on tabular data).
+
 ### The board
 
 Deliberately small. Fixed columns across every project — not configurable — and only the gating that
@@ -1099,6 +1327,14 @@ task
   evidence[]            run + the events that justify a transition
   github_issue          nullable, linked by explicit action in either direction
 ```
+
+**Evidence proves the requirement was met, not that the feature is right.** Sengupta et al. report a
+payments backend that passed CI in two cycles against an adversarially-written suite and still shipped
+two business-logic failures, because neither behavior was in the contract. *"The harness built what
+the contract specified; the contract did not fully capture the intended behavior."* No amount of
+verification reaches outside its requirement, which is why **contract completeness is the highest-
+leverage unsolved problem in any system shaped like this one** — and why the planning module's
+elicitation, not its audit, is where the quality actually comes from.
 
 **Two gating rules, and no more:**
 
@@ -1148,7 +1384,11 @@ this.
                   └─ drop                 answered or irrelevant          │
                 ←────────────────────────────────────────────────────────┘
                      ↓  nothing relevant left unanswered
-4  SYNTHESISE   spec · tasks · tool list · proposed workflow
+4  SYNTHESISE   pass 1  completeness — make the implicit explicit: types, state
+                        transitions, edge cases, trust boundaries, error conditions
+                pass 2  reduction — cut what is unsupported, rewrite what is
+                        ambiguous, so nothing downstream reads as mandatory by accident
+                → spec · tasks · tool list · proposed workflow
                      ↓
 5  AUDIT        auditor, fresh context: ISO/IEC/IEEE 29148 + the two-reader test
                   ├─ finding is a missed question → back to 3, ONCE
@@ -1161,6 +1401,13 @@ this.
 8  APPROVE  →   tasks land on the board
    REJECT   →   the draft stays here
 ```
+
+**Synthesis is two passes, and the second one subtracts.** A completeness pass alone over-specifies,
+and the failure that follows is specific: **downstream agents treat an unsupported requirement as
+mandatory**, so a speculative clause becomes work someone does. The reduction pass exists to delete
+it before it is load-bearing. This is the concrete mechanism behind the Specification Overfitting
+guard — a rule that research cannot unilaterally widen scope stops the spec growing, and a pass whose
+only job is to cut stops it staying grown.
 
 **Orientation is separate from on-demand research** because inferring what you need and checking which
 tools exist both require knowing what is already there — and doing that per question would repeat the
@@ -1305,12 +1552,33 @@ with model capability, yet one team rebuilt a feature with **3.5+ hours and 2,57
 23 minutes of iterative prompting, for comparable bug counts**. Elicitation pays; document volume does
 not.
 
+#### Specialization records — the checklist a domain earns
+
+The topic list is general: actors, triggers, inputs and outputs, error paths, limits, persistence,
+concurrency, permissions, observability, migration and rollback, failure modes, out-of-scope. It is
+hand-written once, because those topics are properties of software rather than of a project.
+
+What *is* per-project is the layer above it. A **specialization record** is a domain's accumulated
+requirements — payments demands idempotency keys, explicit state transitions, and trust-boundary
+checks; auth demands session invalidation and privilege boundaries — injected into synthesis when the
+goal touches that domain. Records are written by the calibration path, not by hand: a spec gap the
+arbiter classified in a payments task is exactly the evidence that the payments record was missing a
+clause.
+
+Two rules keep them from doing harm:
+
+- **Applied only above a confidence threshold.** Below it the pass runs without the record, because a
+  wrong domain assumption injected into a contract is worse than no assumption — it arrives wearing
+  the authority of accumulated experience.
+- **They are wiki `concept` pages, not a new store.** A specialization record is curated prose about
+  how this project does a domain, which is what the wiki already is. No fourth knowledge tier.
+
+This is what turns failures into process rather than into retries, and it is the loop the field keeps
+finding: a recurring bug becomes a regression test, a recurring spec gap becomes a record clause, a
+recurring ambiguity becomes a compiler rule.
+
 #### Open
 
-- **The topic checklist.** The questions are chosen from a fixed list of topics — actors, triggers,
-  inputs and outputs, error paths, limits, persistence, concurrency, permissions, observability,
-  migration and rollback, failure modes, out-of-scope — scored against the goal and dropped when
-  irrelevant. Whether that list is hand-written once or derived per project is **undecided**.
 - **The "I don't know what I want yet" entry point.** A goal is required up front, so something has to
   turn a vague idea into a goal worth grilling against. Whether that is a mode of this module or a
   separate one is **undecided**.
@@ -1339,7 +1607,8 @@ An agent is a Markdown file with frontmatter. Not a graph, not a compile step:
 name: reviewer
 description: Read-only critic; runs on task completion
 harness: any            # or a specific one, when it matters
-model_tier: high        # low | medium | high | xhigh — resolved in the app, not the harness file
+model_tier: high        # low | medium | high | xhigh — mapped to a model in Settings → Harnesses;
+                        # a missing tier falls back UP, never down
 task_class: research    # code | plan | research — sets retrieval depth; defaults to code
 tools: [rg, gh, cargo]  # allowlist, resolved against the marketplace index
 skills: [audit-code]
@@ -1438,6 +1707,18 @@ every operand is a column, so a `Condition` is a `WHERE` clause against the run,
 in microseconds and reproducible from stored events. Anything it cannot express is a `Gate` — which is
 to say, a decision that deserved a person or an agent rather than an operator.
 
+**The Ralph loop is a preset, not the only shape.** *pick → act → validate → commit → reset* is the
+pattern the field converged on, and it is expressible in these nodes already — a `Loop` whose reset
+starts a fresh run in the same session, a `Verify` as the validate step, a `Goal` as the termination
+condition. Because it is a shape people want often, it ships as a **template**: `locus ralph --goal
+… --verify …` runs one without opening the canvas, and dropping a Ralph preset onto the canvas
+expands into the ordinary nodes so it can be edited rather than configured.
+
+Two honest notes on it. It is **token-hungry by construction** — a fresh context every pass is the
+point, and it is what the budget guardrail exists for. And it is **only as good as its verify**: a
+loop iterating against a weak check converges confidently on the wrong thing, which is why `verify` is
+NOT NULL and why the arbiter's noise class matters more here than anywhere else.
+
 **Workflow guardrails.** Each is borrowed from a measured failure in an existing tool. Defaults apply
 to any agent run; a workflow may tighten or relax them, and they are what make leaving a loop
 unattended defensible:
@@ -1452,15 +1733,72 @@ unattended defensible:
 | Wall-clock ceiling | none | Optional; a loop that cannot finish overnight should stop, not run to morning |
 | **Token budget** | **none — optional** | When set, auto-pause at 85% and notify rather than draining silently. Nested agents multiply spend, so a ceiling is worth having available even if rarely used |
 
+**A budget is optional; the accounting is not.** Rotifer cites Anthropic finding that *"token usage by
+itself explains 80% of the variance"* in agent task performance. If that holds even roughly, tokens
+are not a cost line to watch — they are the strongest single predictor of whether a run went well, and
+a run that passes verify on four times the tokens is a worse run wearing a green tick. So every run
+carries usage whether or not a ceiling was set, agent trust is weighted by tokens per passing run, and
+the dashboard reports both. The ceiling stays optional because most workflows do not need one; the
+number is mandatory because without it the dashboard cannot tell a good run from an expensive one.
+
 **Pause means the loop stops being fed, not that a process is frozen.** The supervisor lets the current
 turn finish, holds before the next iteration, and notifies; the container stays up so its state is
 still inspectable. `SIGSTOP` on a harness mid-request would leave sockets half-written and a model
 call in flight, which is a worse problem than the spend it saved. A held workflow is resumed or
 cancelled by you, and holding is recorded as an event like anything else.
 
+#### When `Verify` fails, classify before retrying
+
+Every guardrail above answers a failed iteration the same way: try again, with reflection, then give
+up. That is wrong for at least half the failures, and Sengupta et al.'s deployment report names why —
+**a contract that admits two readings is not fixed by another implementation attempt.** Their harness
+routes every failure through a four-way arbiter first, and each class has a different corrective
+action:
+
+| Class | Means | What Locus does |
+| --- | --- | --- |
+| **Bug** | the implementation violates a clear requirement | retry the iteration, and promote the failing check into the task's regression set |
+| **Spec gap** | the requirement omitted necessary behavior | back to the planning module as an amendment — a *new* task for the delta, since the original may be Done |
+| **Noise** | environmental or irrelevant — a flaky test, a CI hiccup | recalibrate the check; do not count the iteration against `max_iterations` |
+| **Ambiguity** | the requirement admits several valid readings | refine the requirement, then restart — never retry the implementation |
+
+Two consequences worth having on purpose. **Noise stops burning the iteration budget**, which today
+it does silently — three flaky failures and a workflow is dead at 8 iterations having attempted the
+work five times. And **spec gaps and ambiguity leave the workflow entirely**, which is the only path
+that reaches the thing actually broken; the two-reader test already in the planning audit is the
+mechanism that resolves an ambiguity once it is routed there.
+
+The arbiter is an agent with a bounded job, and its classification is a column on the iteration — so
+**spec-gap rate and ambiguity-detection rate are queries**, and a workflow that keeps producing spec
+gaps is visibly a planning problem rather than a builder problem.
+
 **Reviewer agents need no special machinery.** A reviewer is an ordinary agent with read-only tools,
 wired to a `Gate` that triggers on task completion — roughly one reviewer per three or four builders.
 The `Gate` and `Verify` nodes exist so the pattern is expressible without hand-wiring.
+
+**Role contamination is refused at compile time.** One agent definition may not hold both the builder
+and the tester role in one workflow, and the reviewer may not be the implementer. This is the rule the
+whole independence regime rests on, so it belongs in graph validation beside cycles and missing
+`verify` — not in a convention someone follows. A verifier that wrote the code inherits its
+assumptions, and a graph that quietly allows it produces reviews that agree with everything.
+
+**Two regimes, and they catch different things.** Conflating them is why review sometimes finds
+nothing:
+
+| Regime | Mechanism | Catches | Cannot catch |
+| --- | --- | --- | --- |
+| **Independence-based** | one agent implements, another writes tests — both from the requirement, neither seeing the other | contract violations, behavioral bugs | anything the requirement never said; shared model blind spots |
+| **Attention-based** | one model directed into separate reviewer roles — security, architecture, product, QA | structural, product, and UX problems | it is not independent, so a shared misreading survives |
+
+**Locus can enforce independence structurally**, which is the part most setups only ask for politely:
+separate containers, separate sessions, no shared conversation, no shared short-term memory — all
+already true — plus the one the git model makes possible, **the tester clones the branch at base**,
+before the builder's commits. A verifier that cannot see the implementation cannot adopt its
+assumptions.
+
+Stated honestly, as the source does: this is structural independence, not formal. Two agents on the
+same foundation model can share a blind spot, and an incomplete requirement produces an incomplete
+test suite no matter how independent the author.
 
 ### Teams — the workflow *is* the team
 
@@ -1493,7 +1831,8 @@ AGENT                              WORKFLOW
 markdown + frontmatter             canvas (nodes + edges)
    │ parse, validate tools            │ validate  cycles, unresolved handles,
    ▼                                  │           missing verify, unreachable goal,
-agent_defs ─┬─ frontmatter JSONB      │           loop with no termination
+agent_defs ─┬─ frontmatter JSONB      │           loop with no termination,
+            │                        │           role contamination
             ├─ body       text        ▼
             └─ version                workflow_defs ─┬─ graph   JSONB, as authored
    │ materialize (at run start)                      ├─ spec    JSONB, executable
@@ -1519,7 +1858,9 @@ locus memory note add|replace|remove          the bounded core tier; over-cap wr
 locus memory recall <query>                   the store tier: structured + FTS + vector
 locus memory write --scope … --why …          a fact, with provenance attached automatically
 locus memory forget <id>                      traced back to its writer, then deleted
-locus mail send|list|read|reply|drain|wait   agent↔agent, Rust-native
+locus mail send|list|read|reply|drain|wait   agent↔agent, Rust-native. `wait` blocks with a
+                                             15-minute default timeout, then returns empty —
+                                             it sets `waiting`, so it never reads as idle
 locus task list|show|move|assign|comment     board, agent-driven
 locus wiki search|read|write|history         wiki, with revisions attributed to the run
 locus wiki ingest <path|url>                 read a document into typed pages; flags contradictions
@@ -1534,6 +1875,8 @@ locus agent invoke <name>@<version>          run a nested agent: own container, 
 locus svc up|down <name>                     start a project service container; agents get no Docker socket
 locus ask <question>                         escalate to the human via the Chat pane; blocks
 locus run status|artifacts                   this run's own state
+locus handoff <agent> --why …                transfer ownership: ends this session, opens the
+                                             successor's on the same task and branch
 locus artifact put <kind> <path>             publish a plan, diagram, or image for review
 locus artifact get <id> [--for-context]      read one back; --for-context returns OCR text or a
                                              downscaled frame, never the raw bytes
@@ -1545,7 +1888,8 @@ locus lint [--changed|--only NAME]           run this project's linters; the one
                                              never from a hook, which would tax every tool call
 ```
 
-`--json` on every command, because the caller is usually a model.
+`--json` on every command, because the caller is usually a model — compact, never pretty-printed, and
+key-packed for uniform tables past a row threshold, which runs 50–60% smaller than minified JSON.
 
 ### Marketplace
 
@@ -1562,7 +1906,29 @@ caps    = ["agent-messaging"]
 ```
 
 Locus resolves an agent's `tools` list against the index, bakes installs into that agent's image, and
-injects each tool's `docs` into context. A tool not in the allowlist is not installed, so the agent
+injects a **catalog** of them — name plus one line, roughly 15 tokens each — with every body fetched
+on demand through `locus tools docs <name>`. **Nothing about a tool is loaded before the agent decides
+to use it.**
+
+This is the same move the field made for MCP under three different names — Anthropic's Tool Search
+Tool, Cloudflare's Code Mode, the MCP-code-execution pattern — all versions of *stop loading tool
+definitions you aren't using*, against a reported 55K+ tokens of schema consumed before work begins.
+Reaching it from a CLI is a catalog line and a `docs` verb rather than an architecture.
+
+The line an agent needs to *choose* a tool is short: what it does and when to reach for it. The page
+it needs to *use* one — flags, output shape, examples — is only worth its tokens once the choice is
+made. Fifteen allowlisted tools cost about 225 tokens instead of 3,000, and the difference is
+recovered by any agent that actually reads a page.
+
+**Installation stays eager, deliberately.** A tool absent from the allowlist is absent from the image,
+because that is a privilege boundary rather than a context decision. Just-in-time applies to what an
+agent *knows*, never to what it *can reach*.
+
+**Those blurbs are worth iterating on.** Anthropic reported a **40% cut in task completion time** from
+having an agent evaluate and rewrite tool descriptions — which makes a manifest's `summary` and `docs`
+a tuning surface rather than boilerplate. The index is git-backed, so a better description is a commit,
+and the event store already holds what it would be measured against: how often a tool was reached for,
+and whether those runs passed. A tool not in the allowlist is not installed, so the agent
 cannot reach for it.
 
 The marketplace splits across two milestones, because agents need the *index* long before they need
@@ -1725,8 +2091,17 @@ Write the spec set, then answer the two questions that could invalidate it.
   | `0017-materializers-declare-then-generate.md` | Why the harness contract has a code half; the four generic strategies; why the fifth returns files instead of writing them |
   | `0018-harness-in-the-image.md` | The harness binary is baked, not host-installed; the two-layer image and its cache key; why config is never a layer |
   | `0019-artifacts-two-representations.md` | Stored for the human, derived for the model; OCR before pixels; why the original is never overwritten |
+  | `0026-no-virtual-filesystem.md` | Where COW already exists, and why Locus state as a mounted tree re-creates the failure the store was built to end |
+  | `0025-handoff-carries-a-payload.md` | Ownership transfer without a transcript; `attempted[]` as the half that pays for it |
+  | `0024-calibration-is-human-gated.md` | The retro agent's four proposal types, and why none applies without a person — the same gate as memory promotion |
+  | `0023-classify-failures-before-retrying.md` | The four-way arbiter; why noise must not spend the iteration budget and ambiguity must leave the workflow |
+  | `0022-prefix-stability-is-a-design-rule.md` | Deterministic materialization, the frozen catalog, mutable content last — and why cache rate is a first-class metric rather than a billing detail |
+  | `0021-model-tiers-are-a-setting.md` | Why the harness file carries the flag and not the model; fall back up, never down; unset means the harness's own default |
   | `0020-debug-and-browser-for-agents.md` | Why the debug session is core-held and the CLI stateless; logpoints over breakpoints; one browser container, one context per run; why the browser has no egress |
 
+- `docs/handoffs.md` — the payload, the four triggers, and why it is neither mail nor a nested invoke
+- `docs/token-discipline.md` — prefix stability rules, the tool-boundary hook, the offender query,
+  and the summary-with-a-handle rule that four surfaces already share
 - `docs/frontend-constraints.md` — Channels vs events, one webview per window, keyboard capture
 - `harnesses/*` — **all eleven written**, every one of the eight extensions declared with a `via`
   strategy and every downgrade carrying `weaker_than_native`. Two are UNVERIFIED against a running
@@ -1763,7 +2138,12 @@ Daemon, store, registry, containers, terminals.
   backup, and this is the one piece the deferral table calls non-deferrable
 - **ACP client** on the `agent-client-protocol` crate — for the planning/chat module
 - Harness registry and TOML schema validation, refusing any entry that leaves an extension undeclared
-- **Materializers**: the four generic strategies (`dir`, `merged-into`, `listed-in`, `entries-in`), plus
+- **Settings → Harnesses**: the tier-to-model grid, populated from `[models].list_argv` where a harness
+  can enumerate and free text where it cannot, stored in `core.settings`. Unset tiers pass no flag, so
+  a freshly registered harness runs on its own default rather than not running
+- **Materializers**, **byte-deterministic**: sorted order, no timestamps, no run id — two runs of the
+  same agent produce an identical config tree, which is what makes the prompt prefix cacheable. The
+  four generic strategies (`dir`, `merged-into`, `listed-in`, `entries-in`), plus
   the `plugin` host and **one** real plugin — pi's, because a generated TypeScript extension is the
   furthest a harness gets from copying a directory, so it proves the contract at its hardest point
 - **Agent definitions**: Markdown + frontmatter, versioned, materialized per run. Because agents are
@@ -1788,7 +2168,8 @@ Daemon, store, registry, containers, terminals.
 against the same repo; their events are indistinguishable downstream; every event lands in Postgres;
 both minimize to informative tiles. A canary skill and a canary rule materialize into **every**
 registered harness and the agent can see both — including pi, where they arrive as generated
-TypeScript rather than as files. A terminal survives a `vim` session with
+TypeScript rather than as files. Materializing the same agent twice produces byte-identical trees:
+`diff -r` is empty, and the run's `usage.cache_read` share is the evidence it mattered. A terminal survives a `vim` session with
 Option-as-Meta, Cmd chords reaching the app rather than the menu bar, and IME composition intact.
 
 ### M2 — Workspace
@@ -1816,7 +2197,12 @@ harness through the `locus` CLI.
 - **Memory**: capture via `locus-hook` into `memory.event`; the store with role ACLs, provenance and
   hybrid recall; the 800-token catalog injected at `SessionStart` where the harness supports it and
   materialized into `[layout].context` where it does not; the keeper, promotion checks, and decay
+- **Tool-output compaction**: a `PreToolUse` hook in the base image that rewrites verbose commands and
+  compacts their results before they reach context — `rtk`'s mechanism, shipped once and reaching every
+  harness because Locus already materializes hooks
 - **Mail**: threads, delivery, `wait`/`drain` semantics, `locus mail` verbs
+- **Handoffs**: the payload artifact, `handed_off_from` on the session, and the guardrail's
+  kill-and-reassign rewired to produce one instead of dropping the work on the floor
 - Repo manager: bare local remote per project, per-run clones with `--reference` against a shared object store
 - **Agents push to a local git remote; you `git fetch && git checkout` from your normal repo.**
   Sculptor's pattern, and better than bind-mounting a workspace into the human's editor: it
@@ -1862,6 +2248,8 @@ authorable, and where the product's character arrives.
 - `solid-flow` canvas, the workflow node types, typed handles, graph validation
 - Compile pipeline: `graph` JSONB → `spec` JSONB → versioned `workflow_defs`, round-tripping exactly
 - **Loop execution**: pick → act → validate → commit → reset, with memory carrying across resets
+- **The Ralph preset** — `locus ralph --goal … --verify …` for a loop without opening the canvas, and
+  the same preset droppable onto the canvas where it expands into ordinary nodes
 - **Goal as approval gate** — a person approves the goal before the loop is allowed to run
 - **Guardrails**: `max_iterations`, forced reflection before retry, kill-and-reassign, idle detection,
   optional wall-clock ceiling, optional token budget with auto-pause at 85%
@@ -1876,7 +2264,8 @@ authorable, and where the product's character arrives.
 depending on the builder; approve the goal; it runs unattended, the tester starts the moment the
 builder's task completes, and it stops on `max_iterations` when the goal is unreachable with the
 overlay showing which iteration tripped which guardrail. Reopening reproduces the graph exactly as
-authored. A loop with no termination condition is refused at compile time, not at run time.
+authored. A loop with no termination condition is refused at compile time, not at run time, and so is a graph
+that hands one agent both the builder and the tester role.
 
 ### M5 — Project management
 
@@ -1891,18 +2280,42 @@ authored. A loop with no termination condition is refused at compile time, not a
 - **The planning module** — the three-agent sequence, over ACP; approval lands tasks on the board
 - **Reflection review queue** — the human gate where an agent's proposed learnings are accepted into
   always-on project context or discarded
+- **The calibration loop** — a retro agent reads the arbiter's failure classifications since the last
+  pass and proposes exactly four kinds of change, each aimed at the class that produced it:
 
-`verify:` an agent moves a task to Done and cites the run and the test output that justifies it; a
+  | Recurring class | Proposal |
+  | --- | --- |
+  | Bug | promote the failing check into the project's regression set |
+  | Spec gap | add a clause to the relevant specialization record |
+  | Noise | recalibrate or quarantine the check that keeps failing for nothing |
+  | Ambiguity | add a topic to the interview, or a rule to the reduction pass |
+
+  Every proposal lands in the reflection review queue and **none applies without you** — the same gate
+  the memory keeper's promotions pass through, for the same reason. This is what makes the system
+  improve rather than merely repeat: a failure that only ever produces a retry teaches nothing, while
+  a failure that changes a template is paid for once
+
+`verify:` a failing check is classified by the arbiter, and a run that failed on noise does not spend
+an iteration; a recurring spec gap produces a proposed clause on a specialization record that waits
+for a human rather than applying itself. An agent moves a task to Done and cites the run and the test
+output that justifies it; a
 blocked task auto-unblocks and is picked up without human input; a wiki page edited in the GUI is read
 back by an agent in a container; ingesting two documents that disagree produces a contradiction card
 rather than two quietly conflicting pages.
 
 ### M6 — Automation and discoverability
 
-- Schedules: cron → workflow, with executions recorded against their verify result
-- Dashboard: runs, spend, verify pass rate, guardrail trips, board throughput, and **agent trust** —
-  that agent's verify pass rate over its last 20 runs, discounted by guardrail trips and by artifacts
-  a human rejected. Every term is already a row, so it is a query rather than new instrumentation
+- Schedules: cron → workflow, with executions recorded against their verify result. **Overlap is
+  skipped, never queued** — if the previous execution is still running the firing is recorded as
+  skipped and dropped. A queue means a slow workflow silently builds a backlog that runs all at once
+  when it finally finishes
+- Dashboard: runs, spend, **cache rate**, **the tool-payload offender ranking**, verify pass rate,
+  guardrail trips, board throughput, and the harness-level metrics the arbiter makes available —
+  **spec-gap rate**, **ambiguity-detection rate**, **average iterations per task**, and **review-gate
+  precision**, which separate a bad builder from a bad specification. Plus **agent trust** —
+  that agent's verify pass rate over its last 20 runs, discounted by guardrail trips, by artifacts a
+  human rejected, and **by tokens spent per passing run**. Every term is already a row, so it is a
+  query rather than new instrumentation
 - Discoverability: command palette, global search across code, wiki, tasks, and run history
 
 `verify:` a scheduled workflow runs unattended overnight and reports green from its verify command;
@@ -2036,6 +2449,21 @@ must be known before M1 rather than during it.
 **Risk — TUI-only harnesses are excluded.** A harness that insists on painting a full-screen
 interface cannot be supported, because it multiplexes sessions inside one terminal and breaks the
 mapping Locus depends on. Deliberate, but real.
+
+**Risk — a complete-looking requirement that is not.** Every gate in the design checks work against a
+requirement, so a requirement that omits a behavior produces a green run, a passing adversarial suite,
+a Done card with evidence, and a broken feature. Nothing downstream can catch it: this is a limit of
+the shape, not a bug in it. The mitigations are the two the deployment report arrived at — a reduction
+pass that removes speculative clauses so the real ones are visible, and specialization records that
+carry a domain's hard-won clauses into the next spec — plus the arbiter making spec-gap rate a number
+somebody looks at.
+
+**Risk — prefix stability decays by accident.** Nothing fails when it breaks; the runs just get more
+expensive, and the cause is whatever injection point was added last. Every future feature that puts
+bytes in front of a model — a new hook, a status line, a richer catalog — is a chance to put something
+mutable in front of something shared. The defence is that cache rate is on the dashboard and the
+determinism check is in CI, so a regression shows up as a number rather than as a slow drift nobody
+attributes.
 
 **Risk — harness surfaces rot, in both halves.** Structured events come from session logs and hooks;
 config layouts come from directories, filename suffixes, and config keys. All of it is the harness's

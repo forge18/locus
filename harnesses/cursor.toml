@@ -21,6 +21,10 @@ source = "acp"
 env      = ["CURSOR_API_KEY", "CURSOR_AUTH_TOKEN"]
 pre_auth = "agent login --api-key"
 
+[models]
+flag      = "--model"
+list_argv = []
+
 [layout]
 # Rules are native. Everything else arrives through AGENTS.md, since the CLI
 # exposes no directory for agents, commands, skills, or styles.

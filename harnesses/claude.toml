@@ -27,6 +27,10 @@ emits   = ["session_start", "user", "assistant", "thinking", "tool_call",
 [auth]
 env = ["ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"]
 
+[models]
+flag      = "--model"
+list_argv = []                        # no enumerate subcommand; free text in Settings
+
 [layout]
 # Every extension is native, so every strategy is `dir`. This is the only
 # harness in the set that needs no conversion and no plugin.

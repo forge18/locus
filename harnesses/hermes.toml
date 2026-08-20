@@ -21,6 +21,10 @@ enable_in = "~/.hermes/config.yaml"  # plugins.enabled must list the name
 
                                      # discovery alone loads nothing.
 
+[models]
+flag      = "--model"                 # UNVERIFIED — hermes is not installed here
+list_argv = []
+
 [layout]
 # Hooks are a generated Python plugin, so hooks and anything routed through them
 # need the materializer. UNVERIFIED: hermes has no local-dx entry, so every path

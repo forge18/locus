@@ -28,6 +28,10 @@ events    = [
 inject_session = "SessionStart"    # catalog goes here
 inject_turn    = "BeforeAgent"     # appended; research task_class only
 
+[models]
+flag      = "--model"
+list_argv = []
+
 [layout]
 # Full native hook set with two injection points, so the catalog lands through
 # SessionStart rather than through the context file. Extensions themselves have

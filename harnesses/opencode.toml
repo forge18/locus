@@ -21,6 +21,10 @@ emits     = ["tool_call", "tool_result", "tool_error"]
 # Session bounds come from the run supervisor instead: the container's start and
 # exit ARE session_start and session_end for this harness.
 
+[models]
+flag      = "--model"
+list_argv = ["models"]
+
 [layout]
 agents        = { via = "dir", dir = "/locus/config/agents", format = "markdown+frontmatter" }
 commands      = { via = "dir", dir = "/locus/config/command", format = "markdown+frontmatter" }

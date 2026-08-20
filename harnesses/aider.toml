@@ -13,6 +13,10 @@ source = "session-log"
 # capture path, and it is the least structured of any harness here.
 log = ".aider.chat.history.md"
 
+[models]
+flag      = "--model"
+list_argv = ["--list-models", ""]      # aider can enumerate; the arg is a filter
+
 [layout]
 # The weakest of the set: no agents, no commands, no skills, no hooks, no styles.
 # Everything Locus authors reaches aider through one read-only context file.
