@@ -424,3 +424,84 @@ mod drill_asserts_counts {
         );
     }
 }
+
+#[cfg(test)]
+mod drill_detects_corruption {
+    use std::{
+        path::{Path, PathBuf},
+        sync::{Arc, Mutex},
+    };
+
+    use anyhow::Result;
+
+    use super::{
+        Restore, RestoreConfig, RestoreFilesystem, RestoreProcessRunner, RestoreRowCountQuery,
+    };
+
+    const SOURCE_DATABASE_URL: &str = "postgres://locus@localhost/locus";
+    const SCRATCH_DATABASE_URL: &str = "postgres://locus@localhost/locus_restore_drill";
+    const SOURCE_DUMP: &str = "CREATE SCHEMA core;\n\
+        INSERT INTO core.items VALUES (1);\n\
+        INSERT INTO core.items VALUES (2);\n\
+        INSERT INTO core.items VALUES (3);\n";
+
+    struct CorruptedDumpFilesystem;
+
+    impl RestoreFilesystem for CorruptedDumpFilesystem {
+        fn read_database_dump(&self, archive: &Path) -> Result<Vec<u8>> {
+            assert_eq!(archive, Path::new("/var/lib/locus/backups/backup.tar"));
+            Ok(SOURCE_DUMP
+                .replace("INSERT INTO core.items VALUES (3);\n", "")
+                .into_bytes())
+        }
+    }
+
+    struct CountingProcess(Arc<Mutex<u64>>);
+
+    impl RestoreProcessRunner for CountingProcess {
+        fn run(&self, _: &str, _: &[String], standard_input: &[u8]) -> Result<()> {
+            *self.0.lock().expect("record restored row count") = standard_input
+                .windows(b"INSERT INTO ".len())
+                .filter(|window| *window == b"INSERT INTO ")
+                .count() as u64;
+            Ok(())
+        }
+    }
+
+    struct RowCountQuery(Arc<Mutex<u64>>);
+
+    impl RestoreRowCountQuery for RowCountQuery {
+        fn row_count(&self, database_url: &str) -> Result<u64> {
+            Ok(if database_url == SOURCE_DATABASE_URL {
+                3
+            } else {
+                assert_eq!(database_url, SCRATCH_DATABASE_URL);
+                *self.0.lock().expect("read restored row count")
+            })
+        }
+    }
+
+    #[test]
+    fn drill_detects_corruption() {
+        let restored_row_count = Arc::new(Mutex::new(0));
+        let process = CountingProcess(Arc::clone(&restored_row_count));
+        let filesystem = CorruptedDumpFilesystem;
+        let row_count_query = RowCountQuery(restored_row_count);
+        let restore = Restore::with_row_count_query(&process, &filesystem, &row_count_query);
+
+        let error = restore
+            .drill(
+                &RestoreConfig::new(
+                    PathBuf::from("/var/lib/locus/backups/backup.tar"),
+                    SCRATCH_DATABASE_URL,
+                ),
+                SOURCE_DATABASE_URL,
+            )
+            .expect_err("restore drill rejects a dump missing a row");
+
+        assert_eq!(
+            error.to_string(),
+            "restore drill row-count mismatch: source has 3 rows, scratch has 2 rows"
+        );
+    }
+}
