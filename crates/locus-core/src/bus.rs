@@ -1,6 +1,64 @@
 //! In-process event delivery for the Locus core.
 
+use anyhow::{Context, Result};
+use sqlx::{postgres::PgListener, query, PgPool};
 use tokio::sync::broadcast;
+
+const POSTGRES_CHANNEL: &str = "locus_events";
+
+/// Delivers event ids to Locus processes through Postgres LISTEN/NOTIFY.
+pub struct PostgresBus {
+    pool: PgPool,
+}
+
+impl PostgresBus {
+    pub fn new(pool: PgPool) -> Self {
+        Self { pool }
+    }
+
+    /// Opens a dedicated connection that receives notifications from other processes.
+    pub async fn subscribe(&self) -> Result<PostgresSubscription> {
+        let mut listener = PgListener::connect_with(&self.pool)
+            .await
+            .context("connect Postgres event listener")?;
+        listener
+            .listen(POSTGRES_CHANNEL)
+            .await
+            .context("listen for Postgres events")?;
+
+        Ok(PostgresSubscription { listener })
+    }
+
+    /// Publishes an event id; the event payload remains in Postgres for subscribers to fetch.
+    pub async fn publish(&self, event_id: &str) -> Result<()> {
+        query("SELECT pg_notify($1, $2)")
+            .bind(POSTGRES_CHANNEL)
+            .bind(event_id)
+            .execute(&self.pool)
+            .await
+            .context("notify Postgres event subscribers")?;
+
+        Ok(())
+    }
+}
+
+/// A dedicated Postgres notification subscription.
+pub struct PostgresSubscription {
+    listener: PgListener,
+}
+
+impl PostgresSubscription {
+    /// Waits for the next event id published by another process.
+    pub async fn recv(&mut self) -> Result<String> {
+        Ok(self
+            .listener
+            .recv()
+            .await
+            .context("receive Postgres event notification")?
+            .payload()
+            .to_owned())
+    }
+}
 
 /// Broadcasts events to all subscribers in this process.
 #[derive(Clone)]
