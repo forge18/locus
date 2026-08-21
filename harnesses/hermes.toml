@@ -1,11 +1,16 @@
-# Hermes Agent (Nous Research) — hooks exist, but as in-process Python plugins
-# rather than shell commands. Needs a generated plugin, the way pi and omp do.
+# Hermes Agent (Nous Research) — shell hooks are declared in config.yaml.
 name   = "hermes"
 binary = "hermes"
 detect = ["--version"]
 
+[image]
+base     = "python:3.12-slim-bookworm"
+version  = "0.19.0"
+install  = ["pip install 'hermes-agent[acp]'"]
+verified = true
+
 [launch]
-argv = ["chat", "--query-file", "-"]   # prompt on stdin; nothing shell-interpreted
+argv = ["chat", "--cli", "-Q", "-q"]
 tui  = false
 
 [telemetry]

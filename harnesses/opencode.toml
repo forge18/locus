@@ -4,6 +4,12 @@ name   = "opencode"
 binary = "opencode"
 detect = ["--version"]
 
+[image]
+base     = "debian:bookworm-slim"
+version  = "unverified"
+install  = []
+verified = false
+
 [launch]
 argv = ["run"]
 tui  = false                        # bare `opencode` is a TUI; `run` is not

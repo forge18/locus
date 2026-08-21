@@ -25,7 +25,7 @@ of those blocks the shell or the other twelve screens. It can run alongside M0.
 | --- | --- | ---: | ---: | ---: |
 | **M0** | Spikes — these gate M1 · **closed** | 3 | 39 | 39 |
 | **M0.5** | Desktop UI on fixtures · **closed** | 12 | 268 | 268 |
-| **M1** | Core runtime | 13 | 253 | 83 |
+| **M1** | Core runtime | 13 | 253 | 107 |
 | **M2** | Workspace | 3 | 50 | 0 |
 | **M3** | Coordination, memory, and mail | 6 | 125 | 0 |
 | **M3.5** | Agent capabilities: debug and browser | 3 | 56 | 0 |
@@ -147,7 +147,7 @@ below; it is short and it is load-bearing.
 - [ ] **[run-supervisor](.specs/run-supervisor/spec.md)** · 22 tasks · [tasks](.specs/run-supervisor/tasks.md)
   Spawn, stream, normalize, persist, cancel — and hold the session/run/turn model that everything above depends on.
   *Depends on:* `sandbox`, `materializers`, `agent-definitions`, `telemetry`
-- [ ] **[sandbox](.specs/sandbox/spec.md)** · 24 tasks · [tasks](.specs/sandbox/tasks.md)
+- [x] **[sandbox](.specs/sandbox/spec.md)** · 24 tasks · **complete** · [tasks](.specs/sandbox/tasks.md)
   One container per agent run, and the credential handling that makes it safe.
   *Depends on:* `spike-sandboxed-harness`, `harness-registry`
 - [x] **[store](.specs/store/spec.md)** · 23 tasks · **complete** · [tasks](.specs/store/tasks.md)

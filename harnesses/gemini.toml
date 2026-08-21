@@ -3,6 +3,12 @@ name   = "gemini"
 binary = "gemini"
 detect = ["--version"]
 
+[image]
+base     = "debian:bookworm-slim"
+version  = "unverified"
+install  = []
+verified = false
+
 [launch]
 argv = []
 tui  = false

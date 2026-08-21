@@ -17,3 +17,5 @@ toml.workspace = true
 sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "migrate", "json"] }
 tar = "0.4"
 time = { version = "0.3", features = ["formatting", "parsing"] }
+bollard = "0.19"
+sha2 = "0.10"

@@ -4,6 +4,12 @@ name   = "cursor"
 binary = "agent"
 detect = ["--version"]
 
+[image]
+base     = "debian:bookworm-slim"
+version  = "unverified"
+install  = []
+verified = false
+
 [launch]
 argv = ["--mode", "agent"]         # modes: agent | plan | ask
 tui  = false

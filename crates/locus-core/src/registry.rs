@@ -370,6 +370,7 @@ pub struct HarnessDefinition {
     pub name: String,
     pub binary: String,
     pub detect: Vec<String>,
+    pub image: Image,
     pub launch: Launch,
     pub telemetry: Telemetry,
     pub models: Models,
@@ -378,6 +379,16 @@ pub struct HarnessDefinition {
     pub auth: Option<Auth>,
     pub hooks: Option<Hooks>,
     pub memory: Option<Memory>,
+}
+
+/// Declarative base-image metadata. An unverified entry is retained in the registry
+/// but refused by the image builder rather than guessing an install command.
+#[derive(Debug, Deserialize)]
+pub struct Image {
+    pub base: String,
+    pub version: String,
+    pub install: Vec<String>,
+    pub verified: bool,
 }
 
 /// The non-interactive command line that starts one terminal session.

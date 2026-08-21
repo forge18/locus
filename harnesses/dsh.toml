@@ -1,12 +1,17 @@
 # DeepSeek Harness — hooks arrive through its Claude-Code bridge, so nothing is
-# generated. UNVERIFIED: dsh is not installed on this machine, so the binary
-# name and the bridge's event coverage are from documentation, not observation.
+# generated. The M0 sandbox spike verified the headless launch and package.
 name   = "dsh"
 binary = "dsh"
 detect = ["--version"]
 
+[image]
+base     = "node:22-bookworm-slim"
+version  = "0.1.0-rc.7"
+install  = ["npm install --global @deepseek-ai/dsh@0.1.0-rc.7"]
+verified = true
+
 [launch]
-argv = []
+argv = ["--profile", "headless"]
 tui  = false
 
 [config]
