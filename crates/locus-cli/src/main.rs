@@ -7,10 +7,12 @@
 use std::{env, path::PathBuf};
 
 use anyhow::{bail, Context, Result};
-use locus_core::backup::{Backup, BackupConfig, SystemBackupFilesystem, SystemProcessRunner};
+use locus_core::backup::{
+    Backup, RetainedBackupConfig, SystemBackupFilesystem, SystemProcessRunner,
+};
 
 const DEFAULT_ARTIFACT_ROOT: &str = "/var/lib/locus/artifacts";
-const DEFAULT_BACKUP_PATH: &str = "/var/lib/locus/backups/backup.tar";
+const DEFAULT_BACKUP_ROOT: &str = "/var/lib/locus/backups";
 
 fn main() -> Result<()> {
     match env::args().nth(1).as_deref() {
@@ -27,16 +29,16 @@ fn backup() -> Result<()> {
     let database_url =
         env::var("DATABASE_URL").context("DATABASE_URL is required for locus backup")?;
     let artifact_root = env_path("LOCUS_ARTIFACT_ROOT", DEFAULT_ARTIFACT_ROOT);
-    let destination = env_path("LOCUS_BACKUP_PATH", DEFAULT_BACKUP_PATH);
+    let backup_root = env_path("LOCUS_BACKUP_ROOT", DEFAULT_BACKUP_ROOT);
     let process = SystemProcessRunner;
     let filesystem = SystemBackupFilesystem;
 
-    Backup::new(&process, &filesystem).create(&BackupConfig::new(
+    Backup::new(&process, &filesystem).create_retained(&RetainedBackupConfig::new(
         database_url,
         artifact_root,
-        &destination,
+        &backup_root,
     ))?;
-    println!("{}", destination.display());
+    println!("{}", backup_root.display());
     Ok(())
 }
 
