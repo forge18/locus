@@ -53,6 +53,65 @@ pub fn return_to_caller(
     })
 }
 
+pub const MAX_INVOCATION_DEPTH: usize = 3;
+pub const MAX_INVOCATION_FAN_OUT: usize = 4;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AgentRef {
+    pub name: String,
+    pub version: i32,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct InvocationContext {
+    /// Agent definitions from the root through the calling run, inclusive.
+    pub ancestry: Vec<AgentRef>,
+    /// Children already started by the calling run.
+    pub children_started: usize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct InvocationLimits {
+    pub max_depth: usize,
+    pub max_fan_out: usize,
+}
+
+impl InvocationLimits {
+    pub const HARD: Self = Self {
+        max_depth: MAX_INVOCATION_DEPTH,
+        max_fan_out: MAX_INVOCATION_FAN_OUT,
+    };
+
+    /// Workflows may narrow the machine-safe hard bounds, never widen them.
+    pub fn workflow(max_depth: usize, max_fan_out: usize) -> Result<Self> {
+        if max_depth > Self::HARD.max_depth || max_fan_out > Self::HARD.max_fan_out {
+            anyhow::bail!("workflow invocation limits may only lower the hard bounds")
+        }
+        Ok(Self {
+            max_depth,
+            max_fan_out,
+        })
+    }
+}
+
+/// Reject an invocation before a container or clone is created.
+pub fn validate_invocation(
+    context: &InvocationContext,
+    target: &AgentRef,
+    limits: InvocationLimits,
+) -> Result<()> {
+    if context.ancestry.len() >= limits.max_depth {
+        anyhow::bail!("nested invocation exceeds depth limit {}", limits.max_depth)
+    }
+    if context.children_started >= limits.max_fan_out {
+        anyhow::bail!("nested invocation exceeds fan-out limit {}", limits.max_fan_out)
+    }
+    if context.ancestry.contains(target) {
+        anyhow::bail!("nested invocation would create a cycle")
+    }
+    Ok(())
+}
+
 /// Host-only boundary that creates the child container and clone.
 pub trait NestedRunLauncher {
     fn start(&self, plan: &NestedRunPlan) -> Result<()>;
@@ -83,6 +142,116 @@ where
         };
         self.launcher.start(&plan)?;
         Ok(plan)
+    }
+}
+
+#[cfg(test)]
+mod depth_limit {
+    use super::*;
+
+    #[test]
+    fn refuses_a_fourth_nested_level() {
+        let context = InvocationContext {
+            ancestry: vec![
+                AgentRef { name: "root".into(), version: 1 },
+                AgentRef { name: "child".into(), version: 1 },
+                AgentRef { name: "grandchild".into(), version: 1 },
+            ],
+            children_started: 0,
+        };
+        let error = validate_invocation(
+            &context,
+            &AgentRef { name: "too-deep".into(), version: 1 },
+            InvocationLimits::HARD,
+        )
+        .expect_err("depth four is refused");
+        assert!(error.to_string().contains("depth limit 3"));
+    }
+}
+
+#[cfg(test)]
+mod fanout_limit {
+    use super::*;
+
+    #[test]
+    fn refuses_a_fifth_child() {
+        let context = InvocationContext {
+            ancestry: vec![AgentRef { name: "root".into(), version: 1 }],
+            children_started: 4,
+        };
+        let error = validate_invocation(
+            &context,
+            &AgentRef { name: "fifth".into(), version: 1 },
+            InvocationLimits::HARD,
+        )
+        .expect_err("fifth child is refused");
+        assert!(error.to_string().contains("fan-out limit 4"));
+    }
+}
+
+#[cfg(test)]
+mod cycle_check {
+    use super::*;
+
+    #[test]
+    fn refuses_a_target_already_in_its_ancestry() {
+        let root = AgentRef { name: "root".into(), version: 1 };
+        let context = InvocationContext {
+            ancestry: vec![root.clone(), AgentRef { name: "reviewer".into(), version: 2 }],
+            children_started: 0,
+        };
+        let error = validate_invocation(&context, &root, InvocationLimits::HARD)
+            .expect_err("cycle is refused");
+        assert!(error.to_string().contains("cycle"));
+    }
+}
+
+#[cfg(test)]
+mod three_limits {
+    use super::*;
+
+    #[test]
+    fn each_guard_rejects_while_the_other_two_are_permitted() {
+        let target = AgentRef { name: "target".into(), version: 1 };
+        let no_cycle = InvocationContext { ancestry: vec![], children_started: 0 };
+        assert!(validate_invocation(&no_cycle, &target, InvocationLimits::HARD).is_ok());
+
+        let depth_only = InvocationContext {
+            ancestry: vec![
+                AgentRef { name: "one".into(), version: 1 },
+                AgentRef { name: "two".into(), version: 1 },
+                AgentRef { name: "three".into(), version: 1 },
+            ],
+            children_started: 0,
+        };
+        assert!(validate_invocation(&depth_only, &target, InvocationLimits::HARD).is_err());
+
+        let fanout_only = InvocationContext {
+            ancestry: vec![],
+            children_started: 4,
+        };
+        assert!(validate_invocation(&fanout_only, &target, InvocationLimits::HARD).is_err());
+
+        let cycle_only = InvocationContext {
+            ancestry: vec![target.clone()],
+            children_started: 0,
+        };
+        assert!(validate_invocation(&cycle_only, &target, InvocationLimits::HARD).is_err());
+    }
+}
+
+#[cfg(test)]
+mod workflow_lowers_only {
+    use super::*;
+
+    #[test]
+    fn accepts_narrower_bounds_and_refuses_wider_ones() {
+        assert_eq!(
+            InvocationLimits::workflow(2, 3).expect("narrower bounds work"),
+            InvocationLimits { max_depth: 2, max_fan_out: 3 }
+        );
+        assert!(InvocationLimits::workflow(4, 4).is_err());
+        assert!(InvocationLimits::workflow(3, 5).is_err());
     }
 }
 
