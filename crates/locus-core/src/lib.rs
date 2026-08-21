@@ -4,6 +4,7 @@
 //! and the rest behave identically no matter which harness a run uses. See PLAN.md
 //! §"Shared services — one Rust implementation, every harness".
 
+pub mod acp;
 pub mod agents;
 pub mod backup;
 pub mod board;
