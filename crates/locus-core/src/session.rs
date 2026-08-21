@@ -48,6 +48,7 @@ pub fn start_next_run(session: &Session, resolved_model_id: impl Into<String>) -
             usage: None,
             exit_code: None,
             cancel_reason: None,
+            native_session_id: None,
             artifacts: vec![],
         },
         branch: session.branch.clone(),
@@ -91,6 +92,8 @@ pub struct Run {
     pub exit_code: Option<i32>,
     /// Why a cancelled run was stopped; absent for all other run states.
     pub cancel_reason: Option<String>,
+    /// Harness-owned session identifier when the harness supplies one.
+    pub native_session_id: Option<String>,
     /// Reviewable or reference deliverables produced by this run.
     pub artifacts: Vec<Artifact>,
 }
@@ -212,6 +215,7 @@ mod model {
             usage: None,
             exit_code: None,
             cancel_reason: None,
+            native_session_id: None,
             artifacts: vec![Artifact {
                 id: Uuid::new_v4(),
                 run_id,
@@ -492,6 +496,7 @@ mod run {
                 usage: Some(usage.clone()),
                 exit_code: Some(0),
                 cancel_reason: None,
+                native_session_id: None,
                 artifacts: artifacts.clone(),
             };
 
