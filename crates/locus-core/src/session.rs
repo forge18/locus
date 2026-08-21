@@ -315,6 +315,34 @@ mod model {
 }
 
 #[cfg(test)]
+mod resume_without_native_id {
+    use serde_json::json;
+    use uuid::Uuid;
+
+    use super::{resume_from_events, Session, SessionStatus};
+
+    #[test]
+    fn resume_needs_only_locus_owned_session_and_events() {
+        let session = Session {
+            id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
+            agent_def_id: Uuid::new_v4(),
+            name: "portable resume".into(),
+            branch: "agent/portable-resume".into(),
+            board_task_id: None,
+            memory_base: json!({}),
+            pane_state: json!({}),
+            status: SessionStatus::Active,
+        };
+
+        let plan = resume_from_events(&session, [], "harness-without-native-session");
+
+        assert_eq!(plan.next_run.run.session_id, session.id);
+        assert!(plan.prior_events.is_empty());
+    }
+}
+
+#[cfg(test)]
 mod resume_from_events {
     use serde_json::json;
     use uuid::Uuid;
