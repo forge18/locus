@@ -75,13 +75,75 @@ pub enum RegistryLoadError {
     },
 }
 
+/// The harness declarations registered with Locus.
+#[derive(Debug)]
+pub struct HarnessRegistry {
+    definitions: Vec<HarnessDefinition>,
+}
+
+impl HarnessRegistry {
+    /// Return the harness whose declared name exactly matches `name`.
+    pub fn by_name(&self, name: &str) -> Option<&HarnessDefinition> {
+        self.definitions
+            .iter()
+            .find(|definition| definition.name == name)
+    }
+
+    /// Return harnesses whose telemetry declaration exactly matches `source`.
+    pub fn by_telemetry_source<'a, 'b>(
+        &'a self,
+        source: &'b str,
+    ) -> impl Iterator<Item = &'a HarnessDefinition> + 'b
+    where
+        'a: 'b,
+    {
+        self.definitions
+            .iter()
+            .filter(move |definition| definition.telemetry.source == source)
+    }
+
+    /// Return harnesses that declare every requested telemetry verb.
+    ///
+    /// Harnesses with no `emits` declaration never match a non-empty request.
+    pub fn by_declared_verbs<'a, 'b>(
+        &'a self,
+        verbs: &'b [&'b str],
+    ) -> impl Iterator<Item = &'a HarnessDefinition> + 'b
+    where
+        'a: 'b,
+    {
+        self.definitions.iter().filter(move |definition| {
+            definition.telemetry.emits.as_deref().is_some_and(|emits| {
+                verbs
+                    .iter()
+                    .all(|verb| emits.iter().any(|emit| emit == verb))
+            })
+        })
+    }
+
+    /// Return the number of registered harness definitions.
+    pub fn len(&self) -> usize {
+        self.definitions.len()
+    }
+
+    /// Return whether there are no registered harness definitions.
+    pub fn is_empty(&self) -> bool {
+        self.definitions.is_empty()
+    }
+
+    /// Return an iterator over registered definitions in deterministic name order.
+    pub fn iter(&self) -> impl Iterator<Item = &HarnessDefinition> {
+        self.definitions.iter()
+    }
+}
+
 /// Load every harness definition directly in `directory` or in one plugin subdirectory.
 ///
 /// Definition paths are sorted before parsing so callers receive a stable order regardless of
 /// filesystem enumeration order.
 pub fn load_from_directory(
     directory: impl AsRef<Path>,
-) -> Result<Vec<HarnessDefinition>, RegistryLoadError> {
+) -> Result<HarnessRegistry, RegistryLoadError> {
     let directory = directory.as_ref();
     let mut definitions = toml_files_in(directory)?;
 
@@ -120,7 +182,8 @@ pub fn load_from_directory(
             HarnessDefinition::deserialize(document)
                 .map_err(|source| RegistryLoadError::ParseDefinition { path, source })
         })
-        .collect()
+        .collect::<Result<Vec<_>, _>>()
+        .map(|definitions| HarnessRegistry { definitions })
 }
 
 const REQUIRED_LAYOUT_EXTENSIONS: &[&str] = &[
@@ -698,5 +761,36 @@ fn loads_all_twelve() {
             "opencode",
             "pi",
         ]
+    );
+}
+
+#[cfg(test)]
+#[test]
+fn queries() {
+    let source = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../harnesses");
+    let harnesses = load_from_directory(source).expect("registry definitions load");
+
+    assert_eq!(
+        harnesses
+            .by_name("claude")
+            .expect("named harness exists")
+            .binary,
+        "claude"
+    );
+    assert!(harnesses.by_name("unknown").is_none());
+
+    assert_eq!(
+        harnesses
+            .by_telemetry_source("acp")
+            .map(|harness| harness.name.as_str())
+            .collect::<Vec<_>>(),
+        ["cursor"]
+    );
+    assert_eq!(
+        harnesses
+            .by_declared_verbs(&["tool_call", "tool_result"])
+            .map(|harness| harness.name.as_str())
+            .collect::<Vec<_>>(),
+        ["claude", "codex", "copilot", "dsh", "omp", "opencode", "pi",]
     );
 }
