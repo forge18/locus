@@ -13,6 +13,7 @@ use locus_core::{
 };
 
 mod hook;
+pub mod sock;
 
 const DEFAULT_ARTIFACT_ROOT: &str = "/var/lib/locus/artifacts";
 const DEFAULT_BACKUP_ROOT: &str = "/var/lib/locus/backups";
