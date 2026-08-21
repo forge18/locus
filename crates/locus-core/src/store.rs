@@ -1,7 +1,9 @@
 //! Lifecycle management for the machine-wide `locus-postgres` container.
 
 use std::{
+    future::Future,
     path::Path,
+    pin::Pin,
     time::{Duration, Instant},
 };
 
@@ -10,6 +12,8 @@ use std::sync::{Mutex, MutexGuard, OnceLock};
 
 use anyhow::{bail, Context, Result};
 use sqlx::{migrate::Migrator, postgres::PgPoolOptions, PgPool};
+
+use crate::backup::{gate_migration, MigrationBackup, MigrationRunner, RetainedBackupConfig};
 use tokio::{process::Command, time::sleep};
 
 const POSTGRES_IMAGE: &str = "pgvector/pgvector:pg17";
@@ -252,18 +256,58 @@ impl Store {
         Ok(Self { pool })
     }
 
-    pub async fn run_migrations(&self, directory: impl AsRef<Path>) -> Result<()> {
-        Migrator::new(directory.as_ref())
-            .await
-            .context("load SQLx migrations")?
-            .run(&self.pool)
-            .await
-            .context("run SQLx migrations")
+    pub async fn run_migrations(
+        &self,
+        directory: impl AsRef<Path>,
+        backup: &dyn MigrationBackup,
+        backup_config: &RetainedBackupConfig,
+    ) -> Result<()> {
+        let migration = SqlxMigrationRunner { pool: &self.pool };
+        gate_migration(backup, backup_config, &migration, directory.as_ref()).await
     }
 
     pub fn pool(&self) -> &PgPool {
         &self.pool
     }
+}
+
+struct SqlxMigrationRunner<'a> {
+    pool: &'a PgPool,
+}
+
+impl MigrationRunner for SqlxMigrationRunner<'_> {
+    fn run_migrations<'a>(
+        &'a self,
+        directory: &'a Path,
+    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>> {
+        Box::pin(async move {
+            Migrator::new(directory)
+                .await
+                .context("load SQLx migrations")?
+                .run(self.pool)
+                .await
+                .context("run SQLx migrations")
+        })
+    }
+}
+
+#[cfg(test)]
+struct NoopMigrationBackup;
+
+#[cfg(test)]
+impl MigrationBackup for NoopMigrationBackup {
+    fn create_retained(&self, _: &RetainedBackupConfig) -> Result<()> {
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+fn test_backup_config() -> RetainedBackupConfig {
+    RetainedBackupConfig::new(
+        "postgres://locus@localhost/locus",
+        "/var/lib/locus/artifacts",
+        "/var/lib/locus/backups",
+    )
 }
 
 #[derive(Clone, Copy)]
@@ -440,7 +484,11 @@ mod migrate_runs {
             .await
             .expect("connect the store pool");
         store
-            .run_migrations(&migrations_directory)
+            .run_migrations(
+                &migrations_directory,
+                &super::NoopMigrationBackup,
+                &super::test_backup_config(),
+            )
             .await
             .expect("run the pending migration");
 
@@ -543,6 +591,8 @@ mod migrate_from_empty {
         store
             .run_migrations(
                 std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations"),
+                &super::NoopMigrationBackup,
+                &super::test_backup_config(),
             )
             .await
             .expect("run all migrations once");
@@ -680,6 +730,8 @@ mod pgvector_roundtrip {
         store
             .run_migrations(
                 std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations"),
+                &super::NoopMigrationBackup,
+                &super::test_backup_config(),
             )
             .await
             .expect("run migrations with the pgvector column");
@@ -893,6 +945,8 @@ mod schema_core {
         store
             .run_migrations(
                 std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations"),
+                &super::NoopMigrationBackup,
+                &super::test_backup_config(),
             )
             .await
             .expect("run the core migration");
@@ -972,6 +1026,8 @@ mod schema_agents {
         store
             .run_migrations(
                 std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations"),
+                &super::NoopMigrationBackup,
+                &super::test_backup_config(),
             )
             .await
             .expect("run the agents migration");
@@ -1059,6 +1115,8 @@ mod schema_board {
         store
             .run_migrations(
                 std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations"),
+                &super::NoopMigrationBackup,
+                &super::test_backup_config(),
             )
             .await
             .expect("run the board migration");
@@ -1146,6 +1204,8 @@ mod schema_wiki {
         store
             .run_migrations(
                 std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations"),
+                &super::NoopMigrationBackup,
+                &super::test_backup_config(),
             )
             .await
             .expect("run the wiki migration");
@@ -1239,6 +1299,8 @@ mod schema_memory {
         store
             .run_migrations(
                 std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations"),
+                &super::NoopMigrationBackup,
+                &super::test_backup_config(),
             )
             .await
             .expect("run the memory migration");
@@ -1376,6 +1438,8 @@ mod schema_workflows {
         store
             .run_migrations(
                 std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations"),
+                &super::NoopMigrationBackup,
+                &super::test_backup_config(),
             )
             .await
             .expect("run the workflows migration");
@@ -1561,6 +1625,8 @@ mod schema_mail {
         store
             .run_migrations(
                 std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations"),
+                &super::NoopMigrationBackup,
+                &super::test_backup_config(),
             )
             .await
             .expect("run the mail migration");
@@ -1801,6 +1867,8 @@ mod schema_market {
         store
             .run_migrations(
                 std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations"),
+                &super::NoopMigrationBackup,
+                &super::test_backup_config(),
             )
             .await
             .expect("run the market migration");

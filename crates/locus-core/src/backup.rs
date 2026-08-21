@@ -2,7 +2,9 @@
 
 use std::{
     fs::{self, File},
+    future::Future,
     path::{Path, PathBuf},
+    pin::Pin,
     process::Command,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -272,6 +274,41 @@ impl<'a> Backup<'a> {
         arguments.push(format!("--dbname={database_url}"));
         self.process.run("pg_dump", &arguments)
     }
+}
+
+/// Creates retained backups before a migration can run.
+pub trait MigrationBackup: Send + Sync {
+    fn create_retained(&self, config: &RetainedBackupConfig) -> Result<()>;
+}
+
+impl MigrationBackup for Backup<'_> {
+    fn create_retained(&self, config: &RetainedBackupConfig) -> Result<()> {
+        Self::create_retained(self, config)
+    }
+}
+
+/// Applies a migration set through an injectable seam.
+pub trait MigrationRunner: Send + Sync {
+    fn run_migrations<'a>(
+        &'a self,
+        directory: &'a Path,
+    ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>;
+}
+
+/// Runs a retained backup before applying migrations.
+pub async fn gate_migration(
+    backup: &dyn MigrationBackup,
+    backup_config: &RetainedBackupConfig,
+    migration: &dyn MigrationRunner,
+    directory: &Path,
+) -> Result<()> {
+    backup
+        .create_retained(backup_config)
+        .context("create backup before migrations")?;
+    migration
+        .run_migrations(directory)
+        .await
+        .context("run migrations after backup")
 }
 
 fn backup_index(time: SystemTime) -> Result<u64> {
@@ -584,5 +621,89 @@ mod retention {
                 .count(),
             4
         );
+    }
+}
+
+#[cfg(test)]
+mod gates_migration {
+    use std::{future::Future, path::Path, pin::Pin, sync::Mutex};
+
+    use anyhow::{bail, Result};
+
+    use super::{gate_migration, MigrationBackup, MigrationRunner, RetainedBackupConfig};
+
+    struct RecordingBackup<'a> {
+        calls: &'a Mutex<Vec<&'static str>>,
+        fails: bool,
+    }
+
+    impl MigrationBackup for RecordingBackup<'_> {
+        fn create_retained(&self, _: &RetainedBackupConfig) -> Result<()> {
+            self.calls.lock().expect("record backup").push("backup");
+            if self.fails {
+                bail!("backup failed")
+            }
+            Ok(())
+        }
+    }
+
+    struct RecordingMigration<'a> {
+        calls: &'a Mutex<Vec<&'static str>>,
+    }
+
+    impl MigrationRunner for RecordingMigration<'_> {
+        fn run_migrations<'a>(
+            &'a self,
+            _: &'a Path,
+        ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>> {
+            Box::pin(async move {
+                self.calls
+                    .lock()
+                    .expect("record migration")
+                    .push("migration");
+                Ok(())
+            })
+        }
+    }
+
+    fn config() -> RetainedBackupConfig {
+        RetainedBackupConfig::new(
+            "postgres://locus@localhost/locus",
+            "/var/lib/locus/artifacts",
+            "/var/lib/locus/backups",
+        )
+    }
+
+    #[tokio::test]
+    async fn gates_migration() {
+        let calls = Mutex::new(Vec::new());
+        let backup = RecordingBackup {
+            calls: &calls,
+            fails: false,
+        };
+        let migration = RecordingMigration { calls: &calls };
+
+        gate_migration(&backup, &config(), &migration, Path::new("migrations"))
+            .await
+            .expect("back up before migrating");
+
+        assert_eq!(*calls.lock().expect("read calls"), ["backup", "migration"]);
+    }
+
+    #[tokio::test]
+    async fn backup_failure_prevents_migration() {
+        let calls = Mutex::new(Vec::new());
+        let backup = RecordingBackup {
+            calls: &calls,
+            fails: true,
+        };
+        let migration = RecordingMigration { calls: &calls };
+
+        let error = gate_migration(&backup, &config(), &migration, Path::new("migrations"))
+            .await
+            .expect_err("reject migration without a backup");
+
+        assert!(format!("{error:#}").contains("backup failed"));
+        assert_eq!(*calls.lock().expect("read calls"), ["backup"]);
     }
 }
