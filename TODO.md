@@ -25,7 +25,7 @@ of those blocks the shell or the other twelve screens. It can run alongside M0.
 | --- | --- | ---: | ---: | ---: |
 | **M0** | Spikes — these gate M1 · **closed** | 3 | 39 | 39 |
 | **M0.5** | Desktop UI on fixtures · **closed** | 12 | 268 | 268 |
-| **M1** | Core runtime | 13 | 253 | 6 |
+| **M1** | Core runtime | 13 | 253 | 7 |
 | **M2** | Workspace | 3 | 50 | 0 |
 | **M3** | Coordination, memory, and mail | 6 | 125 | 0 |
 | **M3.5** | Agent capabilities: debug and browser | 3 | 56 | 0 |
@@ -150,7 +150,7 @@ below; it is short and it is load-bearing.
 - [ ] **[sandbox](.specs/sandbox/spec.md)** · 24 tasks · [tasks](.specs/sandbox/tasks.md)
   One container per agent run, and the credential handling that makes it safe.
   *Depends on:* `spike-sandboxed-harness`, `harness-registry`
-- [ ] **[store](.specs/store/spec.md)** · 23 tasks · **6 done** · [tasks](.specs/store/tasks.md)
+- [ ] **[store](.specs/store/spec.md)** · 23 tasks · **7 done** · [tasks](.specs/store/tasks.md)
   Postgres as the single source of truth, plus the backup that makes that safe.
   *Depends on:* none
 - [ ] **[telemetry](.specs/telemetry/spec.md)** · 22 tasks · [tasks](.specs/telemetry/tasks.md)
