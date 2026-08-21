@@ -39,13 +39,15 @@ impl PostgresConfig {
 
     #[cfg(test)]
     fn for_test(container_name: String, volume_name: String, host_port: u16) -> Self {
+        let password = format!("locus-{container_name}");
+
         Self {
             container_name,
             volume_name,
             host_port,
             user: "locus".into(),
             database: "locus".into(),
-            password: "test-password".into(),
+            password,
         }
     }
 }
@@ -127,6 +129,14 @@ impl PostgresContainer {
 
     pub async fn is_healthy(&self) -> Result<bool> {
         Ok(matches!(self.state().await?, ContainerState::Healthy))
+    }
+
+    #[cfg(test)]
+    fn database_url(&self) -> String {
+        format!(
+            "postgres://{}:{}@127.0.0.1:{}/{}?sslmode=disable",
+            self.config.user, self.config.password, self.config.host_port, self.config.database
+        )
     }
 
     async fn wait_for_healthy(&self) -> Result<()> {
@@ -406,11 +416,9 @@ mod migrate_runs {
             .await
             .expect("start the pgvector container");
 
-        let store = Store::connect(&format!(
-            "postgres://locus:test-password@127.0.0.1:{port}/locus"
-        ))
-        .await
-        .expect("connect the store pool");
+        let store = Store::connect(&container.database_url())
+            .await
+            .expect("connect the store pool");
         store
             .run_migrations(&migrations_directory)
             .await
@@ -492,11 +500,9 @@ mod migrate_from_empty {
             .await
             .expect("start the empty pgvector container");
 
-        let store = Store::connect(&format!(
-            "postgres://locus:test-password@127.0.0.1:{port}/locus"
-        ))
-        .await
-        .expect("connect the empty store pool");
+        let store = Store::connect(&container.database_url())
+            .await
+            .expect("connect the empty store pool");
         let schema_query = "
             SELECT schema_name
             FROM information_schema.schemata
@@ -648,11 +654,9 @@ mod pgvector_roundtrip {
             .start()
             .await
             .expect("start the pgvector container");
-        let store = Store::connect(&format!(
-            "postgres://locus:test-password@127.0.0.1:{port}/locus"
-        ))
-        .await
-        .expect("connect the store pool");
+        let store = Store::connect(&container.database_url())
+            .await
+            .expect("connect the store pool");
         store
             .run_migrations(
                 std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations"),
@@ -772,11 +776,9 @@ mod fts_roundtrip {
             .start()
             .await
             .expect("start the pgvector container");
-        let store = Store::connect(&format!(
-            "postgres://locus:test-password@127.0.0.1:{port}/locus"
-        ))
-        .await
-        .expect("connect the store pool");
+        let store = Store::connect(&container.database_url())
+            .await
+            .expect("connect the store pool");
 
         query(
             "CREATE TABLE fts_documents (
@@ -865,11 +867,9 @@ mod schema_core {
             .start()
             .await
             .expect("start the pgvector container");
-        let store = Store::connect(&format!(
-            "postgres://locus:test-password@127.0.0.1:{port}/locus"
-        ))
-        .await
-        .expect("connect the store pool");
+        let store = Store::connect(&container.database_url())
+            .await
+            .expect("connect the store pool");
         store
             .run_migrations(
                 std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations"),
@@ -946,11 +946,9 @@ mod schema_agents {
             .start()
             .await
             .expect("start the pgvector container");
-        let store = Store::connect(&format!(
-            "postgres://locus:test-password@127.0.0.1:{port}/locus"
-        ))
-        .await
-        .expect("connect the store pool");
+        let store = Store::connect(&container.database_url())
+            .await
+            .expect("connect the store pool");
         store
             .run_migrations(
                 std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations"),
@@ -1035,11 +1033,9 @@ mod schema_board {
             .start()
             .await
             .expect("start the pgvector container");
-        let store = Store::connect(&format!(
-            "postgres://locus:test-password@127.0.0.1:{port}/locus"
-        ))
-        .await
-        .expect("connect the store pool");
+        let store = Store::connect(&container.database_url())
+            .await
+            .expect("connect the store pool");
         store
             .run_migrations(
                 std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations"),
@@ -1124,11 +1120,9 @@ mod schema_wiki {
             .start()
             .await
             .expect("start the pgvector container");
-        let store = Store::connect(&format!(
-            "postgres://locus:test-password@127.0.0.1:{port}/locus"
-        ))
-        .await
-        .expect("connect the store pool");
+        let store = Store::connect(&container.database_url())
+            .await
+            .expect("connect the store pool");
         store
             .run_migrations(
                 std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations"),
@@ -1219,11 +1213,9 @@ mod schema_memory {
             .start()
             .await
             .expect("start the pgvector container");
-        let store = Store::connect(&format!(
-            "postgres://locus:test-password@127.0.0.1:{port}/locus"
-        ))
-        .await
-        .expect("connect the store pool");
+        let store = Store::connect(&container.database_url())
+            .await
+            .expect("connect the store pool");
         store
             .run_migrations(
                 std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations"),
@@ -1358,11 +1350,9 @@ mod schema_workflows {
             .start()
             .await
             .expect("start the pgvector container");
-        let store = Store::connect(&format!(
-            "postgres://locus:test-password@127.0.0.1:{port}/locus"
-        ))
-        .await
-        .expect("connect the store pool");
+        let store = Store::connect(&container.database_url())
+            .await
+            .expect("connect the store pool");
         store
             .run_migrations(
                 std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations"),
@@ -1545,11 +1535,9 @@ mod schema_mail {
             .start()
             .await
             .expect("start the pgvector container");
-        let store = Store::connect(&format!(
-            "postgres://locus:test-password@127.0.0.1:{port}/locus"
-        ))
-        .await
-        .expect("connect the store pool");
+        let store = Store::connect(&container.database_url())
+            .await
+            .expect("connect the store pool");
         store
             .run_migrations(
                 std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations"),
@@ -1787,11 +1775,9 @@ mod schema_market {
             .start()
             .await
             .expect("start the pgvector container");
-        let store = Store::connect(&format!(
-            "postgres://locus:test-password@127.0.0.1:{port}/locus"
-        ))
-        .await
-        .expect("connect the store pool");
+        let store = Store::connect(&container.database_url())
+            .await
+            .expect("connect the store pool");
         store
             .run_migrations(
                 std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations"),
