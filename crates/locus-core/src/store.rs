@@ -305,3 +305,100 @@ mod container_lifecycle {
             .expect("inspect restarted health"));
     }
 }
+
+#[cfg(test)]
+mod migrate_runs {
+    use std::{
+        fs,
+        net::TcpListener,
+        path::PathBuf,
+        process::{Command, Stdio},
+    };
+
+    use super::{PostgresConfig, PostgresContainer, Store};
+
+    struct DockerCleanup {
+        container_name: String,
+        volume_name: String,
+        migrations_directory: PathBuf,
+    }
+
+    impl Drop for DockerCleanup {
+        fn drop(&mut self) {
+            let _ = Command::new("docker")
+                .args(["rm", "--force", &self.container_name])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+            let _ = Command::new("docker")
+                .args(["volume", "rm", "--force", &self.volume_name])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+            let _ = fs::remove_dir_all(&self.migrations_directory);
+        }
+    }
+
+    fn unused_port() -> u16 {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind an unused local port");
+        listener.local_addr().expect("read the local port").port()
+    }
+
+    #[tokio::test]
+    async fn migrate_runs() {
+        let port = unused_port();
+        let suffix = format!("{}-{port}", std::process::id());
+        let container_name = format!("locus-postgres-test-{suffix}");
+        let volume_name = format!("locus-postgres-test-data-{suffix}");
+        let migrations_directory = std::env::temp_dir().join(format!("locus-migrations-{suffix}"));
+        fs::create_dir_all(&migrations_directory).expect("create migration directory");
+        fs::write(
+            migrations_directory.join("0001_create_migration_probe.sql"),
+            "CREATE TABLE migration_probe (id INTEGER PRIMARY KEY);",
+        )
+        .expect("write migration");
+        let _cleanup = DockerCleanup {
+            container_name: container_name.clone(),
+            volume_name: volume_name.clone(),
+            migrations_directory: migrations_directory.clone(),
+        };
+        let container = PostgresContainer::new(PostgresConfig::for_test(
+            container_name.clone(),
+            volume_name,
+            port,
+        ));
+        container
+            .start()
+            .await
+            .expect("start the pgvector container");
+
+        let store = Store::connect(&format!("postgres://locus:test-password@127.0.0.1:{port}/locus"))
+            .await
+            .expect("connect the store pool");
+        store
+            .run_migrations(&migrations_directory)
+            .await
+            .expect("run the pending migration");
+
+        let probe = Command::new("docker")
+            .args([
+                "exec",
+                &container_name,
+                "psql",
+                "-qAt",
+                "-U",
+                "locus",
+                "-d",
+                "locus",
+                "-c",
+                "SELECT to_regclass('public.migration_probe')",
+            ])
+            .output()
+            .expect("query the migrated schema");
+        assert!(probe.status.success(), "query failed");
+        assert_eq!(
+            String::from_utf8_lossy(&probe.stdout).trim(),
+            "migration_probe"
+        );
+    }
+}
