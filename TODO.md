@@ -25,7 +25,7 @@ of those blocks the shell or the other twelve screens. It can run alongside M0.
 | --- | --- | ---: | ---: | ---: |
 | **M0** | Spikes — these gate M1 · **closed** | 3 | 39 | 39 |
 | **M0.5** | Desktop UI on fixtures · **closed** | 12 | 268 | 268 |
-| **M1** | Core runtime | 13 | 253 | 123 |
+| **M1** | Core runtime | 13 | 253 | 138 |
 | **M2** | Workspace | 3 | 50 | 0 |
 | **M3** | Coordination, memory, and mail | 6 | 125 | 0 |
 | **M3.5** | Agent capabilities: debug and browser | 3 | 56 | 0 |
@@ -129,7 +129,7 @@ below; it is short and it is load-bearing.
 - [ ] **[artifacts](.specs/artifacts/spec.md)** · 21 tasks · [tasks](.specs/artifacts/tasks.md)
   What you review instead of tool calls.
   *Depends on:* `store`, `run-supervisor`
-- [ ] **[ci](.specs/ci/spec.md)** · 15 tasks · [tasks](.specs/ci/tasks.md)
+- [x] **[ci](.specs/ci/spec.md)** · 15 tasks · **complete** · [tasks](.specs/ci/tasks.md)
   Continuous integration for Locus itself, and one check that is not ordinary CI hygiene: the **materialization smoke test**.
   *Depends on:* `materializers`, `harness-registry`, `telemetry`
 - [x] **[harness-registry](.specs/harness-registry/spec.md)** · 18 tasks · **complete** · [tasks](.specs/harness-registry/tasks.md)
