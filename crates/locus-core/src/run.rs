@@ -54,6 +54,36 @@ pub async fn persist_normalized_events(
     Ok(events)
 }
 
+/// Normalize two live sources through the same collector without exposing their harness dialects
+/// after the capture boundary.
+pub async fn normalize_two_harnesses(
+    collector: &EventCollector,
+    first_run_id: impl Into<String>,
+    first_adapter: &dyn Adapter,
+    first_records: Vec<Value>,
+    second_run_id: impl Into<String>,
+    second_adapter: &dyn Adapter,
+    second_records: Vec<Value>,
+) -> Result<Vec<Event>> {
+    let (first, second) = tokio::join!(
+        async { normalize(first_adapter, first_records) },
+        async { normalize(second_adapter, second_records) },
+    );
+    let first_run_id = first_run_id.into();
+    let second_run_id = second_run_id.into();
+    let first = first?;
+    let second = second?;
+    Ok(first
+        .into_iter()
+        .map(|event| collector.capture(first_run_id.clone(), event))
+        .chain(
+            second
+                .into_iter()
+                .map(|event| collector.capture(second_run_id.clone(), event)),
+        )
+        .collect())
+}
+
 /// Whether the container runtime built the image or reused its existing cache entry.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ImageDisposition {
@@ -364,6 +394,39 @@ pub fn cancel(
     run.status = RunStatus::Cancelled;
     run.cancel_reason = Some(reason.into());
     Ok(())
+}
+
+#[cfg(test)]
+mod two_harnesses_concurrent {
+    use serde_json::json;
+
+    use super::normalize_two_harnesses;
+    use crate::telemetry::{EventCollector, EventVerb, StreamJsonAdapter};
+
+    #[tokio::test]
+    async fn concurrent_harnesses_emit_the_same_downstream_event_shape() {
+        let first = StreamJsonAdapter::new("type", [("message", EventVerb::Assistant)]);
+        let second = StreamJsonAdapter::new("kind", [("reply", EventVerb::Assistant)]);
+        let collector = EventCollector::new(4);
+
+        let events = normalize_two_harnesses(
+            &collector,
+            "first-run",
+            &first,
+            vec![json!({"type": "message", "text": "one"})],
+            "second-run",
+            &second,
+            vec![json!({"kind": "reply", "text": "two"})],
+        )
+        .await
+        .expect("both sources normalize");
+
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[0].verb, EventVerb::Assistant);
+        assert_eq!(events[1].verb, EventVerb::Assistant);
+        assert_eq!(events[0].tool, events[1].tool);
+        assert_eq!(events[0].args, events[1].args);
+    }
 }
 
 #[cfg(test)]
