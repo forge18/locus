@@ -41,6 +41,11 @@ pub enum RegistryLoadError {
         #[source]
         source: toml::de::Error,
     },
+    #[error("harness definition `{path}` is missing required layout extension `{extension}`")]
+    MissingLayoutExtension {
+        path: PathBuf,
+        extension: &'static str,
+    },
 }
 
 /// Load every harness definition directly in `directory` or in one plugin subdirectory.
@@ -76,10 +81,46 @@ pub fn load_from_directory(
                     path: path.clone(),
                     source,
                 })?;
+            let document: toml::Value = toml::from_str(&definition).map_err(|source| {
+                RegistryLoadError::ParseDefinition {
+                    path: path.clone(),
+                    source,
+                }
+            })?;
+            validate_layout_extensions(&document, &path)?;
             toml::from_str(&definition)
                 .map_err(|source| RegistryLoadError::ParseDefinition { path, source })
         })
         .collect()
+}
+
+const REQUIRED_LAYOUT_EXTENSIONS: &[&str] = &[
+    "agents",
+    "commands",
+    "hooks",
+    "linters",
+    "output-styles",
+    "rules",
+    "skills",
+    "context",
+];
+
+fn validate_layout_extensions(
+    document: &toml::Value,
+    path: &Path,
+) -> Result<(), RegistryLoadError> {
+    let layout = document.get("layout").and_then(toml::Value::as_table);
+
+    for extension in REQUIRED_LAYOUT_EXTENSIONS {
+        if !layout.is_some_and(|layout| layout.contains_key(*extension)) {
+            return Err(RegistryLoadError::MissingLayoutExtension {
+                path: path.to_path_buf(),
+                extension,
+            });
+        }
+    }
+
+    Ok(())
 }
 
 fn directory_entries(directory: &Path) -> Result<Vec<fs::DirEntry>, RegistryLoadError> {
@@ -299,8 +340,11 @@ fn rejects_missing_extension() {
             .expect("reference declaration has a layout")
             .remove(*extension);
         let path = registry.join("missing.toml");
-        std::fs::write(&path, toml::to_string(&definition).expect("declaration serializes"))
-            .expect("incomplete declaration can be written");
+        std::fs::write(
+            &path,
+            toml::to_string(&definition).expect("declaration serializes"),
+        )
+        .expect("incomplete declaration can be written");
 
         let error = load_from_directory(&registry).expect_err("missing extension is refused");
         std::fs::remove_dir_all(registry).expect("temporary registry directory is removed");
