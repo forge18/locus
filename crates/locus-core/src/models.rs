@@ -1,5 +1,10 @@
 //! Project-scoped model tier settings.
 
+use anyhow::{bail, Result};
+use sqlx::query_scalar;
+
+use crate::store::Store;
+
 #[cfg(test)]
 use std::{
     net::TcpListener,
@@ -7,15 +12,47 @@ use std::{
 };
 
 #[cfg(test)]
-use anyhow::Result;
-#[cfg(test)]
-use sqlx::{query, query_scalar};
+use sqlx::query;
 
 #[cfg(test)]
 use crate::{
     backup::{MigrationBackup, RetainedBackupConfig},
-    store::{PostgresConfig, PostgresContainer, Store},
+    store::{PostgresConfig, PostgresContainer},
 };
+
+/// Resolve a requested model tier to its configured model through the permitted fallback order.
+///
+/// `None` leaves model selection to the harness's own default.
+pub async fn resolve_tier(
+    store: &Store,
+    project_id: &str,
+    harness_name: &str,
+    requested_tier: &str,
+) -> Result<Option<String>> {
+    let fallback_tiers: &[&str] = match requested_tier {
+        "xhigh" => &["xhigh", "high", "medium", "low"],
+        "high" => &["high", "medium", "low"],
+        "medium" => &["medium", "low"],
+        "low" => &["low"],
+        tier => bail!("unknown model tier `{tier}`"),
+    };
+
+    query_scalar(
+        "SELECT model_id
+         FROM core.model_tier_settings
+         WHERE project_id = $1::uuid
+           AND harness_name = $2
+           AND tier = ANY($3::text[])
+         ORDER BY array_position($3::text[], tier)
+         LIMIT 1",
+    )
+    .bind(project_id)
+    .bind(harness_name)
+    .bind(fallback_tiers)
+    .fetch_optional(store.pool())
+    .await
+    .map_err(Into::into)
+}
 
 #[cfg(test)]
 struct NoopMigrationBackup;
