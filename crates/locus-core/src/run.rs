@@ -6,6 +6,7 @@ use anyhow::{bail, Context, Result};
 #[allow(deprecated)]
 use bollard::{
     container::{AttachContainerOptions, Config, CreateContainerOptions, LogOutput},
+    image::BuildImageOptions,
     models::HostConfig,
     query_parameters::{StartContainerOptions, StopContainerOptions},
     Docker,
@@ -235,6 +236,28 @@ pub struct DockerContainerRuntime {
     docker: Docker,
 }
 
+fn docker_shell_entrypoint(setup: &str) -> Vec<String> {
+    vec![
+        "/bin/sh".into(),
+        "-lc".into(),
+        format!("{setup} && exec \"$@\""),
+        "locus-agent".into(),
+    ]
+}
+
+#[cfg(test)]
+mod docker_entrypoint {
+    use super::docker_shell_entrypoint;
+
+    #[test]
+    fn setup_execs_the_harness_command_passed_as_docker_cmd() {
+        assert_eq!(
+            docker_shell_entrypoint("prepare"),
+            ["/bin/sh", "-lc", "prepare && exec \"$@\"", "locus-agent"]
+        );
+    }
+}
+
 impl DockerContainerRuntime {
     pub fn connect() -> Result<Self> {
         Ok(Self {
@@ -261,11 +284,30 @@ impl ContainerRuntime for DockerContainerRuntime {
         let docker = self.docker.clone();
         let image = image.to_owned();
         Self::block_on(async move {
+            if docker.inspect_image(&image).await.is_ok() {
+                return Ok(ImageDisposition::Reused);
+            }
+
+            let mut build = docker.build_image(
+                BuildImageOptions::<String> {
+                    t: image.clone(),
+                    rm: true,
+                    ..Default::default()
+                },
+                None,
+                None,
+            );
+            while let Some(event) = build.next().await {
+                let event = event.context("build agent image")?;
+                if let Some(error) = event.error {
+                    bail!("build agent image: {error}")
+                }
+            }
             docker
                 .inspect_image(&image)
                 .await
-                .context("inspect agent image")?;
-            Ok(ImageDisposition::Reused)
+                .context("built agent image was not available")?;
+            Ok(ImageDisposition::Built)
         })
     }
 
@@ -288,7 +330,7 @@ impl ContainerRuntime for DockerContainerRuntime {
             let config = Config {
                 image: Some(launch.image),
                 cmd: Some(launch.command),
-                entrypoint: Some(vec!["/bin/sh".into(), "-lc".into(), launch.entrypoint]),
+                entrypoint: Some(docker_shell_entrypoint(&launch.entrypoint)),
                 env: Some(launch.environment),
                 tty: Some(true),
                 open_stdin: Some(true),

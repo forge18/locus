@@ -5,7 +5,7 @@ use std::{
     path::Path,
 };
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::{
@@ -13,6 +13,8 @@ use tokio::{
     net::{UnixListener, UnixStream},
 };
 use uuid::Uuid;
+
+const MAX_AGENT_SOCKET_FRAME_BYTES: u32 = 1_048_576;
 
 /// `locusd` owns active runs. Desktop windows attach and detach without owning them.
 #[derive(Default)]
@@ -108,6 +110,9 @@ async fn read_frame<T: serde::de::DeserializeOwned>(stream: &mut UnixStream) -> 
         .read_u32()
         .await
         .context("read socket frame length")?;
+    if length > MAX_AGENT_SOCKET_FRAME_BYTES {
+        bail!("agent socket frame exceeds {MAX_AGENT_SOCKET_FRAME_BYTES} bytes")
+    }
     let mut bytes = vec![0; length as usize];
     stream
         .read_exact(&mut bytes)
@@ -148,7 +153,10 @@ mod outlives_window {
 
 #[cfg(test)]
 mod agent_socket {
-    use super::{bind_agent_socket, serve_agent_socket_once, AgentSocketRouter};
+    use super::{
+        bind_agent_socket, read_frame, serve_agent_socket_once, AgentSocketRouter,
+        MAX_AGENT_SOCKET_FRAME_BYTES,
+    };
     use anyhow::Result;
     use serde_json::json;
     use std::{collections::BTreeMap, path::PathBuf};
@@ -177,6 +185,29 @@ mod agent_socket {
         stream.read_exact(&mut response).await.unwrap();
         serde_json::from_slice(&response).unwrap()
     }
+    #[tokio::test]
+    async fn refuses_an_oversized_frame_before_allocating_it() {
+        let path = path();
+        let listener = bind_agent_socket(&path).unwrap();
+        let client = tokio::spawn({
+            let path = path.clone();
+            async move {
+                let mut stream = UnixStream::connect(path).await.unwrap();
+                stream
+                    .write_u32(MAX_AGENT_SOCKET_FRAME_BYTES + 1)
+                    .await
+                    .unwrap();
+            }
+        });
+        let (mut stream, _) = listener.accept().await.unwrap();
+        client.await.unwrap();
+        let error = read_frame::<serde_json::Value>(&mut stream)
+            .await
+            .unwrap_err();
+        assert!(error.to_string().contains("exceeds"));
+        let _ = std::fs::remove_file(path);
+    }
+
     #[tokio::test]
     async fn routes_only_the_run_bound_to_its_capability() {
         let path = path();
