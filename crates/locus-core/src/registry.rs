@@ -149,3 +149,59 @@ fn schema_parses() {
         assert!(!definition.binary.is_empty());
     }
 }
+
+#[cfg(test)]
+#[test]
+fn loads_all_twelve() {
+    let source = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..//harnesses");
+    let registry = std::env::temp_dir().join(format!(
+        "locus-registry-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("the system clock is after the Unix epoch")
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&registry).expect("temporary registry directory exists");
+
+    for entry in std::fs::read_dir(source).expect("source registry can be read") {
+        let path = entry.expect("source registry entry can be read").path();
+        if path.extension().and_then(|extension| extension.to_str()) != Some("toml") {
+            continue;
+        }
+
+        let destination = if path.file_name().and_then(|name| name.to_str()) == Some("pi.toml") {
+            let plugin = registry.join("pi");
+            std::fs::create_dir(&plugin).expect("plugin directory exists");
+            plugin.join("pi.toml")
+        } else {
+            registry.join(path.file_name().expect("TOML path has a file name"))
+        };
+        std::fs::copy(path, destination).expect("harness declaration can be copied");
+    }
+
+    let harnesses = load_from_directory(&registry).expect("registry definitions load");
+    std::fs::remove_dir_all(registry).expect("temporary registry directory is removed");
+
+    assert_eq!(harnesses.len(), 12);
+    assert_eq!(
+        harnesses
+            .iter()
+            .map(|harness| harness.name.as_str())
+            .collect::<Vec<_>>(),
+        [
+            "aider",
+            "antigravity",
+            "claude",
+            "codex",
+            "copilot",
+            "cursor",
+            "dsh",
+            "gemini",
+            "hermes",
+            "omp",
+            "opencode",
+            "pi",
+        ]
+    );
+}
