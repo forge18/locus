@@ -1,8 +1,10 @@
 import { For, Show } from 'solid-js'
 import { Button } from '../../ui/Button'
+import { Combobox } from '../../ui/Combobox'
 import { Icon } from '../../ui/Icon'
+import { Input } from '../../ui/Input'
 import { EXTENSION_LABELS, useExtensionTypes, useHarnessSummary, useHarnesses } from '../../data/harnesses'
-import { TIERS, fallbackMarker, resolveTier } from '../../data/settings'
+import { TIERS, fallbackMarker, resolveTier, useHarnessTierGrid } from '../../data/settings'
 import type { ModelTier } from '../../types/core'
 
 /** At four or more, the downgrades are the story rather than a footnote. */
@@ -24,6 +26,7 @@ export function HarnessesView() {
   const harnesses = useHarnesses()
   const summary = useHarnessSummary()
   const types = useExtensionTypes()
+  const tierGrid = useHarnessTierGrid()
 
   return (
     <div class="harnesses" data-testid="harnesses">
@@ -60,6 +63,7 @@ export function HarnessesView() {
           {(harness) => {
             const downgrades = harness.extensions.filter((e) => e.weakerThanNative).length
             const heavy = downgrades >= HEAVY
+            const tierSettings = tierGrid.find((row) => row.name === harness.name)!
             return (
               <article
                 class={['hn-card', heavy ? 'hn-card-heavy' : ''].filter(Boolean).join(' ')}
@@ -85,8 +89,11 @@ export function HarnessesView() {
                 <div class="hn-tiers" data-testid={`hn-tiers-${harness.name}`}>
                   <For each={TIERS}>
                     {(tier: ModelTier) => {
+                      const setting = tierSettings.tiers.find((entry) => entry.tier === tier)!
                       const resolved = resolveTier(harness.name, tier)
                       const own = resolved.fellBackTo === null
+                      const options = tierSettings.models?.map((model) => ({ value: model, label: model }))
+                      const selected = options?.find((option) => option.value === setting.model) ?? null
                       return (
                         <div
                           class={['hn-tier', tier === 'high' ? 'hn-tier-high' : '']
@@ -95,7 +102,7 @@ export function HarnessesView() {
                           data-testid={`hn-tier-${harness.name}-${tier}`}
                           data-fallback={own ? undefined : resolved.fellBackTo!}
                         >
-                          {tier === 'medium' ? 'med' : tier}
+                          <span class="hn-tier-label">{tier === 'medium' ? 'med' : tier}</span>
                           <Show
                             when={own}
                             fallback={
@@ -107,8 +114,35 @@ export function HarnessesView() {
                               </span>
                             }
                           >
-                            <span class="hn-tier-value">{resolved.model}</span>
+                            <span class="hn-tier-value hn-tier-preview">{setting.model}</span>
                           </Show>
+                          <div
+                            class="hn-tier-editor"
+                            data-testid={`settings-tier-${harness.name}-${tier}`}
+                            data-editor={options ? 'combobox' : 'free-text'}
+                          >
+                            <Show
+                              when={options}
+                              fallback={
+                                <Input
+                                  class="hn-tier-input"
+                                  mono
+                                  readOnly
+                                  value={setting.model ?? ''}
+                                  placeholder="harness default"
+                                  aria-label={`${harness.name} ${tier} model`}
+                                />
+                              }
+                            >
+                              <Combobox
+                                options={options!}
+                                value={selected}
+                                onChange={() => undefined}
+                                placeholder="harness default"
+                                label={`${harness.name} ${tier} model`}
+                              />
+                            </Show>
+                          </div>
                         </div>
                       )
                     }}

@@ -1469,11 +1469,16 @@
 .hn-badge-bridged { background: var(--sf3); color: var(--mu); }
 .hn-badge-acp { background: var(--kw-deep); color: var(--kw-pale); }
 .hn-injection { font-size: var(--t-label); color: var(--mu2); }
-.hn-tiers { display: flex; flex-direction: column; gap: 1px; }
-.hn-tier { display: flex; align-items: baseline; gap: var(--g-3); font-size: var(--t-label); color: var(--mu2); }
+.hn-tiers { display: flex; flex-direction: column; gap: var(--g-2); }
+.hn-tier { display: flex; align-items: center; gap: var(--g-3); font-size: var(--t-label); color: var(--mu2); }
+.hn-tier-label { width: 28px; }
 .hn-tier-value { font-family: var(--fm); font-size: var(--t-label); color: var(--mu); }
+.hn-tier-preview { display: none; }
 .hn-tier-high .hn-tier-value { color: var(--ac); }
-.hn-tier-fallback { font-family: var(--fm); font-size: var(--t-label); color: var(--mu2); }
+.hn-tier-fallback { width: 42px; font-family: var(--fm); font-size: var(--t-label); color: var(--mu2); }
+.hn-tier-editor { flex: 1; min-width: 0; }
+.hn-tier-editor .combobox-control, .hn-tier-input { width: 100%; }
+.hn-tier-input { padding: 4px var(--g-4); font-size: var(--t-row); }
 .hn-bar { display: flex; gap: 2px; }
 .hn-seg { flex: 1; height: 5px; border-radius: 1px; }
 .hn-seg-native { background: var(--ac); }

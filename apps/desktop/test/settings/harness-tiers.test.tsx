@@ -23,7 +23,7 @@ describe('settings/harness-tiers', () => {
 
     expect(grid).toHaveLength(12)
     for (const harness of grid) {
-      expect(getByTestId(`settings-harness-${harness.name}`)).toBeTruthy()
+      expect(getByTestId(`hn-card-${harness.name}`)).toBeTruthy()
       expect(harness.tiers.map(({ tier }) => tier)).toEqual(['low', 'medium', 'high', 'xhigh'])
     }
   })
