@@ -2,10 +2,10 @@ use std::path::PathBuf;
 
 use locus_core::{
     agents::{seeded_definitions, AgentDefinition},
+    ipc::PtyChannel,
     lint::discover as discover_linters,
     materialize::{reports_for_registry, MaterializationReport},
     registry::load_from_directory,
-    ipc::PtyChannel,
     telemetry::{Event, EventCollector},
 };
 use serde::{Deserialize, Serialize};
@@ -120,7 +120,9 @@ fn pty_subscribe(pty: State<'_, PtyChannel>, channel: Channel<Vec<u8>>) {
     let mut bytes = pty.subscribe();
     tauri::async_runtime::spawn(async move {
         while let Ok(bytes) = bytes.recv().await {
-            if channel.send(bytes).is_err() { break; }
+            if channel.send(bytes).is_err() {
+                break;
+            }
         }
     });
 }
@@ -192,10 +194,14 @@ fn harness_tier_grid(request: HarnessTierGridRequest) -> Result<HarnessTierGridR
 fn detach_pane(app: tauri::AppHandle, pane_id: String) -> Result<(), String> {
     let label = format!("pane-{pane_id}");
     if app.get_webview_window(&label).is_none() {
-        WebviewWindowBuilder::new(&app, label, WebviewUrl::App("index.html?detached=true".into()))
-            .title("Locus pane")
-            .build()
-            .map_err(|error| error.to_string())?;
+        WebviewWindowBuilder::new(
+            &app,
+            label,
+            WebviewUrl::App("index.html?detached=true".into()),
+        )
+        .title("Locus pane")
+        .build()
+        .map_err(|error| error.to_string())?;
     }
     Ok(())
 }
