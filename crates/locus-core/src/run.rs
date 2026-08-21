@@ -65,10 +65,9 @@ pub async fn normalize_two_harnesses(
     second_adapter: &dyn Adapter,
     second_records: Vec<Value>,
 ) -> Result<Vec<Event>> {
-    let (first, second) = tokio::join!(
-        async { normalize(first_adapter, first_records) },
-        async { normalize(second_adapter, second_records) },
-    );
+    let (first, second) = tokio::join!(async { normalize(first_adapter, first_records) }, async {
+        normalize(second_adapter, second_records)
+    },);
     let first_run_id = first_run_id.into();
     let second_run_id = second_run_id.into();
     let first = first?;
@@ -440,7 +439,10 @@ mod human_terminal_is_not_a_session {
 
         terminal.pty.write(b"human command output");
 
-        assert_eq!(ui.recv().await.expect("terminal bytes"), b"human command output");
+        assert_eq!(
+            ui.recv().await.expect("terminal bytes"),
+            b"human command output"
+        );
         // HumanTerminal deliberately contains no Session, Run, Event, or Usage fields.
     }
 }
