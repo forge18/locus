@@ -123,6 +123,37 @@ pub trait ContainerRuntime {
     fn stop_container(&mut self, container: &str) -> Result<()>;
 }
 
+/// The minimal runtime view needed to reconcile runs after `locusd` restarts.
+pub trait BootRuntime {
+    fn container_is_alive(&mut self, container: &str) -> Result<bool>;
+    fn reattach_pty(&mut self, container: &str, stream: PtyStream) -> Result<()>;
+}
+
+/// Result of reconciling one persisted running run at daemon boot.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BootReconciliation {
+    Reattached,
+    Missing,
+}
+
+/// Reattach to containers that survived a daemon restart. Missing containers are handled by
+/// `abort_missing_on_boot`, which additionally records their terminal event and inbox item.
+pub fn reattach_on_boot(
+    run: &Run,
+    runtime: &mut impl BootRuntime,
+    stream: PtyStream,
+) -> Result<BootReconciliation> {
+    if run.status != RunStatus::Running {
+        bail!("only running runs are reconciled at boot")
+    }
+    let container = format!("locus-agent-{}", run.id);
+    if !runtime.container_is_alive(&container)? {
+        return Ok(BootReconciliation::Missing);
+    }
+    runtime.reattach_pty(&container, stream)?;
+    Ok(BootReconciliation::Reattached)
+}
+
 /// Inputs owned by the caller for one queued run.
 pub struct SpawnRequest<'a> {
     pub project_id: &'a str,
@@ -270,6 +301,52 @@ pub fn cancel(
     run.status = RunStatus::Cancelled;
     run.cancel_reason = Some(reason.into());
     Ok(())
+}
+
+#[cfg(test)]
+mod reattach_on_boot {
+    use anyhow::Result;
+    use uuid::Uuid;
+
+    use super::{reattach_on_boot, BootReconciliation, BootRuntime, PtyStream};
+    use crate::session::{Artifact, Run, RunStatus};
+
+    struct RecordingRuntime {
+        attached: Option<String>,
+    }
+
+    impl BootRuntime for RecordingRuntime {
+        fn container_is_alive(&mut self, _: &str) -> Result<bool> {
+            Ok(true)
+        }
+
+        fn reattach_pty(&mut self, container: &str, _: PtyStream) -> Result<()> {
+            self.attached = Some(container.into());
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn reattaches_to_a_container_that_survived_daemon_boot() {
+        let run = Run {
+            id: Uuid::new_v4(),
+            session_id: Uuid::new_v4(),
+            resolved_model_id: "test-model".into(),
+            status: RunStatus::Running,
+            events: vec![],
+            usage: None,
+            exit_code: None,
+            cancel_reason: None,
+            native_session_id: None,
+            artifacts: Vec::<Artifact>::new(),
+        };
+        let mut runtime = RecordingRuntime { attached: None };
+
+        let result = reattach_on_boot(&run, &mut runtime, PtyStream::new(1)).expect("reconcile");
+
+        assert_eq!(result, BootReconciliation::Reattached);
+        assert_eq!(runtime.attached, Some(format!("locus-agent-{}", run.id)));
+    }
 }
 
 #[cfg(test)]
