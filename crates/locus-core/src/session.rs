@@ -40,6 +40,8 @@ pub struct Run {
     pub usage: Option<Usage>,
     /// Container process exit code once the run has ended.
     pub exit_code: Option<i32>,
+    /// Why a cancelled run was stopped; absent for all other run states.
+    pub cancel_reason: Option<String>,
     /// Reviewable or reference deliverables produced by this run.
     pub artifacts: Vec<Artifact>,
 }
@@ -160,6 +162,7 @@ mod model {
             events: vec![],
             usage: None,
             exit_code: None,
+            cancel_reason: None,
             artifacts: vec![Artifact {
                 id: Uuid::new_v4(),
                 run_id,
@@ -339,6 +342,7 @@ mod run {
                 events: events.clone(),
                 usage: Some(usage.clone()),
                 exit_code: Some(0),
+                cancel_reason: None,
                 artifacts: artifacts.clone(),
             };
 

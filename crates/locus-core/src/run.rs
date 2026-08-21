@@ -120,6 +120,7 @@ pub trait ContainerRuntime {
         attachment: PtyAttachment,
         stream: PtyStream,
     ) -> Result<()>;
+    fn stop_container(&mut self, container: &str) -> Result<()>;
 }
 
 /// Inputs owned by the caller for one queued run.
@@ -208,6 +209,95 @@ pub fn spawn(
         port,
         pty_stream,
     })
+}
+
+/// Stop a running agent container and retain the caller's cancellation reason on its run.
+pub fn cancel(
+    run: &mut Run,
+    reason: impl AsRef<str>,
+    runtime: &mut impl ContainerRuntime,
+) -> Result<()> {
+    if run.status != RunStatus::Running {
+        bail!("only running runs may be cancelled")
+    }
+
+    let reason = reason.as_ref();
+    if reason.trim().is_empty() {
+        bail!("cancellation reason must not be empty")
+    }
+
+    runtime
+        .stop_container(&format!("locus-agent-{}", run.id))
+        .context("stop agent container")?;
+    run.status = RunStatus::Cancelled;
+    run.cancel_reason = Some(reason.into());
+    Ok(())
+}
+
+#[cfg(test)]
+mod cancels {
+    use anyhow::Result;
+    use uuid::Uuid;
+
+    use super::{cancel, ContainerLaunch, ContainerRuntime, ImageDisposition, PtyStream};
+    use crate::{
+        sandbox::PtyAttachment,
+        session::{Artifact, Run, RunStatus},
+    };
+
+    #[derive(Default)]
+    struct RecordingRuntime {
+        stopped: Vec<String>,
+    }
+
+    impl ContainerRuntime for RecordingRuntime {
+        fn build_or_reuse_image(&mut self, _: &str) -> Result<ImageDisposition> {
+            unreachable!("cancel does not build images")
+        }
+
+        fn start_container(&mut self, _: &ContainerLaunch) -> Result<()> {
+            unreachable!("cancel does not start containers")
+        }
+
+        fn attach_pty(&mut self, _: &str, _: PtyAttachment, _: PtyStream) -> Result<()> {
+            unreachable!("cancel does not attach PTYs")
+        }
+
+        fn stop_container(&mut self, container: &str) -> Result<()> {
+            self.stopped.push(container.into());
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn stops_a_running_container_and_records_why() {
+        let mut run = Run {
+            id: Uuid::new_v4(),
+            session_id: Uuid::new_v4(),
+            resolved_model_id: "test-model".into(),
+            status: RunStatus::Running,
+            events: vec![],
+            usage: None,
+            exit_code: None,
+            cancel_reason: None,
+            artifacts: Vec::<Artifact>::new(),
+        };
+        let mut runtime = RecordingRuntime::default();
+
+        cancel(
+            &mut run,
+            "superseded by a higher-priority task",
+            &mut runtime,
+        )
+        .expect("running run cancels");
+
+        assert_eq!(run.status, RunStatus::Cancelled);
+        assert_eq!(
+            run.cancel_reason.as_deref(),
+            Some("superseded by a higher-priority task")
+        );
+        assert_eq!(runtime.stopped, [format!("locus-agent-{}", run.id)]);
+    }
 }
 
 #[cfg(test)]
@@ -477,6 +567,11 @@ mod spawns {
             self.pty_stream = Some(stream);
             Ok(())
         }
+
+        fn stop_container(&mut self, container: &str) -> Result<()> {
+            self.calls.push(format!("stop:{container}"));
+            Ok(())
+        }
     }
 
     fn root() -> PathBuf {
@@ -503,6 +598,7 @@ mod spawns {
             events: vec![],
             usage: None,
             exit_code: None,
+            cancel_reason: None,
             artifacts: vec![],
         };
         let request = SpawnRequest {
