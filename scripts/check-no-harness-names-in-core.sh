@@ -23,17 +23,17 @@ violations=0
 
 while IFS= read -r source; do
     case "$source" in
-        "$core_src/registry.rs")
-            # Registry unit tests may name fixture declarations. Production code ends here.
-            content=$(awk '/^#\[cfg\(test\)\]/{ exit } { print }' "$source")
-            ;;
-        "$core_src/registry/fixtures/"*)
-            # Fixtures may name a harness so registry tests can exercise real declarations.
-            continue
-            ;;
-        *)
-            content=$(cat "$source")
-            ;;
+    "$core_src/registry.rs")
+        # Registry unit tests may name fixture declarations. Production code ends here.
+        content=$(awk '/^#\[cfg\(test\)\]/{ exit } { print }' "$source")
+        ;;
+    "$core_src/registry/fixtures/"*)
+        # Fixtures may name a harness so registry tests can exercise real declarations.
+        continue
+        ;;
+    *)
+        content=$(cat "$source")
+        ;;
     esac
 
     matches=$(printf '%s\n' "$content" | grep -nE "$pattern" || true)
