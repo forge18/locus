@@ -3,6 +3,14 @@
 use std::{collections::BTreeMap, path::PathBuf};
 
 use anyhow::{bail, Context, Result};
+#[allow(deprecated)]
+use bollard::{
+    container::{AttachContainerOptions, Config, CreateContainerOptions, LogOutput},
+    models::HostConfig,
+    query_parameters::{StartContainerOptions, StopContainerOptions},
+    Docker,
+};
+use futures::StreamExt;
 use serde_json::Value;
 use tokio::sync::broadcast;
 
@@ -219,6 +227,141 @@ pub trait ContainerRuntime {
         stream: PtyStream,
     ) -> Result<()>;
     fn stop_container(&mut self, container: &str) -> Result<()>;
+}
+
+/// Host-only Bollard adapter. Agents never receive the Docker client or its socket.
+#[derive(Clone)]
+pub struct DockerContainerRuntime {
+    docker: Docker,
+}
+
+impl DockerContainerRuntime {
+    pub fn connect() -> Result<Self> {
+        Ok(Self {
+            docker: Docker::connect_with_defaults().context("connect to Docker daemon")?,
+        })
+    }
+
+    fn block_on<T: Send + 'static>(
+        future: impl std::future::Future<Output = Result<T>> + Send + 'static,
+    ) -> Result<T> {
+        std::thread::spawn(move || {
+            tokio::runtime::Runtime::new()
+                .expect("create Docker runtime")
+                .block_on(future)
+        })
+        .join()
+        .map_err(|_| anyhow::anyhow!("Docker runtime thread panicked"))?
+    }
+}
+
+#[allow(deprecated)]
+impl ContainerRuntime for DockerContainerRuntime {
+    fn build_or_reuse_image(&mut self, image: &str) -> Result<ImageDisposition> {
+        let docker = self.docker.clone();
+        let image = image.to_owned();
+        Self::block_on(async move {
+            docker
+                .inspect_image(&image)
+                .await
+                .context("inspect agent image")?;
+            Ok(ImageDisposition::Reused)
+        })
+    }
+
+    fn start_container(&mut self, container: &ContainerLaunch) -> Result<()> {
+        let docker = self.docker.clone();
+        let launch = container.clone();
+        Self::block_on(async move {
+            let binds = launch
+                .mounts
+                .iter()
+                .map(|mount| {
+                    format!(
+                        "{}:{}:{}",
+                        mount.source,
+                        mount.destination,
+                        if mount.read_only { "ro" } else { "rw" }
+                    )
+                })
+                .collect();
+            let config = Config {
+                image: Some(launch.image),
+                cmd: Some(launch.command),
+                entrypoint: Some(vec!["/bin/sh".into(), "-lc".into(), launch.entrypoint]),
+                env: Some(launch.environment),
+                tty: Some(true),
+                open_stdin: Some(true),
+                host_config: Some(HostConfig {
+                    binds: Some(binds),
+                    network_mode: Some(launch.network),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            };
+            docker
+                .create_container(
+                    Some(CreateContainerOptions {
+                        name: launch.name.clone(),
+                        platform: None,
+                    }),
+                    config,
+                )
+                .await
+                .context("create agent container")?;
+            docker
+                .start_container(&launch.name, None::<StartContainerOptions>)
+                .await
+                .context("start agent container")?;
+            Ok(())
+        })
+    }
+
+    fn attach_pty(
+        &mut self,
+        container: &str,
+        attachment: PtyAttachment,
+        stream: PtyStream,
+    ) -> Result<()> {
+        let docker = self.docker.clone();
+        let container = container.to_owned();
+        std::thread::spawn(move || {
+            let runtime = tokio::runtime::Runtime::new().expect("create Docker runtime");
+            runtime.block_on(async move {
+                let mut attached = docker
+                    .attach_container(
+                        &container,
+                        Some(AttachContainerOptions::<String> {
+                            stdin: Some(attachment.tty),
+                            stdout: Some(attachment.stdout),
+                            stderr: Some(attachment.stderr),
+                            stream: Some(true),
+                            logs: Some(true),
+                            detach_keys: None,
+                        }),
+                    )
+                    .await?;
+                while let Some(output) = attached.output.next().await {
+                    let output: LogOutput = output?;
+                    stream.write(output.as_ref());
+                }
+                Ok::<_, bollard::errors::Error>(())
+            })
+        });
+        Ok(())
+    }
+
+    fn stop_container(&mut self, container: &str) -> Result<()> {
+        let docker = self.docker.clone();
+        let container = container.to_owned();
+        Self::block_on(async move {
+            docker
+                .stop_container(&container, None::<StopContainerOptions>)
+                .await
+                .context("stop agent container")?;
+            Ok(())
+        })
+    }
 }
 
 /// The minimal runtime view needed to reconcile runs after `locusd` restarts.
