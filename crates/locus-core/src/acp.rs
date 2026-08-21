@@ -22,8 +22,10 @@ impl PlanningAgent {
     }
 }
 
-/// Creates the ACP SDK's subprocess transport for a planning conversation over stdio.
-pub fn planning_stdio_transport<I, S>(command: impl Into<PathBuf>, args: I) -> PlanningAgent
+/// Builds the ACP SDK's subprocess transport for a planning conversation over stdio.
+///
+/// Kept private so production callers must use `container_stdio_transport`.
+fn planning_stdio_transport<I, S>(command: impl Into<PathBuf>, args: I) -> PlanningAgent
 where
     I: IntoIterator<Item = S>,
     S: Into<String>,
@@ -108,6 +110,24 @@ mod runs_in_container {
 
     #[test]
     fn attaches_stdio_to_the_agent_container() {
+        let transport = container_stdio_transport("locus-agent-run-1", "agent", ["acp"]);
+
+        assert_eq!(transport.config().command(), Path::new("docker"));
+        assert_eq!(
+            transport.config().arguments(),
+            ["exec", "-i", "locus-agent-run-1", "agent", "acp"]
+        );
+    }
+}
+
+#[cfg(test)]
+mod not_on_host {
+    use std::path::Path;
+
+    use super::*;
+
+    #[test]
+    fn agent_process_is_started_only_through_its_container() {
         let transport = container_stdio_transport("locus-agent-run-1", "agent", ["acp"]);
 
         assert_eq!(transport.config().command(), Path::new("docker"));
