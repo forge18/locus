@@ -19,6 +19,21 @@ where
     AcpAgent::new(AcpAgentConfig::new(command).args(args))
 }
 
+/// Creates the ACP SDK transport through `docker exec`, so the agent process runs in its container.
+pub fn container_stdio_transport<I, S>(
+    container: impl Into<String>,
+    command: impl Into<String>,
+    args: I,
+) -> AcpAgent
+where
+    I: IntoIterator<Item = S>,
+    S: Into<String>,
+{
+    let mut docker_args = vec!["exec".into(), "-i".into(), container.into(), command.into()];
+    docker_args.extend(args.into_iter().map(Into::into));
+    stdio_transport("docker", docker_args)
+}
+
 /// Builds the ACP `session/new` request for a planning conversation.
 pub fn session_new(cwd: impl Into<PathBuf>) -> NewSessionRequest {
     NewSessionRequest::new(cwd).mcp_servers(vec![])
@@ -68,6 +83,24 @@ mod transport {
 
         assert_eq!(transport.config().command(), Path::new("agent"));
         assert_eq!(transport.config().arguments(), ["acp"]);
+    }
+}
+
+#[cfg(test)]
+mod runs_in_container {
+    use std::path::Path;
+
+    use super::*;
+
+    #[test]
+    fn attaches_stdio_to_the_agent_container() {
+        let transport = container_stdio_transport("locus-agent-run-1", "agent", ["acp"]);
+
+        assert_eq!(transport.config().command(), Path::new("docker"));
+        assert_eq!(
+            transport.config().arguments(),
+            ["exec", "-i", "locus-agent-run-1", "agent", "acp"]
+        );
     }
 }
 
