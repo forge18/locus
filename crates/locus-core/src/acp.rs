@@ -301,6 +301,43 @@ mod permission_request {
 }
 
 #[cfg(test)]
+mod mapping_is_shared {
+    use serde_json::json;
+
+    use crate::telemetry::{AcpAdapter, Adapter, EventVerb};
+
+    #[test]
+    fn second_acp_harness_reuses_the_protocol_mapping() {
+        let updates = [
+            ("AgentMessageChunk", None, EventVerb::Assistant),
+            ("AgentThoughtChunk", None, EventVerb::Thinking),
+            ("ToolCall", None, EventVerb::ToolCall),
+            ("ToolCallUpdate", Some("completed"), EventVerb::ToolResult),
+            ("ToolCallUpdate", Some("failed"), EventVerb::ToolError),
+        ];
+
+        for harness in ["cursor", "second-acp-harness"] {
+            for (session_update, status, expected) in updates {
+                let mut update = json!({"sessionUpdate": session_update});
+                if let Some(status) = status {
+                    update["status"] = json!(status);
+                }
+                let events = AcpAdapter
+                    .normalize(json!({
+                        "harness": harness,
+                        "method": "session/update",
+                        "params": {"update": update},
+                    }))
+                    .expect("normalize ACP update");
+
+                assert_eq!(events.len(), 1, "{harness} {session_update}");
+                assert_eq!(events[0].verb, expected, "{harness} {session_update}");
+            }
+        }
+    }
+}
+
+#[cfg(test)]
 mod mcp_always_empty {
     use super::*;
 
