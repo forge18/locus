@@ -544,6 +544,20 @@ mod json {
     }
 }
 
+#[cfg(test)]
+mod run {
+    use super::{resolve_verb, VERB_DISPATCHES};
+
+    #[test]
+    fn status() {
+        let command = ["run".into(), "status".into()];
+        let (dispatch, args) = resolve_verb(&command).expect("run status is dispatched");
+        assert_eq!(dispatch.verb, "run.status");
+        assert!(args.is_empty());
+        assert!(VERB_DISPATCHES.iter().any(|entry| entry.verb == dispatch.verb));
+    }
+}
+
 #[tokio::test]
 async fn no_local_logic() {
     let path = std::env::temp_dir().join(format!(
