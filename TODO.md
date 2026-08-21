@@ -25,7 +25,7 @@ of those blocks the shell or the other twelve screens. It can run alongside M0.
 | --- | --- | ---: | ---: | ---: |
 | **M0** | Spikes — these gate M1 · **closed** | 3 | 39 | 39 |
 | **M0.5** | Desktop UI on fixtures · **closed** | 12 | 268 | 268 |
-| **M1** | Core runtime | 13 | 253 | 166 |
+| **M1** | Core runtime | 13 | 253 | 167 |
 | **M2** | Workspace | 3 | 50 | 0 |
 | **M3** | Coordination, memory, and mail | 6 | 125 | 0 |
 | **M3.5** | Agent capabilities: debug and browser | 3 | 56 | 0 |
@@ -144,7 +144,7 @@ below; it is short and it is load-bearing.
 - [ ] **[pane-manager](.specs/pane-manager/spec.md)** · 21 tasks · [tasks](.specs/pane-manager/tasks.md)
   The pane manager and the IPC discipline behind it.
   *Depends on:* `app-shell`, `run-supervisor`, `telemetry`
-- [ ] **[run-supervisor](.specs/run-supervisor/spec.md)** · 22 tasks · **7/22 complete** · [tasks](.specs/run-supervisor/tasks.md)
+- [ ] **[run-supervisor](.specs/run-supervisor/spec.md)** · 22 tasks · **8/22 complete** · [tasks](.specs/run-supervisor/tasks.md)
   Spawn, stream, normalize, persist, cancel — and hold the session/run/turn model that everything above depends on.
   *Depends on:* `sandbox`, `materializers`, `agent-definitions`, `telemetry`
 - [x] **[sandbox](.specs/sandbox/spec.md)** · 24 tasks · **complete** · [tasks](.specs/sandbox/tasks.md)
