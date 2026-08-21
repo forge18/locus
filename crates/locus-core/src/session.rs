@@ -56,6 +56,26 @@ pub fn start_next_run(session: &Session, resolved_model_id: impl Into<String>) -
     }
 }
 
+/// The data used to prime a fresh harness process from Locus-owned history.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ResumePlan {
+    pub next_run: NextRun,
+    pub prior_events: Vec<Event>,
+}
+
+/// Resume starts a new container and feeds it durable Locus events, never relying on a
+/// harness-specific session implementation.
+pub fn resume_from_events(
+    session: &Session,
+    events: impl IntoIterator<Item = Event>,
+    resolved_model_id: impl Into<String>,
+) -> ResumePlan {
+    ResumePlan {
+        next_run: start_next_run(session, resolved_model_id),
+        prior_events: events.into_iter().collect(),
+    }
+}
+
 /// One container lifetime within a session.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Run {
@@ -291,6 +311,47 @@ mod model {
                 "agents.{table}.{column} references agents.{referenced_table}"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod resume_from_events {
+    use serde_json::json;
+    use uuid::Uuid;
+
+    use super::{resume_from_events, Session, SessionStatus};
+    use crate::telemetry::{Event, EventVerb};
+
+    #[test]
+    fn primes_a_new_run_from_the_sessions_own_event_history() {
+        let session = Session {
+            id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
+            agent_def_id: Uuid::new_v4(),
+            name: "resume work".into(),
+            branch: "agent/resume-work".into(),
+            board_task_id: None,
+            memory_base: json!({}),
+            pane_state: json!({}),
+            status: SessionStatus::Active,
+        };
+        let history = vec![Event {
+            run_id: Uuid::new_v4().to_string(),
+            seq: 0,
+            ts: "2026-01-01T00:00:00Z".into(),
+            verb: EventVerb::Assistant,
+            text: Some("implemented the parser".into()),
+            tool: None,
+            args: None,
+            usage: None,
+            raw: json!({"source": "locus"}),
+        }];
+
+        let plan = resume_from_events(&session, history.clone(), "test-model");
+
+        assert_ne!(plan.next_run.run.id, Uuid::nil());
+        assert_eq!(plan.next_run.run.session_id, session.id);
+        assert_eq!(plan.prior_events, history);
     }
 }
 
