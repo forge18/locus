@@ -828,6 +828,20 @@ mod svc {
         assert!(services.down("project", "postgres"));
         assert!(!services.down("project", "postgres"));
     }
+
+    #[test]
+    fn no_docker_socket_for_agents() {
+        let mounts = agent_mounts("/tmp/locus.sock", "/tmp/config");
+        assert!(
+            mounts
+                .iter()
+                .all(|mount| mount.destination != "/var/run/docker.sock"),
+            "service requests travel over /run/locus.sock; agents never receive Docker's socket"
+        );
+
+        let services = ServiceSupervisor::default();
+        assert_eq!(services.up("project", "redis"), "locus-svc-project-redis");
+    }
 }
 
 #[cfg(test)]
