@@ -11,7 +11,10 @@ use std::{
 };
 
 use anyhow::{bail, Context, Result};
-use bollard::{Docker, API_DEFAULT_VERSION};
+use bollard::{
+    query_parameters::{RemoveContainerOptions, StartContainerOptions, StopContainerOptions},
+    Docker, API_DEFAULT_VERSION,
+};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
@@ -47,6 +50,30 @@ impl DockerDaemon {
     pub async fn ping(&self) -> Result<()> {
         self.docker.ping().await.context("ping Docker daemon")?;
         Ok(())
+    }
+
+    /// Start a previously-created container through the host-only daemon client.
+    pub async fn start(&self, container: &str) -> Result<()> {
+        self.docker
+            .start_container(container, None::<StartContainerOptions>)
+            .await
+            .with_context(|| format!("start container `{container}`"))
+    }
+
+    /// Stop one container without exposing the daemon socket to an agent.
+    pub async fn stop(&self, container: &str) -> Result<()> {
+        self.docker
+            .stop_container(container, None::<StopContainerOptions>)
+            .await
+            .with_context(|| format!("stop container `{container}`"))
+    }
+
+    /// Remove one finished container through the same host-only daemon client.
+    pub async fn remove(&self, container: &str) -> Result<()> {
+        self.docker
+            .remove_container(container, None::<RemoveContainerOptions>)
+            .await
+            .with_context(|| format!("remove container `{container}`"))
     }
 }
 
@@ -513,6 +540,36 @@ mod images {
         assert!(plan
             .dockerfile
             .contains("npm install --global @deepseek-ai/dsh@0.1.0-rc.7"));
+    }
+
+    #[test]
+    fn metadata_is_declarative_for_all_twelve_harnesses() {
+        let registry = registry();
+        assert_eq!(registry.len(), 12);
+
+        for harness in registry.iter() {
+            assert!(
+                !harness.image.base.trim().is_empty(),
+                "{} declares an image base",
+                harness.name
+            );
+            if harness.image.verified {
+                assert_ne!(harness.image.version, "unverified");
+                assert!(
+                    !harness.image.install.is_empty(),
+                    "{} has a verified install command",
+                    harness.name
+                );
+            } else {
+                assert_eq!(harness.image.version, "unverified");
+                assert!(
+                    harness.image.install.is_empty(),
+                    "{} does not invent an unverified install command",
+                    harness.name
+                );
+                assert!(BaseImagePlan::from_harness(harness).is_err());
+            }
+        }
     }
 
     #[test]
