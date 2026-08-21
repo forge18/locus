@@ -30,10 +30,10 @@ pub async fn resolve_tier(
     requested_tier: &str,
 ) -> Result<Option<String>> {
     let fallback_tiers: &[&str] = match requested_tier {
-        "xhigh" => &["xhigh", "high", "medium", "low"],
-        "high" => &["high", "medium", "low"],
-        "medium" => &["medium", "low"],
-        "low" => &["low"],
+        "xhigh" => &["xhigh"],
+        "high" => &["high", "xhigh"],
+        "medium" => &["medium", "high", "xhigh"],
+        "low" => &["low", "medium", "high", "xhigh"],
         tier => bail!("unknown model tier `{tier}`"),
     };
 
@@ -137,26 +137,86 @@ async fn falls_back_up() {
         .expect("insert project for model resolution");
     query(
         "INSERT INTO core.model_tier_settings (project_id, harness_name, tier, model_id)
-         VALUES ($1::uuid, 'test-harness', 'high', 'model-high')",
+         VALUES ($1::uuid, 'test-harness', 'xhigh', 'model-xhigh')",
     )
     .bind("00000000-0000-0000-0000-000000000001")
     .execute(store.pool())
     .await
-    .expect("insert high tier model");
+    .expect("insert xhigh tier model");
 
     assert_eq!(
         resolve_tier(
             &store,
             "00000000-0000-0000-0000-000000000001",
             "test-harness",
-            "xhigh",
+            "high",
         )
         .await
         .expect("resolve configured model tier")
         .as_deref(),
-        Some("model-high"),
-        "an unset xhigh tier uses the configured high tier"
+        Some("model-xhigh"),
+        "an unset high tier uses the configured xhigh tier"
     );
+}
+
+#[cfg(test)]
+#[tokio::test]
+async fn never_falls_down() {
+    let port = unused_port();
+    let suffix = format!("{}-{port}", std::process::id());
+    let container_name = format!("locus-model-no-downward-test-{suffix}");
+    let volume_name = format!("locus-model-no-downward-test-data-{suffix}");
+    let _cleanup = DockerCleanup {
+        container_name: container_name.clone(),
+        volume_name: volume_name.clone(),
+    };
+    let container =
+        PostgresContainer::new(PostgresConfig::for_test(container_name, volume_name, port));
+    container
+        .start()
+        .await
+        .expect("start the model no-downward test container");
+    let store = Store::connect(&container.database_url())
+        .await
+        .expect("connect the store pool");
+    store
+        .run_migrations(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations"),
+            &NoopMigrationBackup,
+            &test_backup_config(),
+        )
+        .await
+        .expect("run migrations");
+
+    const PROJECT_ID: &str = "00000000-0000-0000-0000-000000000001";
+    query("INSERT INTO core.projects (id, name) VALUES ($1::uuid, 'model no-downward test')")
+        .bind(PROJECT_ID)
+        .execute(store.pool())
+        .await
+        .expect("insert project for model no-downward resolution");
+
+    for (requested_tier, weaker_tier) in [("xhigh", "high"), ("high", "medium"), ("medium", "low")]
+    {
+        let harness_name = format!("test-harness-{requested_tier}");
+        query(
+            "INSERT INTO core.model_tier_settings (project_id, harness_name, tier, model_id)
+             VALUES ($1::uuid, $2, $3, 'weaker-model')",
+        )
+        .bind(PROJECT_ID)
+        .bind(&harness_name)
+        .bind(weaker_tier)
+        .execute(store.pool())
+        .await
+        .expect("insert weaker tier model");
+
+        assert_eq!(
+            resolve_tier(&store, PROJECT_ID, &harness_name, requested_tier)
+                .await
+                .expect("resolve without weaker fallback"),
+            None,
+            "a requested {requested_tier} tier must not resolve to weaker {weaker_tier}"
+        );
+    }
 }
 
 #[cfg(test)]
