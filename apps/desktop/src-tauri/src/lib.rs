@@ -5,10 +5,11 @@ use locus_core::{
     lint::discover as discover_linters,
     materialize::{reports_for_registry, MaterializationReport},
     registry::load_from_directory,
+    ipc::PtyChannel,
     telemetry::{Event, EventCollector},
 };
 use serde::{Deserialize, Serialize};
-use tauri::{ipc::Channel, State};
+use tauri::{ipc::Channel, menu::Menu, Manager, State, WebviewUrl, WebviewWindowBuilder};
 
 const MODEL_TIERS: [&str; 4] = ["low", "medium", "high", "xhigh"];
 const HARNESS_REGISTRY: &str = "../../../harnesses";
@@ -106,6 +107,16 @@ pub struct HarnessTierGridHarness {
 }
 
 #[tauri::command]
+fn pty_subscribe(pty: State<'_, PtyChannel>, channel: Channel<Vec<u8>>) {
+    let mut bytes = pty.subscribe();
+    tauri::async_runtime::spawn(async move {
+        while let Ok(bytes) = bytes.recv().await {
+            if channel.send(bytes).is_err() { break; }
+        }
+    });
+}
+
+#[tauri::command]
 fn telemetry_subscribe(collector: State<'_, EventCollector>, channel: Channel<Event>) {
     let mut events = collector.subscribe();
     tauri::async_runtime::spawn(async move {
@@ -168,16 +179,35 @@ fn harness_tier_grid(request: HarnessTierGridRequest) -> Result<HarnessTierGridR
     })
 }
 
+#[tauri::command]
+fn detach_pane(app: tauri::AppHandle, pane_id: String) -> Result<(), String> {
+    let label = format!("pane-{pane_id}");
+    if app.get_webview_window(&label).is_none() {
+        WebviewWindowBuilder::new(&app, label, WebviewUrl::App("index.html?detached=true".into()))
+            .title("Locus pane")
+            .build()
+            .map_err(|error| error.to_string())?;
+    }
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .manage(EventCollector::new(1_024))
+        .manage(PtyChannel::new(1_024))
+        .setup(|app| {
+            app.set_menu(Menu::new(app)?).map(|_| ())?;
+            Ok(())
+        })
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             agent_def,
             agent_defs_list,
             harness_tier_grid,
+            pty_subscribe,
             telemetry_subscribe,
+            detach_pane,
             linter_count,
             materialization_report
         ])
