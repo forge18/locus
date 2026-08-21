@@ -25,7 +25,7 @@ of those blocks the shell or the other twelve screens. It can run alongside M0.
 | --- | --- | ---: | ---: | ---: |
 | **M0** | Spikes — these gate M1 · **closed** | 3 | 39 | 39 |
 | **M0.5** | Desktop UI on fixtures · **closed** | 12 | 268 | 268 |
-| **M1** | Core runtime | 13 | 253 | 107 |
+| **M1** | Core runtime | 13 | 253 | 123 |
 | **M2** | Workspace | 3 | 50 | 0 |
 | **M3** | Coordination, memory, and mail | 6 | 125 | 0 |
 | **M3.5** | Agent capabilities: debug and browser | 3 | 56 | 0 |
@@ -123,7 +123,7 @@ below; it is short and it is load-bearing.
 - [ ] **[agent-cli](.specs/agent-cli/spec.md)** · 24 tasks · [tasks](.specs/agent-cli/tasks.md)
   `crates/locus-cli` — the binary agents call from inside their container, and **the MCP replacement**.
   *Depends on:* `store`, `sandbox`
-- [ ] **[agent-definitions](.specs/agent-definitions/spec.md)** · 16 tasks · [tasks](.specs/agent-definitions/tasks.md)
+- [x] **[agent-definitions](.specs/agent-definitions/spec.md)** · 16 tasks · **complete** · [tasks](.specs/agent-definitions/tasks.md)
   An agent is a Markdown file with frontmatter.
   *Depends on:* `store`, `materializers`
 - [ ] **[artifacts](.specs/artifacts/spec.md)** · 21 tasks · [tasks](.specs/artifacts/tasks.md)
