@@ -41,7 +41,7 @@ fn dispatch(arguments: &[String]) -> Result<()> {
         .ok_or_else(|| anyhow::anyhow!("unknown command: {}", arguments.join(" ")))?;
     let runtime = tokio::runtime::Runtime::new().context("start socket client runtime")?;
     let response = runtime.block_on(sock::dispatch(sock::DEFAULT_SOCKET_PATH, verb, args))?;
-    println!("{}", sock::compact_json(&response)?);
+    println!("{}", serde_json::to_string(&sock::key_pack(response))?);
     Ok(())
 }
 

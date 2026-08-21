@@ -2,7 +2,7 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use serde::{de::DeserializeOwned, Serialize};
-use serde_json::Value;
+use serde_json::{Map, Value};
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
     net::UnixStream,
@@ -257,8 +257,43 @@ pub fn without_json_flag(arguments: &[String]) -> Vec<String> {
         .collect()
 }
 
-pub fn compact_json(response: &Value) -> serde_json::Result<String> {
-    serde_json::to_string(response)
+pub(crate) fn key_pack(value: Value) -> Value {
+    match value {
+        Value::Array(rows) => pack_uniform_table(&rows)
+            .unwrap_or_else(|| Value::Array(rows.into_iter().map(key_pack).collect())),
+        Value::Object(object) => Value::Object(
+            object
+                .into_iter()
+                .map(|(key, value)| (key, key_pack(value)))
+                .collect(),
+        ),
+        value => value,
+    }
+}
+
+fn pack_uniform_table(rows: &[Value]) -> Option<Value> {
+    let keys: Vec<_> = rows.first()?.as_object()?.keys().cloned().collect();
+    if keys.is_empty()
+        || !rows.iter().all(|row| {
+            row.as_object().is_some_and(|object| {
+                object.len() == keys.len() && keys.iter().all(|key| object.contains_key(key))
+            })
+        })
+    {
+        return None;
+    }
+
+    let rows = rows
+        .iter()
+        .map(|row| Value::Array(keys.iter().map(|key| key_pack(row[key].clone())).collect()))
+        .collect();
+    let mut packed = Map::new();
+    packed.insert(
+        "keys".to_owned(),
+        Value::Array(keys.into_iter().map(Value::String).collect()),
+    );
+    packed.insert("rows".to_owned(), Value::Array(rows));
+    Some(Value::Object(packed))
 }
 
 pub fn resolve_verb(arguments: &[String]) -> Option<(&'static VerbDispatch, &[String])> {
@@ -420,9 +455,8 @@ async fn all_verbs_are_round_trips() {
 
 #[cfg(test)]
 mod json {
+    use super::{key_pack, resolve_verb, without_json_flag, VERB_DISPATCHES};
     use serde_json::json;
-
-    use super::{compact_json, resolve_verb, without_json_flag, VERB_DISPATCHES};
 
     #[test]
     fn flag_everywhere() {
@@ -439,18 +473,21 @@ mod json {
     }
 
     #[test]
-    fn never_pretty() {
-        for dispatch in VERB_DISPATCHES {
-            let response = json!({"verb": dispatch.verb, "rows": [{"id": 1, "state": "ready"}]});
-
-            assert_eq!(
-                compact_json(&response).expect("response serializes"),
-                format!(
-                    "{{\"verb\":\"{}\",\"rows\":[{{\"id\":1,\"state\":\"ready\"}}]}}",
-                    dispatch.verb
-                )
-            );
-        }
+    fn key_packed() {
+        assert_eq!(
+            key_pack(json!({
+                "tasks": [
+                    {"id": "a", "state": "ready"},
+                    {"id": "b", "state": "done"}
+                ]
+            })),
+            json!({
+                "tasks": {
+                    "keys": ["id", "state"],
+                    "rows": [["a", "ready"], ["b", "done"]]
+                }
+            })
+        );
     }
 }
 
