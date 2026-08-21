@@ -16,6 +16,7 @@ pub mod models;
 pub mod registry;
 pub mod restore;
 pub mod sandbox;
+pub mod session;
 pub mod smoke;
 pub mod store;
 pub mod telemetry;
