@@ -249,6 +249,14 @@ pub const VERB_DISPATCHES: &[VerbDispatch] = &[
     },
 ];
 
+pub fn without_json_flag(arguments: &[String]) -> Vec<String> {
+    arguments
+        .iter()
+        .filter(|argument| argument.as_str() != "--json")
+        .cloned()
+        .collect()
+}
+
 pub fn resolve_verb(arguments: &[String]) -> Option<(&'static VerbDispatch, &[String])> {
     VERB_DISPATCHES
         .iter()
@@ -404,6 +412,25 @@ async fn all_verbs_are_round_trips() {
 
     server.await.expect("server task completes");
     std::fs::remove_file(path).expect("remove test socket");
+}
+
+#[cfg(test)]
+mod json {
+    use super::{resolve_verb, without_json_flag, VERB_DISPATCHES};
+
+    #[test]
+    fn flag_everywhere() {
+        for dispatch in VERB_DISPATCHES {
+            let mut command: Vec<_> = dispatch.command.iter().map(ToString::to_string).collect();
+            command.push("--json".to_owned());
+
+            let command = without_json_flag(&command);
+            let (resolved, args) = resolve_verb(&command).expect("JSON command resolves");
+
+            assert_eq!(resolved.verb, dispatch.verb);
+            assert!(args.is_empty());
+        }
+    }
 }
 
 #[tokio::test]
