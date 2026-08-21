@@ -784,12 +784,11 @@ mod schema_wiki {
             assert!(exists, "wiki.{table} exists");
         }
 
-        let vector_available: bool = query_scalar(
-            "SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector')",
-        )
-        .fetch_one(store.pool())
-        .await
-        .expect("query the vector extension");
+        let vector_available: bool =
+            query_scalar("SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector')")
+                .fetch_one(store.pool())
+                .await
+                .expect("query the vector extension");
         assert!(vector_available, "pgvector is enabled for wiki embeddings");
     }
 }
