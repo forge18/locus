@@ -566,11 +566,8 @@ mod schema_agents {
             container_name: container_name.clone(),
             volume_name: volume_name.clone(),
         };
-        let container = PostgresContainer::new(PostgresConfig::for_test(
-            container_name,
-            volume_name,
-            port,
-        ));
+        let container =
+            PostgresContainer::new(PostgresConfig::for_test(container_name, volume_name, port));
         container
             .start()
             .await
