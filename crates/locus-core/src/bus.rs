@@ -1,10 +1,11 @@
 //! In-process event delivery for the Locus core.
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use sqlx::{postgres::PgListener, query, PgPool};
 use tokio::sync::broadcast;
 
 const POSTGRES_CHANNEL: &str = "locus_events";
+const POSTGRES_NOTIFY_PAYLOAD_CAP_BYTES: usize = 8_000;
 
 /// Delivers event ids to Locus processes through Postgres LISTEN/NOTIFY.
 pub struct PostgresBus {
@@ -31,6 +32,13 @@ impl PostgresBus {
 
     /// Publishes an event id; the event payload remains in Postgres for subscribers to fetch.
     pub async fn publish(&self, event_id: &str) -> Result<()> {
+        if event_id.len() > POSTGRES_NOTIFY_PAYLOAD_CAP_BYTES {
+            bail!(
+                "Postgres NOTIFY payload exceeds 8000-byte cap: {} bytes",
+                event_id.len()
+            );
+        }
+
         query("SELECT pg_notify($1, $2)")
             .bind(POSTGRES_CHANNEL)
             .bind(event_id)
