@@ -75,6 +75,15 @@ pub enum RegistryLoadError {
     },
 }
 
+/// A registry is accepted only after each harness passes the deterministic canary preflight.
+#[derive(Debug, thiserror::Error)]
+pub enum RegistryRegistrationError {
+    #[error(transparent)]
+    Load(#[from] RegistryLoadError),
+    #[error("harness `{harness}` failed its canary smoke test: {reason}")]
+    SmokeFailed { harness: String, reason: String },
+}
+
 /// Registry-wide materialization counts consumed by the UI.
 #[derive(Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -209,6 +218,22 @@ pub fn load_from_directory(
         })
         .collect::<Result<Vec<_>, _>>()
         .map(|definitions| HarnessRegistry { definitions })
+}
+
+/// Load and accept a registry only when every definition can expose both canary fixtures.
+pub fn register_from_directory(
+    directory: impl AsRef<Path>,
+) -> Result<HarnessRegistry, RegistryRegistrationError> {
+    let registry = load_from_directory(directory)?;
+    for harness in registry.iter() {
+        crate::testkit::run_canary_smoke(harness).map_err(|error| {
+            RegistryRegistrationError::SmokeFailed {
+                harness: harness.name.clone(),
+                reason: error.to_string(),
+            }
+        })?;
+    }
+    Ok(registry)
 }
 
 const REQUIRED_LAYOUT_EXTENSIONS: &[&str] = &[
@@ -863,6 +888,14 @@ fn queries() {
             "pi",
         ]
     );
+}
+
+#[cfg(test)]
+#[test]
+fn smoke_gates_registration() {
+    let source = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../harnesses");
+    let registry = register_from_directory(source).expect("registered harnesses pass canary smoke");
+    assert_eq!(registry.len(), 12);
 }
 
 #[cfg(test)]

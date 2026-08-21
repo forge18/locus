@@ -1305,7 +1305,7 @@ fn no_volatile_content() {
 }
 
 #[test]
-fn byte_identical_twice() {
+fn ci_determinism() {
     let registry = registry();
     let harness = registry.by_name("claude").expect("claude");
     let mut extensions = ExtensionSet::default();
@@ -1315,7 +1315,7 @@ fn byte_identical_twice() {
 }
 
 #[test]
-fn detects_nondeterminism() {
+fn ci_detects_timestamp() {
     let mut call = 0;
     let error = assert_deterministic(|| {
         call += 1;
@@ -1323,7 +1323,7 @@ fn detects_nondeterminism() {
         tree.put(GeneratedFile {
             path: PathBuf::from("context"),
             mode: 0o644,
-            content: call.to_string(),
+            content: format!("generated_at=2026-01-01T00:00:0{call}Z"),
         })?;
         Ok(tree)
     })
@@ -1389,7 +1389,7 @@ fn pi_plugin_generates() {
 }
 
 #[test]
-#[ignore = "set LOCUS_PI_IMAGE to a pi image and run with --ignored"]
+#[ignore = "requires Docker image: set LOCUS_PI_IMAGE and run with --ignored"]
 fn pi_loads_generated() {
     let image = env::var("LOCUS_PI_IMAGE").expect("pi container image is configured");
     let registry = registry();

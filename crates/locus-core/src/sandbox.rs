@@ -515,6 +515,7 @@ mod docker {
     use super::*;
 
     #[tokio::test]
+    #[ignore = "requires Docker daemon"]
     async fn connects() {
         DockerDaemon::connect().unwrap().ping().await.unwrap();
     }
