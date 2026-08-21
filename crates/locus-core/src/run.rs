@@ -203,6 +203,20 @@ pub fn file_aborted_run_inbox_item(run: &Run, inbox: &mut impl Inbox) -> Result<
     })
 }
 
+/// A human-owned shell shares the pane plumbing but deliberately has no run identity.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HumanTerminal {
+    pub pty: PtyStream,
+}
+
+impl HumanTerminal {
+    pub fn open() -> Self {
+        Self {
+            pty: PtyStream::new(PTY_STREAM_CAPACITY),
+        }
+    }
+}
+
 /// Inputs owned by the caller for one queued run.
 pub struct SpawnRequest<'a> {
     pub project_id: &'a str,
@@ -350,6 +364,22 @@ pub fn cancel(
     run.status = RunStatus::Cancelled;
     run.cancel_reason = Some(reason.into());
     Ok(())
+}
+
+#[cfg(test)]
+mod human_terminal_is_not_a_session {
+    use super::HumanTerminal;
+
+    #[tokio::test]
+    async fn human_shell_has_pty_bytes_but_no_run_or_cost_state() {
+        let terminal = HumanTerminal::open();
+        let mut ui = terminal.pty.subscribe();
+
+        terminal.pty.write(b"human command output");
+
+        assert_eq!(ui.recv().await.expect("terminal bytes"), b"human command output");
+        // HumanTerminal deliberately contains no Session, Run, Event, or Usage fields.
+    }
 }
 
 #[cfg(test)]
