@@ -42,8 +42,15 @@
   --ac-ring: color-mix(in srgb, var(--ac) 55%, transparent);
   --ac-ring-soft: color-mix(in srgb, var(--ac) 50%, transparent);
   --ac-wash: color-mix(in srgb, var(--ac) 16%, transparent);
+  /* A chip is a dark ground with a pale hue on it. An accent *wash* under accent
+     text costs about a point of contrast and lands under AA on --sf3, so the
+     wash stays a tint behind other things and chips use this pair instead. */
   --ac-deep: color-mix(in srgb, var(--ac) 36%, #000000);
   --ac-pale: color-mix(in srgb, var(--ac) 18%, #ffffff);
+  --bad-deep: color-mix(in srgb, var(--bad-solid) 34%, #000000);
+  --bad-pale: color-mix(in srgb, var(--bad) 22%, #ffffff);
+  --kw-deep: color-mix(in srgb, var(--code-keyword) 30%, #000000);
+  --kw-pale: color-mix(in srgb, var(--code-keyword) 22%, #ffffff);
   --ac-ink: var(--bg);
 
   /* --- named colors the handoff uses outside the table --- */

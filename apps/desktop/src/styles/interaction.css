@@ -2,6 +2,19 @@
    Hover lifts one surface step, pressed goes one further, focus is the accent
    outline — never a browser default ring. */
 
+/* A bare <button> does not inherit `color` — the UA gives it `buttontext`, which
+   is black, on a dark app. Six components were rendering their whole label that
+   way. Anything that takes a UA colour of its own inherits instead, and
+   scripts/check-contrast.sh refuses a build without this rule. */
+button,
+input,
+textarea,
+select,
+[role='button'] {
+  color: inherit;
+  font-family: inherit;
+}
+
 /* Every focusable thing, no exceptions. Keyboard focus only; a mouse press on a
    button should not leave a ring behind it. */
 :focus-visible {
@@ -35,8 +48,10 @@
   box-shadow: var(--ring-sel-soft);
 }
 
+/* WCAG exempts an inactive control from the contrast minimum (1.4.3), which is
+   why this is the one place opacity still dims text. It is raised anyway. */
 .disabled,
 [aria-disabled='true'] {
-  opacity: .45;
+  opacity: .55;
   pointer-events: none;
 }

@@ -21,7 +21,7 @@
   line-height: 1.2;
   cursor: default;
 }
-.btn:disabled { opacity: .45; pointer-events: none; }
+.btn:disabled { opacity: .55; pointer-events: none; }
 
 .btn-primary { color: var(--ac); border-color: var(--ac); }
 .btn-primary:hover { background: color-mix(in srgb, var(--ac) 12%, transparent); }
@@ -233,7 +233,7 @@ textarea.input { min-height: 64px; resize: vertical; line-height: 1.5; }
   cursor: default;
 }
 .menu-item[data-highlighted] { background: var(--sf2); }
-.menu-item[data-disabled] { opacity: .45; }
+.menu-item[data-disabled] { opacity: .55; }
 .menu-section {
   padding: 6px var(--g-3) 3px;
   font-size: var(--t-label);
