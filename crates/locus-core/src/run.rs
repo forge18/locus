@@ -322,6 +322,8 @@ pub struct SpawnRequest<'a> {
     pub extensions: &'a ExtensionSet,
     pub config_root: PathBuf,
     pub socket_source: PathBuf,
+    /// Per-run capability validated by the daemon socket before it routes any agent request.
+    pub run_nonce: String,
     pub base_image_digest: String,
     pub tools: Vec<ToolPin>,
     pub plugin: Option<&'a PluginHost>,
@@ -361,6 +363,10 @@ pub fn spawn(
         .write_to(&request.config_root)
         .context("write run configuration")?;
 
+    if request.run_nonce.trim().is_empty() {
+        bail!("run socket capability nonce is required")
+    }
+
     let image = agent_image_tag(&request.base_image_digest, &request.tools);
     let image_disposition = runtime
         .build_or_reuse_image(&image)
@@ -373,7 +379,10 @@ pub fn spawn(
             .chain(request.harness.launch.argv.iter().cloned())
             .collect(),
         entrypoint: crate::sandbox::entrypoint_setup().into(),
-        environment: vec![format!("LOCUS_PORT={port}")],
+        environment: vec![
+            format!("LOCUS_PORT={port}"),
+            format!("LOCUS_RUN_NONCE={}", request.run_nonce),
+        ],
         mounts: agent_mounts(
             request.socket_source.display().to_string(),
             request.config_root.display().to_string(),
@@ -1075,6 +1084,7 @@ mod spawns {
             extensions: &extensions,
             config_root: config_root.clone(),
             socket_source: PathBuf::from("/tmp/locus.sock"),
+            run_nonce: "nonce".into(),
             base_image_digest: "sha256:base".into(),
             tools: vec![ToolPin {
                 name: "rg".into(),
@@ -1132,6 +1142,11 @@ mod spawns {
             .environment
             .iter()
             .any(|value| value == &format!("LOCUS_PORT={}", spawned.port)));
+        assert!(spawned
+            .container
+            .environment
+            .iter()
+            .any(|value| value == "LOCUS_RUN_NONCE=nonce"));
         assert_eq!(
             runtime.attached,
             Some((spawned.container.name.clone(), AGENT_PTY))

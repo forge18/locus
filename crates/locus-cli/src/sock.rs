@@ -629,7 +629,10 @@ async fn no_local_logic() {
     let server = tokio::spawn(async move {
         let (mut stream, _) = listener.accept().await.expect("accept client");
         let request: Value = read_frame(&mut stream).await.expect("read request");
-        assert_eq!(request, json!({"nonce": "nonce", "verb": "ask", "args": ["question"]}));
+        assert_eq!(
+            request,
+            json!({"nonce": "nonce", "verb": "ask", "args": ["question"]})
+        );
         write_frame(&mut stream, &server_answer)
             .await
             .expect("write response");
