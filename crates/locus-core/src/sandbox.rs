@@ -114,9 +114,11 @@ fn base_dockerfile(image: &Image, binary: &str, detect: &[String]) -> String {
         .map(|argument| shell_quote(&argument))
         .collect::<Vec<_>>()
         .join(" ");
+    let environment = (!image.env.is_empty()).then(|| format!("ENV {}\n", image.env.join(" ")));
     format!(
-        "FROM {}\nRUN {}\nRUN command -v {} && {}\n",
+        "FROM {}\n{}RUN {}\nRUN command -v {} && {}\n",
         image.base,
+        environment.unwrap_or_default(),
         image.install.join(" && "),
         shell_quote(binary),
         detect,

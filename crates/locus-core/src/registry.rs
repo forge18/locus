@@ -388,6 +388,8 @@ pub struct Image {
     pub base: String,
     pub version: String,
     pub install: Vec<String>,
+    #[serde(default)]
+    pub env: Vec<String>,
     pub verified: bool,
 }
 
