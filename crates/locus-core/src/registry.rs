@@ -361,6 +361,41 @@ fn rejects_missing_extension() {
 
 #[cfg(test)]
 #[test]
+fn rejects_unknown_strategy() {
+    let registry = std::env::temp_dir().join(format!(
+        "locus-registry-unknown-strategy-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("the system clock is after the Unix epoch")
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&registry).expect("temporary registry directory exists");
+
+    let mut definition: toml::Value = toml::from_str(include_str!("../../../harnesses/claude.toml"))
+        .expect("reference declaration parses");
+    definition["layout"]["agents"]["via"] = toml::Value::String("unknown".into());
+    let path = registry.join("unknown.toml");
+    std::fs::write(
+        &path,
+        toml::to_string(&definition).expect("declaration serializes"),
+    )
+    .expect("invalid declaration can be written");
+
+    let error = load_from_directory(&registry).expect_err("unknown strategy is refused");
+    std::fs::remove_dir_all(registry).expect("temporary registry directory is removed");
+
+    assert_eq!(
+        error.to_string(),
+        format!(
+            "harness definition `{}` has unknown materialization strategy `unknown` for layout extension `agents`",
+            path.display()
+        )
+    );
+}
+
+#[cfg(test)]
+#[test]
 fn loads_all_twelve() {
     let source = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../harnesses");
     let registry = std::env::temp_dir().join(format!(
