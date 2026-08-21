@@ -8,6 +8,7 @@ pub mod backup;
 pub mod board;
 pub mod bus;
 pub mod mail;
+pub mod materialize;
 pub mod memory;
 pub mod models;
 pub mod registry;

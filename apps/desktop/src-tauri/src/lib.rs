@@ -1,11 +1,16 @@
-use locus_core::telemetry::{Event, EventCollector};
+use std::path::PathBuf;
+
+use locus_core::{
+    materialize::{reports_for_registry, MaterializationReport},
+    registry::load_from_directory,
+    telemetry::{Event, EventCollector},
+};
 use serde::{Deserialize, Serialize};
 use tauri::{ipc::Channel, State};
 
 const MODEL_TIERS: [&str; 4] = ["low", "medium", "high", "xhigh"];
+const HARNESS_REGISTRY: &str = "../../../harnesses";
 
-/// Explicit IPC input. Application bootstrap owns acquiring the registry, discovery output, and
-/// project settings; this command only shapes those sources for the Settings grid.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HarnessTierGridRequest {
@@ -18,7 +23,6 @@ pub struct HarnessTierGridRequest {
 #[serde(rename_all = "camelCase")]
 pub struct HarnessTierGridHarnessRequest {
     pub name: String,
-    /// `None` is the task 16 free-text signal; `Some([])` means discovery completed empty.
     pub models: Option<Vec<String>>,
 }
 
@@ -45,8 +49,6 @@ pub struct HarnessTierGridHarness {
     pub tiers: Vec<ModelTierSetting>,
 }
 
-/// Streams each already-normalized core event to a desktop subscriber. The collector is
-/// source-neutral: hook, ACP, stream-json, and session-log events share this channel.
 #[tauri::command]
 fn telemetry_subscribe(collector: State<'_, EventCollector>, channel: Channel<Event>) {
     let mut events = collector.subscribe();
@@ -59,19 +61,24 @@ fn telemetry_subscribe(collector: State<'_, EventCollector>, channel: Channel<Ev
     });
 }
 
-/// Shape model-tier settings and task 16 discovery output into the four-cell Settings grid.
+#[tauri::command]
+fn materialization_report() -> Result<Vec<MaterializationReport>, String> {
+    let registry = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(HARNESS_REGISTRY);
+    load_from_directory(registry)
+        .map(|registry| reports_for_registry(&registry))
+        .map_err(|error| error.to_string())
+}
+
 #[tauri::command]
 fn harness_tier_grid(request: HarnessTierGridRequest) -> Result<HarnessTierGridResponse, String> {
     if request.project_id.trim().is_empty() {
         return Err("harness tier grid requires a project id".into());
     }
-
     for setting in &request.tier_settings {
         if !MODEL_TIERS.contains(&setting.tier.as_str()) {
             return Err(format!("unknown model tier `{}`", setting.tier));
         }
     }
-
     let harnesses = request
         .harnesses
         .into_iter()
@@ -92,7 +99,6 @@ fn harness_tier_grid(request: HarnessTierGridRequest) -> Result<HarnessTierGridR
             models: harness.models,
         })
         .collect();
-
     Ok(HarnessTierGridResponse {
         project_id: request.project_id,
         harnesses,
@@ -106,7 +112,8 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             harness_tier_grid,
-            telemetry_subscribe
+            telemetry_subscribe,
+            materialization_report
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -115,6 +122,13 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn materialization_report_is_derived_from_the_core_registry() {
+        let reports = materialization_report().expect("registry report");
+        assert_eq!(reports.len(), 12);
+        assert_eq!(reports.iter().flat_map(|report| &report.losses).count(), 33);
+    }
 
     #[test]
     fn harness_tier_grid_preserves_free_text_and_unset_tiers() {
@@ -131,7 +145,6 @@ mod tests {
             }],
         })
         .expect("shape settings grid");
-
         assert_eq!(response.harnesses[0].models, None);
         assert_eq!(response.harnesses[0].tiers.len(), MODEL_TIERS.len());
         assert_eq!(

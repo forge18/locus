@@ -432,15 +432,20 @@ pub struct Layout {
 
 impl Layout {
     fn entries(&self) -> [&LayoutEntry; 8] {
+        self.named_entries().map(|(_, entry)| entry)
+    }
+
+    /// Return every extension declaration paired with its stable extension name.
+    pub fn named_entries(&self) -> [(&'static str, &LayoutEntry); 8] {
         [
-            &self.agents,
-            &self.commands,
-            &self.hooks,
-            &self.linters,
-            &self.output_styles,
-            &self.rules,
-            &self.skills,
-            &self.context,
+            ("agents", &self.agents),
+            ("commands", &self.commands),
+            ("hooks", &self.hooks),
+            ("linters", &self.linters),
+            ("output-styles", &self.output_styles),
+            ("rules", &self.rules),
+            ("skills", &self.skills),
+            ("context", &self.context),
         ]
     }
 }
