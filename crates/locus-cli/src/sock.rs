@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use anyhow::{Context, Result};
 use serde::{de::DeserializeOwned, Serialize};
@@ -264,46 +264,38 @@ pub fn resolve_verb(arguments: &[String]) -> Option<(&'static VerbDispatch, &[St
 }
 
 pub async fn dispatch(
-    client: &SocketClient,
+    socket_path: impl AsRef<Path>,
     dispatch: &VerbDispatch,
     args: &[String],
 ) -> Result<Value> {
-    client
-        .round_trip(&SocketRequest {
+    SocketClient::round_trip(
+        socket_path,
+        &SocketRequest {
             verb: dispatch.verb,
             args,
-        })
-        .await
+        },
+    )
+    .await
 }
 
-#[derive(Clone, Debug)]
-pub struct SocketClient {
-    path: PathBuf,
-}
+#[derive(Clone, Copy, Debug, Default)]
+pub struct SocketClient;
 
 impl SocketClient {
-    pub fn new(path: impl AsRef<Path>) -> Self {
-        Self {
-            path: path.as_ref().to_path_buf(),
-        }
-    }
-
-    pub async fn round_trip<Request, Response>(&self, request: &Request) -> Result<Response>
+    pub async fn round_trip<Request, Response>(
+        socket_path: impl AsRef<Path>,
+        request: &Request,
+    ) -> Result<Response>
     where
         Request: Serialize,
         Response: DeserializeOwned,
     {
-        let mut stream = UnixStream::connect(&self.path)
+        let socket_path = socket_path.as_ref();
+        let mut stream = UnixStream::connect(socket_path)
             .await
-            .with_context(|| format!("connect to daemon socket `{}`", self.path.display()))?;
+            .with_context(|| format!("connect to daemon socket `{}`", socket_path.display()))?;
         write_frame(&mut stream, request).await?;
         read_frame(&mut stream).await
-    }
-}
-
-impl Default for SocketClient {
-    fn default() -> Self {
-        Self::new(DEFAULT_SOCKET_PATH)
     }
 }
 
@@ -367,14 +359,18 @@ async fn roundtrip() {
             .expect("write response");
     });
 
-    let response: Value = SocketClient::new(&path)
-        .round_trip(&json!({"verb":"run.status"}))
+    let response: Value = SocketClient::round_trip(&path, &json!({"verb":"run.status"}))
         .await
         .expect("round trip succeeds");
 
     assert_eq!(response, json!({"status":"running"}));
     server.await.expect("server task completes");
     std::fs::remove_file(path).expect("remove test socket");
+}
+
+#[test]
+fn stateless() {
+    assert_eq!(std::mem::size_of::<SocketClient>(), 0);
 }
 
 #[tokio::test]
@@ -399,9 +395,8 @@ async fn all_verbs_are_round_trips() {
         }
     });
 
-    let client = SocketClient::new(&path);
     for verb in VERB_DISPATCHES {
-        let response = dispatch(&client, verb, &["argument".to_owned()])
+        let response = dispatch(&path, verb, &["argument".to_owned()])
             .await
             .expect("verb round trip succeeds");
         assert_eq!(response, json!({"verb": verb.verb}));
