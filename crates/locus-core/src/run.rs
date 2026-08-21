@@ -3,6 +3,7 @@
 use std::path::PathBuf;
 
 use anyhow::{bail, Context, Result};
+use serde_json::Value;
 use tokio::sync::broadcast;
 
 use crate::{
@@ -13,7 +14,21 @@ use crate::{
         ToolPin, AGENT_PTY,
     },
     session::{Run, RunStatus},
+    telemetry::{Adapter, CapturedEvent},
 };
+
+/// Normalize captured source records through the adapter selected for this run's telemetry source.
+pub fn normalize(
+    adapter: &dyn Adapter,
+    records: impl IntoIterator<Item = Value>,
+) -> Result<Vec<CapturedEvent>> {
+    records
+        .into_iter()
+        .try_fold(Vec::new(), |mut events, record| {
+            events.extend(adapter.normalize(record)?);
+            Ok(events)
+        })
+}
 
 /// Whether the container runtime built the image or reused its existing cache entry.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -169,6 +184,26 @@ pub fn spawn(
         port,
         pty_stream,
     })
+}
+
+#[cfg(test)]
+mod normalizes {
+    use serde_json::json;
+
+    use super::normalize;
+    use crate::telemetry::{EventVerb, StreamJsonAdapter};
+
+    #[test]
+    fn hands_captured_records_to_the_source_adapter() {
+        let adapter = StreamJsonAdapter::new("type", [("message", EventVerb::Assistant)]);
+        let raw = json!({"type": "message", "text": "complete"});
+
+        let events = normalize(&adapter, [raw.clone()]).expect("captured record normalizes");
+
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].verb, EventVerb::Assistant);
+        assert_eq!(events[0].raw, raw);
+    }
 }
 
 #[cfg(test)]
