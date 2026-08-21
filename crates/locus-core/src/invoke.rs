@@ -25,6 +25,34 @@ pub struct NestedRunPlan {
     pub clone_command: String,
 }
 
+/// A completed child result routed back to the run that invoked it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NestedRunReturn {
+    pub run_id: Uuid,
+    pub exit_code: i32,
+    pub summary: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CallerDelivery {
+    pub caller_run_id: Uuid,
+    pub result: NestedRunReturn,
+}
+
+/// Attaches a child result to its originating caller rather than treating it as a handoff.
+pub fn return_to_caller(
+    plan: &NestedRunPlan,
+    result: NestedRunReturn,
+) -> Result<CallerDelivery> {
+    if result.run_id != plan.run_id {
+        anyhow::bail!("nested result does not belong to this invocation")
+    }
+    Ok(CallerDelivery {
+        caller_run_id: plan.caller_run_id,
+        result,
+    })
+}
+
 /// Host-only boundary that creates the child container and clone.
 pub trait NestedRunLauncher {
     fn start(&self, plan: &NestedRunPlan) -> Result<()>;
@@ -106,6 +134,38 @@ mod nested_run {
         assert_eq!(
             launcher.plans.lock().expect("launcher lock").as_slice(),
             &[nested]
+        );
+    }
+}
+
+#[cfg(test)]
+mod returns {
+    use super::*;
+
+    #[test]
+    fn routes_a_child_completion_back_to_its_caller() {
+        let caller_run_id = Uuid::new_v4();
+        let child_run_id = Uuid::new_v4();
+        let plan = NestedRunPlan {
+            caller_run_id,
+            run_id: child_run_id,
+            agent: "reviewer".into(),
+            version: 2,
+            container_name: "locus-agent-child".into(),
+            clone_command: "git clone".into(),
+        };
+        let result = NestedRunReturn {
+            run_id: child_run_id,
+            exit_code: 0,
+            summary: "review complete".into(),
+        };
+
+        assert_eq!(
+            return_to_caller(&plan, result.clone()).expect("return is routed"),
+            CallerDelivery {
+                caller_run_id,
+                result,
+            }
         );
     }
 }
