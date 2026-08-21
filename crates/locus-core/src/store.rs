@@ -440,6 +440,109 @@ mod migrate_runs {
 }
 
 #[cfg(test)]
+mod migrate_from_empty {
+    use std::{
+        net::TcpListener,
+        process::{Command, Stdio},
+    };
+
+    use sqlx::query_scalar;
+
+    use super::{PostgresConfig, PostgresContainer, Store};
+
+    struct DockerCleanup {
+        container_name: String,
+        volume_name: String,
+    }
+
+    impl Drop for DockerCleanup {
+        fn drop(&mut self) {
+            let _ = Command::new("docker")
+                .args(["rm", "--force", &self.container_name])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+            let _ = Command::new("docker")
+                .args(["volume", "rm", "--force", &self.volume_name])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+        }
+    }
+
+    fn unused_port() -> u16 {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind an unused local port");
+        listener.local_addr().expect("read the local port").port()
+    }
+
+    #[tokio::test]
+    async fn migrate_from_empty() {
+        let port = unused_port();
+        let suffix = format!("{}-{port}", std::process::id());
+        let container_name = format!("locus-postgres-test-{suffix}");
+        let volume_name = format!("locus-postgres-test-data-{suffix}");
+        let _cleanup = DockerCleanup {
+            container_name: container_name.clone(),
+            volume_name: volume_name.clone(),
+        };
+        let container =
+            PostgresContainer::new(PostgresConfig::for_test(container_name, volume_name, port));
+        container
+            .start()
+            .await
+            .expect("start the empty pgvector container");
+
+        let store = Store::connect(&format!(
+            "postgres://locus:test-password@127.0.0.1:{port}/locus"
+        ))
+        .await
+        .expect("connect the empty store pool");
+        let schema_query = "
+            SELECT schema_name
+            FROM information_schema.schemata
+            WHERE schema_name IN (
+                'agents', 'board', 'core', 'mail', 'market', 'memory', 'wiki', 'workflows'
+            )
+            ORDER BY schema_name
+        ";
+        let schemas_before: Vec<String> = query_scalar(schema_query)
+            .fetch_all(store.pool())
+            .await
+            .expect("query empty database schemas");
+        assert!(
+            schemas_before.is_empty(),
+            "test database starts without Locus schemas"
+        );
+
+        store
+            .run_migrations(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations"),
+            )
+            .await
+            .expect("run all migrations once");
+
+        let schemas_after: Vec<String> = query_scalar(schema_query)
+            .fetch_all(store.pool())
+            .await
+            .expect("query migrated database schemas");
+        assert_eq!(
+            schemas_after,
+            [
+                "agents",
+                "board",
+                "core",
+                "mail",
+                "market",
+                "memory",
+                "wiki",
+                "workflows"
+            ],
+            "one migration run creates every Locus schema"
+        );
+    }
+}
+
+#[cfg(test)]
 mod schema_core {
     use std::{
         net::TcpListener,
