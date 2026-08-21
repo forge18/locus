@@ -5,6 +5,9 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[cfg(test)]
+use std::sync::{Mutex, MutexGuard, OnceLock};
+
 use anyhow::{bail, Context, Result};
 use sqlx::{migrate::Migrator, postgres::PgPoolOptions, PgPool};
 use tokio::{process::Command, time::sleep};
@@ -12,6 +15,9 @@ use tokio::{process::Command, time::sleep};
 const POSTGRES_IMAGE: &str = "pgvector/pgvector:pg17";
 const HEALTH_TIMEOUT: Duration = Duration::from_secs(30);
 const HEALTH_POLL_INTERVAL: Duration = Duration::from_millis(250);
+
+#[cfg(test)]
+static TEST_POSTGRES_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
 /// Connection and storage settings for one local Postgres container.
 ///
@@ -55,11 +61,25 @@ impl PostgresConfig {
 /// Controls the single pgvector-backed Postgres instance that Locus owns per machine.
 pub struct PostgresContainer {
     config: PostgresConfig,
+    #[cfg(test)]
+    // Docker Desktop can fail concurrent PostgreSQL initialization. Keep the
+    // real-container tests isolated without changing what they exercise.
+    _test_lock: MutexGuard<'static, ()>,
 }
 
 impl PostgresContainer {
     pub fn new(config: PostgresConfig) -> Self {
-        Self { config }
+        #[cfg(test)]
+        let test_lock = TEST_POSTGRES_LOCK
+            .get_or_init(|| Mutex::new(()))
+            .lock()
+            .expect("lock isolated Postgres test container");
+
+        Self {
+            config,
+            #[cfg(test)]
+            _test_lock: test_lock,
+        }
     }
 
     /// Starts the container when absent or stopped, then waits until PostgreSQL reports healthy.
