@@ -253,7 +253,7 @@ pub fn read_artifact(row: &ArtifactRow) -> Result<Vec<u8>> {
 }
 
 #[cfg(test)]
-mod artifact {
+mod tests {
     use super::*;
     fn ids() -> (Uuid, Uuid) {
         (Uuid::new_v4(), Uuid::new_v4())
