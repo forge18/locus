@@ -162,146 +162,140 @@ pub fn verify(report: &LintReport) -> Result<()> {
 }
 
 #[cfg(test)]
-mod tests {
-    use std::{fs, path::PathBuf};
+fn root(label: &str) -> PathBuf {
+    let root = std::env::temp_dir().join(format!("locus-lint-{label}-{}", uuid::Uuid::new_v4()));
+    fs::create_dir_all(&root).expect("create root");
+    root
+}
 
-    use super::*;
-
-    fn root(label: &str) -> PathBuf {
-        let root =
-            std::env::temp_dir().join(format!("locus-lint-{label}-{}", uuid::Uuid::new_v4()));
-        fs::create_dir_all(&root).expect("create root");
-        root
+#[cfg(test)]
+fn linter(root: &Path, name: &str, body: &str, rule: Option<&str>) {
+    fs::write(root.join(format!("{name}.sh")), body).expect("write check");
+    if let Some(rule) = rule {
+        fs::write(root.join(format!("{name}.md")), rule).expect("write rule");
     }
+}
 
-    fn linter(root: &Path, name: &str, body: &str, rule: Option<&str>) {
-        fs::write(root.join(format!("{name}.sh")), body).expect("write check");
-        if let Some(rule) = rule {
-            fs::write(root.join(format!("{name}.md")), rule).expect("write rule");
-        }
-    }
+#[test]
+fn format() {
+    let root = root("format");
+    linter(&root, "format", "exit 0", Some("format rules"));
+    assert_eq!(discover(&root).expect("discover").len(), 1);
+    fs::remove_dir_all(root).expect("remove root");
+}
 
-    #[test]
-    fn format() {
-        let root = root("format");
-        linter(&root, "format", "exit 0", Some("format rules"));
-        assert_eq!(discover(&root).expect("discover").len(), 1);
-        fs::remove_dir_all(root).expect("remove root");
-    }
+#[test]
+fn rule_file_required() {
+    let root = root("rule-required");
+    linter(&root, "format", "exit 0", None);
+    assert!(discover(&root)
+        .expect_err("missing rule fails")
+        .to_string()
+        .contains("format.md"));
+    fs::remove_dir_all(root).expect("remove root");
+}
 
-    #[test]
-    fn rule_file_required() {
-        let root = root("rule-required");
-        linter(&root, "format", "exit 0", None);
-        assert!(discover(&root)
-            .expect_err("missing rule fails")
-            .to_string()
-            .contains("format.md"));
-        fs::remove_dir_all(root).expect("remove root");
-    }
+#[test]
+fn runs_all() {
+    let root = root("runs-all");
+    linter(&root, "first", "printf first", Some("first rule"));
+    linter(&root, "second", "printf second", Some("second rule"));
+    let report = run(&root, &root, &LintRequest::default()).expect("run linters");
+    assert_eq!(report.results.len(), 2);
+    assert!(report.passed());
+    fs::remove_dir_all(root).expect("remove root");
+}
 
-    #[test]
-    fn runs_all() {
-        let root = root("runs-all");
-        linter(&root, "first", "printf first", Some("first rule"));
-        linter(&root, "second", "printf second", Some("second rule"));
-        let report = run(&root, &root, &LintRequest::default()).expect("run linters");
-        assert_eq!(report.results.len(), 2);
-        assert!(report.passed());
-        fs::remove_dir_all(root).expect("remove root");
-    }
+#[test]
+fn only() {
+    let root = root("only");
+    linter(&root, "first", "printf first", Some("first rule"));
+    linter(&root, "second", "printf second", Some("second rule"));
+    let report = run(
+        &root,
+        &root,
+        &LintRequest {
+            only: Some("second".into()),
+            ..LintRequest::default()
+        },
+    )
+    .expect("run selected linter");
+    assert_eq!(
+        report
+            .results
+            .iter()
+            .map(|result| &result.name)
+            .collect::<Vec<_>>(),
+        ["second"]
+    );
+    fs::remove_dir_all(root).expect("remove root");
+}
 
-    #[test]
-    fn only() {
-        let root = root("only");
-        linter(&root, "first", "printf first", Some("first rule"));
-        linter(&root, "second", "printf second", Some("second rule"));
-        let report = run(
-            &root,
-            &root,
-            &LintRequest {
-                only: Some("second".into()),
-                ..LintRequest::default()
-            },
-        )
-        .expect("run selected linter");
-        assert_eq!(
-            report
-                .results
-                .iter()
-                .map(|result| &result.name)
-                .collect::<Vec<_>>(),
-            ["second"]
-        );
-        fs::remove_dir_all(root).expect("remove root");
-    }
+#[test]
+fn changed() {
+    let root = root("changed");
+    linter(&root, "args", "printf '%s' \"$1\"", Some("args rule"));
+    let report = run(
+        &root,
+        &root,
+        &LintRequest {
+            changed: true,
+            changed_paths: vec![PathBuf::from("changed.rs")],
+            ..LintRequest::default()
+        },
+    )
+    .expect("run changed linter");
+    assert_eq!(report.results[0].stdout, "changed.rs");
+    fs::remove_dir_all(root).expect("remove root");
+}
 
-    #[test]
-    fn changed() {
-        let root = root("changed");
-        linter(&root, "args", "printf '%s' \"$1\"", Some("args rule"));
-        let report = run(
-            &root,
-            &root,
-            &LintRequest {
-                changed: true,
-                changed_paths: vec![PathBuf::from("changed.rs")],
-                ..LintRequest::default()
-            },
-        )
-        .expect("run changed linter");
-        assert_eq!(report.results[0].stdout, "changed.rs");
-        fs::remove_dir_all(root).expect("remove root");
-    }
+#[test]
+fn exit_code() {
+    let root = root("exit-code");
+    linter(
+        &root,
+        "fails",
+        "printf failure; exit 1",
+        Some("why this matters"),
+    );
+    let report = run(&root, &root, &LintRequest::default()).expect("run linter");
+    assert!(!report.passed());
+    fs::remove_dir_all(root).expect("remove root");
+}
 
-    #[test]
-    fn exit_code() {
-        let root = root("exit-code");
-        linter(
-            &root,
-            "fails",
-            "printf failure; exit 1",
-            Some("why this matters"),
-        );
-        let report = run(&root, &root, &LintRequest::default()).expect("run linter");
-        assert!(!report.passed());
-        fs::remove_dir_all(root).expect("remove root");
-    }
+#[test]
+fn prints_the_rule() {
+    let root = root("rule-output");
+    linter(
+        &root,
+        "fails",
+        "printf failure; exit 1",
+        Some("why this matters"),
+    );
+    let report = run(&root, &root, &LintRequest::default()).expect("run linter");
+    assert!(report.results[0].stdout.contains("why this matters"));
+    fs::remove_dir_all(root).expect("remove root");
+}
 
-    #[test]
-    fn prints_the_rule() {
-        let root = root("rule-output");
-        linter(
-            &root,
-            "fails",
-            "printf failure; exit 1",
-            Some("why this matters"),
-        );
-        let report = run(&root, &root, &LintRequest::default()).expect("run linter");
-        assert!(report.results[0].stdout.contains("why this matters"));
-        fs::remove_dir_all(root).expect("remove root");
-    }
+#[test]
+fn verify_can_gate() {
+    let root = root("verify");
+    linter(&root, "fails", "exit 1", Some("rule"));
+    assert!(verify(&run(&root, &root, &LintRequest::default()).expect("run")).is_err());
+    fs::remove_dir_all(root).expect("remove root");
+}
 
-    #[test]
-    fn verify_can_gate() {
-        let root = root("verify");
-        linter(&root, "fails", "exit 1", Some("rule"));
-        assert!(verify(&run(&root, &root, &LintRequest::default()).expect("run")).is_err());
-        fs::remove_dir_all(root).expect("remove root");
-    }
+#[test]
+fn output_is_evidence() {
+    let root = root("evidence");
+    linter(&root, "report", "printf evidence", Some("rule"));
+    let report = run(&root, &root, &LintRequest::default()).expect("run");
+    assert_eq!(report.evidence(), "evidence");
+    fs::remove_dir_all(root).expect("remove root");
+}
 
-    #[test]
-    fn output_is_evidence() {
-        let root = root("evidence");
-        linter(&root, "report", "printf evidence", Some("rule"));
-        let report = run(&root, &root, &LintRequest::default()).expect("run");
-        assert_eq!(report.evidence(), "evidence");
-        fs::remove_dir_all(root).expect("remove root");
-    }
-
-    #[test]
-    fn scoping() {
-        assert_eq!(Scope::DirectoryOnly, Scope::DirectoryOnly);
-        assert!(validate_filenames(["check.sh", "check.md"]).is_ok());
-    }
+#[test]
+fn scoping() {
+    assert_eq!(Scope::DirectoryOnly, Scope::DirectoryOnly);
+    assert!(validate_filenames(["check.sh", "check.md"]).is_ok());
 }
