@@ -263,6 +263,44 @@ mod tool_status_split {
 }
 
 #[cfg(test)]
+mod permission_request {
+    use serde_json::json;
+
+    use crate::telemetry::{AcpAdapter, Adapter, EventCollector, EventVerb, PermissionAlarm};
+
+    #[test]
+    fn request_permission_normalizes_and_raises_an_alarm() {
+        let raw = json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "session/request_permission",
+            "params": {
+                "sessionId": "planning-1",
+                "toolCall": {"toolCallId": "call-1"},
+                "options": [{"optionId": "allow-once", "name": "Allow once", "kind": "allow_once"}],
+            },
+        });
+        let captured = AcpAdapter
+            .normalize(raw.clone())
+            .expect("normalize permission request");
+        let collector = EventCollector::new(1);
+        let mut alarms = collector.subscribe_alarms();
+
+        let event = collector.capture("planning-run", captured.into_iter().next().expect("event"));
+
+        assert_eq!(event.verb, EventVerb::PermissionRequest);
+        assert_eq!(event.raw, raw);
+        assert_eq!(
+            alarms.try_recv().expect("permission alarm"),
+            PermissionAlarm {
+                run_id: "planning-run".into(),
+                seq: 0,
+            }
+        );
+    }
+}
+
+#[cfg(test)]
 mod mcp_always_empty {
     use super::*;
 
