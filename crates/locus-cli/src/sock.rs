@@ -321,12 +321,8 @@ pub fn resolve_verb(arguments: &[String]) -> Option<(&'static VerbDispatch, &[St
 
 /// Refuse commands outside the CLI's declared agent-facing verb table before opening a socket.
 pub fn allowed_verb(arguments: &[String]) -> Result<(&'static VerbDispatch, &[String])> {
-    resolve_verb(arguments).ok_or_else(|| {
-        anyhow::anyhow!(
-            "command is not allowlisted: {}",
-            arguments.join(" ")
-        )
-    })
+    resolve_verb(arguments)
+        .ok_or_else(|| anyhow::anyhow!("command is not allowlisted: {}", arguments.join(" ")))
 }
 
 pub async fn dispatch(
@@ -564,7 +560,9 @@ mod run {
         let (dispatch, args) = resolve_verb(&command).expect("run status is dispatched");
         assert_eq!(dispatch.verb, "run.status");
         assert!(args.is_empty());
-        assert!(VERB_DISPATCHES.iter().any(|entry| entry.verb == dispatch.verb));
+        assert!(VERB_DISPATCHES
+            .iter()
+            .any(|entry| entry.verb == dispatch.verb));
     }
 
     #[test]
@@ -573,7 +571,9 @@ mod run {
         let (dispatch, args) = resolve_verb(&command).expect("run artifacts is dispatched");
         assert_eq!(dispatch.verb, "run.artifacts");
         assert!(args.is_empty());
-        assert!(VERB_DISPATCHES.iter().any(|entry| entry.verb == dispatch.verb));
+        assert!(VERB_DISPATCHES
+            .iter()
+            .any(|entry| entry.verb == dispatch.verb));
     }
 }
 

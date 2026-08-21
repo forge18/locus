@@ -12,6 +12,10 @@ pub struct InvocationRequest {
     pub agent: String,
     pub version: i32,
     pub clone_remote: String,
+    /// Trusted run ancestry resolved by the core before it handles the socket request.
+    pub context: InvocationContext,
+    /// Hard limits, optionally narrowed by the owning workflow.
+    pub limits: InvocationLimits,
 }
 
 /// The isolated child run handed to the host run supervisor.
@@ -40,10 +44,7 @@ pub struct CallerDelivery {
 }
 
 /// Attaches a child result to its originating caller rather than treating it as a handoff.
-pub fn return_to_caller(
-    plan: &NestedRunPlan,
-    result: NestedRunReturn,
-) -> Result<CallerDelivery> {
+pub fn return_to_caller(plan: &NestedRunPlan, result: NestedRunReturn) -> Result<CallerDelivery> {
     if result.run_id != plan.run_id {
         anyhow::bail!("nested result does not belong to this invocation")
     }
@@ -104,7 +105,10 @@ pub fn validate_invocation(
         anyhow::bail!("nested invocation exceeds depth limit {}", limits.max_depth)
     }
     if context.children_started >= limits.max_fan_out {
-        anyhow::bail!("nested invocation exceeds fan-out limit {}", limits.max_fan_out)
+        anyhow::bail!(
+            "nested invocation exceeds fan-out limit {}",
+            limits.max_fan_out
+        )
     }
     if context.ancestry.contains(target) {
         anyhow::bail!("nested invocation would create a cycle")
@@ -131,6 +135,15 @@ where
     }
 
     pub fn invoke(&self, request: InvocationRequest) -> Result<NestedRunPlan> {
+        validate_invocation(
+            &request.context,
+            &AgentRef {
+                name: request.agent.clone(),
+                version: request.version,
+            },
+            request.limits,
+        )?;
+
         let run_id = Uuid::new_v4();
         let plan = NestedRunPlan {
             caller_run_id: request.caller_run_id,
@@ -153,15 +166,27 @@ mod depth_limit {
     fn refuses_a_fourth_nested_level() {
         let context = InvocationContext {
             ancestry: vec![
-                AgentRef { name: "root".into(), version: 1 },
-                AgentRef { name: "child".into(), version: 1 },
-                AgentRef { name: "grandchild".into(), version: 1 },
+                AgentRef {
+                    name: "root".into(),
+                    version: 1,
+                },
+                AgentRef {
+                    name: "child".into(),
+                    version: 1,
+                },
+                AgentRef {
+                    name: "grandchild".into(),
+                    version: 1,
+                },
             ],
             children_started: 0,
         };
         let error = validate_invocation(
             &context,
-            &AgentRef { name: "too-deep".into(), version: 1 },
+            &AgentRef {
+                name: "too-deep".into(),
+                version: 1,
+            },
             InvocationLimits::HARD,
         )
         .expect_err("depth four is refused");
@@ -176,12 +201,18 @@ mod fanout_limit {
     #[test]
     fn refuses_a_fifth_child() {
         let context = InvocationContext {
-            ancestry: vec![AgentRef { name: "root".into(), version: 1 }],
+            ancestry: vec![AgentRef {
+                name: "root".into(),
+                version: 1,
+            }],
             children_started: 4,
         };
         let error = validate_invocation(
             &context,
-            &AgentRef { name: "fifth".into(), version: 1 },
+            &AgentRef {
+                name: "fifth".into(),
+                version: 1,
+            },
             InvocationLimits::HARD,
         )
         .expect_err("fifth child is refused");
@@ -195,9 +226,18 @@ mod cycle_check {
 
     #[test]
     fn refuses_a_target_already_in_its_ancestry() {
-        let root = AgentRef { name: "root".into(), version: 1 };
+        let root = AgentRef {
+            name: "root".into(),
+            version: 1,
+        };
         let context = InvocationContext {
-            ancestry: vec![root.clone(), AgentRef { name: "reviewer".into(), version: 2 }],
+            ancestry: vec![
+                root.clone(),
+                AgentRef {
+                    name: "reviewer".into(),
+                    version: 2,
+                },
+            ],
             children_started: 0,
         };
         let error = validate_invocation(&context, &root, InvocationLimits::HARD)
@@ -212,15 +252,30 @@ mod three_limits {
 
     #[test]
     fn each_guard_rejects_while_the_other_two_are_permitted() {
-        let target = AgentRef { name: "target".into(), version: 1 };
-        let no_cycle = InvocationContext { ancestry: vec![], children_started: 0 };
+        let target = AgentRef {
+            name: "target".into(),
+            version: 1,
+        };
+        let no_cycle = InvocationContext {
+            ancestry: vec![],
+            children_started: 0,
+        };
         assert!(validate_invocation(&no_cycle, &target, InvocationLimits::HARD).is_ok());
 
         let depth_only = InvocationContext {
             ancestry: vec![
-                AgentRef { name: "one".into(), version: 1 },
-                AgentRef { name: "two".into(), version: 1 },
-                AgentRef { name: "three".into(), version: 1 },
+                AgentRef {
+                    name: "one".into(),
+                    version: 1,
+                },
+                AgentRef {
+                    name: "two".into(),
+                    version: 1,
+                },
+                AgentRef {
+                    name: "three".into(),
+                    version: 1,
+                },
             ],
             children_started: 0,
         };
@@ -248,7 +303,10 @@ mod workflow_lowers_only {
     fn accepts_narrower_bounds_and_refuses_wider_ones() {
         assert_eq!(
             InvocationLimits::workflow(2, 3).expect("narrower bounds work"),
-            InvocationLimits { max_depth: 2, max_fan_out: 3 }
+            InvocationLimits {
+                max_depth: 2,
+                max_fan_out: 3
+            }
         );
         assert!(InvocationLimits::workflow(4, 4).is_err());
         assert!(InvocationLimits::workflow(3, 5).is_err());
@@ -283,6 +341,14 @@ mod nested_run {
                 agent: "reviewer".into(),
                 version: 2,
                 clone_remote: "file:///var/lib/locus/repos/project.git".into(),
+                context: InvocationContext {
+                    ancestry: vec![AgentRef {
+                        name: "builder".into(),
+                        version: 1,
+                    }],
+                    children_started: 0,
+                },
+                limits: InvocationLimits::HARD,
             })
             .expect("nested run starts");
 
@@ -304,6 +370,39 @@ mod nested_run {
             launcher.plans.lock().expect("launcher lock").as_slice(),
             &[nested]
         );
+    }
+
+    #[test]
+    fn refuses_an_invalid_invocation_before_starting_a_container() {
+        let launcher = RecordingLauncher::default();
+        let supervisor = InvocationSupervisor::new(&launcher);
+        let result = supervisor.invoke(InvocationRequest {
+            caller_run_id: Uuid::new_v4(),
+            agent: "fourth-child".into(),
+            version: 1,
+            clone_remote: "file:///var/lib/locus/repos/project.git".into(),
+            context: InvocationContext {
+                ancestry: vec![
+                    AgentRef {
+                        name: "root".into(),
+                        version: 1,
+                    },
+                    AgentRef {
+                        name: "child".into(),
+                        version: 1,
+                    },
+                    AgentRef {
+                        name: "grandchild".into(),
+                        version: 1,
+                    },
+                ],
+                children_started: 0,
+            },
+            limits: InvocationLimits::HARD,
+        });
+
+        assert!(result.is_err());
+        assert!(launcher.plans.lock().expect("launcher lock").is_empty());
     }
 }
 
