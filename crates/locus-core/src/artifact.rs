@@ -267,7 +267,8 @@ pub fn read_artifact(row: &ArtifactRow) -> Result<Vec<u8>> {
 }
 
 #[cfg(test)]
-mod tests {
+#[allow(clippy::module_inception)]
+mod artifact {
     use super::*;
     fn ids() -> (Uuid, Uuid) {
         (Uuid::new_v4(), Uuid::new_v4())
