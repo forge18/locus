@@ -154,6 +154,30 @@ pub fn reattach_on_boot(
     Ok(BootReconciliation::Reattached)
 }
 
+/// Close a persisted running row whose container disappeared while the daemon was down.
+pub fn abort_missing_on_boot(run: &mut Run, collector: &EventCollector) -> Result<Event> {
+    if run.status != RunStatus::Running {
+        bail!("only running runs may be aborted on boot")
+    }
+    run.status = RunStatus::Aborted;
+    let event = collector.capture(
+        run.id.to_string(),
+        CapturedEvent {
+            verb: crate::telemetry::EventVerb::Aborted,
+            ts: time::OffsetDateTime::now_utc()
+                .format(&time::format_description::well_known::Rfc3339)
+                .expect("RFC3339 timestamp"),
+            text: Some("container missing during boot reconciliation".into()),
+            tool: None,
+            args: None,
+            usage: None,
+            raw: serde_json::json!({"reason": "container_missing_on_boot"}),
+        },
+    );
+    run.events.push(event.clone());
+    Ok(event)
+}
+
 /// Inputs owned by the caller for one queued run.
 pub struct SpawnRequest<'a> {
     pub project_id: &'a str,
@@ -301,6 +325,40 @@ pub fn cancel(
     run.status = RunStatus::Cancelled;
     run.cancel_reason = Some(reason.into());
     Ok(())
+}
+
+#[cfg(test)]
+mod aborts_orphans {
+    use uuid::Uuid;
+
+    use super::abort_missing_on_boot;
+    use crate::{
+        session::{Artifact, Run, RunStatus},
+        telemetry::{EventCollector, EventVerb},
+    };
+
+    #[test]
+    fn marks_a_missing_container_aborted_and_emits_a_terminal_event() {
+        let mut run = Run {
+            id: Uuid::new_v4(),
+            session_id: Uuid::new_v4(),
+            resolved_model_id: "test-model".into(),
+            status: RunStatus::Running,
+            events: vec![],
+            usage: None,
+            exit_code: None,
+            cancel_reason: None,
+            native_session_id: None,
+            artifacts: Vec::<Artifact>::new(),
+        };
+        let collector = EventCollector::new(1);
+
+        let event = abort_missing_on_boot(&mut run, &collector).expect("abort orphan");
+
+        assert_eq!(run.status, RunStatus::Aborted);
+        assert_eq!(event.verb, EventVerb::Aborted);
+        assert_eq!(run.events, vec![event]);
+    }
 }
 
 #[cfg(test)]
