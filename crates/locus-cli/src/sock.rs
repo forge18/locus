@@ -9,7 +9,7 @@ use tokio::{
 };
 
 pub const DEFAULT_SOCKET_PATH: &str = "/run/locus.sock";
-const KEY_PACK_ROW_THRESHOLD: usize = 1;
+const KEY_PACK_ROW_THRESHOLD: usize = 2;
 
 #[derive(Debug, Serialize)]
 pub struct SocketRequest<'a> {
@@ -526,7 +526,7 @@ mod json {
     fn threshold() {
         assert_eq!(
             key_pack(json!({"tasks": [{"id": "a", "state": "ready"}]})),
-            json!({"tasks": {"keys": ["id", "state"], "rows": [["a", "ready"]]}})
+            json!({"tasks": [{"id": "a", "state": "ready"}]})
         );
         assert_eq!(key_pack(json!({"tasks": []})), json!({"tasks": []}));
     }
