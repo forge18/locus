@@ -235,6 +235,34 @@ mod update_mapping {
 }
 
 #[cfg(test)]
+mod tool_status_split {
+    use serde_json::json;
+
+    use crate::telemetry::{AcpAdapter, Adapter, EventVerb};
+
+    #[test]
+    fn maps_only_terminal_tool_statuses_to_results() {
+        let adapter = AcpAdapter;
+
+        for (status, expected) in [
+            ("completed", Some(EventVerb::ToolResult)),
+            ("failed", Some(EventVerb::ToolError)),
+            ("pending", None),
+            ("in_progress", None),
+        ] {
+            let events = adapter
+                .normalize(json!({
+                    "method": "session/update",
+                    "params": {"update": {"sessionUpdate": "ToolCallUpdate", "status": status}},
+                }))
+                .expect("normalize tool call update");
+
+            assert_eq!(events.first().map(|event| event.verb), expected);
+        }
+    }
+}
+
+#[cfg(test)]
 mod mcp_always_empty {
     use super::*;
 

@@ -387,13 +387,13 @@ impl Adapter for AcpAdapter {
             Some("agent_thought_chunk") | Some("AgentThoughtChunk") => Some(EventVerb::Thinking),
             Some("user_message_chunk") | Some("UserMessageChunk") => Some(EventVerb::User),
             Some("tool_call") | Some("ToolCall") => Some(EventVerb::ToolCall),
-            Some("tool_call_update") | Some("ToolCallUpdate") => Some(
-                if update.get("status").and_then(Value::as_str) == Some("failed") {
-                    EventVerb::ToolError
-                } else {
-                    EventVerb::ToolResult
-                },
-            ),
+            Some("tool_call_update") | Some("ToolCallUpdate") => {
+                match update.get("status").and_then(Value::as_str) {
+                    Some("completed") => Some(EventVerb::ToolResult),
+                    Some("failed") => Some(EventVerb::ToolError),
+                    _ => None,
+                }
+            }
             _ => None,
         };
         Ok(verb
