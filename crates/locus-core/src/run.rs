@@ -83,6 +83,74 @@ pub async fn normalize_two_harnesses(
         .collect())
 }
 
+/// Core-owned context for a request received through one run's socket endpoint.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RunContext {
+    run_id: Uuid,
+}
+
+impl RunContext {
+    pub fn new(run_id: Uuid) -> Self {
+        Self { run_id }
+    }
+}
+
+/// Read boundary for the state that a connected run may observe.
+pub trait RunStateStore {
+    fn read_run(&self, run_id: Uuid) -> Result<Run>;
+}
+
+/// Returns the state belonging to the socket's run context, never a caller-selected run.
+pub fn own_state(store: &impl RunStateStore, context: RunContext) -> Result<Run> {
+    store.read_run(context.run_id)
+}
+
+#[cfg(test)]
+mod own_state_only {
+    use std::collections::BTreeMap;
+
+    use super::*;
+
+    struct Runs(BTreeMap<Uuid, Run>);
+
+    impl RunStateStore for Runs {
+        fn read_run(&self, run_id: Uuid) -> Result<Run> {
+            self.0
+                .get(&run_id)
+                .cloned()
+                .ok_or_else(|| anyhow::anyhow!("run not found"))
+        }
+    }
+
+    fn run(id: Uuid, model: &str) -> Run {
+        Run {
+            id,
+            session_id: Uuid::new_v4(),
+            resolved_model_id: model.into(),
+            status: RunStatus::Running,
+            events: vec![],
+            usage: None,
+            exit_code: None,
+            cancel_reason: None,
+            artifacts: vec![],
+        }
+    }
+
+    #[test]
+    fn reads_only_the_run_bound_to_the_socket_context() {
+        let own_id = Uuid::new_v4();
+        let other_id = Uuid::new_v4();
+        let own = run(own_id, "own-model");
+        let other = run(other_id, "other-model");
+        let store = Runs(BTreeMap::from([(own_id, own.clone()), (other_id, other)]));
+
+        assert_eq!(
+            own_state(&store, RunContext::new(own_id)).expect("read own run"),
+            own
+        );
+    }
+}
+
 /// Whether the container runtime built the image or reused its existing cache entry.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ImageDisposition {
