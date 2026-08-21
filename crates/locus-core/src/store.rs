@@ -1,8 +1,12 @@
 //! Lifecycle management for the machine-wide `locus-postgres` container.
 
-use std::time::{Duration, Instant};
+use std::{
+    path::Path,
+    time::{Duration, Instant},
+};
 
 use anyhow::{bail, Context, Result};
+use sqlx::{migrate::Migrator, postgres::PgPoolOptions, PgPool};
 use tokio::{process::Command, time::sleep};
 
 const POSTGRES_IMAGE: &str = "pgvector/pgvector:pg17";
@@ -202,6 +206,36 @@ impl PostgresContainer {
     }
 }
 
+/// The shared Postgres connection pool and migration runner.
+pub struct Store {
+    pool: PgPool,
+}
+
+impl Store {
+    pub async fn connect(database_url: &str) -> Result<Self> {
+        let pool = PgPoolOptions::new()
+            .max_connections(10)
+            .connect(database_url)
+            .await
+            .context("connect to Postgres")?;
+
+        Ok(Self { pool })
+    }
+
+    pub async fn run_migrations(&self, directory: impl AsRef<Path>) -> Result<()> {
+        Migrator::new(directory.as_ref())
+            .await
+            .context("load SQLx migrations")?
+            .run(&self.pool)
+            .await
+            .context("run SQLx migrations")
+    }
+
+    pub fn pool(&self) -> &PgPool {
+        &self.pool
+    }
+}
+
 #[derive(Clone, Copy)]
 enum ContainerState {
     Missing,
@@ -372,9 +406,11 @@ mod migrate_runs {
             .await
             .expect("start the pgvector container");
 
-        let store = Store::connect(&format!("postgres://locus:test-password@127.0.0.1:{port}/locus"))
-            .await
-            .expect("connect the store pool");
+        let store = Store::connect(&format!(
+            "postgres://locus:test-password@127.0.0.1:{port}/locus"
+        ))
+        .await
+        .expect("connect the store pool");
         store
             .run_migrations(&migrations_directory)
             .await
