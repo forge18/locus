@@ -6,7 +6,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// An error encountered while reading or parsing a harness registry.
 #[derive(Debug, thiserror::Error)]
@@ -75,6 +75,14 @@ pub enum RegistryLoadError {
     },
 }
 
+/// Registry-wide materialization counts consumed by the UI.
+#[derive(Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RegistryCounts {
+    pub entries: usize,
+    pub downgrades: usize,
+}
+
 /// The harness declarations registered with Locus.
 #[derive(Debug)]
 pub struct HarnessRegistry {
@@ -129,6 +137,23 @@ impl HarnessRegistry {
     /// Return whether there are no registered harness definitions.
     pub fn is_empty(&self) -> bool {
         self.definitions.is_empty()
+    }
+
+    /// Count layout entries and entries that declare a native-behavior loss.
+    pub fn counts(&self) -> RegistryCounts {
+        self.definitions.iter().fold(
+            RegistryCounts {
+                entries: 0,
+                downgrades: 0,
+            },
+            |mut counts, definition| {
+                for entry in definition.layout.entries() {
+                    counts.entries += 1;
+                    counts.downgrades += usize::from(entry.weaker_than_native.is_some());
+                }
+                counts
+            },
+        )
     }
 
     /// Return an iterator over registered definitions in deterministic name order.
@@ -403,6 +428,21 @@ pub struct Layout {
     pub skills: LayoutEntry,
     pub context: LayoutEntry,
     pub config: Option<String>,
+}
+
+impl Layout {
+    fn entries(&self) -> [&LayoutEntry; 8] {
+        [
+            &self.agents,
+            &self.commands,
+            &self.hooks,
+            &self.linters,
+            &self.output_styles,
+            &self.rules,
+            &self.skills,
+            &self.context,
+        ]
+    }
 }
 
 /// One extension's materialization declaration.
