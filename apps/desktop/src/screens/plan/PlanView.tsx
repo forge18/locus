@@ -1,4 +1,4 @@
-import { For, Show, createMemo, createSignal } from 'solid-js'
+import { For, Show, createMemo, createSignal, onMount } from 'solid-js'
 import { Breadcrumb } from './Breadcrumb'
 import { Message } from './Message'
 import { PlanList } from './PlanList'
@@ -12,6 +12,7 @@ import {
   usePlanConversation,
   usePlanLiveLine,
   usePlanOutputs,
+  subscribePlanConversationFromCore,
   usePlanRecommendation,
   usePlanScopeDecision,
   usePlans,
@@ -27,8 +28,16 @@ export function PlanView() {
   const plans = usePlans()
   const selected = createMemo(() => plans.find((p) => p.id === selectedId()) ?? plans[0])
 
-  const messages = usePlanConversation()
+  const [messages, setMessages] = createSignal(usePlanConversation())
   const outputs = usePlanOutputs()
+
+  onMount(() => {
+    void subscribePlanConversationFromCore((message) => {
+      setMessages((current) => current.some((item) => item.id === message.id) ? current : [...current, message])
+    }).catch(() => {
+      // Browser tests and the static preview have no Tauri IPC; retain the fixture.
+    })
+  })
 
   return (
     <div class="plan" data-testid="plan">
@@ -48,7 +57,7 @@ export function PlanView() {
         </header>
 
         <div class="plan-messages" data-testid="plan-messages">
-          <For each={messages}>
+          <For each={messages()}>
             {(message, i) => (
               <>
                 <Message message={message} />
