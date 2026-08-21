@@ -4,6 +4,44 @@
 //! own: every verb is a round trip to locus-core, so behaviour cannot drift between
 //! what an agent sees and what the app sees.
 
-fn main() {
-    println!("locus {}", env!("CARGO_PKG_VERSION"));
+use std::{env, path::PathBuf};
+
+use anyhow::{bail, Context, Result};
+use locus_core::backup::{Backup, BackupConfig, SystemBackupFilesystem, SystemProcessRunner};
+
+const DEFAULT_ARTIFACT_ROOT: &str = "/var/lib/locus/artifacts";
+const DEFAULT_BACKUP_PATH: &str = "/var/lib/locus/backups/backup.tar";
+
+fn main() -> Result<()> {
+    match env::args().nth(1).as_deref() {
+        None => {
+            println!("locus {}", env!("CARGO_PKG_VERSION"));
+            Ok(())
+        }
+        Some("backup") => backup(),
+        Some(command) => bail!("unknown command: {command}"),
+    }
+}
+
+fn backup() -> Result<()> {
+    let database_url =
+        env::var("DATABASE_URL").context("DATABASE_URL is required for locus backup")?;
+    let artifact_root = env_path("LOCUS_ARTIFACT_ROOT", DEFAULT_ARTIFACT_ROOT);
+    let destination = env_path("LOCUS_BACKUP_PATH", DEFAULT_BACKUP_PATH);
+    let process = SystemProcessRunner;
+    let filesystem = SystemBackupFilesystem;
+
+    Backup::new(&process, &filesystem).create(&BackupConfig::new(
+        database_url,
+        artifact_root,
+        &destination,
+    ))?;
+    println!("{}", destination.display());
+    Ok(())
+}
+
+fn env_path(variable: &str, default: &str) -> PathBuf {
+    env::var_os(variable)
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(default))
 }

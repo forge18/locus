@@ -14,3 +14,4 @@ anyhow.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "migrate"] }
+tar = "0.4"
