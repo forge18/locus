@@ -212,6 +212,33 @@ pub fn spawn(
 }
 
 /// Stop a running agent container and retain the caller's cancellation reason on its run.
+/// Tracks a cooperative pause request. A pause is applied only between turns; the
+/// container remains running so its state can be inspected and resumed safely.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct PauseController {
+    requested: bool,
+}
+
+impl PauseController {
+    pub fn request(&mut self, run: &Run) -> Result<()> {
+        if run.status != RunStatus::Running {
+            bail!("only running runs may be paused")
+        }
+        self.requested = true;
+        Ok(())
+    }
+
+    /// Returns true when the just-finished turn put the run on hold.
+    pub fn after_turn(&mut self, run: &mut Run) -> bool {
+        if !self.requested {
+            return false;
+        }
+        self.requested = false;
+        run.status = RunStatus::Paused;
+        true
+    }
+}
+
 pub fn cancel(
     run: &mut Run,
     reason: impl AsRef<str>,
@@ -232,6 +259,39 @@ pub fn cancel(
     run.status = RunStatus::Cancelled;
     run.cancel_reason = Some(reason.into());
     Ok(())
+}
+
+#[cfg(test)]
+mod pause_holds_not_freezes {
+    use uuid::Uuid;
+
+    use super::PauseController;
+    use crate::session::{Artifact, Run, RunStatus};
+
+    fn running_run() -> Run {
+        Run {
+            id: Uuid::new_v4(),
+            session_id: Uuid::new_v4(),
+            resolved_model_id: "test-model".into(),
+            status: RunStatus::Running,
+            events: vec![],
+            usage: None,
+            exit_code: None,
+            cancel_reason: None,
+            artifacts: Vec::<Artifact>::new(),
+        }
+    }
+
+    #[test]
+    fn pauses_after_the_current_turn_without_stopping_the_container() {
+        let mut run = running_run();
+        let mut pause = PauseController::default();
+
+        pause.request(&run).expect("request pause");
+        assert_eq!(run.status, RunStatus::Running, "the current turn continues");
+        assert!(pause.after_turn(&mut run), "next turn is held");
+        assert_eq!(run.status, RunStatus::Paused);
+    }
 }
 
 #[cfg(test)]
