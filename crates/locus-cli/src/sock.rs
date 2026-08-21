@@ -257,6 +257,10 @@ pub fn without_json_flag(arguments: &[String]) -> Vec<String> {
         .collect()
 }
 
+pub fn compact_json(response: &Value) -> serde_json::Result<String> {
+    serde_json::to_string(response)
+}
+
 pub(crate) fn key_pack(value: Value) -> Value {
     match value {
         Value::Array(rows) => pack_uniform_table(&rows)
@@ -455,7 +459,7 @@ async fn all_verbs_are_round_trips() {
 
 #[cfg(test)]
 mod json {
-    use super::{key_pack, resolve_verb, without_json_flag, VERB_DISPATCHES};
+    use super::{compact_json, key_pack, resolve_verb, without_json_flag, VERB_DISPATCHES};
     use serde_json::json;
 
     #[test]
@@ -469,6 +473,20 @@ mod json {
 
             assert_eq!(resolved.verb, dispatch.verb);
             assert!(args.is_empty());
+        }
+    }
+
+    #[test]
+    fn never_pretty() {
+        for dispatch in VERB_DISPATCHES {
+            let response = json!({"verb": dispatch.verb, "rows": [{"id": 1, "state": "ready"}]});
+            assert_eq!(
+                compact_json(&response).expect("response serializes"),
+                format!(
+                    "{{\"verb\":\"{}\",\"rows\":[{{\"id\":1,\"state\":\"ready\"}}]}}",
+                    dispatch.verb
+                )
+            );
         }
     }
 
