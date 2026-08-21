@@ -56,6 +56,15 @@ pub enum RegistryLoadError {
     },
     #[error("harness definition `{path}` has `tui = true`; TUI harnesses are unsupported")]
     TuiUnsupported { path: PathBuf },
+    #[error("harness definition `{path}` is missing required telemetry source")]
+    MissingTelemetrySource { path: PathBuf },
+    #[error(
+        "harness definition `{path}` has unknown telemetry source `{telemetry_source}`; expected one of `hooks`, `acp`, `stream-json`, `session-log`"
+    )]
+    UnknownTelemetrySource {
+        path: PathBuf,
+        telemetry_source: String,
+    },
 }
 
 /// Load every harness definition directly in `directory` or in one plugin subdirectory.
@@ -99,6 +108,7 @@ pub fn load_from_directory(
             })?;
             validate_layout_extensions(&mut document, &path)?;
             validate_tui(&document, &path)?;
+            validate_telemetry_source(&document, &path)?;
             HarnessDefinition::deserialize(document)
                 .map_err(|source| RegistryLoadError::ParseDefinition { path, source })
         })
@@ -178,6 +188,29 @@ fn validate_tui(document: &toml::Value, path: &Path) -> Result<(), RegistryLoadE
     {
         return Err(RegistryLoadError::TuiUnsupported {
             path: path.to_path_buf(),
+        });
+    }
+
+    Ok(())
+}
+
+const TELEMETRY_SOURCES: &[&str] = &["hooks", "acp", "stream-json", "session-log"];
+
+fn validate_telemetry_source(document: &toml::Value, path: &Path) -> Result<(), RegistryLoadError> {
+    let Some(source) = document
+        .get("telemetry")
+        .and_then(|telemetry| telemetry.get("source"))
+        .and_then(toml::Value::as_str)
+    else {
+        return Err(RegistryLoadError::MissingTelemetrySource {
+            path: path.to_path_buf(),
+        });
+    };
+
+    if !TELEMETRY_SOURCES.contains(&source) {
+        return Err(RegistryLoadError::UnknownTelemetrySource {
+            path: path.to_path_buf(),
+            telemetry_source: source.into(),
         });
     }
 
@@ -488,6 +521,62 @@ fn rejects_tui_true() {
         format!(
             "harness definition `{}` has `tui = true`; TUI harnesses are unsupported",
             path.display()
+        )
+    );
+}
+
+#[cfg(test)]
+#[test]
+fn rejects_bad_source() {
+    let registry = std::env::temp_dir().join(format!(
+        "locus-registry-bad-source-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("the system clock is after the Unix epoch")
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&registry).expect("temporary registry directory exists");
+
+    let mut definition: toml::Value =
+        toml::from_str(include_str!("../../../harnesses/claude.toml"))
+            .expect("reference declaration parses");
+    definition["telemetry"]["source"] = toml::Value::String("unknown".into());
+    let unknown_path = registry.join("unknown.toml");
+    std::fs::write(
+        &unknown_path,
+        toml::to_string(&definition).expect("declaration serializes"),
+    )
+    .expect("invalid declaration can be written");
+
+    let error = load_from_directory(&registry).expect_err("unknown telemetry source is refused");
+    assert_eq!(
+        error.to_string(),
+        format!(
+            "harness definition `{}` has unknown telemetry source `unknown`; expected one of `hooks`, `acp`, `stream-json`, `session-log`",
+            unknown_path.display()
+        )
+    );
+
+    std::fs::remove_file(&unknown_path).expect("unknown declaration is removed");
+    definition["telemetry"]
+        .as_table_mut()
+        .expect("reference declaration has telemetry")
+        .remove("source");
+    let missing_path = registry.join("missing.toml");
+    std::fs::write(
+        &missing_path,
+        toml::to_string(&definition).expect("declaration serializes"),
+    )
+    .expect("incomplete declaration can be written");
+
+    let error = load_from_directory(&registry).expect_err("missing telemetry source is refused");
+    std::fs::remove_dir_all(registry).expect("temporary registry directory is removed");
+    assert_eq!(
+        error.to_string(),
+        format!(
+            "harness definition `{}` is missing required telemetry source",
+            missing_path.display()
         )
     );
 }
