@@ -228,3 +228,122 @@ mod into_scratch {
         );
     }
 }
+
+#[cfg(test)]
+mod drill_asserts_counts {
+    use std::{
+        path::{Path, PathBuf},
+        sync::Mutex,
+    };
+
+    use anyhow::Result;
+
+    use super::{
+        Restore, RestoreConfig, RestoreFilesystem, RestoreProcessRunner, RestoreRowCountQuery,
+    };
+
+    struct NoopProcess;
+
+    impl RestoreProcessRunner for NoopProcess {
+        fn run(&self, _: &str, _: &[String], _: &[u8]) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    struct DumpFilesystem;
+
+    impl RestoreFilesystem for DumpFilesystem {
+        fn read_database_dump(&self, _: &Path) -> Result<Vec<u8>> {
+            Ok(b"CREATE SCHEMA core;\n".to_vec())
+        }
+    }
+
+    struct FixedRowCountQuery {
+        source_database_url: String,
+        source_count: u64,
+        scratch_database_url: String,
+        scratch_count: u64,
+        invocations: Mutex<Vec<String>>,
+    }
+
+    impl RestoreRowCountQuery for FixedRowCountQuery {
+        fn row_count(&self, database_url: &str) -> Result<u64> {
+            self.invocations
+                .lock()
+                .expect("record row-count query")
+                .push(database_url.to_owned());
+            Ok(if database_url == self.source_database_url {
+                self.source_count
+            } else {
+                assert_eq!(database_url, self.scratch_database_url);
+                self.scratch_count
+            })
+        }
+    }
+
+    #[test]
+    fn drill_asserts_counts() {
+        let process = NoopProcess;
+        let filesystem = DumpFilesystem;
+        let source_database_url = "postgres://locus@localhost/locus";
+        let scratch_database_url = "postgres://locus@localhost/locus_restore_drill";
+        let row_count_query = FixedRowCountQuery {
+            source_database_url: source_database_url.to_owned(),
+            source_count: 3,
+            scratch_database_url: scratch_database_url.to_owned(),
+            scratch_count: 3,
+            invocations: Mutex::new(Vec::new()),
+        };
+        let restore = Restore::with_row_count_query(&process, &filesystem, &row_count_query);
+
+        restore
+            .drill(
+                &RestoreConfig::new(
+                    PathBuf::from("/var/lib/locus/backups/backup.tar"),
+                    scratch_database_url,
+                ),
+                source_database_url,
+            )
+            .expect("restore drill verifies source and scratch row counts");
+
+        assert_eq!(
+            *row_count_query
+                .invocations
+                .lock()
+                .expect("read row-count queries"),
+            vec![
+                source_database_url.to_owned(),
+                scratch_database_url.to_owned(),
+            ]
+        );
+    }
+
+    #[test]
+    fn names_row_count_mismatch() {
+        let process = NoopProcess;
+        let filesystem = DumpFilesystem;
+        let row_count_query = FixedRowCountQuery {
+            source_database_url: "postgres://locus@localhost/locus".to_owned(),
+            source_count: 3,
+            scratch_database_url: "postgres://locus@localhost/locus_restore_drill".to_owned(),
+            scratch_count: 2,
+            invocations: Mutex::new(Vec::new()),
+        };
+        let restore = Restore::with_row_count_query(&process, &filesystem, &row_count_query);
+
+        let error = restore
+            .drill(
+                &RestoreConfig::new(
+                    PathBuf::from("/var/lib/locus/backups/backup.tar"),
+                    &row_count_query.scratch_database_url,
+                ),
+                &row_count_query.source_database_url,
+            )
+            .expect_err("restore drill rejects a row-count mismatch");
+
+        assert_eq!(
+            error.to_string(),
+            "restore drill row-count mismatch: source has 3 rows, scratch has 2 rows"
+        );
+    }
+}
