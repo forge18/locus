@@ -1,45 +1,40 @@
-# Hermes Agent (Nous Research) — hooks exist, but as in-process Python plugins
-# rather than shell commands. Needs a generated plugin, the way pi and omp do.
+# Hermes Agent (Nous Research) — the M0 sandbox spike verified its shell hooks
+# and non-interactive CLI mode.
 name   = "hermes"
 binary = "hermes"
 detect = ["--version"]
 
 [launch]
-argv = ["chat", "--query-file", "-"]   # prompt on stdin; nothing shell-interpreted
+argv = ["chat", "--cli", "-Q", "-q"]
 tui  = false
 
 [telemetry]
 source = "hooks"
 
 [hooks]
-# Not shell scripts. A Hermes plugin is a directory with plugin.yaml plus a
-# Python module exposing register(ctx), which registers tools and hooks.
-# So this needs a GENERATED plugin, exactly as local-dx generates TypeScript
-# extensions for pi and omp.
-generated = "~/.hermes/plugins/locus/plugin.yaml"
-enable_in = "~/.hermes/config.yaml"  # plugins.enabled must list the name
-
-                                     # discovery alone loads nothing.
+# Hermes consumes shell-script hooks in config.yaml. A first-use allowlist would
+# hang unattended sessions, so the base image sets HERMES_ACCEPT_HOOKS=1.
+config = "~/.hermes/config.yaml"
+key    = "hooks"
 
 [models]
-flag      = "--model"                 # UNVERIFIED — hermes is not installed here
+flag      = "--model"
 list_argv = []
 
+[image]
+base    = "python:3.12-slim-bookworm"
+install = ["pip", "install", "--no-cache-dir", "hermes-agent[acp]==0.19.0"]
+version = "0.19.0"
+
 [layout]
-# Hooks are a generated Python plugin, so hooks and anything routed through them
-# need the materializer. UNVERIFIED: hermes has no local-dx entry, so every path
-# below comes from its own docs rather than from a working installation.
 agents        = { via = "merged-into", target = "context", strip_frontmatter = true, weaker_than_native = "no agent directory; nested work goes through `locus agent invoke`" }
 commands      = { via = "merged-into", target = "context", strip_frontmatter = true, weaker_than_native = "always-on; not invocable" }
-hooks         = { via = "plugin", emits = "/locus/config/plugins/locus/plugin.yaml", enable_in = "/locus/config/config.yaml", key = "plugins.enabled" }
+hooks         = { via = "entries-in", dir = "/locus/config/hooks", format = "shell", target = "/locus/config/config.yaml", key = "hooks" }
 linters       = { via = "dir", dir = "/locus/config/linters", format = "shell+markdown" }
 output-styles = { via = "merged-into", target = "context", strip_frontmatter = true, weaker_than_native = "appended to context; a native style REPLACES the prompt's communication section" }
 rules         = { via = "merged-into", target = "context", strip_frontmatter = true, weaker_than_native = "always-on; no path scoping exists" }
 skills        = { via = "dir", dir = "/locus/config/skills", format = "markdown+frontmatter" }
 context       = { via = "file", file = "/locus/config/AGENTS.md" }
-
-# Discovery alone loads nothing: the plugin name must also appear in
-# plugins.enabled, which is the failure mode to test for first.
 
 [memory]
 # Hermes is the one harness with its own bounded memory: ~/.hermes/memories/

@@ -12,6 +12,7 @@ pub mod memory;
 pub mod models;
 pub mod registry;
 pub mod restore;
+pub mod sandbox;
 pub mod store;
 pub mod telemetry;
 pub mod tools;
