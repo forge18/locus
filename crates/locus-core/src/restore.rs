@@ -9,6 +9,8 @@ use std::{
 
 use anyhow::{bail, Context, Result};
 
+use crate::backup::BACKUP_SCHEMAS;
+
 /// Parameters for restoring one backup archive into a scratch database.
 pub struct RestoreConfig {
     pub archive: PathBuf,
@@ -60,6 +62,53 @@ pub trait RestoreFilesystem: Send + Sync {
     fn read_database_dump(&self, archive: &Path) -> Result<Vec<u8>>;
 }
 
+/// Queries the exact row count across the schemas stored in a backup artifact.
+pub trait RestoreRowCountQuery: Send + Sync {
+    fn row_count(&self, database_url: &str) -> Result<u64>;
+}
+
+/// Production row-count query runner for `psql`.
+pub struct SystemRestoreRowCountQuery;
+
+impl RestoreRowCountQuery for SystemRestoreRowCountQuery {
+    fn row_count(&self, database_url: &str) -> Result<u64> {
+        let output = Command::new("psql")
+            .args([
+                format!("--dbname={database_url}"),
+                "--no-align".to_owned(),
+                "--quiet".to_owned(),
+                "--tuples-only".to_owned(),
+                format!("--command={}", row_count_sql()),
+            ])
+            .output()
+            .context("run psql row-count query")?;
+        if !output.status.success() {
+            bail!("psql row-count query exited with status {}", output.status);
+        }
+        std::str::from_utf8(&output.stdout)
+            .context("read psql row-count output")?
+            .trim()
+            .parse()
+            .context("parse psql row-count output")
+    }
+}
+
+fn row_count_sql() -> String {
+    let schemas = BACKUP_SCHEMAS
+        .iter()
+        .map(|schema| format!("'{schema}'"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!(
+        "CREATE FUNCTION pg_temp.locus_restore_row_count() RETURNS bigint LANGUAGE plpgsql AS $$ \
+         DECLARE total bigint := 0; relation record; table_count bigint; \
+         BEGIN FOR relation IN SELECT schemaname, tablename FROM pg_tables WHERE schemaname IN ({schemas}) LOOP \
+         EXECUTE format('SELECT count(*) FROM %I.%I', relation.schemaname, relation.tablename) INTO table_count; \
+         total := total + table_count; END LOOP; RETURN total; END; $$; \
+         SELECT pg_temp.locus_restore_row_count();"
+    )
+}
+
 /// Production tar reader for the SQL dump in a backup archive.
 pub struct SystemRestoreFilesystem;
 
@@ -93,16 +142,29 @@ impl RestoreFilesystem for SystemRestoreFilesystem {
 pub struct Restore<'a> {
     process: &'a dyn RestoreProcessRunner,
     filesystem: &'a dyn RestoreFilesystem,
+    row_count_query: &'a dyn RestoreRowCountQuery,
 }
+
+static SYSTEM_RESTORE_ROW_COUNT_QUERY: SystemRestoreRowCountQuery = SystemRestoreRowCountQuery;
 
 impl<'a> Restore<'a> {
     pub fn new(
         process: &'a dyn RestoreProcessRunner,
         filesystem: &'a dyn RestoreFilesystem,
     ) -> Self {
+        Self::with_row_count_query(process, filesystem, &SYSTEM_RESTORE_ROW_COUNT_QUERY)
+    }
+
+    /// Injects the row-count query so restore drills can be tested without a database.
+    pub fn with_row_count_query(
+        process: &'a dyn RestoreProcessRunner,
+        filesystem: &'a dyn RestoreFilesystem,
+        row_count_query: &'a dyn RestoreRowCountQuery,
+    ) -> Self {
         Self {
             process,
             filesystem,
+            row_count_query,
         }
     }
 
@@ -119,6 +181,21 @@ impl<'a> Restore<'a> {
             ],
             &sql_dump,
         )
+    }
+
+    /// Restores into scratch and verifies its rows match the source database.
+    pub fn drill(&self, config: &RestoreConfig, source_database_url: &str) -> Result<()> {
+        self.into_scratch(config)?;
+        let source_count = self.row_count_query.row_count(source_database_url)?;
+        let scratch_count = self
+            .row_count_query
+            .row_count(&config.scratch_database_url)?;
+        if source_count != scratch_count {
+            bail!(
+                "restore drill row-count mismatch: source has {source_count} rows, scratch has {scratch_count} rows"
+            );
+        }
+        Ok(())
     }
 }
 
