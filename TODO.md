@@ -25,7 +25,7 @@ of those blocks the shell or the other twelve screens. It can run alongside M0.
 | --- | --- | ---: | ---: | ---: |
 | **M0** | Spikes — these gate M1 · **closed** | 3 | 39 | 39 |
 | **M0.5** | Desktop UI on fixtures · **closed** | 12 | 268 | 268 |
-| **M1** | Core runtime | 13 | 253 | 154 |
+| **M1** | Core runtime | 13 | 253 | 156 |
 | **M2** | Workspace | 3 | 50 | 0 |
 | **M3** | Coordination, memory, and mail | 6 | 125 | 0 |
 | **M3.5** | Agent capabilities: debug and browser | 3 | 56 | 0 |
@@ -117,10 +117,10 @@ below; it is short and it is load-bearing.
 
 13 features · 253 tasks
 
-- [ ] **[acp-client](.specs/acp-client/spec.md)** · 13 tasks · **6/13 complete** · [tasks](.specs/acp-client/tasks.md)
+- [ ] **[acp-client](.specs/acp-client/spec.md)** · 13 tasks · **7/13 complete** · [tasks](.specs/acp-client/tasks.md)
   An Agent Client Protocol client, **for the planning/chat module only**.
   *Depends on:* `sandbox`, `telemetry`
-- [ ] **[agent-cli](.specs/agent-cli/spec.md)** · 24 tasks · **7/24 complete** · [tasks](.specs/agent-cli/tasks.md)
+- [ ] **[agent-cli](.specs/agent-cli/spec.md)** · 24 tasks · **8/24 complete** · [tasks](.specs/agent-cli/tasks.md)
   `crates/locus-cli` — the binary agents call from inside their container, and **the MCP replacement**.
   *Depends on:* `store`, `sandbox`
 - [x] **[agent-definitions](.specs/agent-definitions/spec.md)** · 16 tasks · **complete** · [tasks](.specs/agent-definitions/tasks.md)
