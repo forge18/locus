@@ -150,7 +150,7 @@ below; it is short and it is load-bearing.
 - [ ] **[sandbox](.specs/sandbox/spec.md)** · 24 tasks · [tasks](.specs/sandbox/tasks.md)
   One container per agent run, and the credential handling that makes it safe.
   *Depends on:* `spike-sandboxed-harness`, `harness-registry`
-- [ ] **[store](.specs/store/spec.md)** · 23 tasks · **23 done** · [tasks](.specs/store/tasks.md)
+- [x] **[store](.specs/store/spec.md)** · 23 tasks · **complete** · [tasks](.specs/store/tasks.md)
   Postgres as the single source of truth, plus the backup that makes that safe.
   *Depends on:* none
 - [ ] **[telemetry](.specs/telemetry/spec.md)** · 22 tasks · [tasks](.specs/telemetry/tasks.md)
