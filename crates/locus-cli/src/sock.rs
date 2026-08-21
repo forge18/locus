@@ -405,3 +405,41 @@ async fn all_verbs_are_round_trips() {
     server.await.expect("server task completes");
     std::fs::remove_file(path).expect("remove test socket");
 }
+
+#[tokio::test]
+async fn no_local_logic() {
+    let path = std::env::temp_dir().join(format!(
+        "locus-sock-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("system clock is after the Unix epoch")
+            .as_nanos()
+    ));
+    let listener = UnixListener::bind(&path).expect("bind test socket");
+    let answer = json!({
+        "state": "waiting",
+        "future_core_field": {"rows": [["one", 1], ["two", 2]]}
+    });
+    let server_answer = answer.clone();
+    let server = tokio::spawn(async move {
+        let (mut stream, _) = listener.accept().await.expect("accept client");
+        let request: Value = read_frame(&mut stream).await.expect("read request");
+        assert_eq!(request, json!({"verb": "ask", "args": ["question"]}));
+        write_frame(&mut stream, &server_answer)
+            .await
+            .expect("write response");
+    });
+
+    let ask = VERB_DISPATCHES
+        .iter()
+        .find(|dispatch| dispatch.verb == "ask")
+        .expect("ask dispatch is registered");
+    let response = dispatch(&SocketClient::new(&path), ask, &["question".to_owned()])
+        .await
+        .expect("ask round trip succeeds");
+
+    assert_eq!(response, answer);
+    server.await.expect("server task completes");
+    std::fs::remove_file(path).expect("remove test socket");
+}
