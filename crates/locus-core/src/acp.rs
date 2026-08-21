@@ -51,3 +51,20 @@ mod session_new {
         );
     }
 }
+
+#[cfg(test)]
+mod mcp_always_empty {
+    use super::*;
+
+    #[test]
+    fn every_planning_request_serializes_empty_mcp_servers() {
+        for cwd in ["/workspace", "/workspace/another-project"] {
+            let request = session_new(cwd);
+
+            assert_eq!(
+                serde_json::to_value(request).expect("serialize session request")["mcpServers"],
+                serde_json::json!([])
+            );
+        }
+    }
+}
