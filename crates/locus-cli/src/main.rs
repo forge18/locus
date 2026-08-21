@@ -19,7 +19,8 @@ const DEFAULT_ARTIFACT_ROOT: &str = "/var/lib/locus/artifacts";
 const DEFAULT_BACKUP_ROOT: &str = "/var/lib/locus/backups";
 
 fn main() -> Result<()> {
-    match env::args().nth(1).as_deref() {
+    let arguments: Vec<_> = env::args().skip(1).collect();
+    match arguments.first().map(String::as_str) {
         None => {
             println!("locus {}", env!("CARGO_PKG_VERSION"));
             Ok(())
@@ -30,8 +31,17 @@ fn main() -> Result<()> {
             let _ = hook::run();
             Ok(())
         }
-        Some(command) => bail!("unknown command: {command}"),
+        Some(_) => dispatch(&arguments),
     }
+}
+
+fn dispatch(arguments: &[String]) -> Result<()> {
+    let (verb, args) = sock::resolve_verb(arguments)
+        .ok_or_else(|| anyhow::anyhow!("unknown command: {}", arguments.join(" ")))?;
+    let runtime = tokio::runtime::Runtime::new().context("start socket client runtime")?;
+    let response = runtime.block_on(sock::dispatch(&sock::SocketClient::default(), verb, args))?;
+    println!("{}", serde_json::to_string(&response)?);
+    Ok(())
 }
 
 fn harness() -> Result<()> {
