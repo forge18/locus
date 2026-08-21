@@ -1,4 +1,4 @@
-import { For, Show } from 'solid-js'
+import { createSignal, For, onMount, Show } from 'solid-js'
 import { Button } from '../../ui/Button'
 import { Icon } from '../../ui/Icon'
 import { Input } from '../../ui/Input'
@@ -11,6 +11,7 @@ import {
   HEADER_TITLE,
   NEW_LABEL,
   SEARCH_PLACEHOLDER,
+  fetchLinterCountFromCore,
   useRecentlyEdited,
   useTypeCards,
 } from '../../data/extensions'
@@ -29,8 +30,15 @@ export interface ExtensionsViewProps {
 export function ExtensionsView(props: ExtensionsViewProps) {
   const counts = useExtensionCounts()
   const summary = useHarnessSummary()
+  const [linterCount, setLinterCount] = createSignal<number>()
+
+  onMount(() => {
+    void fetchLinterCountFromCore().then(setLinterCount).catch(() => {})
+  })
 
   const countFor = (type: string) => counts.find((c) => c.type === type)!
+  const displayedCount = (type: string, fallback: number) =>
+    type === 'linters' ? (linterCount() ?? fallback) : fallback
 
   return (
     <div class="workshop" data-testid="extensions">
@@ -78,7 +86,7 @@ export function ExtensionsView(props: ExtensionsViewProps) {
                   </Show>
                 </div>
                 <span class="type-card-count" data-testid={`type-count-${card.type}`}>
-                  {card.count}
+                  {displayedCount(card.type, card.count)}
                 </span>
                 <span class="type-card-desc">{card.description}</span>
                 <span
