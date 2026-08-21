@@ -137,6 +137,40 @@ fn env_path(variable: &str, default: &str) -> PathBuf {
 }
 
 #[cfg(test)]
+mod artifact {
+    use super::sock;
+
+    #[test]
+    fn put() {
+        let command = [
+            "artifact".into(),
+            "put".into(),
+            "plan".into(),
+            "plan.md".into(),
+        ];
+        let (dispatch, args) = sock::allowed_verb(&command).expect("artifact put dispatches");
+        assert_eq!(dispatch.verb, "artifact.put");
+        assert_eq!(args, ["plan", "plan.md"]);
+    }
+
+    #[test]
+    fn get_roundtrip() {
+        let command = ["artifact".into(), "get".into(), "artifact-id".into()];
+        let (dispatch, args) = sock::allowed_verb(&command).expect("artifact get dispatches");
+        assert_eq!(dispatch.verb, "artifact.get");
+        assert_eq!(args, ["artifact-id"]);
+    }
+
+    #[test]
+    fn comments() {
+        let command = ["artifact".into(), "comments".into()];
+        let (dispatch, args) = sock::allowed_verb(&command).expect("artifact comments dispatches");
+        assert_eq!(dispatch.verb, "artifact.comments");
+        assert!(args.is_empty());
+    }
+}
+
+#[cfg(test)]
 mod lint {
     use super::*;
 
