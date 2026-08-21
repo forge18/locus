@@ -507,6 +507,31 @@ mod json {
             })
         );
     }
+
+    #[test]
+    fn packing_saving() {
+        let tasks: Vec<_> = (0..20)
+            .map(|index| {
+                json!({
+                    "task_id": format!("task-{index:02}"),
+                    "workflow_id": "release",
+                    "assigned_agent": "reviewer",
+                    "verification_command": "cargo test",
+                    "status": "ready",
+                    "updated_at": "2026-08-21"
+                })
+            })
+            .collect();
+        let response = json!({"tasks": tasks});
+        let minified = compact_json(&response).expect("minified response serializes");
+        let packed = compact_json(&key_pack(response)).expect("packed response serializes");
+        let saving = (minified.len() - packed.len()) * 100 / minified.len();
+
+        assert!(
+            (50..=60).contains(&saving),
+            "expected packed table to save 50-60%, saved {saving}%"
+        );
+    }
 }
 
 #[tokio::test]
