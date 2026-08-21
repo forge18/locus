@@ -543,6 +543,60 @@ mod migrate_from_empty {
 }
 
 #[cfg(test)]
+mod migrations_reversible_or_explained {
+    use std::{fs, path::Path};
+
+    const ONE_WAY_REASON_PREFIX: &str = "-- one-way: ";
+
+    #[test]
+    fn migrations_reversible_or_explained() {
+        // This regression starts green: every current schema migration has a down pair.
+        let migrations_directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations");
+        let mut up_migrations: Vec<_> = fs::read_dir(&migrations_directory)
+            .expect("read migrations directory")
+            .map(|entry| entry.expect("read migration entry").path())
+            .filter(|path| path.to_string_lossy().ends_with(".up.sql"))
+            .collect();
+        up_migrations.sort();
+        assert!(
+            !up_migrations.is_empty(),
+            "repository contains up migrations"
+        );
+
+        for up_migration in up_migrations {
+            let file_name = up_migration
+                .file_name()
+                .and_then(|name| name.to_str())
+                .expect("migration filename is valid UTF-8");
+            let down_migration = up_migration.with_file_name(
+                file_name
+                    .strip_suffix(".up.sql")
+                    .expect("up migration has expected suffix")
+                    .to_owned()
+                    + ".down.sql",
+            );
+
+            if down_migration.is_file() {
+                continue;
+            }
+
+            let contents = fs::read_to_string(&up_migration).expect("read one-way migration");
+            let has_reason = contents.lines().any(|line| {
+                line.trim_start()
+                    .strip_prefix(ONE_WAY_REASON_PREFIX)
+                    .is_some_and(|reason| !reason.trim().is_empty())
+            });
+            assert!(
+                has_reason,
+                "{} needs {} or a `-- one-way: <reason>` comment",
+                up_migration.display(),
+                down_migration.display()
+            );
+        }
+    }
+}
+
+#[cfg(test)]
 mod schema_core {
     use std::{
         net::TcpListener,
