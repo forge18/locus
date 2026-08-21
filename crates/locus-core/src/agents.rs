@@ -30,16 +30,12 @@ pub const MAX_NESTING_FAN_OUT: u8 = 4;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum Harness {
+    #[default]
     Any,
     #[serde(untagged)]
     Named(String),
-}
-
-impl Default for Harness {
-    fn default() -> Self {
-        Self::Any
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
