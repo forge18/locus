@@ -1,6 +1,6 @@
 //! Spawn one configured agent container for a queued run.
 
-use std::path::PathBuf;
+use std::{collections::BTreeMap, path::PathBuf};
 
 use anyhow::{bail, Context, Result};
 use serde_json::Value;
@@ -322,6 +322,9 @@ pub struct SpawnRequest<'a> {
     pub extensions: &'a ExtensionSet,
     pub config_root: PathBuf,
     pub socket_source: PathBuf,
+    pub workspace_remote: String,
+    /// Host-provided proxy environment; it contains no long-lived credential.
+    pub credential_environment: BTreeMap<String, String>,
     /// Per-run capability validated by the daemon socket before it routes any agent request.
     pub run_nonce: String,
     pub base_image_digest: String,
@@ -372,17 +375,23 @@ pub fn spawn(
         .build_or_reuse_image(&image)
         .context("build or reuse agent image")?;
     let port = ports.allocate()?;
+    let setup =
+        crate::sandbox::workspace_clone_command(&request.workspace_remote, &run.id.to_string())?;
+    let mut environment = request
+        .credential_environment
+        .into_iter()
+        .map(|(key, value)| format!("{key}={value}"))
+        .collect::<Vec<_>>();
+    environment.push(format!("LOCUS_PORT={port}"));
+    environment.push(format!("LOCUS_RUN_NONCE={}", request.run_nonce));
     let container = ContainerLaunch {
         name: format!("locus-agent-{}", run.id),
         image: image.clone(),
         command: std::iter::once(request.harness.binary.clone())
             .chain(request.harness.launch.argv.iter().cloned())
             .collect(),
-        entrypoint: crate::sandbox::entrypoint_setup().into(),
-        environment: vec![
-            format!("LOCUS_PORT={port}"),
-            format!("LOCUS_RUN_NONCE={}", request.run_nonce),
-        ],
+        entrypoint: format!("{} && {}", crate::sandbox::entrypoint_setup(), setup),
+        environment,
         mounts: agent_mounts(
             request.socket_source.display().to_string(),
             request.config_root.display().to_string(),
@@ -1084,6 +1093,11 @@ mod spawns {
             extensions: &extensions,
             config_root: config_root.clone(),
             socket_source: PathBuf::from("/tmp/locus.sock"),
+            workspace_remote: "/var/lib/locus/repos/project.git".into(),
+            credential_environment: BTreeMap::from([(
+                "ANTHROPIC_BASE_URL".into(),
+                "http://host.docker.internal:8787".into(),
+            )]),
             run_nonce: "nonce".into(),
             base_image_digest: "sha256:base".into(),
             tools: vec![ToolPin {
