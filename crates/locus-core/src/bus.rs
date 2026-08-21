@@ -161,6 +161,38 @@ mod notify_across_processes {
 }
 
 #[cfg(test)]
+mod notify_payload_cap {
+    use std::time::Duration;
+
+    use sqlx::postgres::PgPoolOptions;
+
+    use super::PostgresBus;
+
+    #[tokio::test]
+    async fn rejects_payloads_over_8000_bytes_before_notifying() {
+        let bus = PostgresBus::new(
+            PgPoolOptions::new()
+                .acquire_timeout(Duration::from_millis(100))
+                .connect_lazy("postgres://locus@127.0.0.1:1/locus")
+                .expect("create a disconnected test pool"),
+        );
+        let payload = "x".repeat(8_001);
+
+        let error = bus
+            .publish(&payload)
+            .await
+            .expect_err("payloads over the PostgreSQL cap are rejected");
+
+        assert!(
+            error
+                .to_string()
+                .contains("Postgres NOTIFY payload exceeds 8000-byte cap"),
+            "unexpected error: {error:#}"
+        );
+    }
+}
+
+#[cfg(test)]
 mod in_process {
     use super::InProcessBus;
 
