@@ -25,7 +25,7 @@ of those blocks the shell or the other twelve screens. It can run alongside M0.
 | --- | --- | ---: | ---: | ---: |
 | **M0** | Spikes — these gate M1 · **closed** | 3 | 39 | 39 |
 | **M0.5** | Desktop UI on fixtures · **closed** | 12 | 268 | 268 |
-| **M1** | Core runtime | 13 | 253 | 41 |
+| **M1** | Core runtime | 13 | 253 | 83 |
 | **M2** | Workspace | 3 | 50 | 0 |
 | **M3** | Coordination, memory, and mail | 6 | 125 | 0 |
 | **M3.5** | Agent capabilities: debug and browser | 3 | 56 | 0 |
@@ -138,7 +138,7 @@ below; it is short and it is load-bearing.
 - [ ] **[linters](.specs/linters/spec.md)** · 14 tasks · [tasks](.specs/linters/tasks.md)
   `locus lint` — **the one extension type no harness reads.** The other seven are consumed by the harness; linters exist so that `locus lint` can find them, which is why **every harness supports linters trivially and identically** and why the registry has to say that rather than leaving the entry out.
   *Depends on:* `materializers`, `agent-cli`
-- [ ] **[materializers](.specs/materializers/spec.md)** · 20 tasks · [tasks](.specs/materializers/tasks.md)
+- [x] **[materializers](.specs/materializers/spec.md)** · 20 tasks · **complete** · [tasks](.specs/materializers/tasks.md)
   The code half of the harness contract.
   *Depends on:* `harness-registry`
 - [ ] **[pane-manager](.specs/pane-manager/spec.md)** · 21 tasks · [tasks](.specs/pane-manager/tasks.md)
@@ -153,7 +153,7 @@ below; it is short and it is load-bearing.
 - [x] **[store](.specs/store/spec.md)** · 23 tasks · **complete** · [tasks](.specs/store/tasks.md)
   Postgres as the single source of truth, plus the backup that makes that safe.
   *Depends on:* none
-- [ ] **[telemetry](.specs/telemetry/spec.md)** · 22 tasks · [tasks](.specs/telemetry/tasks.md)
+- [x] **[telemetry](.specs/telemetry/spec.md)** · 22 tasks · **complete** · [tasks](.specs/telemetry/tasks.md)
   Four capture paths, one event vocabulary, and nothing downstream knowing which path a run arrived through.
   *Depends on:* `harness-registry`, `store`
 
