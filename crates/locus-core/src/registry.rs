@@ -54,6 +54,8 @@ pub enum RegistryLoadError {
         extension: &'static str,
         via: String,
     },
+    #[error("harness definition `{path}` has `tui = true`; TUI harnesses are unsupported")]
+    TuiUnsupported { path: PathBuf },
 }
 
 /// Load every harness definition directly in `directory` or in one plugin subdirectory.
@@ -96,6 +98,7 @@ pub fn load_from_directory(
                 }
             })?;
             validate_layout_extensions(&mut document, &path)?;
+            validate_tui(&document, &path)?;
             HarnessDefinition::deserialize(document)
                 .map_err(|source| RegistryLoadError::ParseDefinition { path, source })
         })
@@ -161,6 +164,21 @@ fn validate_layout_extensions(
                 via: via.into(),
             });
         }
+    }
+
+    Ok(())
+}
+
+fn validate_tui(document: &toml::Value, path: &Path) -> Result<(), RegistryLoadError> {
+    if document
+        .get("launch")
+        .and_then(|launch| launch.get("tui"))
+        .and_then(toml::Value::as_bool)
+        == Some(true)
+    {
+        return Err(RegistryLoadError::TuiUnsupported {
+            path: path.to_path_buf(),
+        });
     }
 
     Ok(())
@@ -433,6 +451,42 @@ fn rejects_unknown_strategy() {
         error.to_string(),
         format!(
             "harness definition `{}` has unknown materialization strategy `unknown` for layout extension `agents`",
+            path.display()
+        )
+    );
+}
+
+#[cfg(test)]
+#[test]
+fn rejects_tui_true() {
+    let registry = std::env::temp_dir().join(format!(
+        "locus-registry-tui-true-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("the system clock is after the Unix epoch")
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&registry).expect("temporary registry directory exists");
+
+    let mut definition: toml::Value =
+        toml::from_str(include_str!("../../../harnesses/claude.toml"))
+            .expect("reference declaration parses");
+    definition["launch"]["tui"] = toml::Value::Boolean(true);
+    let path = registry.join("tui-true.toml");
+    std::fs::write(
+        &path,
+        toml::to_string(&definition).expect("declaration serializes"),
+    )
+    .expect("invalid declaration can be written");
+
+    let error = load_from_directory(&registry).expect_err("TUI harness is refused");
+    std::fs::remove_dir_all(registry).expect("temporary registry directory is removed");
+
+    assert_eq!(
+        error.to_string(),
+        format!(
+            "harness definition `{}` has `tui = true`; TUI harnesses are unsupported",
             path.display()
         )
     );
