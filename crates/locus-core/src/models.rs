@@ -66,6 +66,64 @@ fn unused_port() -> u16 {
 
 #[cfg(test)]
 #[tokio::test]
+async fn falls_back_up() {
+    let port = unused_port();
+    let suffix = format!("{}-{port}", std::process::id());
+    let container_name = format!("locus-model-resolution-test-{suffix}");
+    let volume_name = format!("locus-model-resolution-test-data-{suffix}");
+    let _cleanup = DockerCleanup {
+        container_name: container_name.clone(),
+        volume_name: volume_name.clone(),
+    };
+    let container =
+        PostgresContainer::new(PostgresConfig::for_test(container_name, volume_name, port));
+    container
+        .start()
+        .await
+        .expect("start the model resolution test container");
+    let store = Store::connect(&container.database_url())
+        .await
+        .expect("connect the store pool");
+    store
+        .run_migrations(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations"),
+            &NoopMigrationBackup,
+            &test_backup_config(),
+        )
+        .await
+        .expect("run migrations");
+
+    query("INSERT INTO core.projects (id, name) VALUES ($1::uuid, 'model resolution test')")
+        .bind("00000000-0000-0000-0000-000000000001")
+        .execute(store.pool())
+        .await
+        .expect("insert project for model resolution");
+    query(
+        "INSERT INTO core.model_tier_settings (project_id, harness_name, tier, model_id)
+         VALUES ($1::uuid, 'test-harness', 'high', 'model-high')",
+    )
+    .bind("00000000-0000-0000-0000-000000000001")
+    .execute(store.pool())
+    .await
+    .expect("insert high tier model");
+
+    assert_eq!(
+        resolve_tier(
+            &store,
+            "00000000-0000-0000-0000-000000000001",
+            "test-harness",
+            "xhigh",
+        )
+        .await
+        .expect("resolve configured model tier")
+        .as_deref(),
+        Some("model-high"),
+        "an unset xhigh tier uses the configured high tier"
+    );
+}
+
+#[cfg(test)]
+#[tokio::test]
 async fn settings_table() {
     let port = unused_port();
     let suffix = format!("{}-{port}", std::process::id());
