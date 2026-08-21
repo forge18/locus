@@ -931,3 +931,189 @@ mod schema_memory {
         }
     }
 }
+
+#[cfg(test)]
+mod schema_workflows {
+    use std::{
+        net::TcpListener,
+        process::{Command, Stdio},
+    };
+
+    use sqlx::{query, query_scalar};
+
+    use super::{PostgresConfig, PostgresContainer, Store};
+
+    struct DockerCleanup {
+        container_name: String,
+        volume_name: String,
+    }
+
+    impl Drop for DockerCleanup {
+        fn drop(&mut self) {
+            let _ = Command::new("docker")
+                .args(["rm", "--force", &self.container_name])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+            let _ = Command::new("docker")
+                .args(["volume", "rm", "--force", &self.volume_name])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+        }
+    }
+
+    fn unused_port() -> u16 {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind an unused local port");
+        listener.local_addr().expect("read the local port").port()
+    }
+
+    #[tokio::test]
+    async fn schema_workflows() {
+        let port = unused_port();
+        let suffix = format!("{}-{port}", std::process::id());
+        let container_name = format!("locus-postgres-test-{suffix}");
+        let volume_name = format!("locus-postgres-test-data-{suffix}");
+        let _cleanup = DockerCleanup {
+            container_name: container_name.clone(),
+            volume_name: volume_name.clone(),
+        };
+        let container =
+            PostgresContainer::new(PostgresConfig::for_test(container_name, volume_name, port));
+        container
+            .start()
+            .await
+            .expect("start the pgvector container");
+        let store = Store::connect(&format!(
+            "postgres://locus:test-password@127.0.0.1:{port}/locus"
+        ))
+        .await
+        .expect("connect the store pool");
+        store
+            .run_migrations(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations"),
+            )
+            .await
+            .expect("run the workflows migration");
+
+        for table in [
+            "workflow_defs",
+            "schedules",
+            "executions",
+            "iterations",
+            "guardrail_trips",
+            "verify_results",
+        ] {
+            let exists: bool = query_scalar(
+                "SELECT EXISTS (
+                    SELECT 1
+                    FROM information_schema.tables
+                    WHERE table_schema = 'workflows' AND table_name = $1
+                )",
+            )
+            .bind(table)
+            .fetch_one(store.pool())
+            .await
+            .expect("query the workflows schema");
+            assert!(exists, "workflows.{table} exists");
+        }
+
+        for column in [
+            "project_id",
+            "name",
+            "version",
+            "graph",
+            "spec",
+            "verify_command",
+        ] {
+            let exists: bool = query_scalar(
+                "SELECT EXISTS (
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_schema = 'workflows'
+                        AND table_name = 'workflow_defs'
+                        AND column_name = $1
+                )",
+            )
+            .bind(column)
+            .fetch_one(store.pool())
+            .await
+            .expect("query workflow definition columns");
+            assert!(exists, "workflows.workflow_defs.{column} exists");
+        }
+
+        for (table, column) in [
+            ("schedules", "cron_expression"),
+            ("schedules", "paused_at"),
+            ("executions", "status"),
+            ("executions", "schedule_id"),
+            ("iterations", "arbiter_class"),
+            ("iterations", "counts_toward_iteration_budget"),
+            ("guardrail_trips", "guardrail"),
+            ("verify_results", "passed"),
+            ("verify_results", "exit_code"),
+            ("verify_results", "stdout"),
+            ("verify_results", "stderr"),
+        ] {
+            let exists: bool = query_scalar(
+                "SELECT EXISTS (
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_schema = 'workflows' AND table_name = $1 AND column_name = $2
+                )",
+            )
+            .bind(table)
+            .bind(column)
+            .fetch_one(store.pool())
+            .await
+            .expect("query workflow lifecycle columns");
+            assert!(exists, "workflows.{table}.{column} exists");
+        }
+
+        for index in [
+            "workflow_defs_project_name_version_key",
+            "schedules_workflow_def_id_idx",
+            "executions_schedule_id_idx",
+            "executions_active_schedule_idx",
+            "iterations_execution_number_key",
+            "guardrail_trips_execution_id_idx",
+            "verify_results_execution_id_idx",
+        ] {
+            let exists: bool = query_scalar(
+                "SELECT EXISTS (
+                    SELECT 1
+                    FROM pg_indexes
+                    WHERE schemaname = 'workflows' AND indexname = $1
+                )",
+            )
+            .bind(index)
+            .fetch_one(store.pool())
+            .await
+            .expect("query workflow indexes");
+            assert!(exists, "workflow index {index} exists");
+        }
+
+        query("INSERT INTO core.projects (id, name) VALUES ($1, 'workflow test project')")
+            .bind("00000000-0000-0000-0000-000000000001")
+            .execute(store.pool())
+            .await
+            .expect("insert workflow test project");
+        query(
+            "INSERT INTO workflows.workflow_defs
+                (id, project_id, name, version, graph, spec, verify_command)
+             VALUES
+                ($1, $2, 'test workflow', 1, '{}'::jsonb, '{}'::jsonb, 'cargo test')",
+        )
+        .bind("00000000-0000-0000-0000-000000000002")
+        .bind("00000000-0000-0000-0000-000000000001")
+        .execute(store.pool())
+        .await
+        .expect("insert immutable workflow definition");
+        let update =
+            query("UPDATE workflows.workflow_defs SET name = 'changed workflow' WHERE id = $1")
+                .bind("00000000-0000-0000-0000-000000000002")
+                .execute(store.pool())
+                .await;
+        assert!(update.is_err(), "workflow definitions are immutable");
+    }
+}
