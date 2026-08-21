@@ -3,6 +3,7 @@
 use std::path::PathBuf;
 
 use anyhow::{bail, Context, Result};
+use tokio::sync::broadcast;
 
 use crate::{
     materialize::{materialize, ExtensionSet, MaterializationReport, MaterializedTree, PluginHost},
@@ -20,6 +21,40 @@ pub enum ImageDisposition {
     Built,
     Reused,
 }
+
+const PTY_STREAM_CAPACITY: usize = 1_024;
+
+/// Broadcasts raw PTY bytes from a run's container runtime to its UI subscribers.
+#[derive(Clone, Debug)]
+pub struct PtyStream {
+    sender: broadcast::Sender<Vec<u8>>,
+}
+
+impl PtyStream {
+    pub fn new(capacity: usize) -> Self {
+        let (sender, _) = broadcast::channel(capacity);
+        Self { sender }
+    }
+
+    /// Registers one UI consumer. The desktop forwards each received buffer through
+    /// its `Channel<&[u8]>` transport.
+    pub fn subscribe(&self) -> broadcast::Receiver<Vec<u8>> {
+        self.sender.subscribe()
+    }
+
+    /// Delivers one byte buffer read from the attached PTY.
+    pub fn write(&self, bytes: &[u8]) -> usize {
+        self.sender.send(bytes.to_vec()).unwrap_or(0)
+    }
+}
+
+impl PartialEq for PtyStream {
+    fn eq(&self, other: &Self) -> bool {
+        self.sender.same_channel(&other.sender)
+    }
+}
+
+impl Eq for PtyStream {}
 
 /// The complete, harness-agnostic request made to the container runtime.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -40,7 +75,12 @@ pub struct ContainerLaunch {
 pub trait ContainerRuntime {
     fn build_or_reuse_image(&mut self, image: &str) -> Result<ImageDisposition>;
     fn start_container(&mut self, container: &ContainerLaunch) -> Result<()>;
-    fn attach_pty(&mut self, container: &str, attachment: PtyAttachment) -> Result<()>;
+    fn attach_pty(
+        &mut self,
+        container: &str,
+        attachment: PtyAttachment,
+        stream: PtyStream,
+    ) -> Result<()>;
 }
 
 /// Inputs owned by the caller for one queued run.
@@ -64,6 +104,7 @@ pub struct SpawnedRun {
     pub image: String,
     pub image_disposition: ImageDisposition,
     pub port: u16,
+    pub pty_stream: PtyStream,
 }
 
 /// Materialize the run configuration, ensure its agent image, then start and attach its PTY.
@@ -112,7 +153,8 @@ pub fn spawn(
         ports.release(port);
         return Err(error).context("start agent container");
     }
-    if let Err(error) = runtime.attach_pty(&container.name, AGENT_PTY) {
+    let pty_stream = PtyStream::new(PTY_STREAM_CAPACITY);
+    if let Err(error) = runtime.attach_pty(&container.name, AGENT_PTY, pty_stream.clone()) {
         ports.release(port);
         return Err(error).context("attach agent PTY");
     }
@@ -125,7 +167,25 @@ pub fn spawn(
         image,
         image_disposition,
         port,
+        pty_stream,
     })
+}
+
+#[cfg(test)]
+mod streams_pty {
+    use super::PtyStream;
+
+    #[tokio::test]
+    async fn delivers_pty_bytes_to_each_ui_subscriber() {
+        let stream = PtyStream::new(2);
+        let mut first_ui = stream.subscribe();
+        let mut second_ui = stream.subscribe();
+
+        stream.write(b"agent output");
+
+        assert_eq!(first_ui.recv().await.unwrap(), b"agent output");
+        assert_eq!(second_ui.recv().await.unwrap(), b"agent output");
+    }
 }
 
 #[cfg(test)]
@@ -154,6 +214,7 @@ mod spawns {
         calls: Vec<String>,
         started: Option<ContainerLaunch>,
         attached: Option<(String, PtyAttachment)>,
+        pty_stream: Option<PtyStream>,
     }
 
     impl ContainerRuntime for RecordingRuntime {
@@ -168,9 +229,15 @@ mod spawns {
             Ok(())
         }
 
-        fn attach_pty(&mut self, container: &str, attachment: PtyAttachment) -> Result<()> {
+        fn attach_pty(
+            &mut self,
+            container: &str,
+            attachment: PtyAttachment,
+            stream: PtyStream,
+        ) -> Result<()> {
             self.calls.push(format!("pty:{container}"));
             self.attached = Some((container.into(), attachment));
+            self.pty_stream = Some(stream);
             Ok(())
         }
     }
@@ -267,6 +334,19 @@ mod spawns {
         assert_eq!(
             runtime.attached,
             Some((spawned.container.name.clone(), AGENT_PTY))
+        );
+        let mut ui = spawned.pty_stream.subscribe();
+        assert_eq!(
+            runtime
+                .pty_stream
+                .as_ref()
+                .expect("runtime received PTY stream")
+                .write(b"agent output"),
+            1
+        );
+        assert_eq!(
+            ui.try_recv().expect("UI receives PTY bytes"),
+            b"agent output"
         );
 
         let _ = fs::remove_dir_all(config_root);
