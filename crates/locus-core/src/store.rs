@@ -597,6 +597,130 @@ mod migrations_reversible_or_explained {
 }
 
 #[cfg(test)]
+mod pgvector_roundtrip {
+    use std::{
+        net::TcpListener,
+        process::{Command, Stdio},
+    };
+
+    use sqlx::{query, query_scalar};
+
+    use super::{PostgresConfig, PostgresContainer, Store};
+
+    struct DockerCleanup {
+        container_name: String,
+        volume_name: String,
+    }
+
+    impl Drop for DockerCleanup {
+        fn drop(&mut self) {
+            let _ = Command::new("docker")
+                .args(["rm", "--force", &self.container_name])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+            let _ = Command::new("docker")
+                .args(["volume", "rm", "--force", &self.volume_name])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+        }
+    }
+
+    fn unused_port() -> u16 {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind an unused local port");
+        listener.local_addr().expect("read the local port").port()
+    }
+
+    #[tokio::test]
+    async fn pgvector_roundtrip() {
+        let port = unused_port();
+        let suffix = format!("{}-{port}", std::process::id());
+        let container_name = format!("locus-postgres-test-{suffix}");
+        let volume_name = format!("locus-postgres-test-data-{suffix}");
+        let _cleanup = DockerCleanup {
+            container_name: container_name.clone(),
+            volume_name: volume_name.clone(),
+        };
+        let container =
+            PostgresContainer::new(PostgresConfig::for_test(container_name, volume_name, port));
+        container
+            .start()
+            .await
+            .expect("start the pgvector container");
+        let store = Store::connect(&format!(
+            "postgres://locus:test-password@127.0.0.1:{port}/locus"
+        ))
+        .await
+        .expect("connect the store pool");
+        store
+            .run_migrations(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations"),
+            )
+            .await
+            .expect("run migrations with the pgvector column");
+
+        query(
+            "INSERT INTO core.projects (id, name)
+             VALUES ('00000000-0000-0000-0000-000000000001', 'pgvector roundtrip')",
+        )
+        .execute(store.pool())
+        .await
+        .expect("insert project for embeddings");
+        query(
+            "INSERT INTO memory.store (
+                 id, project_id, scope, path, subject, category, body, provenance,
+                 embedding, embedding_model, confidence, importance, strength
+             ) VALUES
+                 (
+                     '00000000-0000-0000-0000-000000000003',
+                     '00000000-0000-0000-0000-000000000001',
+                     'project',
+                     'store.rs',
+                     'expected nearest embedding',
+                     'fact',
+                     'The expected embedding is nearest to the query.',
+                     '{}'::jsonb,
+                     '[0.9,0.1,0.0]'::vector,
+                     'test-model',
+                     1.0,
+                     1.0,
+                     1.0
+                 ),
+                 (
+                     '00000000-0000-0000-0000-000000000004',
+                     '00000000-0000-0000-0000-000000000001',
+                     'project',
+                     'store.rs',
+                     'far embedding',
+                     'fact',
+                     'This embedding is deliberately far from the query.',
+                     '{}'::jsonb,
+                     '[0.0,1.0,0.0]'::vector,
+                     'test-model',
+                     1.0,
+                     1.0,
+                     1.0
+                 )",
+        )
+        .execute(store.pool())
+        .await
+        .expect("insert pgvector embeddings");
+
+        let nearest: String = query_scalar(
+            "SELECT subject
+             FROM memory.store
+             ORDER BY embedding <-> '[0.9,0.1,0.0]'::vector
+             LIMIT 1",
+        )
+        .fetch_one(store.pool())
+        .await
+        .expect("query nearest embedding");
+        assert_eq!(nearest, "expected nearest embedding");
+    }
+}
+
+#[cfg(test)]
 mod schema_core {
     use std::{
         net::TcpListener,
