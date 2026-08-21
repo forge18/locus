@@ -7,8 +7,9 @@
 use std::{env, path::PathBuf};
 
 use anyhow::{bail, Context, Result};
-use locus_core::backup::{
-    Backup, RetainedBackupConfig, SystemBackupFilesystem, SystemProcessRunner,
+use locus_core::{
+    backup::{Backup, RetainedBackupConfig, SystemBackupFilesystem, SystemProcessRunner},
+    registry::load_from_directory,
 };
 
 const DEFAULT_ARTIFACT_ROOT: &str = "/var/lib/locus/artifacts";
@@ -21,8 +22,28 @@ fn main() -> Result<()> {
             Ok(())
         }
         Some("backup") => backup(),
+        Some("harness") => harness(),
         Some(command) => bail!("unknown command: {command}"),
     }
+}
+
+fn harness() -> Result<()> {
+    match env::args().nth(2).as_deref() {
+        Some("lint") => harness_lint(),
+        Some(command) => bail!("unknown harness command: {command}"),
+        None => bail!("missing harness command"),
+    }
+}
+
+fn harness_lint() -> Result<()> {
+    let registry = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../harnesses");
+    let definitions = load_from_directory(&registry)
+        .with_context(|| format!("failed to lint harness registry `{}`", registry.display()))?;
+    println!(
+        "{} harness definitions passed validation",
+        definitions.len()
+    );
+    Ok(())
 }
 
 fn backup() -> Result<()> {
