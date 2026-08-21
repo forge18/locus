@@ -9,6 +9,7 @@ pub mod agents;
 pub mod backup;
 pub mod board;
 pub mod bus;
+pub mod invoke;
 pub mod mail;
 pub mod materialize;
 pub mod memory;
