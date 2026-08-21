@@ -319,6 +319,16 @@ pub fn resolve_verb(arguments: &[String]) -> Option<(&'static VerbDispatch, &[St
         .map(|dispatch| (dispatch, &arguments[dispatch.command.len()..]))
 }
 
+/// Refuse commands outside the CLI's declared agent-facing verb table before opening a socket.
+pub fn allowed_verb(arguments: &[String]) -> Result<(&'static VerbDispatch, &[String])> {
+    resolve_verb(arguments).ok_or_else(|| {
+        anyhow::anyhow!(
+            "command is not allowlisted: {}",
+            arguments.join(" ")
+        )
+    })
+}
+
 pub async fn dispatch(
     socket_path: impl AsRef<Path>,
     dispatch: &VerbDispatch,
@@ -582,6 +592,13 @@ mod svc {
             assert!(args.is_empty());
         }
     }
+}
+
+#[test]
+fn allowlist_message() {
+    let error = allowed_verb(&["svc".into(), "restart".into()])
+        .expect_err("unlisted command is refused before the socket");
+    assert_eq!(error.to_string(), "command is not allowlisted: svc restart");
 }
 
 #[tokio::test]

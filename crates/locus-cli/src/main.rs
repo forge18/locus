@@ -37,8 +37,7 @@ fn main() -> Result<()> {
 
 fn dispatch(arguments: &[String]) -> Result<()> {
     let arguments = sock::without_json_flag(arguments);
-    let (verb, args) = sock::resolve_verb(&arguments)
-        .ok_or_else(|| anyhow::anyhow!("unknown command: {}", arguments.join(" ")))?;
+    let (verb, args) = sock::allowed_verb(&arguments)?;
     let runtime = tokio::runtime::Runtime::new().context("start socket client runtime")?;
     let response = runtime.block_on(sock::dispatch(sock::DEFAULT_SOCKET_PATH, verb, args))?;
     println!("{}", sock::compact_json(&sock::key_pack(response))?);
