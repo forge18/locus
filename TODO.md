@@ -25,7 +25,7 @@ of those blocks the shell or the other twelve screens. It can run alongside M0.
 | --- | --- | ---: | ---: | ---: |
 | **M0** | Spikes — these gate M1 · **closed** | 3 | 39 | 39 |
 | **M0.5** | Desktop UI on fixtures · **closed** | 12 | 268 | 268 |
-| **M1** | Core runtime | 13 | 253 | 197 |
+| **M1** | Core runtime · **closed** | 13 | 253 | 253 |
 | **M2** | Workspace | 3 | 50 | 0 |
 | **M3** | Coordination, memory, and mail | 6 | 125 | 0 |
 | **M3.5** | Agent capabilities: debug and browser | 3 | 56 | 0 |
@@ -126,7 +126,7 @@ below; it is short and it is load-bearing.
 - [x] **[agent-definitions](.specs/agent-definitions/spec.md)** · 16 tasks · **complete** · [tasks](.specs/agent-definitions/tasks.md)
   An agent is a Markdown file with frontmatter.
   *Depends on:* `store`, `materializers`
-- [ ] **[artifacts](.specs/artifacts/spec.md)** · 21 tasks · [tasks](.specs/artifacts/tasks.md)
+- [x] **[artifacts](.specs/artifacts/spec.md)** · 21 tasks · **complete** · [tasks](.specs/artifacts/tasks.md)
   What you review instead of tool calls.
   *Depends on:* `store`, `run-supervisor`
 - [x] **[ci](.specs/ci/spec.md)** · 15 tasks · **complete** · [tasks](.specs/ci/tasks.md)
@@ -135,13 +135,13 @@ below; it is short and it is load-bearing.
 - [x] **[harness-registry](.specs/harness-registry/spec.md)** · 18 tasks · **complete** · [tasks](.specs/harness-registry/tasks.md)
   Load `harnesses/*`, validate them, and resolve a model tier into an actual model.
   *Depends on:* `store`
-- [ ] **[linters](.specs/linters/spec.md)** · 14 tasks · [tasks](.specs/linters/tasks.md)
+- [x] **[linters](.specs/linters/spec.md)** · 14 tasks · **complete** · [tasks](.specs/linters/tasks.md)
   `locus lint` — **the one extension type no harness reads.** The other seven are consumed by the harness; linters exist so that `locus lint` can find them, which is why **every harness supports linters trivially and identically** and why the registry has to say that rather than leaving the entry out.
   *Depends on:* `materializers`, `agent-cli`
 - [x] **[materializers](.specs/materializers/spec.md)** · 20 tasks · **complete** · [tasks](.specs/materializers/tasks.md)
   The code half of the harness contract.
   *Depends on:* `harness-registry`
-- [ ] **[pane-manager](.specs/pane-manager/spec.md)** · 21 tasks · [tasks](.specs/pane-manager/tasks.md)
+- [x] **[pane-manager](.specs/pane-manager/spec.md)** · 21 tasks · **complete** · [tasks](.specs/pane-manager/tasks.md)
   The pane manager and the IPC discipline behind it.
   *Depends on:* `app-shell`, `run-supervisor`, `telemetry`
 - [x] **[run-supervisor](.specs/run-supervisor/spec.md)** · 22 tasks · **complete** · [tasks](.specs/run-supervisor/tasks.md)
