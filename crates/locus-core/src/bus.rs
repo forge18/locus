@@ -25,6 +25,84 @@ impl<T: Clone> InProcessBus<T> {
 }
 
 #[cfg(test)]
+mod notify_across_processes {
+    use std::{
+        net::TcpListener,
+        process::{Command, Stdio},
+        time::Duration,
+    };
+
+    use tokio::time::timeout;
+
+    use super::PostgresBus;
+    use crate::store::{PostgresConfig, PostgresContainer, Store};
+
+    struct DockerCleanup {
+        container_name: String,
+        volume_name: String,
+    }
+
+    impl Drop for DockerCleanup {
+        fn drop(&mut self) {
+            let _ = Command::new("docker")
+                .args(["rm", "--force", &self.container_name])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+            let _ = Command::new("docker")
+                .args(["volume", "rm", "--force", &self.volume_name])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+        }
+    }
+
+    fn unused_port() -> u16 {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind an unused local port");
+        listener.local_addr().expect("read the local port").port()
+    }
+
+    #[tokio::test]
+    async fn notify_across_processes() {
+        let port = unused_port();
+        let suffix = format!("{}-{port}", std::process::id());
+        let container_name = format!("locus-postgres-test-{suffix}");
+        let volume_name = format!("locus-postgres-test-data-{suffix}");
+        let _cleanup = DockerCleanup {
+            container_name: container_name.clone(),
+            volume_name: volume_name.clone(),
+        };
+        let container =
+            PostgresContainer::new(PostgresConfig::for_test(container_name, volume_name, port));
+        container
+            .start()
+            .await
+            .expect("start the isolated pgvector container");
+
+        let listener_store = Store::connect(&container.database_url())
+            .await
+            .expect("connect listener store");
+        let publisher_store = Store::connect(&container.database_url())
+            .await
+            .expect("connect publisher store");
+        let listener_bus = PostgresBus::new(listener_store.pool().clone());
+        let publisher_bus = PostgresBus::new(publisher_store.pool().clone());
+        let mut subscription = listener_bus.subscribe().await.expect("listen for events");
+
+        publisher_bus
+            .publish("00000000-0000-0000-0000-000000000001")
+            .await
+            .expect("notify other process");
+        let notification = timeout(Duration::from_secs(5), subscription.recv())
+            .await
+            .expect("notification arrives before timeout")
+            .expect("receive notification");
+
+        assert_eq!(notification, "00000000-0000-0000-0000-000000000001");
+    }
+}
+
+#[cfg(test)]
 mod in_process {
     use super::InProcessBus;
 

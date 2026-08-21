@@ -38,7 +38,7 @@ impl PostgresConfig {
     }
 
     #[cfg(test)]
-    fn for_test(container_name: String, volume_name: String, host_port: u16) -> Self {
+    pub(crate) fn for_test(container_name: String, volume_name: String, host_port: u16) -> Self {
         let password = format!("locus-{container_name}");
 
         Self {
@@ -132,7 +132,7 @@ impl PostgresContainer {
     }
 
     #[cfg(test)]
-    fn database_url(&self) -> String {
+    pub(crate) fn database_url(&self) -> String {
         format!(
             "postgres://{}:{}@127.0.0.1:{}/{}?sslmode=disable",
             self.config.user, self.config.password, self.config.host_port, self.config.database
