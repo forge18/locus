@@ -1,5 +1,5 @@
 [package]
-name = "locus-desktop"
+name = "locus-tauri"
 version = "0.1.0"
 description = "The Locus desktop application."
 authors = ["forge18"]
