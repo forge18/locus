@@ -207,6 +207,34 @@ mod planning_only {
 }
 
 #[cfg(test)]
+mod update_mapping {
+    use serde_json::json;
+
+    use crate::telemetry::{AcpAdapter, Adapter, EventVerb};
+
+    #[test]
+    fn shared_session_updates_map_to_canonical_verbs() {
+        let adapter = AcpAdapter;
+
+        for (session_update, expected) in [
+            ("AgentMessageChunk", EventVerb::Assistant),
+            ("AgentThoughtChunk", EventVerb::Thinking),
+            ("ToolCall", EventVerb::ToolCall),
+        ] {
+            let events = adapter
+                .normalize(json!({
+                    "method": "session/update",
+                    "params": {"update": {"sessionUpdate": session_update}},
+                }))
+                .expect("normalize session update");
+
+            assert_eq!(events.len(), 1);
+            assert_eq!(events[0].verb, expected);
+        }
+    }
+}
+
+#[cfg(test)]
 mod mcp_always_empty {
     use super::*;
 
