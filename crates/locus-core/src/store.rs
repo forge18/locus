@@ -697,3 +697,99 @@ mod schema_board {
         }
     }
 }
+
+#[cfg(test)]
+mod schema_wiki {
+    use std::{
+        net::TcpListener,
+        process::{Command, Stdio},
+    };
+
+    use sqlx::query_scalar;
+
+    use super::{PostgresConfig, PostgresContainer, Store};
+
+    struct DockerCleanup {
+        container_name: String,
+        volume_name: String,
+    }
+
+    impl Drop for DockerCleanup {
+        fn drop(&mut self) {
+            let _ = Command::new("docker")
+                .args(["rm", "--force", &self.container_name])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+            let _ = Command::new("docker")
+                .args(["volume", "rm", "--force", &self.volume_name])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+        }
+    }
+
+    fn unused_port() -> u16 {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind an unused local port");
+        listener.local_addr().expect("read the local port").port()
+    }
+
+    #[tokio::test]
+    async fn schema_wiki() {
+        let port = unused_port();
+        let suffix = format!("{}-{port}", std::process::id());
+        let container_name = format!("locus-postgres-test-{suffix}");
+        let volume_name = format!("locus-postgres-test-data-{suffix}");
+        let _cleanup = DockerCleanup {
+            container_name: container_name.clone(),
+            volume_name: volume_name.clone(),
+        };
+        let container =
+            PostgresContainer::new(PostgresConfig::for_test(container_name, volume_name, port));
+        container
+            .start()
+            .await
+            .expect("start the pgvector container");
+        let store = Store::connect(&format!(
+            "postgres://locus:test-password@127.0.0.1:{port}/locus"
+        ))
+        .await
+        .expect("connect the store pool");
+        store
+            .run_migrations(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations"),
+            )
+            .await
+            .expect("run the wiki migration");
+
+        for table in [
+            "pages",
+            "revisions",
+            "links",
+            "contradictions",
+            "ingest_log",
+            "embeddings",
+        ] {
+            let exists: bool = query_scalar(
+                "SELECT EXISTS (
+                    SELECT 1
+                    FROM information_schema.tables
+                    WHERE table_schema = 'wiki' AND table_name = $1
+                )",
+            )
+            .bind(table)
+            .fetch_one(store.pool())
+            .await
+            .expect("query the wiki schema");
+            assert!(exists, "wiki.{table} exists");
+        }
+
+        let vector_available: bool = query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector')",
+        )
+        .fetch_one(store.pool())
+        .await
+        .expect("query the vector extension");
+        assert!(vector_available, "pgvector is enabled for wiki embeddings");
+    }
+}
