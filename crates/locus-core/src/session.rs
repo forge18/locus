@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
+use crate::telemetry::{Event, Usage};
+
 /// A durable thread of work for one versioned agent definition.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Session {
@@ -26,12 +28,41 @@ pub enum SessionStatus {
 }
 
 /// One container lifetime within a session.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Run {
     pub id: Uuid,
     pub session_id: Uuid,
     pub resolved_model_id: String,
     pub status: RunStatus,
+    /// Normalized records emitted during this container lifetime.
+    pub events: Vec<Event>,
+    /// Harness-reported token counts; absent means unknown, never zero.
+    pub usage: Option<Usage>,
+    /// Container process exit code once the run has ended.
+    pub exit_code: Option<i32>,
+    /// Reviewable or reference deliverables produced by this run.
+    pub artifacts: Vec<Artifact>,
+}
+
+/// A run-produced deliverable tracked independently from terminal output.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Artifact {
+    pub id: Uuid,
+    pub run_id: Uuid,
+    pub kind: ArtifactKind,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ArtifactKind {
+    Plan,
+    Diff,
+    Diagram,
+    Image,
+    Recording,
+    Walkthrough,
+    Finding,
+    Payload,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -57,7 +88,7 @@ pub struct Turn {
 
 #[cfg(test)]
 mod model {
-    use super::{Run, RunStatus, Session, SessionStatus, Turn};
+    use super::{Artifact, ArtifactKind, Run, RunStatus, Session, SessionStatus, Turn};
     use std::{
         net::TcpListener,
         process::{Command, Stdio},
@@ -126,6 +157,14 @@ mod model {
             session_id: session.id,
             resolved_model_id: "test-model".into(),
             status: RunStatus::Queued,
+            events: vec![],
+            usage: None,
+            exit_code: None,
+            artifacts: vec![Artifact {
+                id: Uuid::new_v4(),
+                run_id,
+                kind: ArtifactKind::Plan,
+            }],
         };
         let turn = Turn {
             id: Uuid::new_v4(),
@@ -253,5 +292,61 @@ mod holds {
         assert_eq!(session.board_task_id, Some(task_id));
         assert_eq!(session.memory_base, memory_base);
         assert_eq!(session.pane_state, pane_state);
+    }
+}
+
+#[cfg(test)]
+mod run {
+    mod holds {
+        use serde_json::json;
+        use uuid::Uuid;
+
+        use crate::{
+            session::{Artifact, ArtifactKind, Run, RunStatus},
+            telemetry::{Event, EventVerb, Usage},
+        };
+
+        #[test]
+        fn run_retains_its_ephemeral_context() {
+            let run_id = Uuid::new_v4();
+            let events = vec![Event {
+                run_id: run_id.to_string(),
+                seq: 0,
+                ts: "2026-01-01T00:00:00Z".into(),
+                verb: EventVerb::SessionEnd,
+                text: None,
+                tool: None,
+                args: None,
+                usage: None,
+                raw: json!({"type": "end"}),
+            }];
+            let usage = Usage {
+                input: Some(100),
+                output: Some(50),
+                cache_read: Some(25),
+                cache_write: Some(10),
+            };
+            let artifacts = vec![Artifact {
+                id: Uuid::new_v4(),
+                run_id,
+                kind: ArtifactKind::Walkthrough,
+            }];
+            let run = Run {
+                id: run_id,
+                session_id: Uuid::new_v4(),
+                resolved_model_id: "claude-opus-4-6".into(),
+                status: RunStatus::Completed,
+                events: events.clone(),
+                usage: Some(usage.clone()),
+                exit_code: Some(0),
+                artifacts: artifacts.clone(),
+            };
+
+            assert_eq!(run.events, events);
+            assert_eq!(run.usage, Some(usage));
+            assert_eq!(run.exit_code, Some(0));
+            assert_eq!(run.artifacts, artifacts);
+            assert_eq!(run.resolved_model_id, "claude-opus-4-6");
+        }
     }
 }

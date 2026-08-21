@@ -138,7 +138,7 @@ impl CapturedEvent {
 }
 
 /// The downstream event shape, independent of which capture path produced it.
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Event {
     pub run_id: String,
