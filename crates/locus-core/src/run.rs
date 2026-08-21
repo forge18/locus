@@ -239,6 +239,17 @@ impl PauseController {
     }
 }
 
+/// Store the optional identifier the active harness uses for its native conversation.
+/// Locus resume remains event-based, so callers may omit this for harnesses without one.
+pub fn record_native_session_id(run: &mut Run, native_session_id: impl Into<String>) -> Result<()> {
+    let native_session_id = native_session_id.into();
+    if native_session_id.trim().is_empty() {
+        bail!("native session id must not be empty")
+    }
+    run.native_session_id = Some(native_session_id);
+    Ok(())
+}
+
 pub fn cancel(
     run: &mut Run,
     reason: impl AsRef<str>,
@@ -262,6 +273,34 @@ pub fn cancel(
 }
 
 #[cfg(test)]
+mod native_session_id {
+    use uuid::Uuid;
+
+    use super::record_native_session_id;
+    use crate::session::{Artifact, Run, RunStatus};
+
+    #[test]
+    fn retains_a_harness_session_id_only_on_the_run_that_received_it() {
+        let mut run = Run {
+            id: Uuid::new_v4(),
+            session_id: Uuid::new_v4(),
+            resolved_model_id: "test-model".into(),
+            status: RunStatus::Running,
+            events: vec![],
+            usage: None,
+            exit_code: None,
+            cancel_reason: None,
+            native_session_id: None,
+            artifacts: Vec::<Artifact>::new(),
+        };
+
+        record_native_session_id(&mut run, "harness-session-42").expect("store harness id");
+
+        assert_eq!(run.native_session_id.as_deref(), Some("harness-session-42"));
+    }
+}
+
+#[cfg(test)]
 mod pause_holds_not_freezes {
     use uuid::Uuid;
 
@@ -278,6 +317,7 @@ mod pause_holds_not_freezes {
             usage: None,
             exit_code: None,
             cancel_reason: None,
+            native_session_id: None,
             artifacts: Vec::<Artifact>::new(),
         }
     }
@@ -340,6 +380,7 @@ mod cancels {
             usage: None,
             exit_code: None,
             cancel_reason: None,
+            native_session_id: None,
             artifacts: Vec::<Artifact>::new(),
         };
         let mut runtime = RecordingRuntime::default();
@@ -659,6 +700,7 @@ mod spawns {
             usage: None,
             exit_code: None,
             cancel_reason: None,
+            native_session_id: None,
             artifacts: vec![],
         };
         let request = SpawnRequest {
