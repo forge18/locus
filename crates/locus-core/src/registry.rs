@@ -831,7 +831,19 @@ fn queries() {
             .by_declared_verbs(&["tool_call", "tool_result"])
             .map(|harness| harness.name.as_str())
             .collect::<Vec<_>>(),
-        ["claude", "codex", "copilot", "dsh", "omp", "opencode", "pi",]
+        [
+            "antigravity",
+            "claude",
+            "codex",
+            "copilot",
+            "cursor",
+            "dsh",
+            "gemini",
+            "hermes",
+            "omp",
+            "opencode",
+            "pi",
+        ]
     );
 }
 

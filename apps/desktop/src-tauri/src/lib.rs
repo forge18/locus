@@ -1,4 +1,6 @@
+use locus_core::telemetry::{Event, EventCollector};
 use serde::{Deserialize, Serialize};
+use tauri::{ipc::Channel, State};
 
 const MODEL_TIERS: [&str; 4] = ["low", "medium", "high", "xhigh"];
 
@@ -43,11 +45,23 @@ pub struct HarnessTierGridHarness {
     pub tiers: Vec<ModelTierSetting>,
 }
 
+/// Streams each already-normalized core event to a desktop subscriber. The collector is
+/// source-neutral: hook, ACP, stream-json, and session-log events share this channel.
+#[tauri::command]
+fn telemetry_subscribe(collector: State<'_, EventCollector>, channel: Channel<Event>) {
+    let mut events = collector.subscribe();
+    tauri::async_runtime::spawn(async move {
+        while let Ok(event) = events.recv().await {
+            if channel.send(event).is_err() {
+                break;
+            }
+        }
+    });
+}
+
 /// Shape model-tier settings and task 16 discovery output into the four-cell Settings grid.
 #[tauri::command]
-fn harness_tier_grid(
-    request: HarnessTierGridRequest,
-) -> Result<HarnessTierGridResponse, String> {
+fn harness_tier_grid(request: HarnessTierGridRequest) -> Result<HarnessTierGridResponse, String> {
     if request.project_id.trim().is_empty() {
         return Err("harness tier grid requires a project id".into());
     }
@@ -88,8 +102,12 @@ fn harness_tier_grid(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(EventCollector::new(1_024))
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![harness_tier_grid])
+        .invoke_handler(tauri::generate_handler![
+            harness_tier_grid,
+            telemetry_subscribe
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
@@ -116,7 +134,10 @@ mod tests {
 
         assert_eq!(response.harnesses[0].models, None);
         assert_eq!(response.harnesses[0].tiers.len(), MODEL_TIERS.len());
-        assert_eq!(response.harnesses[0].tiers[2].model.as_deref(), Some("opus"));
+        assert_eq!(
+            response.harnesses[0].tiers[2].model.as_deref(),
+            Some("opus")
+        );
         assert_eq!(response.harnesses[0].tiers[3].model, None);
     }
 }

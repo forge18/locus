@@ -10,7 +10,8 @@ tui  = false
 
 [telemetry]
 source = "hooks"
-
+emits  = ["session_start", "user", "assistant", "tool_call", "tool_result",
+           "tool_error", "permission_request", "session_end"]
 [hooks]
 # Not shell scripts. A Hermes plugin is a directory with plugin.yaml plus a
 # Python module exposing register(ctx), which registers tools and hooks.

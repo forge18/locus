@@ -2241,6 +2241,7 @@ dependencies = [
  "sqlx",
  "tar",
  "thiserror 2.0.20",
+ "time",
  "tokio",
  "toml 0.8.2",
  "tracing",
@@ -2250,11 +2251,13 @@ dependencies = [
 name = "locus-desktop"
 version = "0.1.0"
 dependencies = [
+ "locus-core",
  "serde",
  "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-opener",
+ "tokio",
 ]
 
 [[package]]
@@ -3643,7 +3646,9 @@ dependencies = [
  "serde_json",
  "sha2 0.10.9",
  "sqlx-core",
+ "sqlx-mysql",
  "sqlx-postgres",
+ "sqlx-sqlite",
  "syn 2.0.119",
  "tokio",
  "url",
@@ -3667,6 +3672,7 @@ dependencies = [
  "generic-array",
  "log",
  "percent-encoding",
+ "serde",
  "sha1",
  "sha2 0.11.0",
  "sqlx-core",
@@ -3726,6 +3732,7 @@ dependencies = [
  "libsqlite3-sys",
  "log",
  "percent-encoding",
+ "serde",
  "sqlx-core",
  "thiserror 2.0.20",
  "tracing",

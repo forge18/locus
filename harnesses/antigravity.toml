@@ -9,11 +9,8 @@ tui  = false
 
 [telemetry]
 source = "stream-json"
-argv   = ["-p", "{prompt}", "--output-format", "stream-json"]
-# stdout is the event stream; stderr carries diagnostics, auth prompts, progress.
-# The `json` envelope reports usage.{input,output,thinking,cache_read,total}_tokens
-# — cache_read_tokens is how injection stability gets measured rather than assumed.
-
+emits  = ["session_start", "user", "assistant", "thinking", "tool_call",
+           "tool_result", "tool_error", "aborted", "session_end"]
 [hooks]
 config = ".agents/hooks.json"      # or ~/.gemini/config/hooks.json
 events = ["PreToolUse", "PostToolUse", "Stop"]

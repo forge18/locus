@@ -9,10 +9,8 @@ tui  = false
 
 [telemetry]
 source = "hooks"
-# Every hook payload carries `transcript_path` — an absolute path to the session
-# transcript JSON — so capture never has to reconstruct state from event order.
-# Payload: session_id, transcript_path, cwd, hook_event_name, timestamp.
-
+emits  = ["session_start", "user", "assistant", "thinking", "tool_call",
+           "tool_result", "tool_error", "permission_request", "session_end"]
 [hooks]
 config    = "~/.gemini/settings.json"
 key       = "hooks"

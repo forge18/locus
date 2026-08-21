@@ -13,7 +13,10 @@ use std::sync::{Mutex, MutexGuard, OnceLock};
 use anyhow::{bail, Context, Result};
 use sqlx::{migrate::Migrator, postgres::PgPoolOptions, PgPool};
 
-use crate::backup::{gate_migration, MigrationBackup, MigrationRunner, RetainedBackupConfig};
+use crate::{
+    backup::{gate_migration, MigrationBackup, MigrationRunner, RetainedBackupConfig},
+    telemetry::Event,
+};
 use tokio::{process::Command, time::sleep};
 
 const POSTGRES_IMAGE: &str = "pgvector/pgvector:pg17";
@@ -268,6 +271,32 @@ impl Store {
 
     pub fn pool(&self) -> &PgPool {
         &self.pool
+    }
+
+    /// Persists the normalized event and its untouched source record as JSONB.
+    /// Sequence assignment happens in telemetry before this method is called.
+    pub async fn persist_event(&self, event_id: &str, event: &Event) -> Result<()> {
+        let payload = serde_json::json!({
+            "text": event.text,
+            "tool": event.tool,
+            "args": event.args,
+            "usage": event.usage,
+        });
+        sqlx::query(
+            "INSERT INTO agents.events (id, run_id, seq, ts, verb, payload, raw)
+             VALUES ($1::uuid, $2::uuid, $3, $4::timestamptz, $5, $6::jsonb, $7::jsonb)",
+        )
+        .bind(event_id)
+        .bind(&event.run_id)
+        .bind(i64::try_from(event.seq).context("event sequence exceeds PostgreSQL BIGINT")?)
+        .bind(&event.ts)
+        .bind(event.verb.as_str())
+        .bind(payload)
+        .bind(&event.raw)
+        .execute(&self.pool)
+        .await
+        .context("persist normalized telemetry event")?;
+        Ok(())
     }
 }
 

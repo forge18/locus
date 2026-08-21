@@ -12,6 +12,8 @@ use locus_core::{
     registry::load_from_directory,
 };
 
+mod hook;
+
 const DEFAULT_ARTIFACT_ROOT: &str = "/var/lib/locus/artifacts";
 const DEFAULT_BACKUP_ROOT: &str = "/var/lib/locus/backups";
 
@@ -23,6 +25,10 @@ fn main() -> Result<()> {
         }
         Some("backup") => backup(),
         Some("harness") => harness(),
+        Some("hook") => {
+            let _ = hook::run();
+            Ok(())
+        }
         Some(command) => bail!("unknown command: {command}"),
     }
 }

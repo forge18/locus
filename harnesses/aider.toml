@@ -9,10 +9,7 @@ tui  = false
 
 [telemetry]
 source = "session-log"
-# Aider keeps a markdown chat history in the repo. Parsing it is the only
-# capture path, and it is the least structured of any harness here.
-log = ".aider.chat.history.md"
-
+emits  = ["user", "assistant"]
 [models]
 flag      = "--model"
 list_argv = ["--list-models", ""]      # aider can enumerate; the arg is a filter

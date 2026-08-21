@@ -10,6 +10,10 @@ repository.workspace = true
 name = "locus"
 path = "src/main.rs"
 
+[[bin]]
+name = "locus-hook"
+path = "src/hook_main.rs"
+
 [dependencies]
 locus-core.workspace = true
 serde.workspace = true
