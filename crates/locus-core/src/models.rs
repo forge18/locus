@@ -1,15 +1,14 @@
 //! Project-scoped model tier settings.
 
-use anyhow::{bail, Result};
+use std::process::Command;
+
+use anyhow::{bail, Context, Result};
 use sqlx::query_scalar;
 
 use crate::{registry::HarnessDefinition, store::Store};
 
 #[cfg(test)]
-use std::{
-    net::TcpListener,
-    process::{Command, Stdio},
-};
+use std::{net::TcpListener, process::Stdio};
 
 #[cfg(test)]
 use sqlx::query;
@@ -62,6 +61,40 @@ pub fn launch_argv(harness: &HarnessDefinition, model_id: Option<&str>) -> Vec<S
         argv.push(model_id.into());
     }
     argv
+}
+
+/// Discover model ids from a harness, or preserve free-text entry when it cannot enumerate.
+///
+/// `None` differs from `Some(vec![])`: the former means Settings must offer free text, while the
+/// latter means the configured discovery command returned no choices.
+pub fn discover_model_ids(harness: &HarnessDefinition) -> Result<Option<Vec<String>>> {
+    if harness.models.list_argv.is_empty() {
+        return Ok(None);
+    }
+
+    let output = Command::new(&harness.binary)
+        .args(&harness.models.list_argv)
+        .output()
+        .with_context(|| format!("run `{}` to discover models", harness.binary))?;
+    if !output.status.success() {
+        bail!(
+            "`{}` model discovery failed with {}: {}",
+            harness.binary,
+            output.status,
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
+    }
+
+    let stdout = String::from_utf8(output.stdout)
+        .with_context(|| format!("`{}` model discovery output is not UTF-8", harness.binary))?;
+    Ok(Some(
+        stdout
+            .lines()
+            .map(str::trim)
+            .filter(|model_id| !model_id.is_empty())
+            .map(str::to_owned)
+            .collect(),
+    ))
 }
 
 #[cfg(test)]
