@@ -133,6 +133,7 @@ mod own_state_only {
             exit_code: None,
             cancel_reason: None,
             artifacts: vec![],
+            native_session_id: None,
         }
     }
 
