@@ -556,6 +556,15 @@ mod run {
         assert!(args.is_empty());
         assert!(VERB_DISPATCHES.iter().any(|entry| entry.verb == dispatch.verb));
     }
+
+    #[test]
+    fn artifacts() {
+        let command = ["run".into(), "artifacts".into()];
+        let (dispatch, args) = resolve_verb(&command).expect("run artifacts is dispatched");
+        assert_eq!(dispatch.verb, "run.artifacts");
+        assert!(args.is_empty());
+        assert!(VERB_DISPATCHES.iter().any(|entry| entry.verb == dispatch.verb));
+    }
 }
 
 #[tokio::test]
