@@ -435,7 +435,7 @@ async fn no_local_logic() {
         .iter()
         .find(|dispatch| dispatch.verb == "ask")
         .expect("ask dispatch is registered");
-    let response = dispatch(&SocketClient::new(&path), ask, &["question".to_owned()])
+    let response = dispatch(&path, ask, &["question".to_owned()])
         .await
         .expect("ask round trip succeeds");
 
