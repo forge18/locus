@@ -14,8 +14,10 @@ use crate::{
         ToolPin, AGENT_PTY,
     },
     session::{Run, RunStatus},
-    telemetry::{Adapter, CapturedEvent},
+    store::Store,
+    telemetry::{Adapter, CapturedEvent, Event, EventCollector},
 };
+use uuid::Uuid;
 
 /// Normalize captured source records through the adapter selected for this run's telemetry source.
 pub fn normalize(
@@ -28,6 +30,28 @@ pub fn normalize(
             events.extend(adapter.normalize(record)?);
             Ok(events)
         })
+}
+
+/// Assign run-owned ordering and durably store every normalized event before returning it.
+pub async fn persist_normalized_events(
+    store: &Store,
+    collector: &EventCollector,
+    run_id: impl Into<String>,
+    captured: impl IntoIterator<Item = CapturedEvent>,
+) -> Result<Vec<Event>> {
+    let run_id = run_id.into();
+    let events = captured
+        .into_iter()
+        .map(|event| collector.capture(run_id.clone(), event))
+        .collect::<Vec<_>>();
+
+    for event in &events {
+        store
+            .persist_event(&Uuid::new_v4().to_string(), event)
+            .await?;
+    }
+
+    Ok(events)
 }
 
 /// Whether the container runtime built the image or reused its existing cache entry.
@@ -203,6 +227,184 @@ mod normalizes {
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].verb, EventVerb::Assistant);
         assert_eq!(events[0].raw, raw);
+    }
+}
+
+#[cfg(test)]
+mod persists_events {
+    use std::{
+        net::TcpListener,
+        process::{Command, Stdio},
+    };
+
+    use serde_json::json;
+    use sqlx::{query, query_scalar};
+    use uuid::Uuid;
+
+    use super::{normalize, persist_normalized_events};
+    use crate::{
+        backup::{MigrationBackup, RetainedBackupConfig},
+        store::{PostgresConfig, PostgresContainer, Store},
+        telemetry::{EventCollector, EventVerb, StreamJsonAdapter},
+    };
+
+    struct NoopMigrationBackup;
+
+    impl MigrationBackup for NoopMigrationBackup {
+        fn create_retained(&self, _: &RetainedBackupConfig) -> anyhow::Result<()> {
+            Ok(())
+        }
+    }
+
+    struct DockerCleanup {
+        container_name: String,
+        volume_name: String,
+    }
+
+    impl Drop for DockerCleanup {
+        fn drop(&mut self) {
+            let _ = Command::new("docker")
+                .args(["rm", "--force", &self.container_name])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+            let _ = Command::new("docker")
+                .args(["volume", "rm", "--force", &self.volume_name])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+        }
+    }
+
+    fn unused_port() -> u16 {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind unused local port");
+        listener.local_addr().expect("read local port").port()
+    }
+
+    #[tokio::test]
+    async fn persists_each_normalized_event_with_its_run_identity_and_source_record() {
+        let port = unused_port();
+        let suffix = format!("{}-{port}", std::process::id());
+        let container_name = format!("locus-run-events-test-{suffix}");
+        let volume_name = format!("locus-run-events-test-data-{suffix}");
+        let _cleanup = DockerCleanup {
+            container_name: container_name.clone(),
+            volume_name: volume_name.clone(),
+        };
+        let container =
+            PostgresContainer::new(PostgresConfig::for_test(container_name, volume_name, port));
+        container.start().await.expect("start PostgreSQL");
+        let store = Store::connect(&container.database_url())
+            .await
+            .expect("connect store");
+        store
+            .run_migrations(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations"),
+                &NoopMigrationBackup,
+                &RetainedBackupConfig::new(
+                    "postgres://locus@localhost/locus",
+                    "/var/lib/locus/artifacts",
+                    "/var/lib/locus/backups",
+                ),
+            )
+            .await
+            .expect("run migrations");
+
+        let project_id = Uuid::new_v4();
+        let agent_def_id = Uuid::new_v4();
+        let session_id = Uuid::new_v4();
+        let run_id = Uuid::new_v4();
+        query("INSERT INTO core.projects (id, name) VALUES ($1, 'event persistence')")
+            .bind(project_id)
+            .execute(store.pool())
+            .await
+            .expect("insert project");
+        query(
+            "INSERT INTO agents.agent_defs (id, name, version, frontmatter, body)
+             VALUES ($1, 'event persistence', 1, '{}'::jsonb, '')",
+        )
+        .bind(agent_def_id)
+        .execute(store.pool())
+        .await
+        .expect("insert agent definition");
+        query(
+            "INSERT INTO agents.sessions (id, project_id, agent_def_id, name, branch)
+             VALUES ($1, $2, $3, 'event persistence', 'agent/event-persistence')",
+        )
+        .bind(session_id)
+        .bind(project_id)
+        .bind(agent_def_id)
+        .execute(store.pool())
+        .await
+        .expect("insert session");
+        query(
+            "INSERT INTO agents.runs (id, session_id, resolved_model_id, status)
+             VALUES ($1, $2, 'test-model', 'running')",
+        )
+        .bind(run_id)
+        .bind(session_id)
+        .execute(store.pool())
+        .await
+        .expect("insert run");
+
+        let adapter = StreamJsonAdapter::new("type", [("message", EventVerb::Assistant)]);
+        let first_raw = json!({
+            "type": "message",
+            "text": "first",
+            "timestamp": "2026-01-01T00:00:00Z"
+        });
+        let second_raw = json!({
+            "type": "message",
+            "text": "second",
+            "timestamp": "2026-01-01T00:00:01Z"
+        });
+        let captured = normalize(&adapter, [first_raw.clone(), second_raw.clone()])
+            .expect("normalize source records");
+
+        let persisted = persist_normalized_events(
+            &store,
+            &EventCollector::new(2),
+            run_id.to_string(),
+            captured,
+        )
+        .await
+        .expect("persist normalized events");
+
+        assert_eq!(persisted.len(), 2);
+        let rows: serde_json::Value = query_scalar(
+            "SELECT jsonb_agg(
+                jsonb_build_object(
+                    'run_id', run_id::text,
+                    'seq', seq,
+                    'ts', to_char(ts AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"'),
+                    'raw', raw
+                )
+                ORDER BY seq
+            )
+            FROM agents.events
+            WHERE run_id = $1",
+        )
+        .bind(run_id)
+        .fetch_one(store.pool())
+        .await
+        .expect("read persisted events");
+        assert_eq!(
+            rows,
+            json!([
+                {
+                    "run_id": run_id.to_string(),
+                    "seq": 0,
+                    "ts": "2026-01-01T00:00:00Z",
+                    "raw": first_raw,
+                },
+                {
+                    "run_id": run_id.to_string(),
+                    "seq": 1,
+                    "ts": "2026-01-01T00:00:01Z",
+                    "raw": second_raw,
+                }
+            ])
+        );
     }
 }
 
