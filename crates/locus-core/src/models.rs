@@ -321,6 +321,36 @@ async fn never_falls_down() {
 
 #[cfg(test)]
 #[test]
+fn list_argv_discovery() {
+    let mut harness: HarnessDefinition =
+        toml::from_str(include_str!("../../../harnesses/claude.toml"))
+            .expect("reference harness definition parses");
+    harness.binary = "sh".into();
+    harness.models.list_argv = vec![
+        "-c".into(),
+        "test \"$1\" = models && test \"$2\" = list && printf 'model-low\\nmodel-high\\n'".into(),
+        "model-discovery".into(),
+        "models".into(),
+        "list".into(),
+    ];
+
+    assert_eq!(
+        discover_model_ids(&harness).expect("discover model ids"),
+        Some(vec!["model-low".into(), "model-high".into()]),
+        "a configured list_argv runs against the harness and provides combobox choices"
+    );
+
+    harness.binary = "not-a-real-harness".into();
+    harness.models.list_argv.clear();
+    assert_eq!(
+        discover_model_ids(&harness).expect("free-text fallback needs no harness process"),
+        None,
+        "an absent list_argv preserves the free-text fallback rather than treating it as no models"
+    );
+}
+
+#[cfg(test)]
+#[test]
 fn unset_uses_harness_default() {
     let mut harness: HarnessDefinition =
         toml::from_str(include_str!("../../../harnesses/claude.toml"))
