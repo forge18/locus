@@ -6,6 +6,7 @@
 
 pub mod acp;
 pub mod agents;
+pub mod artifact;
 pub mod ask;
 pub mod backup;
 pub mod board;
