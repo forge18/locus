@@ -13,6 +13,7 @@ const KEY_PACK_ROW_THRESHOLD: usize = 2;
 
 #[derive(Debug, Serialize)]
 pub struct SocketRequest<'a> {
+    pub nonce: &'a str,
     pub verb: &'a str,
     pub args: &'a [String],
 }
@@ -327,12 +328,17 @@ pub fn allowed_verb(arguments: &[String]) -> Result<(&'static VerbDispatch, &[St
 
 pub async fn dispatch(
     socket_path: impl AsRef<Path>,
+    nonce: &str,
     dispatch: &VerbDispatch,
     args: &[String],
 ) -> Result<Value> {
+    if nonce.trim().is_empty() {
+        anyhow::bail!("LOCUS_RUN_NONCE is required for daemon requests")
+    }
     SocketClient::round_trip(
         socket_path,
         &SocketRequest {
+            nonce,
             verb: dispatch.verb,
             args,
         },
@@ -461,7 +467,7 @@ async fn all_verbs_are_round_trips() {
     });
 
     for verb in VERB_DISPATCHES {
-        let response = dispatch(&path, verb, &["argument".to_owned()])
+        let response = dispatch(&path, "nonce", verb, &["argument".to_owned()])
             .await
             .expect("verb round trip succeeds");
         assert_eq!(response, json!({"verb": verb.verb}));
@@ -623,7 +629,7 @@ async fn no_local_logic() {
     let server = tokio::spawn(async move {
         let (mut stream, _) = listener.accept().await.expect("accept client");
         let request: Value = read_frame(&mut stream).await.expect("read request");
-        assert_eq!(request, json!({"verb": "ask", "args": ["question"]}));
+        assert_eq!(request, json!({"nonce": "nonce", "verb": "ask", "args": ["question"]}));
         write_frame(&mut stream, &server_answer)
             .await
             .expect("write response");
@@ -633,7 +639,7 @@ async fn no_local_logic() {
         .iter()
         .find(|dispatch| dispatch.verb == "ask")
         .expect("ask dispatch is registered");
-    let response = dispatch(&path, ask, &["question".to_owned()])
+    let response = dispatch(&path, "nonce", ask, &["question".to_owned()])
         .await
         .expect("ask round trip succeeds");
 

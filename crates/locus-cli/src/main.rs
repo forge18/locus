@@ -42,7 +42,14 @@ fn dispatch(arguments: &[String]) -> Result<()> {
     let arguments = sock::without_json_flag(arguments);
     let (verb, args) = sock::allowed_verb(&arguments)?;
     let runtime = tokio::runtime::Runtime::new().context("start socket client runtime")?;
-    let response = runtime.block_on(sock::dispatch(sock::DEFAULT_SOCKET_PATH, verb, args))?;
+    let nonce =
+        env::var("LOCUS_RUN_NONCE").context("LOCUS_RUN_NONCE is required for daemon requests")?;
+    let response = runtime.block_on(sock::dispatch(
+        sock::DEFAULT_SOCKET_PATH,
+        &nonce,
+        verb,
+        args,
+    ))?;
     println!("{}", sock::compact_json(&sock::key_pack(response))?);
     Ok(())
 }
