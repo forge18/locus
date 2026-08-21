@@ -23,12 +23,12 @@ export {
 } from '../fixtures/artifacts'
 export type { UnifiedRow, UnifiedRowKind } from '../fixtures/artifacts'
 
-/** The Review screen's core-owned artifact list. */
+/** Becomes: invoke("artifacts_list") */
 export async function fetchArtifactsFromCore(): Promise<Artifact[]> {
   return invoke<Artifact[]>('artifacts_list')
 }
 
-/** The Review screen's core-owned comment threads. */
+/** Becomes: invoke("artifact_comments", { artifactId }) */
 export async function fetchArtifactCommentsFromCore(artifactId: string): Promise<ArtifactComment[]> {
   return invoke<ArtifactComment[]>('artifact_comments', { artifactId })
 }

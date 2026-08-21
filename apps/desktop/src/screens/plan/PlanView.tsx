@@ -62,7 +62,7 @@ export function PlanView() {
               <>
                 <Message message={message} />
                 {/* The scope decision sits in the flow, between two messages. */}
-                <Show when={i() === messages.length - 2}>
+                <Show when={i() === messages().length - 2}>
                   <ScopeDecision
                     decision={usePlanScopeDecision()}
                     onWiden={() => {}}

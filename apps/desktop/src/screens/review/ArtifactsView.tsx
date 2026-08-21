@@ -57,21 +57,24 @@ export function ArtifactsView(props: ArtifactsViewProps) {
           <div class="artifact-group" data-testid="artifact-group-review">
             Review artifacts
           </div>
-          <For each={artifacts().filter((entry) => entry.kind !== 'finding' && entry.kind !== 'payload')}>
-            {(entry, i) => (
-              <button
-                type="button"
-                class="artifact-entry"
-                data-testid={`artifact-entry-${entry.kind}`}
-                data-group="review"
-                aria-selected={i() === 0 && selectedId() === entry.id ? 'true' : 'false'}
-                onClick={() => setSelectedId(entry.id)}
-              >
-                <Icon name={entry.kind === 'diff' ? 'git-diff' : 'list-checks'} size={11} />
-                {entry.kind}
-                <span class="artifact-entry-note">{entry.title}</span>
-              </button>
-            )}
+          <For each={kinds.review}>
+            {(kind, i) => {
+              const entry = () => artifacts().find((artifact) => artifact.kind === kind.label)
+              return (
+                <button
+                  type="button"
+                  class="artifact-entry"
+                  data-testid={`artifact-entry-${kind.label}`}
+                  data-group="review"
+                  aria-selected={i() === 0 && selectedId() === entry()?.id ? 'true' : 'false'}
+                  onClick={() => entry() && setSelectedId(entry()!.id)}
+                >
+                  <Icon name={kind.icon} size={11} />
+                  {kind.label}
+                  <span class="artifact-entry-note">{kind.note}</span>
+                </button>
+              )
+            }}
           </For>
 
           <div

@@ -19,7 +19,7 @@ export function usePlans(): PlanSummary[] {
   return PLANS
 }
 
-/** Fixture fallback for the static preview and browser tests. */
+/** Becomes: IPC-backed planning conversation. */
 export function usePlanConversation(): PlanMessage[] {
   return CONVERSATION
 }
