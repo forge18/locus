@@ -89,6 +89,18 @@ pub fn blob_path(
         .join(name)
 }
 
+fn validate_blob_name(name: &Path) -> Result<()> {
+    if name.as_os_str().is_empty()
+        || name.is_absolute()
+        || name
+            .components()
+            .any(|component| !matches!(component, std::path::Component::Normal(_)))
+    {
+        bail!("artifact blob name must be one relative file name")
+    }
+    Ok(())
+}
+
 pub fn write_blob(
     root: impl AsRef<Path>,
     project_id: Uuid,
@@ -98,6 +110,8 @@ pub fn write_blob(
     media_type: impl Into<String>,
     bytes: &[u8],
 ) -> Result<ArtifactRow> {
+    let name = name.as_ref();
+    validate_blob_name(name)?;
     let path = blob_path(root, project_id, run_id, name);
     let parent = path.parent().context("artifact blob has no parent")?;
     fs::create_dir_all(parent)
@@ -311,6 +325,24 @@ mod tests {
                 .join("a.png")
         );
     }
+    #[test]
+    fn blob_name_cannot_escape_its_run_tree() {
+        let (project, run) = ids();
+        let root = root();
+        let error = write_blob(
+            &root,
+            project,
+            run,
+            ArtifactKind::Image,
+            "../../outside.png",
+            "image/png",
+            b"blob",
+        )
+        .expect_err("parent path must be refused");
+        assert!(error.to_string().contains("relative file name"));
+        assert!(!root.join("outside.png").exists());
+    }
+
     #[test]
     fn sha256() {
         let (project, run) = ids();
