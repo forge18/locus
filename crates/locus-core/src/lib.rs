@@ -10,6 +10,7 @@ pub mod bus;
 pub mod mail;
 pub mod memory;
 pub mod restore;
+pub mod registry;
 pub mod store;
 pub mod telemetry;
 pub mod tools;
