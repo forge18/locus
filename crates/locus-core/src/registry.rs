@@ -1,7 +1,123 @@
 //! Data-only declarations describing how each supported harness launches,
 //! reports telemetry, and consumes every Locus extension.
 
+use std::{
+    fs, io,
+    path::{Path, PathBuf},
+};
+
 use serde::Deserialize;
+
+/// An error encountered while reading or parsing a harness registry.
+#[derive(Debug, thiserror::Error)]
+pub enum RegistryLoadError {
+    #[error("failed to read harness registry directory `{path}`: {source}")]
+    ReadDirectory {
+        path: PathBuf,
+        #[source]
+        source: io::Error,
+    },
+    #[error("failed to inspect entry in harness registry directory `{directory}`: {source}")]
+    ReadEntry {
+        directory: PathBuf,
+        #[source]
+        source: io::Error,
+    },
+    #[error("failed to inspect harness registry path `{path}`: {source}")]
+    FileType {
+        path: PathBuf,
+        #[source]
+        source: io::Error,
+    },
+    #[error("failed to read harness definition `{path}`: {source}")]
+    ReadDefinition {
+        path: PathBuf,
+        #[source]
+        source: io::Error,
+    },
+    #[error("failed to parse harness definition `{path}`: {source}")]
+    ParseDefinition {
+        path: PathBuf,
+        #[source]
+        source: toml::de::Error,
+    },
+}
+
+/// Load every harness definition directly in `directory` or in one plugin subdirectory.
+///
+/// Definition paths are sorted before parsing so callers receive a stable order regardless of
+/// filesystem enumeration order.
+pub fn load_from_directory(
+    directory: impl AsRef<Path>,
+) -> Result<Vec<HarnessDefinition>, RegistryLoadError> {
+    let directory = directory.as_ref();
+    let mut definitions = toml_files_in(directory)?;
+
+    for entry in directory_entries(directory)? {
+        let path = entry.path();
+        if entry
+            .file_type()
+            .map_err(|source| RegistryLoadError::FileType {
+                path: path.clone(),
+                source,
+            })?
+            .is_dir()
+        {
+            definitions.extend(toml_files_in(&path)?);
+        }
+    }
+
+    definitions.sort();
+    definitions
+        .into_iter()
+        .map(|path| {
+            let definition =
+                fs::read_to_string(&path).map_err(|source| RegistryLoadError::ReadDefinition {
+                    path: path.clone(),
+                    source,
+                })?;
+            toml::from_str(&definition)
+                .map_err(|source| RegistryLoadError::ParseDefinition { path, source })
+        })
+        .collect()
+}
+
+fn directory_entries(directory: &Path) -> Result<Vec<fs::DirEntry>, RegistryLoadError> {
+    let entries = fs::read_dir(directory).map_err(|source| RegistryLoadError::ReadDirectory {
+        path: directory.to_path_buf(),
+        source,
+    })?;
+    entries
+        .map(|entry| {
+            entry.map_err(|source| RegistryLoadError::ReadEntry {
+                directory: directory.to_path_buf(),
+                source,
+            })
+        })
+        .collect()
+}
+
+fn toml_files_in(directory: &Path) -> Result<Vec<PathBuf>, RegistryLoadError> {
+    directory_entries(directory)?
+        .into_iter()
+        .try_fold(Vec::new(), |mut definitions, entry| {
+            let path = entry.path();
+            if entry
+                .file_type()
+                .map_err(|source| RegistryLoadError::FileType {
+                    path: path.clone(),
+                    source,
+                })?
+                .is_file()
+                && path
+                    .extension()
+                    .is_some_and(|extension| extension == "toml")
+            {
+                definitions.push(path);
+            }
+            Ok(definitions)
+        })
+}
 
 /// A complete harness declaration loaded from one registry TOML file.
 #[derive(Debug, Deserialize)]
@@ -153,7 +269,7 @@ fn schema_parses() {
 #[cfg(test)]
 #[test]
 fn loads_all_twelve() {
-    let source = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..//harnesses");
+    let source = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../harnesses");
     let registry = std::env::temp_dir().join(format!(
         "locus-registry-{}-{}",
         std::process::id(),
