@@ -268,6 +268,55 @@ fn schema_parses() {
 
 #[cfg(test)]
 #[test]
+fn rejects_missing_extension() {
+    const EXTENSIONS: &[&str] = &[
+        "agents",
+        "commands",
+        "hooks",
+        "linters",
+        "output-styles",
+        "rules",
+        "skills",
+        "context",
+    ];
+
+    for extension in EXTENSIONS {
+        let registry = std::env::temp_dir().join(format!(
+            "locus-registry-missing-{extension}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("the system clock is after the Unix epoch")
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&registry).expect("temporary registry directory exists");
+
+        let mut definition: toml::Value =
+            toml::from_str(include_str!("../../../harnesses/claude.toml"))
+                .expect("reference declaration parses");
+        definition["layout"]
+            .as_table_mut()
+            .expect("reference declaration has a layout")
+            .remove(*extension);
+        let path = registry.join("missing.toml");
+        std::fs::write(&path, toml::to_string(&definition).expect("declaration serializes"))
+            .expect("incomplete declaration can be written");
+
+        let error = load_from_directory(&registry).expect_err("missing extension is refused");
+        std::fs::remove_dir_all(registry).expect("temporary registry directory is removed");
+
+        assert_eq!(
+            error.to_string(),
+            format!(
+                "harness definition `{}` is missing required layout extension `{extension}`",
+                path.display()
+            )
+        );
+    }
+}
+
+#[cfg(test)]
+#[test]
 fn loads_all_twelve() {
     let source = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../harnesses");
     let registry = std::env::temp_dir().join(format!(
