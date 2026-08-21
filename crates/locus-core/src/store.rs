@@ -1093,7 +1093,7 @@ mod schema_workflows {
             assert!(exists, "workflow index {index} exists");
         }
 
-        query("INSERT INTO core.projects (id, name) VALUES ($1, 'workflow test project')")
+        query("INSERT INTO core.projects (id, name) VALUES ($1::uuid, 'workflow test project')")
             .bind("00000000-0000-0000-0000-000000000001")
             .execute(store.pool())
             .await
@@ -1102,18 +1102,19 @@ mod schema_workflows {
             "INSERT INTO workflows.workflow_defs
                 (id, project_id, name, version, graph, spec, verify_command)
              VALUES
-                ($1, $2, 'test workflow', 1, '{}'::jsonb, '{}'::jsonb, 'cargo test')",
+                ($1::uuid, $2::uuid, 'test workflow', 1, '{}'::jsonb, '{}'::jsonb, 'cargo test')",
         )
         .bind("00000000-0000-0000-0000-000000000002")
         .bind("00000000-0000-0000-0000-000000000001")
         .execute(store.pool())
         .await
         .expect("insert immutable workflow definition");
-        let update =
-            query("UPDATE workflows.workflow_defs SET name = 'changed workflow' WHERE id = $1")
-                .bind("00000000-0000-0000-0000-000000000002")
-                .execute(store.pool())
-                .await;
+        let update = query(
+            "UPDATE workflows.workflow_defs SET name = 'changed workflow' WHERE id = $1::uuid",
+        )
+        .bind("00000000-0000-0000-0000-000000000002")
+        .execute(store.pool())
+        .await;
         assert!(update.is_err(), "workflow definitions are immutable");
     }
 }
