@@ -794,3 +794,18 @@ fn queries() {
         ["claude", "codex", "copilot", "dsh", "omp", "opencode", "pi",]
     );
 }
+
+#[cfg(test)]
+#[test]
+fn counts_are_96_and_33() {
+    let source = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../harnesses");
+    let harnesses = load_from_directory(source).expect("registry definitions load");
+
+    assert_eq!(
+        harnesses.counts(),
+        RegistryCounts {
+            entries: 96,
+            downgrades: 33,
+        }
+    );
+}
