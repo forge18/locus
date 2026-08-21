@@ -3,7 +3,7 @@
 use anyhow::{bail, Result};
 use sqlx::query_scalar;
 
-use crate::store::Store;
+use crate::{registry::HarnessDefinition, store::Store};
 
 #[cfg(test)]
 use std::{
@@ -52,6 +52,16 @@ pub async fn resolve_tier(
     .fetch_optional(store.pool())
     .await
     .map_err(Into::into)
+}
+
+/// Build the harness arguments for a resolved model, preserving its default when unset.
+pub fn launch_argv(harness: &HarnessDefinition, model_id: Option<&str>) -> Vec<String> {
+    let mut argv = harness.launch.argv.clone();
+    if let Some(model_id) = model_id {
+        argv.push(harness.models.flag.clone());
+        argv.push(model_id.into());
+    }
+    argv
 }
 
 #[cfg(test)]
@@ -217,6 +227,35 @@ async fn never_falls_down() {
             "a requested {requested_tier} tier must not resolve to weaker {weaker_tier}"
         );
     }
+}
+
+#[cfg(test)]
+#[test]
+fn unset_uses_harness_default() {
+    let mut harness: HarnessDefinition =
+        toml::from_str(include_str!("../../../harnesses/claude.toml"))
+            .expect("reference harness definition parses");
+    harness.binary = "sh".into();
+    harness.launch.argv = vec!["-c".into(), "exit 0".into()];
+
+    let argv = launch_argv(&harness, None);
+    assert_eq!(
+        argv, harness.launch.argv,
+        "an unset model tier preserves the harness's launch arguments"
+    );
+    assert!(
+        !argv.iter().any(|argument| argument == &harness.models.flag),
+        "an unset model tier passes no model flag"
+    );
+
+    let status = Command::new(&harness.binary)
+        .args(argv)
+        .status()
+        .expect("start the harness with its default model");
+    assert!(
+        status.success(),
+        "the harness starts with its default model"
+    );
 }
 
 #[cfg(test)]
