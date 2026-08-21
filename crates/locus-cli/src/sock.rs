@@ -399,18 +399,28 @@ where
 #[cfg(test)]
 use serde_json::json;
 #[cfg(test)]
+use std::sync::atomic::{AtomicUsize, Ordering};
+#[cfg(test)]
 use tokio::net::UnixListener;
 
-#[tokio::test]
-async fn roundtrip() {
-    let path = std::env::temp_dir().join(format!(
-        "locus-sock-{}-{}",
+#[cfg(test)]
+fn test_socket_path() -> std::path::PathBuf {
+    static NEXT_TEST_SOCKET: AtomicUsize = AtomicUsize::new(0);
+
+    std::env::temp_dir().join(format!(
+        "locus-sock-{}-{}-{}",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .expect("system clock is after the Unix epoch")
-            .as_nanos()
-    ));
+            .as_nanos(),
+        NEXT_TEST_SOCKET.fetch_add(1, Ordering::Relaxed),
+    ))
+}
+
+#[tokio::test]
+async fn roundtrip() {
+    let path = test_socket_path();
     let listener = UnixListener::bind(&path).expect("bind test socket");
     let server = tokio::spawn(async move {
         let (mut stream, _) = listener.accept().await.expect("accept client");
@@ -437,14 +447,7 @@ fn stateless() {
 
 #[tokio::test]
 async fn all_verbs_are_round_trips() {
-    let path = std::env::temp_dir().join(format!(
-        "locus-sock-{}-{}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .expect("system clock is after the Unix epoch")
-            .as_nanos()
-    ));
+    let path = test_socket_path();
     let listener = UnixListener::bind(&path).expect("bind test socket");
     let server = tokio::spawn(async move {
         for _ in VERB_DISPATCHES {
