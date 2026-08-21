@@ -721,6 +721,99 @@ mod pgvector_roundtrip {
 }
 
 #[cfg(test)]
+mod fts_roundtrip {
+    use std::{
+        net::TcpListener,
+        process::{Command, Stdio},
+    };
+
+    use sqlx::{query, query_scalar};
+
+    use super::{PostgresConfig, PostgresContainer, Store};
+
+    struct DockerCleanup {
+        container_name: String,
+        volume_name: String,
+    }
+
+    impl Drop for DockerCleanup {
+        fn drop(&mut self) {
+            let _ = Command::new("docker")
+                .args(["rm", "--force", &self.container_name])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+            let _ = Command::new("docker")
+                .args(["volume", "rm", "--force", &self.volume_name])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+        }
+    }
+
+    fn unused_port() -> u16 {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind an unused local port");
+        listener.local_addr().expect("read the local port").port()
+    }
+
+    #[tokio::test]
+    async fn fts_roundtrip() {
+        let port = unused_port();
+        let suffix = format!("{}-{port}", std::process::id());
+        let container_name = format!("locus-postgres-test-{suffix}");
+        let volume_name = format!("locus-postgres-test-data-{suffix}");
+        let _cleanup = DockerCleanup {
+            container_name: container_name.clone(),
+            volume_name: volume_name.clone(),
+        };
+        let container =
+            PostgresContainer::new(PostgresConfig::for_test(container_name, volume_name, port));
+        container
+            .start()
+            .await
+            .expect("start the pgvector container");
+        let store = Store::connect(&format!(
+            "postgres://locus:test-password@127.0.0.1:{port}/locus"
+        ))
+        .await
+        .expect("connect the store pool");
+
+        query(
+            "CREATE TABLE fts_documents (
+                id INTEGER PRIMARY KEY,
+                body TEXT NOT NULL,
+                search tsvector GENERATED ALWAYS AS (to_tsvector('english', body)) STORED
+            )",
+        )
+        .execute(store.pool())
+        .await
+        .expect("create a document table with a tsvector column");
+        query("CREATE INDEX fts_documents_search_idx ON fts_documents USING GIN (search)")
+            .execute(store.pool())
+            .await
+            .expect("create the tsvector index");
+        query(
+            "INSERT INTO fts_documents (id, body) VALUES
+                (1, 'The PostgreSQL full text index returns this matching document.'),
+                (2, 'A different document does not contain the search term.')",
+        )
+        .execute(store.pool())
+        .await
+        .expect("insert full-text documents");
+
+        let matching_id: i32 = query_scalar(
+            "SELECT id
+             FROM fts_documents
+             WHERE search @@ websearch_to_tsquery('english', 'PostgreSQL full text index')",
+        )
+        .fetch_one(store.pool())
+        .await
+        .expect("query the matching full-text document");
+        assert_eq!(matching_id, 1);
+    }
+}
+
+#[cfg(test)]
 mod schema_core {
     use std::{
         net::TcpListener,
