@@ -171,6 +171,96 @@ async fn falls_back_up() {
 
 #[cfg(test)]
 #[tokio::test]
+async fn resolved_id_on_run() {
+    let port = unused_port();
+    let suffix = format!("{}-{port}", std::process::id());
+    let container_name = format!("locus-model-run-test-{suffix}");
+    let volume_name = format!("locus-model-run-test-data-{suffix}");
+    let _cleanup = DockerCleanup {
+        container_name: container_name.clone(),
+        volume_name: volume_name.clone(),
+    };
+    let container =
+        PostgresContainer::new(PostgresConfig::for_test(container_name, volume_name, port));
+    container
+        .start()
+        .await
+        .expect("start the resolved model run test container");
+    let store = Store::connect(&container.database_url())
+        .await
+        .expect("connect the store pool");
+    store
+        .run_migrations(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations"),
+            &NoopMigrationBackup,
+            &test_backup_config(),
+        )
+        .await
+        .expect("run migrations");
+
+    const PROJECT_ID: &str = "00000000-0000-0000-0000-000000000011";
+    const AGENT_DEF_ID: &str = "00000000-0000-0000-0000-000000000012";
+    const SESSION_ID: &str = "00000000-0000-0000-0000-000000000013";
+    const RUN_ID: &str = "00000000-0000-0000-0000-000000000014";
+
+    query("INSERT INTO core.projects (id, name) VALUES ($1::uuid, 'resolved model run test')")
+        .bind(PROJECT_ID)
+        .execute(store.pool())
+        .await
+        .expect("insert project");
+    query(
+        "INSERT INTO agents.agent_defs (id, name, version, frontmatter, body)
+         VALUES ($1::uuid, 'resolved model test agent', 1, '{}'::jsonb, 'test agent')",
+    )
+    .bind(AGENT_DEF_ID)
+    .execute(store.pool())
+    .await
+    .expect("insert agent definition");
+    query(
+        "INSERT INTO agents.sessions (id, project_id, agent_def_id, name, branch)
+         VALUES ($1::uuid, $2::uuid, $3::uuid, 'resolved model test session', 'agent/model-test')",
+    )
+    .bind(SESSION_ID)
+    .bind(PROJECT_ID)
+    .bind(AGENT_DEF_ID)
+    .execute(store.pool())
+    .await
+    .expect("insert session");
+    query(
+        "INSERT INTO core.model_tier_settings (project_id, harness_name, tier, model_id)
+         VALUES ($1::uuid, 'test-harness', 'high', 'model-high')",
+    )
+    .bind(PROJECT_ID)
+    .execute(store.pool())
+    .await
+    .expect("insert model tier setting");
+
+    let resolved_model_id = resolve_tier(&store, PROJECT_ID, "test-harness", "high")
+        .await
+        .expect("resolve configured model tier")
+        .expect("configured high tier resolves to a model id");
+    query(
+        "INSERT INTO agents.runs (id, session_id, resolved_model_id, status)
+         VALUES ($1::uuid, $2::uuid, $3, 'queued')",
+    )
+    .bind(RUN_ID)
+    .bind(SESSION_ID)
+    .bind(&resolved_model_id)
+    .execute(store.pool())
+    .await
+    .expect("record run with its resolved model id");
+
+    let recorded_model_id: String =
+        query_scalar("SELECT resolved_model_id FROM agents.runs WHERE id = $1::uuid")
+            .bind(RUN_ID)
+            .fetch_one(store.pool())
+            .await
+            .expect("read the run's resolved model id");
+    assert_eq!(recorded_model_id, resolved_model_id);
+}
+
+#[cfg(test)]
+#[tokio::test]
 async fn never_falls_down() {
     let port = unused_port();
     let suffix = format!("{}-{port}", std::process::id());
