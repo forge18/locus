@@ -898,11 +898,23 @@ mod schema_memory {
             assert!(exists, "memory.store.{column} exists");
         }
 
+        let embedding_type: String = query_scalar(
+            "SELECT udt_name
+                FROM information_schema.columns
+                WHERE table_schema = 'memory' AND table_name = 'store' AND column_name = 'embedding'",
+        )
+        .fetch_one(store.pool())
+        .await
+        .expect("query the durable memory embedding type");
+        assert_eq!(
+            embedding_type, "vector",
+            "memory.store.embedding uses pgvector"
+        );
+
         for index in [
             "memory_core_project_agent_idx",
             "memory_store_project_scope_idx",
             "memory_store_project_path_idx",
-            "memory_store_embedding_hnsw_idx",
         ] {
             let exists: bool = query_scalar(
                 "SELECT EXISTS (
