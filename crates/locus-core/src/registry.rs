@@ -46,6 +46,14 @@ pub enum RegistryLoadError {
         path: PathBuf,
         extension: &'static str,
     },
+    #[error(
+        "harness definition `{path}` has unknown materialization strategy `{via}` for layout extension `{extension}`"
+    )]
+    UnknownMaterializationStrategy {
+        path: PathBuf,
+        extension: &'static str,
+        via: String,
+    },
 }
 
 /// Load every harness definition directly in `directory` or in one plugin subdirectory.
@@ -81,14 +89,14 @@ pub fn load_from_directory(
                     path: path.clone(),
                     source,
                 })?;
-            let document: toml::Value = toml::from_str(&definition).map_err(|source| {
+            let mut document: toml::Value = toml::from_str(&definition).map_err(|source| {
                 RegistryLoadError::ParseDefinition {
                     path: path.clone(),
                     source,
                 }
             })?;
-            validate_layout_extensions(&document, &path)?;
-            toml::from_str(&definition)
+            validate_layout_extensions(&mut document, &path)?;
+            HarnessDefinition::deserialize(document)
                 .map_err(|source| RegistryLoadError::ParseDefinition { path, source })
         })
         .collect()
@@ -105,17 +113,52 @@ const REQUIRED_LAYOUT_EXTENSIONS: &[&str] = &[
     "context",
 ];
 
+const MATERIALIZATION_STRATEGIES: &[&str] = &[
+    "dir",
+    "merged-into",
+    "listed-in",
+    "entries-in",
+    "plugin",
+    "core-driven",
+];
+
 fn validate_layout_extensions(
-    document: &toml::Value,
+    document: &mut toml::Value,
     path: &Path,
 ) -> Result<(), RegistryLoadError> {
-    let layout = document.get("layout").and_then(toml::Value::as_table);
+    let Some(layout) = document
+        .get_mut("layout")
+        .and_then(toml::Value::as_table_mut)
+    else {
+        return Err(RegistryLoadError::MissingLayoutExtension {
+            path: path.to_path_buf(),
+            extension: REQUIRED_LAYOUT_EXTENSIONS[0],
+        });
+    };
 
     for extension in REQUIRED_LAYOUT_EXTENSIONS {
-        if !layout.is_some_and(|layout| layout.contains_key(*extension)) {
+        let Some(entry) = layout
+            .get_mut(*extension)
+            .and_then(toml::Value::as_table_mut)
+        else {
             return Err(RegistryLoadError::MissingLayoutExtension {
                 path: path.to_path_buf(),
                 extension,
+            });
+        };
+        let Some(via) = entry.get("via").and_then(toml::Value::as_str) else {
+            continue;
+        };
+
+        if via == "file" {
+            entry.insert("via".into(), toml::Value::String("dir".into()));
+            continue;
+        }
+        if !MATERIALIZATION_STRATEGIES.contains(&via) {
+            return Err(RegistryLoadError::UnknownMaterializationStrategy {
+                path: path.to_path_buf(),
+                extension,
+                via: via.into(),
             });
         }
     }
@@ -372,8 +415,9 @@ fn rejects_unknown_strategy() {
     ));
     std::fs::create_dir_all(&registry).expect("temporary registry directory exists");
 
-    let mut definition: toml::Value = toml::from_str(include_str!("../../../harnesses/claude.toml"))
-        .expect("reference declaration parses");
+    let mut definition: toml::Value =
+        toml::from_str(include_str!("../../../harnesses/claude.toml"))
+            .expect("reference declaration parses");
     definition["layout"]["agents"]["via"] = toml::Value::String("unknown".into());
     let path = registry.join("unknown.toml");
     std::fs::write(
@@ -428,6 +472,12 @@ fn loads_all_twelve() {
     std::fs::remove_dir_all(registry).expect("temporary registry directory is removed");
 
     assert_eq!(harnesses.len(), 12);
+    assert!(
+        harnesses
+            .iter()
+            .all(|harness| harness.layout.context.via == "dir"),
+        "the `file` compatibility alias is normalized to `dir`"
+    );
     assert_eq!(
         harnesses
             .iter()
