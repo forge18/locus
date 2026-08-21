@@ -494,6 +494,22 @@ pub fn spawn(
     ports: &PortAllocator,
     runtime: &mut impl ContainerRuntime,
 ) -> Result<SpawnedRun> {
+    let port = ports.allocate()?;
+    match spawn_at_port(run, request, port, runtime) {
+        Ok(spawned) => Ok(spawned),
+        Err(error) => {
+            ports.release(port);
+            Err(error)
+        }
+    }
+}
+
+fn spawn_at_port(
+    run: &mut Run,
+    request: SpawnRequest<'_>,
+    port: u16,
+    runtime: &mut impl ContainerRuntime,
+) -> Result<SpawnedRun> {
     if run.status != RunStatus::Queued {
         bail!("only queued runs may be spawned")
     }
@@ -517,7 +533,6 @@ pub fn spawn(
     let image_disposition = runtime
         .build_or_reuse_image(&image)
         .context("build or reuse agent image")?;
-    let port = ports.allocate()?;
     let setup =
         crate::sandbox::workspace_clone_command(&request.workspace_remote, &run.id.to_string())?;
     let mut environment = request
@@ -542,15 +557,13 @@ pub fn spawn(
         .to_vec(),
         network: project_network(request.project_id),
     };
-    if let Err(error) = runtime.start_container(&container) {
-        ports.release(port);
-        return Err(error).context("start agent container");
-    }
+    runtime
+        .start_container(&container)
+        .context("start agent container")?;
     let pty_stream = PtyStream::new(PTY_STREAM_CAPACITY);
-    if let Err(error) = runtime.attach_pty(&container.name, AGENT_PTY, pty_stream.clone()) {
-        ports.release(port);
-        return Err(error).context("attach agent PTY");
-    }
+    runtime
+        .attach_pty(&container.name, AGENT_PTY, pty_stream.clone())
+        .context("attach agent PTY")?;
 
     run.status = RunStatus::Running;
     Ok(SpawnedRun {
@@ -562,6 +575,46 @@ pub fn spawn(
         port,
         pty_stream,
     })
+}
+
+/// Reserve a run port in Postgres before starting the container. A failed synchronous start
+/// releases the durable reservation, while successful runs retain it until terminal cleanup.
+pub async fn spawn_persisted(
+    store: &Store,
+    run: &mut Run,
+    request: SpawnRequest<'_>,
+    runtime: &mut impl ContainerRuntime,
+) -> Result<SpawnedRun> {
+    let port = store.allocate_run_port(run.id).await?;
+    match spawn_at_port(run, request, port, runtime) {
+        Ok(spawned) => Ok(spawned),
+        Err(error) => {
+            store.release_run_port(run.id).await?;
+            Err(error)
+        }
+    }
+}
+
+/// Cancel the container and release its durable port reservation after it reaches a terminal state.
+pub async fn cancel_persisted(
+    store: &Store,
+    run: &mut Run,
+    reason: impl AsRef<str>,
+    runtime: &mut impl ContainerRuntime,
+) -> Result<()> {
+    cancel(run, reason, runtime)?;
+    store.release_run_port(run.id).await
+}
+
+/// Release a durable port after any terminal outcome that did not use cancellation.
+pub async fn release_terminal_port(store: &Store, run: &Run) -> Result<()> {
+    if matches!(
+        run.status,
+        RunStatus::Queued | RunStatus::Running | RunStatus::Paused
+    ) {
+        bail!("only terminal runs release durable ports")
+    }
+    store.release_run_port(run.id).await
 }
 
 /// Stop a running agent container and retain the caller's cancellation reason on its run.
@@ -1158,9 +1211,7 @@ mod spawns {
     use crate::{
         materialize::{ExtensionEntry, ExtensionSet},
         registry::load_from_directory,
-        sandbox::{
-            agent_image_tag, Mount, PortAllocator, PtyAttachment, ToolPin, AGENT_PTY, CONFIG_SOURCE,
-        },
+        sandbox::{agent_image_tag, Mount, PtyAttachment, ToolPin, AGENT_PTY, CONFIG_SOURCE},
         session::{Run, RunStatus},
     };
 
@@ -1207,7 +1258,7 @@ mod spawns {
     }
 
     #[test]
-    fn materializes_builds_starts_and_attaches_the_agent_pty() {
+    fn persisted_spawn_uses_the_reserved_port() {
         let registry =
             load_from_directory(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../harnesses"))
                 .expect("registry loads");
@@ -1250,9 +1301,9 @@ mod spawns {
             plugin: None,
         };
         let mut runtime = RecordingRuntime::default();
-        let ports = PortAllocator::default();
 
-        let spawned = spawn(&mut run, request, &ports, &mut runtime).expect("run spawns");
+        let spawned = spawn_at_port(&mut run, request, 43_210, &mut runtime)
+            .expect("run spawns with its durable reservation");
 
         let image = agent_image_tag(
             "sha256:base",
@@ -1277,6 +1328,7 @@ mod spawns {
             ]
         );
         assert_eq!(spawned.image_disposition, ImageDisposition::Built);
+        assert_eq!(spawned.port, 43_210);
         assert_eq!(spawned.container.mounts[1].destination, CONFIG_SOURCE);
         assert_eq!(
             spawned.container.mounts,
