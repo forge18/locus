@@ -12,6 +12,7 @@ use std::sync::{Mutex, MutexGuard, OnceLock};
 
 use anyhow::{bail, Context, Result};
 use sqlx::{migrate::Migrator, postgres::PgPoolOptions, PgPool};
+use uuid::Uuid;
 
 use crate::{
     backup::{gate_migration, MigrationBackup, MigrationRunner, RetainedBackupConfig},
@@ -271,6 +272,44 @@ impl Store {
 
     pub fn pool(&self) -> &PgPool {
         &self.pool
+    }
+
+    /// Atomically reserves one run port in the durable agent schema.
+    pub async fn allocate_run_port(&self, run_id: Uuid) -> Result<u16> {
+        for _ in 0..1_000 {
+            let port = sqlx::query_scalar::<_, i32>(
+                "WITH candidate AS (
+                    SELECT candidate.port
+                    FROM generate_series(43000, 43999) AS candidate(port)
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM agents.run_ports WHERE agents.run_ports.port = candidate.port
+                    )
+                    LIMIT 1
+                 )
+                 INSERT INTO agents.run_ports (run_id, port)
+                 SELECT $1, port FROM candidate
+                 ON CONFLICT DO NOTHING
+                 RETURNING port",
+            )
+            .bind(run_id)
+            .fetch_optional(&self.pool)
+            .await
+            .context("allocate durable run port")?;
+            if let Some(port) = port {
+                return u16::try_from(port).context("allocated port is outside u16 range");
+            }
+        }
+        bail!("no Locus ports remain")
+    }
+
+    /// Releases a run's durable port reservation once its container is gone.
+    pub async fn release_run_port(&self, run_id: Uuid) -> Result<()> {
+        sqlx::query("DELETE FROM agents.run_ports WHERE run_id = $1")
+            .bind(run_id)
+            .execute(&self.pool)
+            .await
+            .context("release durable run port")?;
+        Ok(())
     }
 
     /// Persists the normalized event and its untouched source record as JSONB.
