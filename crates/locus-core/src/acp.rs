@@ -301,6 +301,97 @@ mod permission_request {
 }
 
 #[cfg(test)]
+mod indistinguishable {
+    use serde_json::json;
+
+    use crate::telemetry::{AcpAdapter, Adapter, EventCollector, EventVerb, HooksAdapter};
+
+    #[test]
+    fn acp_and_hook_events_reach_downstream_with_the_same_shape() {
+        let acp = AcpAdapter
+            .normalize(json!({
+                "method": "session/update",
+                "params": {
+                    "update": {
+                        "sessionUpdate": "agent_message_chunk",
+                        "content": {"type": "text", "text": "same response"},
+                    },
+                },
+            }))
+            .expect("normalize ACP update")
+            .pop()
+            .expect("ACP emits an assistant event");
+        let hooks_adapter = HooksAdapter::with_table(
+            "claude",
+            [
+                ("AssistantMessage", EventVerb::Assistant),
+                ("PreToolUse", EventVerb::ToolCall),
+            ],
+        );
+        let hooks = hooks_adapter
+            .normalize(json!({
+                "harness": "claude",
+                "hook": "AssistantMessage",
+                "raw": {"text": "same response"},
+            }))
+            .expect("normalize hook event")
+            .pop()
+            .expect("hook emits an assistant event");
+        let acp_tool = AcpAdapter
+            .normalize(json!({
+                "method": "session/update",
+                "params": {
+                    "update": {
+                        "sessionUpdate": "tool_call",
+                        "title": "read_file",
+                        "rawInput": {"path": "PLAN.md"},
+                    },
+                },
+            }))
+            .expect("normalize ACP tool call")
+            .pop()
+            .expect("ACP emits a tool event");
+        let hook_tool = hooks_adapter
+            .normalize(json!({
+                "harness": "claude",
+                "hook": "PreToolUse",
+                "raw": {
+                    "tool_name": "read_file",
+                    "tool_input": {"path": "PLAN.md"},
+                },
+            }))
+            .expect("normalize hook tool call")
+            .pop()
+            .expect("hook emits a tool event");
+
+        let acp_collector = EventCollector::new(2);
+        let hook_collector = EventCollector::new(2);
+        let acp_events = [
+            acp_collector.capture("run-1", acp),
+            acp_collector.capture("run-1", acp_tool),
+        ];
+        let hook_events = [
+            hook_collector.capture("run-1", hooks),
+            hook_collector.capture("run-1", hook_tool),
+        ];
+
+        for (acp_event, hook_event) in acp_events.into_iter().zip(hook_events) {
+            assert_eq!(acp_event.run_id, hook_event.run_id);
+            assert_eq!(acp_event.seq, hook_event.seq);
+            assert_eq!(acp_event.verb, hook_event.verb);
+            assert_eq!(acp_event.text, hook_event.text);
+            assert_eq!(acp_event.tool, hook_event.tool);
+            assert_eq!(acp_event.args, hook_event.args);
+            assert_eq!(acp_event.usage, hook_event.usage);
+            assert_ne!(
+                acp_event.raw, hook_event.raw,
+                "raw retains each source record"
+            );
+        }
+    }
+}
+
+#[cfg(test)]
 mod mapping_is_shared {
     use serde_json::json;
 

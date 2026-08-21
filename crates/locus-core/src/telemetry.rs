@@ -377,7 +377,8 @@ impl Adapter for AcpAdapter {
         let update = raw
             .pointer("/params/update")
             .or_else(|| raw.get("update"))
-            .unwrap_or(&raw);
+            .cloned()
+            .unwrap_or_else(|| raw.clone());
         let kind = update
             .get("sessionUpdate")
             .or_else(|| update.get("type"))
@@ -397,7 +398,32 @@ impl Adapter for AcpAdapter {
             _ => None,
         };
         Ok(verb
-            .map(|verb| CapturedEvent::from_raw(verb, raw))
+            .map(|verb| {
+                let mut event = CapturedEvent::from_raw(verb, raw);
+                let update = update.as_object();
+                event.text = event.text.or_else(|| {
+                    update.and_then(text_from).or_else(|| {
+                        update
+                            .and_then(|update| update.get("content"))
+                            .and_then(Value::as_object)
+                            .and_then(text_from)
+                    })
+                });
+                event.tool = event.tool.or_else(|| {
+                    update.and_then(tool_from).or_else(|| {
+                        update
+                            .and_then(|update| update.get("title"))
+                            .and_then(Value::as_str)
+                            .map(str::to_owned)
+                    })
+                });
+                event.args = event.args.or_else(|| {
+                    update
+                        .and_then(args_from)
+                        .or_else(|| update.and_then(|update| update.get("rawInput")).cloned())
+                });
+                event
+            })
             .into_iter()
             .collect())
     }
