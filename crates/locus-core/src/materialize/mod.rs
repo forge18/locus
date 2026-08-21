@@ -14,7 +14,10 @@ use std::{
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 
-use crate::registry::{HarnessDefinition, HarnessRegistry, LayoutEntry};
+use crate::{
+    lint::validate_filenames,
+    registry::{HarnessDefinition, HarnessRegistry, LayoutEntry},
+};
 
 pub const EXTENSIONS: [&str; 8] = [
     "agents",
@@ -356,6 +359,8 @@ pub enum MaterializeError {
     Frozen,
     #[error("materializations were not byte-identical")]
     NonDeterministic,
+    #[error("invalid linter definition: {0}")]
+    InvalidLinter(String),
 }
 
 /// Plugin invocation settings. The plugin returns data; it never owns the config tree.
@@ -512,6 +517,10 @@ pub fn materialize(
     // Files must exist before merged context is appended to it.
     for (extension, entry) in harness.layout.named_entries() {
         let entries = extensions.sorted_entries(extension);
+        if extension == "linters" {
+            validate_filenames(entries.iter().map(|entry| &entry.name))
+                .map_err(|error| MaterializeError::InvalidLinter(error.to_string()))?;
+        }
         match entry.via.as_str() {
             "dir" => materialize_dir(extension, entry, &entries, root, &mut tree)?,
             "listed-in" => {
@@ -1456,6 +1465,72 @@ fn all_twelve_all_eight() {
             });
         let result = materialize(harness, &extensions, root, plugin.as_ref());
         assert!(result.is_ok(), "{}: {:?}", harness.name, result.err());
+    }
+}
+
+#[cfg(test)]
+mod lint {
+    use super::*;
+
+    #[test]
+    fn materializes() {
+        let registry = registry();
+        let harness = registry.by_name("claude").expect("Claude registry entry");
+        let mut extensions = ExtensionSet::default();
+        extensions.insert(
+            "linters",
+            vec![
+                ExtensionEntry::new("format.sh", json!({}), "exit 0"),
+                ExtensionEntry::new("format.md", json!({}), "Run formatter before commit."),
+            ],
+        );
+
+        let (tree, _) = materialize(harness, &extensions, root("linters"), None)
+            .expect("linter pair materializes");
+        assert_eq!(
+            tree.file("linters/format.sh").expect("check").content,
+            "exit 0"
+        );
+        assert_eq!(
+            tree.file("linters/format.md").expect("rule").content,
+            "Run formatter before commit."
+        );
+    }
+
+    #[test]
+    fn identical_across_harnesses() {
+        let mut extensions = ExtensionSet::default();
+        extensions.insert(
+            "linters",
+            vec![
+                ExtensionEntry::new("format.sh", json!({}), "exit 0"),
+                ExtensionEntry::new("format.md", json!({}), "Run formatter before commit."),
+            ],
+        );
+
+        for harness in registry().iter() {
+            let root = root(format!("linters-{}", harness.name).as_str());
+            let plugin = harness
+                .layout
+                .named_entries()
+                .iter()
+                .any(|(_, entry)| entry.via == "plugin")
+                .then(|| PluginHost {
+                    program: PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                        .join("../../harnesses/pi/materialize"),
+                    args: vec![],
+                });
+            let (tree, _) = materialize(harness, &extensions, root, plugin.as_ref())
+                .unwrap_or_else(|error| panic!("{}: {error}", harness.name));
+            assert_eq!(
+                tree.file("linters/format.sh").expect("check").content,
+                "exit 0"
+            );
+            assert_eq!(
+                tree.file("linters/format.md").expect("rule").content,
+                "Run formatter before commit."
+            );
+        }
     }
 }
 

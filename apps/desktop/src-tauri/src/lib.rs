@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use locus_core::{
     agents::{seeded_definitions, AgentDefinition},
+    lint::discover as discover_linters,
     materialize::{reports_for_registry, MaterializationReport},
     registry::load_from_directory,
     telemetry::{Event, EventCollector},
@@ -117,6 +118,13 @@ fn telemetry_subscribe(collector: State<'_, EventCollector>, channel: Channel<Ev
 }
 
 #[tauri::command]
+fn linter_count(root: String) -> Result<usize, String> {
+    discover_linters(root)
+        .map(|linters| linters.len())
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 fn materialization_report() -> Result<Vec<MaterializationReport>, String> {
     let registry = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(HARNESS_REGISTRY);
     load_from_directory(registry)
@@ -170,6 +178,7 @@ pub fn run() {
             agent_defs_list,
             harness_tier_grid,
             telemetry_subscribe,
+            linter_count,
             materialization_report
         ])
         .run(tauri::generate_context!())
@@ -187,6 +196,25 @@ mod tests {
         let builder = agent_def("builder".into()).expect("builder seed definition");
         assert_eq!(builder.name, "builder");
         assert_eq!(builder.frontmatter["task_class"], "code");
+    }
+
+    #[test]
+    fn linters_count_is_served_by_core() {
+        let root = std::env::temp_dir().join(format!(
+            "locus-linter-count-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("clock after Unix epoch")
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&root).expect("create linter directory");
+        std::fs::write(root.join("format.sh"), "exit 0").expect("write check");
+        std::fs::write(root.join("format.md"), "Use the project formatter.").expect("write rule");
+        assert_eq!(
+            linter_count(root.display().to_string()).expect("count linters"),
+            1
+        );
+        std::fs::remove_dir_all(root).expect("remove linter directory");
     }
 
     #[test]

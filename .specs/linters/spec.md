@@ -58,8 +58,8 @@ only "line 42: bad" costs a lookup; one that prints why the rule exists resolves
 7. A linter with a `.sh` but no `.md` is refused at materialization, naming the missing rule file.
 8. Linter output lands as evidence on a board transition.
 
-## Open
+## Decision
 
-- Whether a linter can be scoped to a path glob the way `rules` are. PLAN.md describes linters as "per
-  directory", which reads like directory scoping, but does not say whether that is the directory the
-  linter lives in or the directory it applies to.
+Linters are directory-only in M1. Their materialized `/locus/config/linters/` directory is their
+scope; path globs are not accepted. This keeps `--changed` as an input reduction rather than a
+second, competing scope model.

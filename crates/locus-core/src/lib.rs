@@ -12,6 +12,7 @@ pub mod board;
 pub mod bus;
 pub mod daemon;
 pub mod invoke;
+pub mod lint;
 pub mod mail;
 pub mod materialize;
 pub mod memory;

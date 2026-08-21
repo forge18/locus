@@ -4,11 +4,12 @@
 //! own: every verb is a round trip to locus-core, so behaviour cannot drift between
 //! what an agent sees and what the app sees.
 
-use std::{env, path::PathBuf};
+use std::{env, path::PathBuf, process::Command};
 
 use anyhow::{bail, Context, Result};
 use locus_core::{
     backup::{Backup, RetainedBackupConfig, SystemBackupFilesystem, SystemProcessRunner},
+    lint::{run as run_linters, verify as verify_linters, LintRequest},
     registry::load_from_directory,
 };
 
@@ -17,6 +18,7 @@ pub mod sock;
 
 const DEFAULT_ARTIFACT_ROOT: &str = "/var/lib/locus/artifacts";
 const DEFAULT_BACKUP_ROOT: &str = "/var/lib/locus/backups";
+const DEFAULT_LINTER_ROOT: &str = "/locus/config/linters";
 
 fn main() -> Result<()> {
     let arguments: Vec<_> = env::args().skip(1).collect();
@@ -26,6 +28,7 @@ fn main() -> Result<()> {
             Ok(())
         }
         Some("backup") => backup(),
+        Some("lint") => lint(&arguments[1..]),
         Some("harness") => harness(),
         Some("hook") => {
             let _ = hook::run();
@@ -42,6 +45,53 @@ fn dispatch(arguments: &[String]) -> Result<()> {
     let response = runtime.block_on(sock::dispatch(sock::DEFAULT_SOCKET_PATH, verb, args))?;
     println!("{}", sock::compact_json(&sock::key_pack(response))?);
     Ok(())
+}
+
+fn lint(arguments: &[String]) -> Result<()> {
+    let mut request = LintRequest::default();
+    let mut index = 0;
+    while let Some(argument) = arguments.get(index) {
+        match argument.as_str() {
+            "--changed" => request.changed = true,
+            "--only" => {
+                index += 1;
+                request.only = Some(
+                    arguments
+                        .get(index)
+                        .context("--only requires a linter name")?
+                        .clone(),
+                );
+            }
+            other => bail!("unknown lint option: {other}"),
+        }
+        index += 1;
+    }
+    let project = env_path("LOCUS_WORKSPACE", ".");
+    if request.changed {
+        request.changed_paths = changed_paths(&project)?;
+    }
+    let report = run_linters(
+        env_path("LOCUS_LINTER_ROOT", DEFAULT_LINTER_ROOT),
+        &project,
+        &request,
+    )?;
+    print!("{}", report.evidence());
+    verify_linters(&report)
+}
+
+fn changed_paths(project: &std::path::Path) -> Result<Vec<PathBuf>> {
+    let output = Command::new("git")
+        .args(["diff", "--name-only"])
+        .current_dir(project)
+        .output()
+        .context("read run diff for --changed")?;
+    if !output.status.success() {
+        bail!("read run diff for --changed failed")
+    }
+    Ok(String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(PathBuf::from)
+        .collect())
 }
 
 fn harness() -> Result<()> {
@@ -84,4 +134,48 @@ fn env_path(variable: &str, default: &str) -> PathBuf {
     env::var_os(variable)
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(default))
+}
+
+#[cfg(test)]
+mod lint {
+    use super::*;
+
+    #[test]
+    fn runs_all() {
+        let command = vec!["lint".into()];
+        assert_eq!(
+            sock::allowed_verb(&command)
+                .expect("lint is allowlisted")
+                .0
+                .verb,
+            "lint"
+        );
+    }
+
+    #[test]
+    fn only() {
+        let arguments: Vec<String> = vec!["--only".into(), "format".into()];
+        assert_eq!(arguments[1], "format");
+    }
+
+    #[test]
+    fn changed() {
+        let request = LintRequest {
+            changed: true,
+            ..LintRequest::default()
+        };
+        assert!(request.changed);
+    }
+
+    #[test]
+    fn exit_code() {
+        let report = locus_core::lint::LintReport::default();
+        assert!(verify_linters(&report).is_ok());
+    }
+
+    #[test]
+    fn prints_the_rule() {
+        let report = locus_core::lint::LintReport::default();
+        assert!(report.evidence().is_empty());
+    }
 }
