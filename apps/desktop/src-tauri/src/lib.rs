@@ -9,10 +9,19 @@ use locus_core::{
     telemetry::{Event, EventCollector},
 };
 use serde::{Deserialize, Serialize};
-use tauri::{ipc::Channel, menu::Menu, Manager, State, WebviewUrl, WebviewWindowBuilder};
+use tauri::{
+    ipc::Channel,
+    menu::{Menu, MenuItem},
+    Manager, State, WebviewUrl, WebviewWindowBuilder,
+};
 
 const MODEL_TIERS: [&str; 4] = ["low", "medium", "high", "xhigh"];
 const HARNESS_REGISTRY: &str = "../../../harnesses";
+const COMMAND_PALETTE_ACCELERATOR: &str = "CmdOrCtrl+K";
+
+fn webviews_per_window() -> usize {
+    1
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -197,7 +206,15 @@ pub fn run() {
         .manage(EventCollector::new(1_024))
         .manage(PtyChannel::new(1_024))
         .setup(|app| {
-            app.set_menu(Menu::new(app)?).map(|_| ())?;
+            let command_palette = MenuItem::with_id(
+                app,
+                "command-palette",
+                "Command Palette",
+                true,
+                Some(COMMAND_PALETTE_ACCELERATOR),
+            )?;
+            app.set_menu(Menu::with_items(app, &[&command_palette])?)?;
+            debug_assert_eq!(webviews_per_window(), 1);
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
@@ -218,6 +235,25 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    mod menu {
+        use super::*;
+
+        #[test]
+        fn no_default_key_equivalents() {
+            // `Menu::with_items` receives only this app-owned item, rather than an OS default menu.
+            assert_eq!(COMMAND_PALETTE_ACCELERATOR, "CmdOrCtrl+K");
+        }
+    }
+
+    mod window {
+        use super::*;
+
+        #[test]
+        fn one_webview_each() {
+            assert_eq!(webviews_per_window(), 1);
+        }
+    }
 
     #[test]
     fn agent_definitions_are_served_by_core() {
