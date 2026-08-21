@@ -1,0 +1,29 @@
+/* The one stylesheet the app imports. Order matters: tokens define the values,
+   everything after reads them. */
+@import '../assets/fonts/fonts.css';
+@import './tokens.css';
+@import './type.css';
+@import './motion.css';
+@import './interaction.css';
+@import '../ui/ui.css';
+@import '../shell/shell.css';
+@import '../screens/screens.css';
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body, #root { height: 100%; width: 100%; overflow: hidden; }
+
+/* Scrollbars, where a list is genuinely longer than any window.
+   Thin and only visible while the surface is hovered — a chunky permanent bar in
+   a dense tool reads as a layout that did not fit, which is what the fixed
+   1440x900 frame actually was. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+*:hover { scrollbar-color: var(--line2) transparent; }
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: transparent; border-radius: 8px; }
+*:hover::-webkit-scrollbar-thumb { background: var(--line2); }
+*::-webkit-scrollbar-corner { background: transparent; }

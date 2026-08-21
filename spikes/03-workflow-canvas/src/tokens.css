@@ -1,0 +1,70 @@
+/* Only the tokens the four node kinds and the canvas actually use. The full
+   palette lives in docs/design_handoff_locus_desktop_ui and belongs to
+   `.specs/design-system`, not to a spike. */
+:root {
+  --bg: #1d2731;
+  --sf: #22303c;
+  --sf3: #314454;
+  --blue-lit: #0d5480;
+  --ac: #ffbb39;
+  --tx: #eef2f6;
+  --mu: rgba(238, 242, 246, .56);
+  --mu2: rgba(238, 242, 246, .34);
+  --line2: rgba(238, 242, 246, .18);
+  --ok: #4fa07f;
+  --bad: #d4614f;
+  --fm: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+  --fs: Inter, system-ui, sans-serif;
+}
+
+html, body, #root { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--tx); font: 400 12px/1.5 var(--fs); }
+
+/* 24px dot grid, per the handoff's screen 12. */
+.canvas {
+  height: 100%;
+  background-color: var(--bg);
+  background-image: radial-gradient(rgba(238, 242, 246, .085) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* Node card: radius 9, tinted 5x9px header strip, right-side state. */
+.wf-node {
+  width: 188px;
+  border-radius: 9px;
+  background: var(--sf);
+  box-shadow: 0 0 0 1px var(--line2), 0 8px 22px rgba(0, 0, 0, .45);
+  overflow: hidden;
+  font: 400 11.5px/1.5 var(--fs);
+}
+.wf-node[data-selected='true'] { box-shadow: inset 0 0 0 2px var(--ac), 0 10px 26px rgba(0, 0, 0, .5); }
+
+.wf-strip {
+  display: flex; align-items: center; gap: 6px;
+  height: 9px; padding: 5px 9px;
+  font: 500 9.5px/1 var(--fs); letter-spacing: .11em; text-transform: uppercase;
+}
+.wf-strip .state { margin-left: auto; color: var(--mu2); font-family: var(--fm); letter-spacing: 0; text-transform: none; }
+
+.wf-node[data-kind='Goal']      .wf-strip { background: rgba(255, 187, 57, .16); }
+.wf-node[data-kind='Agent']     .wf-strip { background: var(--blue-lit); }
+.wf-node[data-kind='Condition'] .wf-strip { background: rgba(143, 184, 214, .18); }
+.wf-node[data-kind='Verify']    .wf-strip { background: rgba(79, 160, 127, .18); }
+
+.wf-body  { padding: 9px; display: grid; gap: 4px; }
+.wf-title { font-weight: 500; font-size: 12px; }
+.wf-mono  { font-family: var(--fm); font-size: 10.5px; color: var(--mu); word-break: break-all; }
+.wf-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.wf-chip  { background: var(--sf3); border-radius: 5px; padding: 2px 6px; font-family: var(--fm); font-size: 10px; color: var(--mu); }
+
+/* The dashed rounded rect grouping a Loop's members, positioned from them. */
+.wf-loop-group {
+  position: absolute; top: 0; left: 0; z-index: 0;
+  transform-origin: 0 0;
+  border: 1px dashed var(--line2); border-radius: 14px; pointer-events: none;
+}
+.wf-loop-group .label {
+  position: absolute; top: -8px; left: 12px;
+  background: var(--bg); padding: 0 6px;
+  font: 500 9.5px/1 var(--fs); letter-spacing: .11em; text-transform: uppercase; color: var(--mu2);
+}

@@ -1,0 +1,14 @@
+{
+  "$comment": "Materialized per run into /locus/config. Byte-deterministic: sorted keys, no timestamps, no run id, no hostname. This tree is the prompt prefix.",
+  "hooks": {
+    "Notification":     [{"hooks": [{"type": "command", "command": "locus-hook Notification"}]}],
+    "PostToolUse":      [{"matcher": "*", "hooks": [{"type": "command", "command": "locus-hook PostToolUse"}]}],
+    "PreCompact":       [{"hooks": [{"type": "command", "command": "locus-hook PreCompact"}]}],
+    "PreToolUse":       [{"matcher": "*", "hooks": [{"type": "command", "command": "locus-hook PreToolUse"}]}],
+    "SessionEnd":       [{"hooks": [{"type": "command", "command": "locus-hook SessionEnd"}]}],
+    "SessionStart":     [{"hooks": [{"type": "command", "command": "locus-hook SessionStart"}]}],
+    "Stop":             [{"hooks": [{"type": "command", "command": "locus-hook Stop"}]}],
+    "SubagentStop":     [{"hooks": [{"type": "command", "command": "locus-hook SubagentStop"}]}],
+    "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "locus-hook UserPromptSubmit"}]}]
+  }
+}

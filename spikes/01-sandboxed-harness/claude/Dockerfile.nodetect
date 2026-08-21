@@ -1,0 +1,30 @@
+# FALSIFIER FIXTURE — this Dockerfile is expected to FAIL to build.
+#
+# Spike 1 Q2 asks whether `detect` fails the build when the harness binary is
+# absent, "rather than silently producing a broken image" (PLAN.md §Images).
+# A passing detect on a correct image proves nothing on its own; this file is
+# the negative case that gives it meaning.
+#
+# It is Dockerfile with exactly one change: the harness install layer removed.
+# Everything else — including the detect step — is identical.
+FROM node:24-bookworm-slim
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      git ca-certificates curl jq procps socat \
+ && rm -rf /var/lib/apt/lists/*
+
+COPY bin/locus bin/locus-hook bin/locus-detect bin/locus-entrypoint bin/locus-sockd /usr/local/bin/
+RUN chmod +x /usr/local/bin/locus /usr/local/bin/locus-hook \
+             /usr/local/bin/locus-detect /usr/local/bin/locus-entrypoint \
+             /usr/local/bin/locus-sockd \
+ && mkdir -p /locus
+
+# >>> the harness install layer belongs here and has been removed <<<
+
+ARG HARNESS_BINARY=claude
+ARG HARNESS_DETECT=--version
+RUN locus-detect "${HARNESS_BINARY}" "${HARNESS_DETECT}"
+
+# Nothing below this line is ever reached.
+CMD ["claude", "--version"]

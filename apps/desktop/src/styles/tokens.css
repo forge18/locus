@@ -1,0 +1,102 @@
+/* Design tokens — the one place a value is written down.
+   Derived from the handoff table (docs/design_handoff_locus_desktop_ui/README.md
+   §Design Tokens), with three deliberate departures from it, each recorded below:
+   text contrast, the type scale, and the fixed window size. */
+
+:root {
+  /* --- grounds and accents, verbatim from the handoff --- */
+  --bg: #1d2731;
+  --bg-deep: #151d25;
+  --sf: #22303c;
+  --sf2: #293947;
+  --sf3: #314454;
+  --blue: #083c5d;
+  --blue-lit: #0d5480;
+  --ac: #ffbb39;
+  --tx: #eef2f6;
+
+  /* --- secondary text: raised for contrast ---
+     The handoff draws --mu at .56 and --mu2 at .34. Measured against the five
+     grounds those are 4.04:1 and 2.46:1 at worst — --mu2 fails WCAG AA on every
+     surface in the app, and it carries most of the metadata. Both are raised to
+     the alpha that clears 4.5:1 everywhere. --mu2 stays a step below --mu so the
+     hierarchy survives; it just no longer buys the step with legibility. */
+  --mu: rgba(238,242,246,.78);
+  --mu2: rgba(238,242,246,.62);
+
+  /* Hairlines are decoration, not text: 3:1 is the bar and they clear it. */
+  --line: rgba(238,242,246,.14);
+  --line2: rgba(238,242,246,.24);
+
+  /* --- status colours, lifted to 4.5:1 on --sf and --sf2 ---
+     The handoff's #4fa07f and #d4614f measure 3.77 and 3.18 on --sf2, where both
+     are used for text. These are the same hues lightened until they pass. */
+  --ok: #68ad91;
+  --bad: #df8a7d;
+  /* The original pair, kept for fills and rings where nothing has to be read. */
+  --ok-solid: #4fa07f;
+  --bad-solid: #d4614f;
+  --fm: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+
+  /* --- accent derivatives: every one resolves from --ac, so changing --ac moves them all --- */
+  --ac-ring: color-mix(in srgb, var(--ac) 55%, transparent);
+  --ac-ring-soft: color-mix(in srgb, var(--ac) 50%, transparent);
+  --ac-wash: color-mix(in srgb, var(--ac) 16%, transparent);
+  --ac-deep: color-mix(in srgb, var(--ac) 36%, #000000);
+  --ac-pale: color-mix(in srgb, var(--ac) 18%, #ffffff);
+  --ac-ink: var(--bg);
+
+  /* --- named colors the handoff uses outside the table --- */
+  --tl-close: #ed6a5e;
+  --tl-min: #f4bf50;
+  --tl-max: #61c554;
+  --code-keyword: #8fb8d6;
+  --diff-add: rgba(79,160,127,.16);
+  --diff-del: rgba(212,97,79,.14);
+  --diff-fold: rgba(238,242,246,.03);
+
+  /* --- body font --- */
+  --fs: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* --- type scale ---
+     The handoff draws 9-27px and calls the density deliberate. At 9.5px, which is
+     where two thirds of the app's text sat, "dense" reads as "unreadable" on a
+     real display. Every step is lifted by about a quarter with a hard 11px floor,
+     which keeps the hierarchy exactly as drawn and makes it legible.
+
+     Sizes are tokens rather than literals so the whole scale moves in one edit —
+     scripts/check-type-scale.sh refuses a raw px font-size anywhere else. */
+  --t-micro: 11px;      /* the smallest label there is */
+  --t-label: 12px;      /* uppercase section labels */
+  --t-meta: 13px;       /* metadata, counts, captions */
+  --t-body: 14px;       /* rows, cards, list items */
+  --t-row: 15px;        /* body copy and table cells */
+  --t-lead: 16px;       /* leading lines and pane titles */
+  --t-title: 19px;      /* screen titles */
+  --t-metric-sm: 22px;
+  --t-metric: 26px;
+  --t-metric-lg: 34px;
+
+  /* --- geometry: radii 5-6 small, 7-9 card, 11 window --- */
+  --r-sm: 5px;
+  --r-md: 6px;
+  --r-card: 7px;
+  --r-lg: 9px;
+  --r-win: 11px;
+
+  /* --- gaps: 2/4/6/9/14 --- */
+  --g-1: 2px;
+  --g-2: 4px;
+  --g-3: 6px;
+  --g-4: 9px;
+  --g-5: 14px;
+
+  /* --- shadows: these three and no others --- */
+  --sh-node: 0 8px 22px rgba(0,0,0,.45);
+  --sh-node-lift: 0 10px 26px rgba(0,0,0,.5);
+  --sh-window: 0 0 0 1px rgba(238,242,246,.13), 0 30px 80px rgba(0,0,0,.6);
+
+  /* --- selection is an inset ring, never an outer glow --- */
+  --ring-sel: inset 0 0 0 1px var(--ac);
+  --ring-sel-soft: inset 0 0 0 1px var(--ac-ring);
+}

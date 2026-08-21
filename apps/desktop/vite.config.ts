@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from "vite";
 import solid from "vite-plugin-solid";
 
@@ -28,5 +29,16 @@ export default defineConfig(async () => ({
       // 3. tell Vite to ignore watching `src-tauri`
       ignored: ["**/src-tauri/**"],
     },
+  },
+
+  test: {
+    environment: "jsdom",
+    globals: true,
+    include: ["test/**/*.test.{ts,tsx}"],
+    // vite-plugin-solid needs the browser condition to resolve solid-js/web in jsdom
+    server: { deps: { inline: [/solid-js/, /@solidjs/] } },
+  },
+  resolve: {
+    conditions: ["development", "browser"],
   },
 }));

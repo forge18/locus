@@ -1,0 +1,199 @@
+// Reads harnesses/*.toml and writes the Workshop fixtures from it.
+//
+// These two fixture sets are computed rather than authored, so they are correct on
+// the first day and stay correct: adding a harness changes the counts with no hand
+// edit, and the stale "27 of 88" the design copy carries can never come back.
+//
+// Output is byte-deterministic — sorted harnesses, sorted extension types, no
+// timestamps. Re-run with: pnpm -C apps/desktop exec tsx scripts/gen-harness-fixtures.ts
+import { readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { parse } from 'smol-toml'
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..')
+const harnessDir = resolve(root, 'harnesses')
+const out = resolve(root, 'apps/desktop/src/fixtures/generated/harnesses.ts')
+
+/** The eight extension types every harness file must state. */
+const EXTENSION_TYPES = [
+  'agents',
+  'commands',
+  'context',
+  'hooks',
+  'linters',
+  'output-styles',
+  'rules',
+  'skills',
+] as const
+
+interface LayoutEntry {
+  via?: string
+  dir?: string
+  file?: string
+  format?: string
+  target?: string
+  weaker_than_native?: string
+}
+
+interface HarnessToml {
+  name: string
+  binary: string
+  launch?: { tui?: boolean }
+  telemetry?: { source?: string; emits?: string[] }
+  models?: { flag?: string; list_argv?: string[] }
+  hooks?: { generated?: string; config?: string }
+  layout: Record<string, LayoutEntry | string>
+}
+
+/**
+ * How the mechanism badge reads, derived from the file rather than typed.
+ *
+ * `hooks` with nothing else is the richest path and gets the accent. A harness
+ * that needs a generated plugin, or that only tees a stream, is a bridge. ACP is
+ * its own thing: one mapping serves every ACP harness.
+ */
+function mechanismBadge(toml: HarnessToml): { variant: string; label: string } {
+  const source = toml.telemetry?.source ?? 'unknown'
+  if (source === 'acp') return { variant: 'acp', label: 'ACP' }
+  if (source === 'hooks') {
+    if (toml.hooks?.generated) return { variant: 'bridged', label: 'hooks · plugin' }
+    if (toml.hooks?.config) return { variant: 'bridged', label: 'hooks · config' }
+    return { variant: 'native', label: 'hooks' }
+  }
+  return { variant: 'bridged', label: source }
+}
+
+/** What Locus has to do to get hooks into this harness at all. */
+function injection(toml: HarnessToml): string {
+  const entry = toml.layout.hooks
+  if (entry === undefined || typeof entry === 'string') return 'unknown'
+  const via = entry.via ?? 'dir'
+  if (via === 'dir') return 'its own hook directory'
+  if (via === 'entries-in') return 'entries in its own settings'
+  if (via === 'core-driven') return 'no hook mechanism · core-driven at the boundary'
+  if (via === 'merged-into') return `merged into ${entry.target ?? 'context'}`
+  return via
+}
+
+const files = readdirSync(harnessDir)
+  .filter((f) => f.endsWith('.toml'))
+  .sort()
+
+const harnesses = files.map((file) => {
+  const toml = parse(readFileSync(resolve(harnessDir, file), 'utf8')) as unknown as HarnessToml
+
+  if (toml.launch?.tui !== false) {
+    throw new Error(`${file}: tui must be false — a TUI hides sessions from Locus`)
+  }
+
+  const extensions = EXTENSION_TYPES.map((type) => {
+    const entry = toml.layout[type]
+    if (entry === undefined || typeof entry === 'string') {
+      throw new Error(`${file}: layout.${type} is missing — every harness states all eight`)
+    }
+    return {
+      type,
+      via: entry.via ?? 'dir',
+      // A downgrade names what was lost. Its absence is the claim that nothing was.
+      weakerThanNative: entry.weaker_than_native ?? null,
+    }
+  })
+
+  return {
+    name: toml.name,
+    binary: toml.binary,
+    badge: mechanismBadge(toml),
+    injection: injection(toml),
+    // The badge on the Harnesses screen: how structured events reach Locus.
+    mechanism: toml.telemetry?.source ?? 'unknown',
+    // The verbs this source can emit. A verb not listed is recorded as missing,
+    // never synthesized.
+    emits: [...(toml.telemetry?.emits ?? [])].sort(),
+    modelFlag: toml.models?.flag ?? null,
+    // Whether Settings can offer a combobox, or has to fall back to free text.
+    canEnumerateModels: (toml.models?.list_argv ?? []).length > 0,
+    extensions,
+  }
+})
+
+const totalEntries = harnesses.length * EXTENSION_TYPES.length
+const downgrades = harnesses.flatMap((h) => h.extensions).filter((e) => e.weakerThanNative).length
+
+// Per-type native vs downgraded, for the Extensions screen.
+const byType = EXTENSION_TYPES.map((type) => {
+  const entries = harnesses.map((h) => h.extensions.find((e) => e.type === type)!)
+  const downgraded = entries.filter((e) => e.weakerThanNative).length
+  return { type, native: entries.length - downgraded, downgraded }
+})
+
+const body = `// schema: none — the harness registry, read from harnesses/*.toml rather than Postgres
+// replaced by: invoke("harness_registry_list")
+//
+// GENERATED by apps/desktop/scripts/gen-harness-fixtures.ts — do not edit.
+// Regenerate: pnpm -C apps/desktop exec tsx scripts/gen-harness-fixtures.ts
+
+/** One of the eight extension types every harness declares. */
+export type ExtensionType = ${EXTENSION_TYPES.map((t) => `'${t}'`).join(' | ')}
+
+/** What each type is called on screen. \`context\` is drawn as \`base-context\`. */
+export const EXTENSION_LABELS: Record<ExtensionType, string> = ${JSON.stringify(
+  Object.fromEntries(
+    EXTENSION_TYPES.map((t) => [t, t === 'context' ? 'base-context' : t]),
+  ),
+  null,
+  2,
+)}
+
+/** How Locus gets an extension into a harness, per that harness's own layout. */
+export interface HarnessExtension {
+  type: ExtensionType
+  via: string
+  /** What was lost, where the harness has no native mechanism. Null means nothing was. */
+  weakerThanNative: string | null
+}
+
+export interface MechanismBadge {
+  /** native | bridged | acp — decides how the badge is painted. */
+  variant: string
+  label: string
+}
+
+export interface HarnessEntry {
+  name: string
+  binary: string
+  badge: MechanismBadge
+  /** What Locus has to do to get hooks into this harness. */
+  injection: string
+  /** Telemetry source: hooks | acp | stream-json | session-log. */
+  mechanism: string
+  emits: string[]
+  modelFlag: string | null
+  canEnumerateModels: boolean
+  extensions: HarnessExtension[]
+}
+
+export interface ExtensionTypeCount {
+  type: ExtensionType
+  native: number
+  downgraded: number
+}
+
+export const EXTENSION_TYPES: readonly ExtensionType[] = ${JSON.stringify(EXTENSION_TYPES)}
+
+export const HARNESSES: readonly HarnessEntry[] = ${JSON.stringify(harnesses, null, 2)}
+
+/** ${harnesses.length} harnesses. Computed, so adding one moves this without an edit. */
+export const HARNESS_COUNT = ${harnesses.length}
+
+/** ${downgrades} downgrades across ${totalEntries} entries. Also computed. */
+export const ENTRY_COUNT = ${totalEntries}
+export const DOWNGRADE_COUNT = ${downgrades}
+
+export const EXTENSION_COUNTS: readonly ExtensionTypeCount[] = ${JSON.stringify(byType, null, 2)}
+`
+
+writeFileSync(out, body)
+console.log(
+  `harness fixtures: ${harnesses.length} harnesses, ${downgrades} downgrades across ${totalEntries} entries`,
+)

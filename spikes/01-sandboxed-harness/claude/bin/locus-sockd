@@ -1,0 +1,31 @@
+#!/bin/sh
+# locus-sockd — makes /run/locus.sock exist inside the container when the host
+# cannot bind-mount one.
+#
+# PLAN.md's mount table gives the agent a rw `/run/locus.sock`, and §The one
+# surface makes that socket the ONLY thing an agent talks to. On Linux the host
+# bind-mounts the daemon's socket directly and this script does nothing.
+#
+# On macOS it is not that simple: colima's virtiofs share does not pass a unix
+# socket through (`operation not supported` on mount). So the agent-facing
+# surface stays exactly what PLAN.md specifies — a unix socket at
+# /run/locus.sock — and the transport underneath it becomes host-local TCP.
+#
+# The cost is recorded in FINDINGS.md and it is real: a TCP port on the host
+# gateway is reachable by EVERY container on the machine, where a bind-mounted
+# socket is reachable only by the container it was mounted into. LOCUS_RUN_NONCE
+# is what puts an authenticator back in that path.
+set -eu
+
+[ -S /run/locus.sock ] && exit 0            # host mounted a real one; nothing to do
+[ -n "${LOCUS_RPC_ADDR:-}" ] || exit 0      # no relay configured; nothing to do
+
+rm -rf /run/locus.sock
+socat UNIX-LISTEN:/run/locus.sock,fork,mode=666 "TCP:${LOCUS_RPC_ADDR}" &
+
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+  [ -S /run/locus.sock ] && exit 0
+  sleep 0.1
+done
+echo "locus: sockd failed to create /run/locus.sock" >&2
+exit 1

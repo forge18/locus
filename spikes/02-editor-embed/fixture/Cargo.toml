@@ -1,0 +1,8 @@
+# A crate of its own, deliberately outside the Locus workspace: rust-analyzer
+# should index this in seconds, not load the whole workspace.
+[workspace]
+
+[package]
+name = "spike-fixture"
+version = "0.1.0"
+edition = "2021"

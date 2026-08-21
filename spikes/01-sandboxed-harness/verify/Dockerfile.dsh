@@ -1,0 +1,9 @@
+# Task 12 — dsh against a real binary, in a container, not on the host.
+FROM node:24-bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates curl jq \
+ && rm -rf /var/lib/apt/lists/*
+COPY bin/locus-detect /usr/local/bin/locus-detect
+RUN chmod +x /usr/local/bin/locus-detect && mkdir -p /locus
+ARG DSH_VERSION=latest
+RUN npm install -g --no-fund --no-audit "@deepseek-ai/dsh@${DSH_VERSION}"
+RUN locus-detect dsh --version

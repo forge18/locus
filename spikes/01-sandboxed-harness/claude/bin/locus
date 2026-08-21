@@ -1,0 +1,40 @@
+#!/bin/sh
+# locus — the agent-facing CLI, spike subset. PLAN.md §The one surface.
+# Every verb is --json, compact, never pretty-printed: the caller is a model.
+#
+# Spike scope: only the verbs Spike 1 needs. `creds` exists to test candidate B.
+set -eu
+
+SOCK="${LOCUS_SOCK:-/run/locus.sock}"
+
+call() {
+  # JSON-RPC 2.0 over the host daemon socket. curl speaks unix sockets; the
+  # URL host is ignored when --unix-socket is given.
+  curl -sS --fail-with-body --unix-socket "$SOCK" \
+       -H 'content-type: application/json' \
+       -H "x-locus-run-nonce: ${LOCUS_RUN_NONCE:-}" \
+       -d "$1" http://locus/rpc
+}
+
+verb="${1:-}"; shift 2>/dev/null || true
+
+case "$verb" in
+  ping)
+    call '{"jsonrpc":"2.0","id":1,"method":"ping","params":{}}'
+    ;;
+  creds)
+    sub="${1:-}"
+    case "$sub" in
+      get)
+        call "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"creds.get\",\"params\":{\"run_id\":\"${LOCUS_RUN_ID:-unknown}\"}}"
+        ;;
+      revoke)
+        call "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"creds.revoke\",\"params\":{\"run_id\":\"${LOCUS_RUN_ID:-unknown}\"}}"
+        ;;
+      *) echo '{"error":"usage: locus creds get|revoke"}' >&2; exit 2 ;;
+    esac
+    ;;
+  *)
+    echo '{"error":"unknown verb","verbs":["ping","creds"]}' >&2; exit 2
+    ;;
+esac

@@ -1,0 +1,32 @@
+{
+  "name": "@locus/spike-editor-embed",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Spike 2 — does CodeMirror 6 carry a real LSP and a real diff inside a Tauri window?",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite",
+    "test": "node scripts/vitest-run.mjs",
+    "tauri": "tauri",
+    "shots": "node scripts/screenshots.mjs"
+  },
+  "dependencies": {
+    "@codemirror/lang-rust": "^6.0.2",
+    "@codemirror/lsp-client": "^6.2.5",
+    "@codemirror/merge": "^6.12.2",
+    "@codemirror/state": "^6.5.2",
+    "@codemirror/view": "^6.43.9",
+    "@tauri-apps/api": "^2",
+    "codemirror": "^6.0.2",
+    "solid-js": "^1.9.3"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "jsdom": "^25.0.1",
+    "typescript": "~5.6.2",
+    "vite": "^6.0.3",
+    "vite-plugin-solid": "^2.11.0",
+    "vitest": "^2.1.8"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "name": "@locus/spike-workflow-canvas",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Spike 3 \u2014 does @dschz/solid-flow carry the workflow canvas, or is the dagre fallback cheaper?",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite",
+    "test": "node scripts/vitest-run.mjs",
+    "shots": "node scripts/screenshots.mjs"
+  },
+  "dependencies": {
+    "@dagrejs/dagre": "^1.1.5",
+    "@dschz/solid-flow": "^0.1.4",
+    "solid-js": "^1.9.3"
+  },
+  "devDependencies": {
+    "@solidjs/testing-library": "^0.8.10",
+    "@testing-library/jest-dom": "^6.6.3",
+    "jsdom": "^25.0.1",
+    "typescript": "~5.6.2",
+    "vite": "^6.0.3",
+    "vite-plugin-solid": "^2.11.0",
+    "vitest": "^2.1.8"
+  }
+}

@@ -1,0 +1,20 @@
+#!/bin/sh
+# locus-hook — the `hooks` capture path. PLAN.md §Materializers:
+# "locus-hook fires per harness hook event, JSON on stdin, appended to the run's buffer".
+#
+# Capture is separated from normalization on purpose: this writes the source
+# record verbatim, so a normalization bug is repairable by replay.
+set -eu
+
+buffer="${LOCUS_EVENT_BUFFER:-/locus/events.ndjson}"
+event="${1:-unknown}"
+
+mkdir -p "$(dirname "$buffer")"
+
+payload="$(cat)"
+[ -n "$payload" ] || payload='{}'
+
+printf '{"hook":"%s","raw":%s}\n' "$event" "$payload" >> "$buffer"
+
+# Hooks must not block the harness. Always succeed, always empty stdout.
+exit 0

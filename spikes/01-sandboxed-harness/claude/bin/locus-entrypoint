@@ -1,0 +1,51 @@
+#!/bin/sh
+# locus-entrypoint — what the core does at container start, in the container.
+#
+# PLAN.md §The git model: "/workspace is a *clone* on the container's own
+# filesystem", cloned from the project's bare local remote, never a mount.
+# PLAN.md §Adding a repo: "Locus never works in main/master. Every agent run
+# branches." — an invariant, enforced here.
+set -eu
+
+: "${LOCUS_REMOTE:=/var/lib/locus/fixture.git}"
+: "${LOCUS_RUN_ID:=spike-local}"
+: "${LOCUS_BRANCH:=agent/${LOCUS_RUN_ID}}"
+
+# The agent's one surface must exist before the harness starts.
+locus-sockd
+
+# PLAN.md's mount table gives /locus/config as READ-ONLY, and for a harness whose
+# config home is only ever read that is correct. Claude Code's is not: with
+# CLAUDE_CONFIG_DIR pointed at it, the same directory holds its transcripts
+# (harnesses/claude.toml declares log_dir = /locus/config/projects), its todo
+# state, and .claude.json. A ro mount makes the harness fail to start.
+#
+# So the materialized tree is mounted ro at /locus/config-ro and copied into a
+# writable /locus/config at container start. The determinism property that
+# matters is preserved — the SOURCE tree is byte-identical per run, which is what
+# the prompt prefix is built from — and the harness gets somewhere to write.
+if [ -d /locus/config-ro ]; then
+  mkdir -p /locus/config
+  cp -a /locus/config-ro/. /locus/config/
+fi
+
+if [ ! -e /workspace/.git ]; then
+  git clone --quiet "$LOCUS_REMOTE" /workspace
+fi
+
+cd /workspace
+current="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '')"
+if [ "$current" != "$LOCUS_BRANCH" ]; then
+  git checkout --quiet -B "$LOCUS_BRANCH"
+fi
+
+# The invariant, asserted rather than assumed.
+branch="$(git rev-parse --abbrev-ref HEAD)"
+case "$branch" in
+  main|master)
+    echo "locus: REFUSING to run on '$branch' — every agent run branches." >&2
+    exit 79
+    ;;
+esac
+
+exec "$@"

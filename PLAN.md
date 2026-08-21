@@ -17,9 +17,11 @@ The full product is planned before product code is written. This document theref
 architecture spec set plus a phased roadmap, with three spikes gating M1.
 
 **This document ships as `PLAN.md` at the repo root** — a living architecture doc that is committed,
-reviewable, and readable by agents working in the repo, not a throwaway planning artifact. `docs/` and
-`docs/adr/` in M0 expand it; they do not replace it. `.gitignore` already excludes the generated agent
-directories, so `PLAN.md` is tracked normally.
+reviewable, and readable by agents working in the repo, not a throwaway planning artifact. It is **the**
+architecture: `.specs/` decomposes it into per-feature contracts and runnable tasks, and each spec cites
+the section here that governs it rather than restating it. One source for a decision, not two that
+drift. `.gitignore` already excludes the generated agent directories, so `PLAN.md` and `.specs/` are
+both tracked normally.
 
 ### Where this sits in the 2026 landscape
 
@@ -104,7 +106,7 @@ the strongest available argument that skipping VSCodium costs less than it would
 | Review surface | **Artifacts**, not transcripts. Plans, diffs, diagrams, screenshots, recordings, and a walkthrough on completion — all commentable, and a comment steers the agent that made it. |
 | Harness contract | **Declaration plus materialization.** A TOML file says where each of the eight extensions goes; a **materializer** puts it there. Four strategies are generic and parameterized by that TOML; the fifth is a plugin, for the harnesses whose config is code. A harness needing code is a directory, one that does not is a file. |
 | Tokens | **A design constraint, not a bill.** Prefix stability is a rule the materializer obeys, tool output is compacted before it reaches context, and every surface hands an agent a summary with a handle rather than a body. Cache rate and payload-by-tool are dashboard metrics because both are already columns. |
-| Navigation | **Six categories on a rail** — Dashboard, Plan, Develop, Automate, Review, Workshop. Five are named for an activity; **Dashboard is mine** — Inbox and Status, what I need to do and what I need to know, where a decision resolves in place and work routes out. Agents and workflows are *operated* in Automate and *authored* in Workshop, and a session lives with the agent it belongs to. **One control plane across every project**: project is a scope filter, never a window boundary. **One locator scheme** addresses everything, which is what lets project be a filter at all. |
+| Navigation | **Seven categories on a rail** — Dashboard, Plan, Develop, Automate, Review, Workshop, Wiki. Six are named for an activity; **Dashboard is mine** — Inbox and Status, what I need to do and what I need to know, where a decision resolves in place and work routes out. Agents and workflows are *operated* in Automate and *authored* in Workshop, and a session lives with the agent it belongs to. **One control plane across every project**: project is a scope filter, never a window boundary. **One locator scheme** addresses everything, which is what lets project be a filter at all. |
 | Handoffs | **Ownership transfers with a payload, never a transcript.** `done`, `remaining`, `attempted`, `decisions`, `open` — the successor reads that, not the predecessor's history. Kill-and-reassign already existed; this is what it hands over. |
 | Tools | **Just-in-time.** A one-line catalog per allowlisted tool; the page arrives only when an agent asks for it. Installation stays eager, because the allowlist is a privilege boundary. |
 | Filesystem | **No virtual filesystem.** Docker layers and `git clone --reference` already give copy-on-write; exposing Locus state as files is the thing the store exists to stop. |
@@ -112,7 +114,7 @@ the strongest available argument that skipping VSCodium costs less than it would
 | Plugins | **One manifest + one executable speaking JSON-RPC 2.0 over stdio**, in any language. Core services stay internal and are never plugins. **Data-driven: a plugin declares and returns data; the first-party UI knows how to render it.** No third-party UI code, ever. |
 | Board | **Fixed columns across every project**, not configurable: Ready → In Progress → Testing → Reviewing → Waiting For Approval → Done. **`blocked` is a status, not a column.** Two gating rules only. |
 | Planning | **Three agents** — interviewer, researcher, auditor — over ACP. Goal is an input, not an output. Nothing reaches the board until one approval at the end. |
-| Testing Locus | **Event-based.** Every run normalizes into `memory.event`, so a test is "run this, assert these events appeared" — identical across all eleven harnesses, no test-only instrumentation. |
+| Testing Locus | **Event-based.** Every run normalizes into `memory.event`, so a test is "run this, assert these events appeared" — identical across all twelve harnesses, no test-only instrumentation. |
 | Permissions | **You are never prompted.** A run that stops to ask has nobody watching it. What an agent may do is *declared* — the tool allowlist on the agent definition, narrowed per role by the workflow's `Agent` node — and enforced by the container, not by the harness's own gate. |
 | UI components | **Kobalte** headless primitives + **shadcn-solid** components copied into the repo + **Tailwind**. Headless, because an IDE's chrome is small and its large surfaces are all bespoke or bring their own DOM. |
 
@@ -240,7 +242,7 @@ the git model below. **No long-lived credential lives in the container** — see
 #### Images — two layers, one cache key
 
 **The harness binary lives in the image, never on the host.** That is what makes a run reproducible
-and what keeps eleven harnesses from becoming eleven host installs. `detect` runs at *image build*,
+and what keeps twelve harnesses from becoming twelve host installs. `detect` runs at *image build*,
 not on your machine, and its job is to fail the build when the binary is missing rather than to find
 one you already have.
 
@@ -508,7 +510,7 @@ a native session id to hand back.
 
 **The harness file declares mechanism, never policy.** No `[capabilities]` block, and **no model
 routing** — tier resolution is the app's, so changing which model `high` means is a setting rather
-than eleven file edits.
+than twelve file edits.
 
 #### Model routing — mechanism in the file, policy in the UI
 
@@ -596,8 +598,8 @@ a prune path. Locus builds the whole config tree per run and throws it away afte
 whole files**. No markers, no merge, no prune, nothing to reconcile — the same inversion the design
 already claims for propagation, applied to the loaders.
 
-What survives is real: format conversion and code generation. Five strategies cover it, and only the
-last needs a plugin:
+What survives is real: format conversion and code generation. Six strategies cover it, and only one
+of them needs a plugin:
 
 | Strategy | Does | Used by |
 | --- | --- | --- |
@@ -618,12 +620,17 @@ rules = { via = "merged-into", target = "context", strip_frontmatter = true,
           weaker_than_native = "always-on; path scoping is lost" }
 ```
 
-Twenty-seven of the eighty-eight entries across the eleven harnesses are downgrades. That number is
+Thirty-three of the ninety-six entries across the twelve harnesses are downgrades. That number is
 the honest measure of how uneven the field is, and it is only visible because the files say it.
 
+**Both figures are computed from the registry, never maintained by hand** — twelve harnesses times
+eight extensions is the denominator, and the numerator is a count of `weaker_than_native` keys. Any
+surface that shows them reads the files, so registering a harness moves the number without an edit.
+
 The first four are parameterized data — `format`, `suffix`, `flat`, `strip_frontmatter`, the target
-key — and live in `crates/locus-core/src/materialize/` as five generic implementations that name no
-harness.
+key — and live in `crates/locus-core/src/materialize/` as generic implementations that name no
+harness. `core-driven` is generic too: it fires the extension from the container's own lifetime rather
+than writing a file at all, which is what the two harnesses with no hook mechanism get.
 
 **Materialization is byte-deterministic**, which is a token decision more than a tidiness one. Sorted
 file order, sorted lists inside generated files, no timestamps, no run id, no hostname: the same agent
@@ -1939,9 +1946,9 @@ lands at M4; image baking and install land at M8.
 pinned, and who is trusted to publish into it are questions the installer makes real and the resolver
 does not — so they are answered then, not now.
 
-### Navigation — six categories, one address space
+### Navigation — seven categories, one address space
 
-Six top-level categories, on a rail. The split is **by what you are doing**, not by what the data is —
+Seven top-level categories, on a rail. The split is **by what you are doing**, not by what the data is —
 which is why agents and workflows appear twice: operated in one place, authored in another.
 
 | Category | Holds | The question it answers |
@@ -1952,6 +1959,12 @@ which is why agents and workflows appear twice: operated in one place, authored 
 | **Automate** | agents and their sessions, the board, running workflows, schedules | what is assigned, and what is running |
 | **Review** | telemetry, run history, cost, verify and spec-gap rates, artifacts and walkthroughs | what happened, and was it any good |
 | **Workshop** | settings, harnesses and model tiers, the eight extension types, agent definitions, the workflow canvas, the marketplace | the tools themselves |
+| **Wiki** | typed pages, ingest, contradictions, the wikilink graph | what do we already know, and what disagrees |
+
+**Dashboard is the category; `Inbox` is what the rail calls it.** The category holds two views and the
+rail cannot show both, so it is labelled by the one that carries the badge. Internally the category key
+stays `dashboard`, because a category called Dashboard containing a view called Dashboard is exactly the
+blur the two view names exist to prevent.
 
 **A session lives with the thing it belongs to.** A session is one agent's thread of work, so its home
 is Automate, beside the agent it belongs to and the board task it serves. Dashboard is where you find
@@ -2051,7 +2064,7 @@ links, and a detached window's identity are otherwise seven navigation paths tha
 one locator they are one resolver with seven callers. `Cmd-K` resolves a locator, `Cmd-P` searches for
 one, and back/forward per window is a stack of them.
 
-A locator also crosses categories cleanly, which the six-way split needs: the same session opens as a
+A locator also crosses categories cleanly, which the seven-way split needs: the same session opens as a
 pane in Automate, as the source of an Inbox item, and as a row in Review — one object, three contexts,
 no duplicated navigation.
 
@@ -2062,8 +2075,9 @@ no duplicated navigation.
 - **One viewer per kind, several entry points.** An artifact looks the same in Automate, in Review,
   and reached from the inbox — one component, because a diff that renders differently depending on how
   you got to it is two components that will disagree.
-- **The category list is closed.** Six, and a new surface joins one of them rather than adding a
-  seventh. A rail that grows is a rail nobody reads.
+- **The category list is closed.** Seven, and a new surface joins one of them rather than adding an
+  eighth. A rail that grows is a rail nobody reads. The count was six until the Wiki was given its own
+  entry; the rule is what stopped it becoming eight at the same time.
 
 ### Frontend and IPC constraints
 
@@ -2167,74 +2181,17 @@ Each milestone ships a runnable `verify:`.
 
 ### M0 — Specification and spikes  ← the immediate deliverable
 
-Write the spec set, then answer the two questions that could invalidate it.
+Write the specs, then answer the questions that could invalidate them.
 
-- `docs/architecture.md`, `docs/harness-contract.md`, `docs/data-model.md`, `docs/agent-cli.md`,
-  `docs/marketplace.md`, `docs/roadmap.md`
-- `docs/data-model.md` carries the eight schema names, their boundaries, and full tables for
-  `memory` and `board` only — the rest point at `migrations/`, per the deferral already recorded
-- `docs/knowledge-model.md` — the three layers (core memory, store memory, wiki), what writes each,
-  the bounded-core mechanics, and contradiction handling across memory and wiki
-- `docs/sandbox-model.md` — credentials, network policy, the git model, and the threat model
-- `docs/session-model.md` — session vs run vs turn, and what survives a reset
-- `docs/artifacts.md` — the artifact kinds, the walkthrough, how comments steer, and the storage
-  split: what is a row, what is a file, and how the agent-facing representation is derived
-- `docs/agent-capabilities.md` — `locus lsp`, `locus debug`, `locus browse`: where each server runs,
-  why the client is shared but the server is not, the core-held debug session, and the per-run browser
-  context inside the per-project browser
-- `docs/agent-format.md` — the frontmatter schema, the tool allowlist, and how it materializes
-- `docs/materializers.md` — the five strategies, the plugin contract and its JSON shape, and why a
-  materializer returns files rather than writing them
-- `docs/workflow-canvas.md` — node vocabulary, loop semantics, guardrails, the compile pipeline
-- `docs/planning-module.md` — the three-agent sequence, the question loop, scope changes as approvals,
-  the 29148 audit rubric and the two-reader test, traceability in both directions, and the re-planning
-  rules that keep spec and tasks in sync
-- `docs/board.md` — the fixed columns, `blocked` as a status, the two gating rules, evidence links,
-  and where dependency edges come from
-- `docs/permissions.md` — what an agent may do, where it is declared, and why nothing prompts you
-- `docs/landscape.md` — what the 2026 field has, what it lacks, and which features were taken from
-  where. Keeps the borrowed ideas attributed and the bet legible
-- `docs/adr/`, in order:
+**The specs live in `.specs/`, one directory per feature**, each holding a `spec.md` (purpose, the
+PLAN.md section that governs it, its contract, falsifiable acceptance criteria, dependencies, and what
+is genuinely open) and a `tasks.md` (numbered steps, each with a runnable `verify:`). Every milestone
+below is decomposed that way.
 
-  | ADR | Records |
-  | --- | --- |
-  | `0001-codemirror-over-vscodium.md` | The editor choice and the gaps accepted with it |
-  | `0002-one-session-per-terminal.md` | Why TUIs are banned, and what it buys in observability |
-  | `0003-container-per-agent.md` | The sandbox boundary and credential injection |
-  | `0004-postgres-single-store.md` | One store; what is derived and what is not |
-  | `0005-cli-not-mcp.md` | The agent surface is a binary, not a server |
-  | `0006-shared-services-in-rust.md` | Memory, mail, and the rest implemented once |
-  | `0007-agents-markdown-workflows-canvas.md` | Agents are Markdown + a tool list; only workflows are graphs, and why the split falls there |
-  | `0008-tauri-over-electron.md` | The Electron case rests on in-process SDK orchestration, which this design rules out; accepted costs are webview inconsistency and terminal keyboard work |
-  | `0009-acp-for-planning-only.md` | Why ACP fits the chat module and not agent sessions: no system-prompt control, and a conversation hides the work |
-  | `0010-human-gated-context-promotion.md` | The ETH Zurich finding, and what agents may not write |
-  | `0011-workflow-is-the-team.md` | Why there is no `Team` entity, and the reproducibility that buys |
-  | `0012-session-run-turn.md` | The session/run split, and why the session is what survives a reset |
-  | `0013-one-editor-two-zoom-levels.md` | Why no second editor for the full module, and why the missing debug UI stopped being a cost once debugging became an agent capability |
-  | `0014-planning-is-three-agents.md` | Interviewer, researcher, auditor; the goal as an input; why nothing reaches the board without one approval |
-  | `0015-fixed-board-columns.md` | Six columns for every project, `blocked` as a status, and the two gating rules — why configurability was refused |
-  | `0016-declared-permissions-no-prompts.md` | The human is never prompted; the allowlist is the privilege set; workflow nodes narrow and never widen |
-  | `0017-materializers-declare-then-generate.md` | Why the harness contract has a code half; the four generic strategies; why the fifth returns files instead of writing them |
-  | `0018-harness-in-the-image.md` | The harness binary is baked, not host-installed; the two-layer image and its cache key; why config is never a layer |
-  | `0019-artifacts-two-representations.md` | Stored for the human, derived for the model; OCR before pixels; why the original is never overwritten |
-  | `0027-six-categories-one-address-space.md` | The operate-versus-author split behind the six; why project is a filter and not a window; why one locator scheme keeps seven navigation paths from drifting apart |
-  | `0026-no-virtual-filesystem.md` | Where COW already exists, and why Locus state as a mounted tree re-creates the failure the store was built to end |
-  | `0025-handoff-carries-a-payload.md` | Ownership transfer without a transcript; `attempted[]` as the half that pays for it |
-  | `0024-calibration-is-human-gated.md` | The retro agent's four proposal types, and why none applies without a person — the same gate as memory promotion |
-  | `0023-classify-failures-before-retrying.md` | The four-way arbiter; why noise must not spend the iteration budget and ambiguity must leave the workflow |
-  | `0022-prefix-stability-is-a-design-rule.md` | Deterministic materialization, the frozen catalog, mutable content last — and why cache rate is a first-class metric rather than a billing detail |
-  | `0021-model-tiers-are-a-setting.md` | Why the harness file carries the flag and not the model; fall back up, never down; unset means the harness's own default |
-  | `0020-debug-and-browser-for-agents.md` | Why the debug session is core-held and the CLI stateless; logpoints over breakpoints; one browser container, one context per run; why the browser has no egress |
+**This document stays the architecture.** A spec cites the section that governs it rather than
+restating it — one source for a decision, not two that drift.
 
-- `docs/handoffs.md` — the payload, the four triggers, and why it is neither mail nor a nested invoke
-- `docs/token-discipline.md` — prefix stability rules, the tool-boundary hook, the offender query,
-  and the summary-with-a-handle rule that four surfaces already share
-- `docs/navigation.md` — the six categories (Dashboard, Plan, Develop, Automate, Review, Workshop) and
-  what lands in each, the operate-versus-author split,
-  where each of the three session kinds lives, project as a scope filter, the session strip, and the
-  locator grammar every entry point resolves against
-- `docs/frontend-constraints.md` — Channels vs events, one webview per window, keyboard capture
-- `harnesses/*` — **all eleven written**, every one of the eight extensions declared with a `via`
+- `harnesses/*` — **all twelve written**, every one of the eight extensions declared with a `via`
   strategy and every downgrade carrying `weaker_than_native`. Two are UNVERIFIED against a running
   binary — `dsh` and `hermes`, neither installed here and neither present in `local-dx` — and say so
   in the file. What remains is confirming each against its harness, which is Spike 1's other half
@@ -2255,8 +2212,46 @@ Write the spec set, then answer the two questions that could invalidate it.
 locus harness lint          # refuses an undeclared extension or an unknown strategy
 ```
 
-`verify:` all three spikes produce a written answer in their directory; `docs/` is internally
-consistent; `locus harness lint` passes for all eleven.
+`verify:` all three spikes produce a written answer in their directory; every `.specs/*/` holds both a
+`spec.md` and a `tasks.md` and every task row carries a runnable command;
+`locus harness lint` passes for all twelve.
+
+### M0.5 — Desktop UI on fixtures
+
+The whole shell and all fourteen screens, at the handoff's own fidelity, before any of it has a
+backend. `docs/design_handoff_locus_desktop_ui/` is the contract: final colors, type sizes, densities
+and copy at 1440x900, deliberately dense.
+
+Built ahead of the runtime on purpose. The alternative — a screen arriving with the milestone that
+makes its data real — spreads one coherent visual system across five milestones and re-decides it each
+time. The cost is the honest one: fixture shapes are invented before the schemas exist.
+
+- **Design system** — the token table as CSS custom properties; Inter, JetBrains Mono and Phosphor
+  **vendored rather than linked**, because a desktop app must work offline; `pulse` and `blink` and
+  nothing else animating; and rulings on the four states the handoff says were not drawn — hover,
+  pressed, focus, and the loading/empty/error cases
+- **`src/ui/`** — shadcn-solid over Kobalte, copied in and owned here, never depended on
+- **Shell** — title bar, the `locus://` locator bar as the `Cmd-K` surface, the seven-item rail with
+  its inbox badge, the per-category tab bar, and the running-agent strip as a footer on every screen
+- **Navigation** — the view/category/locator map and the per-category tab sets, with `agents` as a
+  drill-down of Extensions rather than a tab. **The locator resolver lands here**, not in M1:
+  retrofitting one address space onto navigation that already exists costs more than starting with it
+- **Fourteen screens** — Inbox, Status, Plan, Develop, Automate Kanban, Automate Agents, Review
+  Telemetry, Review Runs, Review Artifacts, Workshop Extensions, Workshop Agent-definitions, Workshop
+  Workflow, Workshop Harnesses, Wiki
+- **Real renderers, not the mockup's hand-drawn SVG** — the runs-by-hour bars, the telemetry sparkline
+  and facet tracks, the wiki graph, the canvas edge layer
+
+**Fixtures are derived, never invented.** Their types come from the eight schemas and the canonical
+event vocabulary rather than from what a screen happens to need; each module names the schema and the
+command that will replace it; and the Harnesses and Extensions screens compute theirs from
+`harnesses/*.toml`, so those two are correct on the first day and stay correct without an edit.
+
+`verify:` every one of the fourteen screens is reachable by rail and tab and matches its capture in
+`docs/design_handoff_locus_desktop_ui/screenshots/`; the Harnesses screen reports twelve harnesses and
+thirty-three downgrades read from the TOMLs rather than from a literal; keyboard focus is the accent
+outline everywhere and a browser default ring nowhere; `pnpm build` is clean.
+
 
 ### M1 — Core runtime
 
@@ -2288,12 +2283,13 @@ Daemon, store, registry, containers, terminals.
   and the derived-representation cache arrive with the browser at M3.5
 - Run supervisor: spawn → stream → normalize → persist → cancel
 - Credential broker and egress policy, whichever shape Spike 1 settles on
-- Tauri + SolidJS shell: JS-side pane manager over **one webview per window**, one window holding
-  every project, the category rail with **Automate** live — it is where sessions are — and the other
-  five stubbed, terminals (xterm.js) with one session each, and the project-labelled session strip as
-  the default home for anything not focused
-- **The locator resolver from the first navigation**, because retrofitting one address space onto four
-  navigation paths costs more than starting with it
+- **Wire the M0.5 screens whose data M1 makes real** — Automate Agents and its transcript, the Inbox,
+  Status, Workshop Extensions and Workshop Harnesses. Each swaps its fixture accessor for a Tauri
+  command; the shell, the rail, the navigation and the locator resolver already exist and are not
+  rebuilt. Screens whose backend is still ahead of them keep their fixtures and say so on screen
+- JS-side pane manager over **one webview per window**, one window holding every project, terminals
+  (xterm.js) with one session each, and the project-labelled session strip as the default home for
+  anything not focused
 - All streaming over `tauri::ipc::Channel`, coalesced per pane on a frame tick, from the first commit
 - **CI for Locus itself** — `cargo test`, `cargo clippy`, the harness lint, and the materialization
   smoke test on every push. Cheap now, and the smoke test is the only thing standing between a harness
@@ -2514,15 +2510,15 @@ the agent's context.
 
 Nothing exists yet, so all of these are new:
 
-- `docs/architecture.md` and the ADR set under `docs/adr/` — M0's whole output
+- `.specs/<feature>/{spec.md,tasks.md}` — one directory per feature, every milestone; M0's whole output
 - `harnesses/*` — one entry per harness, file or directory; what keeps harness names out of core
-- `crates/locus-core/src/materialize/` — the four generic strategies and the plugin host, naming no
-  harness
+- `crates/locus-core/src/materialize/` — the generic strategies and the plugin host, naming no harness
 - `crates/locus-core/` — registry, adapters, supervisors, store, **and every shared service:
   `memory/`, `mail/`, `board/`, `wiki/`, `telemetry/`, `tools/`**
 - `crates/locus-cli/` — the in-container agent CLI; a thin socket client with no logic of its own
 - `apps/desktop/` — Tauri + SolidJS. `workflow-canvas/` (node components, compile client, overlay),
-  `panes/` (the pane manager), `ui/` (shadcn-solid components copied in, owned here)
+  `panes/` (the pane manager), `ui/` (shadcn-solid components copied in, owned here), plus the shell,
+  the seven-category navigation, and `fixtures/` with the types the screens read before M1 wires them
 - `migrations/` — the eight schemas
 - `spikes/01-sandboxed-harness/`, `spikes/02-editor-embed/`, `spikes/03-workflow-canvas/`
 
@@ -2553,15 +2549,18 @@ Reuse rather than rebuild:
 
 **How Locus is tested: event-based.** Every run normalizes into `memory.event` regardless of harness,
 capture path, or container — so a test is *"run this, assert these events appeared."* That works
-identically across all eleven harnesses and needs no test-only instrumentation, because the substrate
+identically across all twelve harnesses and needs no test-only instrumentation, because the substrate
 is the one telemetry already requires. Unit tests cover the pure parts; everything above them asserts
 on the event stream.
 
 M0 is complete when:
 
 ```bash
-# the spec set is internally consistent and every ADR states a decision, not a survey
-ls docs/*.md docs/adr/*.md
+# every feature has both halves, and no task is missing its runnable check
+for d in .specs/*/; do
+  test -f "$d/spec.md" -a -f "$d/tasks.md" || echo "INCOMPLETE: $d"
+done
+awk -F'|' '/^\| *[0-9]+ *\|/ { if ($(NF-1) !~ /`/) print FILENAME": "$0 }' .specs/*/tasks.md
 
 # spike 1 answers the auth question in writing
 cat spikes/01-sandboxed-harness/FINDINGS.md

@@ -1,0 +1,29 @@
+#!/bin/sh
+# locus-detect — the image-build gate from PLAN.md §Images.
+#
+# "detect runs at *image build*, not on your machine, and its job is to fail the
+#  build when the binary is missing rather than to find one you already have."
+#
+# Usage: locus-detect <binary> [detect-argv...]
+set -eu
+
+binary="${1:?locus-detect: no binary named}"
+shift
+
+if ! command -v "$binary" >/dev/null 2>&1; then
+  echo "locus: detect FAILED — harness binary '$binary' is not present in this image." >&2
+  echo "locus: the base image is the reproducibility boundary; a missing binary is a build error," >&2
+  echo "locus: not a run-time surprise. Fix the install layer, do not skip this step." >&2
+  exit 78
+fi
+
+echo "locus: detect — found '$binary' at $(command -v "$binary")"
+
+if ! out="$("$binary" "$@" 2>&1)"; then
+  echo "locus: detect FAILED — '$binary $*' exited non-zero:" >&2
+  echo "$out" >&2
+  exit 78
+fi
+
+echo "locus: detect — '$binary $*' => $out"
+echo "$out" > /locus/detect.version
