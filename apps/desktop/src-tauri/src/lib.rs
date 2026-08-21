@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use locus_core::{
+    agents::{seeded_definitions, AgentDefinition},
     materialize::{reports_for_registry, MaterializationReport},
     registry::load_from_directory,
     telemetry::{Event, EventCollector},
@@ -39,6 +40,60 @@ pub struct ModelTierSetting {
 pub struct HarnessTierGridResponse {
     pub project_id: String,
     pub harnesses: Vec<HarnessTierGridHarness>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentDefSummary {
+    pub name: String,
+    pub version: u32,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentDefResponse {
+    pub name: String,
+    pub version: u32,
+    pub frontmatter: serde_json::Value,
+    pub body: String,
+    pub warnings: Vec<String>,
+}
+
+fn seeded_agent_definitions() -> Vec<(u32, AgentDefinition)> {
+    // M1 has no editable Workshop form yet. The screen reads the same core-owned
+    // seed definitions that later migrate into agents.agent_defs, never fixtures.
+    seeded_definitions()
+        .into_iter()
+        .map(|definition| (1, definition))
+        .collect()
+}
+
+#[tauri::command]
+fn agent_defs_list() -> Vec<AgentDefSummary> {
+    seeded_agent_definitions()
+        .into_iter()
+        .map(|(version, definition)| AgentDefSummary {
+            name: definition.frontmatter.name,
+            version,
+        })
+        .collect()
+}
+
+#[tauri::command]
+fn agent_def(name: String) -> Result<AgentDefResponse, String> {
+    let (version, definition) = seeded_agent_definitions()
+        .into_iter()
+        .find(|(_, definition)| definition.frontmatter.name == name)
+        .ok_or_else(|| format!("agent definition `{name}` was not found"))?;
+    let frontmatter =
+        serde_json::to_value(&definition.frontmatter).map_err(|error| error.to_string())?;
+    Ok(AgentDefResponse {
+        name: definition.frontmatter.name,
+        version,
+        frontmatter,
+        body: definition.body,
+        warnings: definition.warnings,
+    })
 }
 
 #[derive(Debug, Serialize)]
@@ -111,6 +166,8 @@ pub fn run() {
         .manage(EventCollector::new(1_024))
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
+            agent_def,
+            agent_defs_list,
             harness_tier_grid,
             telemetry_subscribe,
             materialization_report
@@ -122,6 +179,15 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn agent_definitions_are_served_by_core() {
+        let definitions = agent_defs_list();
+        assert_eq!(definitions.len(), 6);
+        let builder = agent_def("builder".into()).expect("builder seed definition");
+        assert_eq!(builder.name, "builder");
+        assert_eq!(builder.frontmatter["task_class"], "code");
+    }
 
     #[test]
     fn materialization_report_is_derived_from_the_core_registry() {
