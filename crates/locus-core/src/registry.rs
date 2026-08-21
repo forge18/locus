@@ -54,6 +54,14 @@ pub enum RegistryLoadError {
         extension: &'static str,
         via: String,
     },
+    #[error(
+        "harness definition `{path}` uses downgraded materialization strategy `{via}` for layout extension `{extension}` without required `weaker_than_native` explanation"
+    )]
+    MissingWeakerThanNative {
+        path: PathBuf,
+        extension: &'static str,
+        via: String,
+    },
     #[error("harness definition `{path}` has `tui = true`; TUI harnesses are unsupported")]
     TuiUnsupported { path: PathBuf },
     #[error("harness definition `{path}` is missing required telemetry source")]
@@ -135,6 +143,8 @@ const MATERIALIZATION_STRATEGIES: &[&str] = &[
     "core-driven",
 ];
 
+const DOWNGRADED_MATERIALIZATION_STRATEGIES: &[&str] = &["merged-into", "listed-in", "core-driven"];
+
 fn validate_layout_extensions(
     document: &mut toml::Value,
     path: &Path,
@@ -169,6 +179,18 @@ fn validate_layout_extensions(
         }
         if !MATERIALIZATION_STRATEGIES.contains(&via) {
             return Err(RegistryLoadError::UnknownMaterializationStrategy {
+                path: path.to_path_buf(),
+                extension,
+                via: via.into(),
+            });
+        }
+        if DOWNGRADED_MATERIALIZATION_STRATEGIES.contains(&via)
+            && !entry
+                .get("weaker_than_native")
+                .and_then(toml::Value::as_str)
+                .is_some_and(|explanation| !explanation.trim().is_empty())
+        {
+            return Err(RegistryLoadError::MissingWeakerThanNative {
                 path: path.to_path_buf(),
                 extension,
                 via: via.into(),
@@ -577,6 +599,42 @@ fn rejects_bad_source() {
         format!(
             "harness definition `{}` is missing required telemetry source",
             missing_path.display()
+        )
+    );
+}
+
+#[cfg(test)]
+#[test]
+fn rejects_unexplained_downgrade() {
+    let registry = std::env::temp_dir().join(format!(
+        "locus-registry-unexplained-downgrade-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("the system clock is after the Unix epoch")
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&registry).expect("temporary registry directory exists");
+
+    let mut definition: toml::Value =
+        toml::from_str(include_str!("../../../harnesses/claude.toml"))
+            .expect("reference declaration parses");
+    definition["layout"]["agents"]["via"] = toml::Value::String("merged-into".into());
+    let path = registry.join("unexplained.toml");
+    std::fs::write(
+        &path,
+        toml::to_string(&definition).expect("declaration serializes"),
+    )
+    .expect("downgraded declaration can be written");
+
+    let error = load_from_directory(&registry).expect_err("unexplained downgrade is refused");
+    std::fs::remove_dir_all(registry).expect("temporary registry directory is removed");
+
+    assert_eq!(
+        error.to_string(),
+        format!(
+            "harness definition `{}` uses downgraded materialization strategy `merged-into` for layout extension `agents` without required `weaker_than_native` explanation",
+            path.display()
         )
     );
 }
