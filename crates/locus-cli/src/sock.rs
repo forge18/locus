@@ -567,6 +567,23 @@ mod run {
     }
 }
 
+#[cfg(test)]
+mod svc {
+    use super::resolve_verb;
+
+    #[test]
+    fn up_down() {
+        for (command, verb) in [
+            (["svc".into(), "up".into()], "svc.up"),
+            (["svc".into(), "down".into()], "svc.down"),
+        ] {
+            let (dispatch, args) = resolve_verb(&command).expect("service command dispatches");
+            assert_eq!(dispatch.verb, verb);
+            assert!(args.is_empty());
+        }
+    }
+}
+
 #[tokio::test]
 async fn no_local_logic() {
     let path = std::env::temp_dir().join(format!(
