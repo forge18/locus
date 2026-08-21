@@ -7,6 +7,7 @@
 pub mod board;
 pub mod mail;
 pub mod memory;
+pub mod store;
 pub mod telemetry;
 pub mod tools;
 pub mod wiki;
