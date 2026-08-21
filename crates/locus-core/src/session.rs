@@ -27,6 +27,35 @@ pub enum SessionStatus {
     Closed,
 }
 
+/// Session-owned context supplied whenever a fresh container starts after a reset.
+#[derive(Clone, Debug, PartialEq)]
+pub struct NextRun {
+    pub run: Run,
+    pub branch: String,
+    pub board_task_id: Option<Uuid>,
+    pub memory_base: Value,
+}
+
+/// Create a new container lifetime without discarding the durable session context.
+pub fn start_next_run(session: &Session, resolved_model_id: impl Into<String>) -> NextRun {
+    NextRun {
+        run: Run {
+            id: Uuid::new_v4(),
+            session_id: session.id,
+            resolved_model_id: resolved_model_id.into(),
+            status: RunStatus::Queued,
+            events: vec![],
+            usage: None,
+            exit_code: None,
+            cancel_reason: None,
+            artifacts: vec![],
+        },
+        branch: session.branch.clone(),
+        board_task_id: session.board_task_id,
+        memory_base: session.memory_base.clone(),
+    }
+}
+
 /// One container lifetime within a session.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Run {
@@ -262,6 +291,37 @@ mod model {
                 "agents.{table}.{column} references agents.{referenced_table}"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod survives_reset {
+    use serde_json::json;
+    use uuid::Uuid;
+
+    use super::{start_next_run, Session, SessionStatus};
+
+    #[test]
+    fn second_run_inherits_the_session_context_after_a_reset() {
+        let board_task_id = Uuid::new_v4();
+        let session = Session {
+            id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
+            agent_def_id: Uuid::new_v4(),
+            name: "resettable work".into(),
+            branch: "agent/resettable-work".into(),
+            board_task_id: Some(board_task_id),
+            memory_base: json!({"focus": ["src/lib.rs"]}),
+            pane_state: json!({}),
+            status: SessionStatus::Active,
+        };
+
+        let next = start_next_run(&session, "test-model");
+
+        assert_eq!(next.run.session_id, session.id);
+        assert_eq!(next.branch, session.branch);
+        assert_eq!(next.board_task_id, Some(board_task_id));
+        assert_eq!(next.memory_base, session.memory_base);
     }
 }
 
