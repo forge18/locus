@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use locus_core::{
     agents::{seeded_definitions, AgentDefinition},
+    artifact::{ArtifactComment, ArtifactContent, ArtifactKind, ArtifactRow, ArtifactStore},
     ipc::PtyChannel,
     lint::discover as discover_linters,
     materialize::{reports_for_registry, MaterializationReport},
@@ -14,6 +15,7 @@ use tauri::{
     menu::{Menu, MenuItem},
     Manager, State, WebviewUrl, WebviewWindowBuilder,
 };
+use uuid::Uuid;
 
 const MODEL_TIERS: [&str; 4] = ["low", "medium", "high", "xhigh"];
 const HARNESS_REGISTRY: &str = "../../../harnesses";
@@ -68,6 +70,137 @@ pub struct AgentDefResponse {
     pub frontmatter: serde_json::Value,
     pub body: String,
     pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ArtifactResponse {
+    id: String,
+    run_id: String,
+    kind: String,
+    title: String,
+    body: Option<String>,
+    blob_path: Option<String>,
+    media_type: String,
+    sha256: String,
+    derived_text: Option<String>,
+    created_at: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ArtifactCommentResponse {
+    id: String,
+    artifact_id: String,
+    parent_id: Option<String>,
+    author: String,
+    body: String,
+    created_at: String,
+}
+
+fn artifact_kind_name(kind: ArtifactKind) -> &'static str {
+    match kind {
+        ArtifactKind::Plan => "plan",
+        ArtifactKind::Diff => "diff",
+        ArtifactKind::Diagram => "diagram",
+        ArtifactKind::Image => "image",
+        ArtifactKind::Recording => "recording",
+        ArtifactKind::Walkthrough => "walkthrough",
+        ArtifactKind::Finding => "finding",
+        ArtifactKind::Payload => "payload",
+    }
+}
+
+fn artifact_response(row: &ArtifactRow) -> ArtifactResponse {
+    let (body, blob_path, media_type, sha256) = match &row.content {
+        ArtifactContent::Text(body) => {
+            (Some(body.clone()), None, "text/plain".into(), String::new())
+        }
+        ArtifactContent::Blob {
+            path,
+            media_type,
+            sha256,
+        } => (
+            None,
+            Some(path.display().to_string()),
+            media_type.clone(),
+            sha256.clone(),
+        ),
+    };
+    let kind = artifact_kind_name(row.kind).to_owned();
+    ArtifactResponse {
+        id: row.id.to_string(),
+        run_id: row.run_id.to_string(),
+        title: format!("{kind} {}", row.id),
+        kind,
+        body,
+        blob_path,
+        media_type,
+        sha256,
+        derived_text: row.derived_cache.as_ref().map(ToString::to_string),
+        created_at: String::new(),
+    }
+}
+
+fn artifact_comment_response(comment: &ArtifactComment) -> ArtifactCommentResponse {
+    ArtifactCommentResponse {
+        id: comment.id.to_string(),
+        artifact_id: comment.artifact_id.to_string(),
+        parent_id: comment.parent_id.map(|id| id.to_string()),
+        author: "you".into(),
+        body: comment.body.clone(),
+        created_at: String::new(),
+    }
+}
+
+fn seeded_artifact_store() -> ArtifactStore {
+    let project_id = Uuid::new_v4();
+    let run_id = Uuid::new_v4();
+    let mut store = ArtifactStore::default();
+    let diff = ArtifactRow::text(
+        project_id,
+        run_id,
+        ArtifactKind::Diff,
+        "diff --git a/src/lib.rs b/src/lib.rs\n+real artifact data reaches Review",
+    );
+    let diff_id = diff.id;
+    store.put(diff);
+    store.put(ArtifactRow::text(
+        project_id,
+        run_id,
+        ArtifactKind::Plan,
+        "Wire the Review Artifacts screen to the core artifact store.",
+    ));
+    store
+        .comment(
+            diff_id,
+            None,
+            "Review this artifact from the live core store.",
+        )
+        .expect("seeded artifact exists");
+    store
+}
+
+#[tauri::command]
+fn artifacts_list(artifacts: State<'_, ArtifactStore>) -> Vec<ArtifactResponse> {
+    artifacts
+        .review_inbox()
+        .into_iter()
+        .map(artifact_response)
+        .collect()
+}
+
+#[tauri::command]
+fn artifact_comments(
+    artifacts: State<'_, ArtifactStore>,
+    artifact_id: String,
+) -> Result<Vec<ArtifactCommentResponse>, String> {
+    let artifact_id = Uuid::parse_str(&artifact_id).map_err(|error| error.to_string())?;
+    Ok(artifacts
+        .comments(artifact_id)
+        .into_iter()
+        .map(artifact_comment_response)
+        .collect())
 }
 
 fn seeded_agent_definitions() -> Vec<(u32, AgentDefinition)> {
@@ -211,6 +344,7 @@ pub fn run() {
     tauri::Builder::default()
         .manage(EventCollector::new(1_024))
         .manage(PtyChannel::new(1_024))
+        .manage(seeded_artifact_store())
         .setup(|app| {
             let command_palette = MenuItem::with_id(
                 app,
@@ -232,6 +366,8 @@ pub fn run() {
             telemetry_subscribe,
             detach_pane,
             linter_count,
+            artifacts_list,
+            artifact_comments,
             materialization_report
         ])
         .run(tauri::generate_context!())

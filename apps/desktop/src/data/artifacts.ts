@@ -1,3 +1,4 @@
+import { invoke } from '@tauri-apps/api/core'
 import {
   ARTIFACTS,
   ARTIFACT_COMMENTS,
@@ -22,7 +23,17 @@ export {
 } from '../fixtures/artifacts'
 export type { UnifiedRow, UnifiedRowKind } from '../fixtures/artifacts'
 
-/** Becomes: invoke("artifacts_list") */
+/** The Review screen's core-owned artifact list. */
+export async function fetchArtifactsFromCore(): Promise<Artifact[]> {
+  return invoke<Artifact[]>('artifacts_list')
+}
+
+/** The Review screen's core-owned comment threads. */
+export async function fetchArtifactCommentsFromCore(artifactId: string): Promise<ArtifactComment[]> {
+  return invoke<ArtifactComment[]>('artifact_comments', { artifactId })
+}
+
+/** Fixture fallback until the Tauri runtime connects. */
 export function useArtifacts(): Artifact[] {
   return ARTIFACTS
 }
@@ -42,7 +53,7 @@ export function useUnifiedDiff(): UnifiedRow[] {
   return UNIFIED_DIFF
 }
 
-/** Becomes: invoke("artifact_comments", { artifactId }) */
+/** Fixture fallback until the Tauri runtime connects. */
 export function useArtifactComments(artifactId: string): ArtifactComment[] {
   return ARTIFACT_COMMENTS.filter((c) => c.artifactId === artifactId)
 }

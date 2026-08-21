@@ -1,4 +1,4 @@
-import { For, Show, createMemo, createSignal } from 'solid-js'
+import { For, Show, createEffect, createMemo, createSignal, onMount } from 'solid-js'
 import { Button } from '../../ui/Button'
 import { Icon } from '../../ui/Icon'
 import { Textarea } from '../../ui/Input'
@@ -11,6 +11,8 @@ import {
   REFERENCE_GROUP_LABEL,
   RESOLVE,
   SEND_TO_SESSION,
+  fetchArtifactCommentsFromCore,
+  fetchArtifactsFromCore,
   useArtifactComments,
   useArtifactKinds,
   useArtifacts,
@@ -31,9 +33,22 @@ export interface ArtifactsViewProps {
 export function ArtifactsView(props: ArtifactsViewProps) {
   const kinds = useArtifactKinds()
   const [selectedId, setSelectedId] = createSignal(props.artifactId ?? useDefaultArtifactId())
+  const [artifacts, setArtifacts] = createSignal(useArtifacts())
+  const [comments, setComments] = createSignal(useArtifactComments(selectedId()))
   const artifact = createMemo(
-    () => useArtifacts().find((a) => a.id === selectedId()) ?? useArtifacts()[0],
+    () => artifacts().find((a) => a.id === selectedId()) ?? artifacts()[0],
   )
+
+  onMount(() => {
+    void fetchArtifactsFromCore().then(setArtifacts).catch(() => undefined)
+  })
+
+  createEffect(() => {
+    const artifactId = artifact()?.id
+    if (artifactId) {
+      void fetchArtifactCommentsFromCore(artifactId).then(setComments).catch(() => undefined)
+    }
+  })
 
   return (
     <div class="artifacts" data-testid="artifacts">
@@ -42,19 +57,19 @@ export function ArtifactsView(props: ArtifactsViewProps) {
           <div class="artifact-group" data-testid="artifact-group-review">
             Review artifacts
           </div>
-          <For each={kinds.review}>
+          <For each={artifacts().filter((entry) => entry.kind !== 'finding' && entry.kind !== 'payload')}>
             {(entry, i) => (
               <button
                 type="button"
                 class="artifact-entry"
-                data-testid={`artifact-entry-${entry.label}`}
+                data-testid={`artifact-entry-${entry.kind}`}
                 data-group="review"
-                aria-selected={i() === 0 && selectedId() === 'a-1' ? 'true' : 'false'}
-                onClick={() => setSelectedId('a-1')}
+                aria-selected={i() === 0 && selectedId() === entry.id ? 'true' : 'false'}
+                onClick={() => setSelectedId(entry.id)}
               >
-                <Icon name={entry.icon} size={11} />
-                {entry.label}
-                <span class="artifact-entry-note">{entry.note}</span>
+                <Icon name={entry.kind === 'diff' ? 'git-diff' : 'list-checks'} size={11} />
+                {entry.kind}
+                <span class="artifact-entry-note">{entry.title}</span>
               </button>
             )}
           </For>
@@ -127,7 +142,7 @@ export function ArtifactsView(props: ArtifactsViewProps) {
           {COMMENTS_TITLE}
         </div>
         <div class="comment-rail-body">
-          <For each={useArtifactComments(artifact().id)}>
+          <For each={comments()}>
             {(comment) => (
               <div
                 class={['comment', comment.author !== 'you' ? 'comment-agent' : '']
