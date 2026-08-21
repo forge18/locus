@@ -1,6 +1,7 @@
 //! Durable session, ephemeral run, and prompt-response turn identities.
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use uuid::Uuid;
 
 /// A durable thread of work for one versioned agent definition.
@@ -11,6 +12,9 @@ pub struct Session {
     pub agent_def_id: Uuid,
     pub name: String,
     pub branch: String,
+    pub board_task_id: Option<Uuid>,
+    pub memory_base: Value,
+    pub pane_state: Value,
     pub status: SessionStatus,
 }
 
@@ -112,6 +116,9 @@ mod model {
             agent_def_id: Uuid::new_v4(),
             name: "model test".into(),
             branch: "agent/model-test".into(),
+            board_task_id: None,
+            memory_base: serde_json::json!({}),
+            pane_state: serde_json::json!({}),
             status: SessionStatus::Active,
         };
         let run = Run {
@@ -213,5 +220,38 @@ mod model {
                 "agents.{table}.{column} references agents.{referenced_table}"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod holds {
+    use serde_json::json;
+    use uuid::Uuid;
+
+    use super::{Session, SessionStatus};
+
+    #[test]
+    fn session_retains_its_durable_context() {
+        let agent_def_id = Uuid::new_v4();
+        let task_id = Uuid::new_v4();
+        let memory_base = json!({"paths": ["src/session.rs"]});
+        let pane_state = json!({"kind": "terminal", "minimized": true});
+        let session = Session {
+            id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
+            agent_def_id,
+            name: "implementation".into(),
+            branch: "agent/session-holds".into(),
+            board_task_id: Some(task_id),
+            memory_base: memory_base.clone(),
+            pane_state: pane_state.clone(),
+            status: SessionStatus::Active,
+        };
+
+        assert_eq!(session.agent_def_id, agent_def_id, "pins agent@version");
+        assert_eq!(session.branch, "agent/session-holds");
+        assert_eq!(session.board_task_id, Some(task_id));
+        assert_eq!(session.memory_base, memory_base);
+        assert_eq!(session.pane_state, pane_state);
     }
 }
