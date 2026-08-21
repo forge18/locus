@@ -9,6 +9,7 @@ use tokio::{
 };
 
 pub const DEFAULT_SOCKET_PATH: &str = "/run/locus.sock";
+const KEY_PACK_ROW_THRESHOLD: usize = 1;
 
 #[derive(Debug, Serialize)]
 pub struct SocketRequest<'a> {
@@ -276,6 +277,10 @@ pub(crate) fn key_pack(value: Value) -> Value {
 }
 
 fn pack_uniform_table(rows: &[Value]) -> Option<Value> {
+    if rows.len() < KEY_PACK_ROW_THRESHOLD {
+        return None;
+    }
+
     let keys: Vec<_> = rows.first()?.as_object()?.keys().cloned().collect();
     if keys.is_empty()
         || !rows.iter().all(|row| {
@@ -509,28 +514,26 @@ mod json {
     }
 
     #[test]
+    fn threshold() {
+        assert_eq!(
+            key_pack(json!({"tasks": [{"id": "a", "state": "ready"}]})),
+            json!({"tasks": {"keys": ["id", "state"], "rows": [["a", "ready"]}})
+        );
+        assert_eq!(key_pack(json!({"tasks": []})), json!({"tasks": []}));
+    }
+
+    #[test]
     fn packing_saving() {
-        let tasks: Vec<_> = (0..20)
-            .map(|index| {
-                json!({
-                    "task_id": format!("task-{index:02}"),
-                    "workflow_id": "release",
-                    "assigned_agent": "reviewer",
-                    "verification_command": "cargo test",
-                    "status": "ready",
-                    "updated_at": "2026-08-21"
-                })
-            })
-            .collect();
+        let tasks: Vec<_> = (0..20).map(|index| json!({
+            "task_id": format!("task-{index:02}"), "workflow_id": "release",
+            "assigned_agent": "reviewer", "verification_command": "cargo test",
+            "status": "ready", "updated_at": "2026-08-21"
+        })).collect();
         let response = json!({"tasks": tasks});
         let minified = compact_json(&response).expect("minified response serializes");
         let packed = compact_json(&key_pack(response)).expect("packed response serializes");
         let saving = (minified.len() - packed.len()) * 100 / minified.len();
-
-        assert!(
-            (50..=60).contains(&saving),
-            "expected packed table to save 50-60%, saved {saving}%"
-        );
+        assert!((50..=60).contains(&saving), "expected packed table to save 50-60%, saved {saving}%");
     }
 }
 
