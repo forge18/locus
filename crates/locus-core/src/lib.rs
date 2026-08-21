@@ -16,6 +16,7 @@ pub mod memory;
 pub mod models;
 pub mod registry;
 pub mod restore;
+pub mod run;
 pub mod sandbox;
 pub mod session;
 pub mod smoke;
