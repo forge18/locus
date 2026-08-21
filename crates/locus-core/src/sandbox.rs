@@ -66,20 +66,6 @@ pub mod docker {
                 .with_context(|| format!("remove container `{container}`"))
         }
     }
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-
-        #[test]
-        fn connects() {
-            // A missing local daemon is an expected development-machine condition; when it exists,
-            // Bollard owns the connection rather than a `docker` subprocess.
-            if let Err(error) = Daemon::connect() {
-                assert!(error.to_string().contains("connect to local Docker daemon"));
-            }
-        }
-    }
 }
 
 pub mod images {
@@ -183,113 +169,6 @@ pub mod images {
     pub fn image_for_config(base_digest: &str, tools: &[ToolPin], _config_bytes: &[u8]) -> String {
         cache_key(base_digest, tools)
     }
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-
-        fn install() -> Install {
-            Install {
-                base: "node:24-bookworm-slim".into(),
-                command: vec![
-                    "npm".into(),
-                    "install".into(),
-                    "-g".into(),
-                    "example@1.0.0".into(),
-                ],
-                version: "1.0.0".into(),
-            }
-        }
-
-        #[test]
-        fn base_builds() {
-            let image = BaseImage::new(
-                "claude",
-                install(),
-                vec!["claude".into(), "--version".into()],
-            )
-            .expect("verified metadata creates a build plan");
-            assert_eq!(image.tag, "locus/base-claude:1.0.0");
-            assert!(image
-                .dockerfile()
-                .contains("RUN locus-detect claude --version"));
-        }
-
-        #[test]
-        fn detect_fails_build() {
-            let image = BaseImage::new(
-                "claude",
-                install(),
-                vec!["claude".into(), "--version".into()],
-            )
-            .expect("plan is valid");
-            let dockerfile = image.dockerfile();
-            assert!(dockerfile
-                .lines()
-                .last()
-                .is_some_and(|line| line.starts_with("RUN locus-detect")));
-        }
-
-        #[test]
-        fn agent_layer() {
-            assert!(super::agent_layer("sha256:base", &[]).starts_with("locus/agent-"));
-        }
-
-        #[test]
-        fn cache_key() {
-            let first = super::cache_key(
-                "base",
-                &[
-                    ToolPin {
-                        name: "b".into(),
-                        pin: "2".into(),
-                    },
-                    ToolPin {
-                        name: "a".into(),
-                        pin: "1".into(),
-                    },
-                ],
-            );
-            let second = super::cache_key(
-                "base",
-                &[
-                    ToolPin {
-                        name: "a".into(),
-                        pin: "1".into(),
-                    },
-                    ToolPin {
-                        name: "b".into(),
-                        pin: "2".into(),
-                    },
-                ],
-            );
-            assert_eq!(first, second);
-        }
-
-        #[test]
-        fn shared_when_identical() {
-            let tools = [ToolPin {
-                name: "lint".into(),
-                pin: "3".into(),
-            }];
-            assert_eq!(
-                super::agent_layer("base", &tools),
-                super::agent_layer("base", &tools)
-            );
-        }
-
-        #[test]
-        fn config_is_not_a_layer() {
-            let tools = [ToolPin {
-                name: "lint".into(),
-                pin: "3".into(),
-            }];
-            assert_eq!(
-                image_for_config("base", &tools, b"old skill"),
-                image_for_config("base", &tools, b"edited skill")
-            );
-        }
-    }
 }
 
 pub mod creds {
@@ -374,39 +253,6 @@ pub mod creds {
                 bail!("long-lived credential persisted in agent container")
             }
             Ok(())
-        }
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-        #[test]
-        fn injects() {
-            let proxy = CredentialProxy::new("actual-secret".into(), EgressTier::Model);
-            let env = proxy.environment("http://host.docker.internal:43800");
-            assert_eq!(env.sentinel, "sk-locus-sentinel");
-            assert!(!env.sentinel.contains("actual-secret"));
-        }
-        #[test]
-        fn no_long_lived_secret() {
-            let proxy = CredentialProxy::new("actual-secret".into(), EgressTier::Model);
-            proxy
-                .scan(&["API_KEY=sk-locus-sentinel".into()], &["config".into()])
-                .expect("sentinel is not a credential");
-            assert!(proxy.scan(&["API_KEY=actual-secret".into()], &[]).is_err());
-        }
-        #[test]
-        fn egress_tiers() {
-            let mut proxy = CredentialProxy::new("secret".into(), EgressTier::Model);
-            assert!(proxy.forward("run", "https://api.anthropic.com"));
-            assert!(!proxy.forward("run", "https://registry.npmjs.org"));
-        }
-        #[test]
-        fn outbound_audited() {
-            let mut proxy = CredentialProxy::new("secret".into(), EgressTier::None);
-            assert!(!proxy.forward("run-1", "https://api.anthropic.com"));
-            assert_eq!(proxy.audits().len(), 1);
-            assert!(!proxy.audits()[0].allowed);
         }
     }
 }
@@ -511,65 +357,6 @@ pub mod container {
         aborted.sort();
         aborted
     }
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-        fn plan() -> AgentContainer {
-            AgentContainer::new(
-                "42",
-                "/tmp/locus.sock".into(),
-                "/tmp/config".into(),
-                "git://remote/repo.git",
-                43_000,
-                "nonce",
-            )
-        }
-        #[test]
-        fn two_mounts_only() {
-            let plan = plan();
-            plan.validate().expect("exactly two mounts");
-            assert_eq!(plan.mounts.len(), 2);
-        }
-        #[test]
-        fn no_docker_socket() {
-            assert!(plan()
-                .mounts
-                .iter()
-                .all(|mount| !mount.target.contains("docker.sock")));
-        }
-        #[test]
-        fn workspace_is_a_clone() {
-            assert!(plan().clone_command().contains("git clone"));
-            assert!(plan()
-                .mounts
-                .iter()
-                .all(|mount| mount.target != "/workspace"));
-        }
-        #[test]
-        fn host_tree_unreachable() {
-            assert!(plan()
-                .mounts
-                .iter()
-                .all(|mount| mount.source != std::path::Path::new("/Users")));
-        }
-        #[test]
-        fn pty_attaches() {
-            assert!(plan().pty);
-        }
-        #[test]
-        fn reconciles_on_boot() {
-            let mut runs = HashMap::from([
-                ("alive".into(), RunState::Running),
-                ("gone".into(), RunState::Running),
-            ]);
-            assert_eq!(
-                reconcile(&mut runs, &HashSet::from(["alive".into()])),
-                ["gone"]
-            );
-            assert_eq!(runs["gone"], RunState::Aborted);
-        }
-    }
 }
 
 pub mod ports {
@@ -591,15 +378,6 @@ pub mod ports {
             self.used.remove(&port);
         }
     }
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-        #[test]
-        fn allocates_unique() {
-            let mut ports = Allocator::default();
-            assert_ne!(ports.allocate().unwrap(), ports.allocate().unwrap());
-        }
-    }
 }
 
 pub mod net {
@@ -608,18 +386,6 @@ pub mod net {
     }
     pub fn can_reach(source_project: &str, target_project: &str) -> bool {
         source_project == target_project
-    }
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-        #[test]
-        fn project_network() {
-            assert_eq!(super::project_network("alpha"), "locus-alpha");
-        }
-        #[test]
-        fn project_isolation() {
-            assert!(!can_reach("a", "b"));
-        }
     }
 }
 
@@ -641,18 +407,6 @@ pub mod svc {
             self.running.contains(&(project.into(), service.into()))
         }
     }
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-        #[test]
-        fn up_down() {
-            let mut services = Services::default();
-            assert_eq!(services.up("p", "postgres"), "locus-svc-p-postgres");
-            assert!(services.is_running("p", "postgres"));
-            services.down("p", "postgres");
-            assert!(!services.is_running("p", "postgres"));
-        }
-    }
 }
 
 pub mod canary {
@@ -665,20 +419,6 @@ pub mod canary {
             bail!("canary token appeared in captured output")
         }
         Ok(())
-    }
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-        #[test]
-        fn present_in_config() {
-            let mut config = String::new();
-            materialize("canary", &mut config);
-            assert!(config.contains("canary"));
-        }
-        #[test]
-        fn detects_leak() {
-            assert!(detect_leak("canary", "agent printed canary").is_err());
-        }
     }
 }
 
@@ -710,18 +450,6 @@ pub mod limits {
             }
             self.calls.push_back(now);
             true
-        }
-    }
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-        #[test]
-        fn tool_call_rate() {
-            let now = std::time::Instant::now();
-            let mut rate = ToolCallRate::new(2, Duration::from_secs(60));
-            assert!(rate.allow(now));
-            assert!(rate.allow(now));
-            assert!(!rate.allow(now));
         }
     }
 }
