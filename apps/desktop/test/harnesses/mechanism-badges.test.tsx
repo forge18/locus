@@ -17,32 +17,15 @@ describe('harnesses/mechanism-badges', () => {
     }
   })
 
-  it('has three variants and no more', () => {
-    const variants = new Set(useHarnesses().map((h) => h.badge.variant))
-    expect([...variants].sort()).toEqual(['acp', 'bridged', 'native'])
-  })
-
-  it('gives the native hooks path the accent tint', () => {
-    const { getByTestId } = mount()
-    const native = useHarnesses().find((h) => h.badge.variant === 'native')!
-    expect(getByTestId(`hn-badge-${native.name}`).className).toContain('hn-badge-native')
-    expect(rule('.hn-badge-native').body).toContain('background: var(--ac-wash)')
-    expect(native.badge.label).toBe('hooks')
-  })
-
-  it('puts a bridged path on --sf3 and names what the bridge is', () => {
-    const { getByTestId } = mount()
-    const bridged = useHarnesses().filter((h) => h.badge.variant === 'bridged')
-    expect(bridged.length).toBeGreaterThan(0)
-    expect(getByTestId(`hn-badge-${bridged[0].name}`).className).toContain('hn-badge-bridged')
-    expect(rule('.hn-badge-bridged').body).toContain('background: var(--sf3)')
-    expect(useHarnesses().find((h) => h.name === 'hermes')!.badge.label).toBe('hooks · plugin')
+  it('uses the ACP mechanism for every registered harness', () => {
+    for (const harness of useHarnesses()) {
+      expect(harness.badge).toEqual({ variant: 'acp', label: 'ACP' })
+    }
   })
 
   it('gives ACP its own blue', () => {
     const { getByTestId } = mount()
-    const acp = useHarnesses().find((h) => h.badge.variant === 'acp')!
-    expect(acp.name).toBe('cursor')
+    const acp = useHarnesses()[0]!
     expect(getByTestId(`hn-badge-${acp.name}`).textContent).toBe('ACP')
     expect(rule('.hn-badge-acp').body).toContain('rgba(143,184,214,.18)')
     expect(rule('.hn-badge-acp').body).toContain('color: var(--code-keyword)')

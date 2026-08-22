@@ -428,8 +428,8 @@ mod tests {
     #[test]
     fn materialization_report_is_derived_from_the_core_registry() {
         let reports = materialization_report().expect("registry report");
-        assert_eq!(reports.len(), 12);
-        assert_eq!(reports.iter().flat_map(|report| &report.losses).count(), 33);
+        assert_eq!(reports.len(), 11);
+        assert_eq!(reports.iter().flat_map(|report| &report.losses).count(), 29);
     }
 
     #[test]

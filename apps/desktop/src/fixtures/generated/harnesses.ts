@@ -60,11 +60,11 @@ export const HARNESSES: readonly HarnessEntry[] = [
     "name": "aider",
     "binary": "aider",
     "badge": {
-      "variant": "bridged",
-      "label": "session-log"
+      "variant": "acp",
+      "label": "ACP"
     },
     "injection": "no hook mechanism · core-driven at the boundary",
-    "mechanism": "session-log",
+    "mechanism": "acp",
     "emits": [],
     "modelFlag": "--model",
     "canEnumerateModels": true,
@@ -115,11 +115,11 @@ export const HARNESSES: readonly HarnessEntry[] = [
     "name": "antigravity",
     "binary": "agy",
     "badge": {
-      "variant": "bridged",
-      "label": "stream-json"
+      "variant": "acp",
+      "label": "ACP"
     },
     "injection": "entries in its own settings",
-    "mechanism": "stream-json",
+    "mechanism": "acp",
     "emits": [],
     "modelFlag": "--model",
     "canEnumerateModels": false,
@@ -170,11 +170,11 @@ export const HARNESSES: readonly HarnessEntry[] = [
     "name": "claude",
     "binary": "claude",
     "badge": {
-      "variant": "native",
-      "label": "hooks"
+      "variant": "acp",
+      "label": "ACP"
     },
     "injection": "entries in its own settings",
-    "mechanism": "hooks",
+    "mechanism": "acp",
     "emits": [
       "aborted",
       "assistant",
@@ -238,23 +238,12 @@ export const HARNESSES: readonly HarnessEntry[] = [
     "name": "codex",
     "binary": "codex",
     "badge": {
-      "variant": "native",
-      "label": "hooks"
+      "variant": "acp",
+      "label": "ACP"
     },
     "injection": "entries in its own settings",
-    "mechanism": "hooks",
-    "emits": [
-      "assistant",
-      "permission_request",
-      "session_end",
-      "session_start",
-      "subagent_start",
-      "subagent_stop",
-      "tool_call",
-      "tool_error",
-      "tool_result",
-      "user"
-    ],
+    "mechanism": "acp",
+    "emits": [],
     "modelFlag": "--model",
     "canEnumerateModels": false,
     "extensions": [
@@ -304,22 +293,12 @@ export const HARNESSES: readonly HarnessEntry[] = [
     "name": "copilot",
     "binary": "copilot",
     "badge": {
-      "variant": "native",
-      "label": "hooks"
+      "variant": "acp",
+      "label": "ACP"
     },
     "injection": "entries in its own settings",
-    "mechanism": "hooks",
-    "emits": [
-      "aborted",
-      "assistant",
-      "session_end",
-      "session_start",
-      "subagent_stop",
-      "tool_call",
-      "tool_error",
-      "tool_result",
-      "user"
-    ],
+    "mechanism": "acp",
+    "emits": [],
     "modelFlag": "--model",
     "canEnumerateModels": false,
     "extensions": [
@@ -374,7 +353,15 @@ export const HARNESSES: readonly HarnessEntry[] = [
     },
     "injection": "no hook mechanism · core-driven at the boundary",
     "mechanism": "acp",
-    "emits": [],
+    "emits": [
+      "assistant",
+      "permission_request",
+      "thinking",
+      "tool_call",
+      "tool_error",
+      "tool_result",
+      "user"
+    ],
     "modelFlag": "--model",
     "canEnumerateModels": false,
     "extensions": [
@@ -424,19 +411,12 @@ export const HARNESSES: readonly HarnessEntry[] = [
     "name": "dsh",
     "binary": "dsh",
     "badge": {
-      "variant": "native",
-      "label": "hooks"
+      "variant": "acp",
+      "label": "ACP"
     },
     "injection": "entries in its own settings",
-    "mechanism": "hooks",
-    "emits": [
-      "session_end",
-      "session_start",
-      "tool_call",
-      "tool_error",
-      "tool_result",
-      "user"
-    ],
+    "mechanism": "acp",
+    "emits": [],
     "modelFlag": "--model",
     "canEnumerateModels": false,
     "extensions": [
@@ -486,11 +466,11 @@ export const HARNESSES: readonly HarnessEntry[] = [
     "name": "gemini",
     "binary": "gemini",
     "badge": {
-      "variant": "bridged",
-      "label": "hooks · config"
+      "variant": "acp",
+      "label": "ACP"
     },
     "injection": "entries in its own settings",
-    "mechanism": "hooks",
+    "mechanism": "acp",
     "emits": [],
     "modelFlag": "--model",
     "canEnumerateModels": false,
@@ -538,80 +518,15 @@ export const HARNESSES: readonly HarnessEntry[] = [
     ]
   },
   {
-    "name": "hermes",
-    "binary": "hermes",
-    "badge": {
-      "variant": "bridged",
-      "label": "hooks · plugin"
-    },
-    "injection": "plugin",
-    "mechanism": "hooks",
-    "emits": [],
-    "modelFlag": "--model",
-    "canEnumerateModels": false,
-    "extensions": [
-      {
-        "type": "agents",
-        "via": "merged-into",
-        "weakerThanNative": "no agent directory; nested work goes through `locus agent invoke`"
-      },
-      {
-        "type": "commands",
-        "via": "merged-into",
-        "weakerThanNative": "always-on; not invocable"
-      },
-      {
-        "type": "context",
-        "via": "file",
-        "weakerThanNative": null
-      },
-      {
-        "type": "hooks",
-        "via": "plugin",
-        "weakerThanNative": null
-      },
-      {
-        "type": "linters",
-        "via": "dir",
-        "weakerThanNative": null
-      },
-      {
-        "type": "output-styles",
-        "via": "merged-into",
-        "weakerThanNative": "appended to context; a native style REPLACES the prompt's communication section"
-      },
-      {
-        "type": "rules",
-        "via": "merged-into",
-        "weakerThanNative": "always-on; no path scoping exists"
-      },
-      {
-        "type": "skills",
-        "via": "dir",
-        "weakerThanNative": null
-      }
-    ]
-  },
-  {
     "name": "omp",
     "binary": "omp",
     "badge": {
-      "variant": "native",
-      "label": "hooks"
+      "variant": "acp",
+      "label": "ACP"
     },
     "injection": "plugin",
-    "mechanism": "hooks",
-    "emits": [
-      "assistant",
-      "session_end",
-      "session_start",
-      "subagent_start",
-      "subagent_stop",
-      "tool_call",
-      "tool_error",
-      "tool_result",
-      "user"
-    ],
+    "mechanism": "acp",
+    "emits": [],
     "modelFlag": "--model",
     "canEnumerateModels": false,
     "extensions": [
@@ -661,16 +576,12 @@ export const HARNESSES: readonly HarnessEntry[] = [
     "name": "opencode",
     "binary": "opencode",
     "badge": {
-      "variant": "native",
-      "label": "hooks"
+      "variant": "acp",
+      "label": "ACP"
     },
     "injection": "plugin",
-    "mechanism": "hooks",
-    "emits": [
-      "tool_call",
-      "tool_error",
-      "tool_result"
-    ],
+    "mechanism": "acp",
+    "emits": [],
     "modelFlag": "--model",
     "canEnumerateModels": true,
     "extensions": [
@@ -720,22 +631,12 @@ export const HARNESSES: readonly HarnessEntry[] = [
     "name": "pi",
     "binary": "pi",
     "badge": {
-      "variant": "native",
-      "label": "hooks"
+      "variant": "acp",
+      "label": "ACP"
     },
     "injection": "plugin",
-    "mechanism": "hooks",
-    "emits": [
-      "assistant",
-      "session_end",
-      "session_start",
-      "subagent_start",
-      "subagent_stop",
-      "tool_call",
-      "tool_error",
-      "tool_result",
-      "user"
-    ],
+    "mechanism": "acp",
+    "emits": [],
     "modelFlag": "--model",
     "canEnumerateModels": false,
     "extensions": [
@@ -783,52 +684,52 @@ export const HARNESSES: readonly HarnessEntry[] = [
   }
 ]
 
-/** 12 harnesses. Computed, so adding one moves this without an edit. */
-export const HARNESS_COUNT = 12
+/** 11 harnesses. Computed, so adding one moves this without an edit. */
+export const HARNESS_COUNT = 11
 
-/** 33 downgrades across 96 entries. Also computed. */
-export const ENTRY_COUNT = 96
-export const DOWNGRADE_COUNT = 33
+/** 29 downgrades across 88 entries. Also computed. */
+export const ENTRY_COUNT = 88
+export const DOWNGRADE_COUNT = 29
 
 export const EXTENSION_COUNTS: readonly ExtensionTypeCount[] = [
   {
     "type": "agents",
     "native": 7,
-    "downgraded": 5
+    "downgraded": 4
   },
   {
     "type": "commands",
     "native": 6,
-    "downgraded": 6
+    "downgraded": 5
   },
   {
     "type": "context",
-    "native": 12,
+    "native": 11,
     "downgraded": 0
   },
   {
     "type": "hooks",
-    "native": 9,
+    "native": 8,
     "downgraded": 3
   },
   {
     "type": "linters",
-    "native": 12,
+    "native": 11,
     "downgraded": 0
   },
   {
     "type": "output-styles",
     "native": 3,
-    "downgraded": 9
+    "downgraded": 8
   },
   {
     "type": "rules",
     "native": 4,
-    "downgraded": 8
+    "downgraded": 7
   },
   {
     "type": "skills",
-    "native": 10,
+    "native": 9,
     "downgraded": 2
   }
 ]

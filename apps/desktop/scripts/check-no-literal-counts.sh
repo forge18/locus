@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Every count on the Workshop screens comes from harnesses/*.toml through the
 # generated fixture. A literal here is wrong the next time a harness is registered
-# — the handoff's own copy said 88/27 while the files said 96/33, which is exactly
+# — the handoff's own copy said 88/27 while the files said 88/29, which is exactly
 # the failure this prevents.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -32,12 +32,12 @@ for f in src/screens/workshop/ExtensionsView.tsx src/screens/workshop/HarnessesV
 done
 
 # The counts the spec names are in the generated file, and nowhere else.
-grep -q 'HARNESS_COUNT = 12' src/fixtures/generated/harnesses.ts || {
-  echo "the generated registry does not report 12 harnesses"
+grep -q 'HARNESS_COUNT = 11' src/fixtures/generated/harnesses.ts || {
+  echo "the generated registry does not report 11 harnesses"
   fail=1
 }
-grep -q 'DOWNGRADE_COUNT = 33' src/fixtures/generated/harnesses.ts || {
-  echo "the generated registry does not report 33 downgrades"
+grep -q 'DOWNGRADE_COUNT = 29' src/fixtures/generated/harnesses.ts || {
+  echo "the generated registry does not report 29 downgrades"
   fail=1
 }
 

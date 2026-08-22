@@ -39,7 +39,7 @@ fn canary_visible() {
 #[cfg(test)]
 #[test]
 #[ignore = "requires Docker for the future live-harness smoke; deterministic preflight runs now"]
-fn all_twelve() {
+fn all_registered_harnesses() {
     let registry = registry();
     for harness in registry.iter() {
         let events =

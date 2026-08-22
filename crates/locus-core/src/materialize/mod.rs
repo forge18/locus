@@ -1442,7 +1442,7 @@ fn pi_loads_generated() {
 }
 
 #[test]
-fn all_twelve_all_eight() {
+fn all_registered_harnesses_all_eight() {
     let registry = registry();
     let mut extensions = ExtensionSet::default();
     for extension in EXTENSIONS {
@@ -1537,8 +1537,8 @@ mod lint {
 #[test]
 fn report_carries_losses() {
     let reports = reports_for_registry(&registry());
-    assert_eq!(reports.len(), 12);
-    assert_eq!(reports.iter().flat_map(|report| &report.losses).count(), 33);
+    assert_eq!(reports.len(), 11);
+    assert_eq!(reports.iter().flat_map(|report| &report.losses).count(), 29);
     assert!(reports
         .iter()
         .flat_map(|report| &report.losses)

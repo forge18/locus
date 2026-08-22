@@ -3,6 +3,12 @@ name   = "aider"
 binary = "aider"
 detect = ["--version"]
 
+[image]
+base     = "debian:bookworm-slim"
+version  = "unverified"
+install  = []
+verified = false
+
 [launch]
 argv = ["--message-file", "-", "--yes-always"]
 tui  = false

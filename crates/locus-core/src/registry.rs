@@ -555,7 +555,6 @@ fn schema_parses() {
         include_str!("../../../harnesses/cursor.toml"),
         include_str!("../../../harnesses/dsh.toml"),
         include_str!("../../../harnesses/gemini.toml"),
-        include_str!("../../../harnesses/hermes.toml"),
         include_str!("../../../harnesses/omp.toml"),
         include_str!("../../../harnesses/opencode.toml"),
         include_str!("../../../harnesses/pi.toml"),
@@ -787,7 +786,7 @@ fn rejects_unexplained_downgrade() {
 
 #[cfg(test)]
 #[test]
-fn loads_all_twelve() {
+fn loads_all_registered_harnesses() {
     let source = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../harnesses");
     let registry = std::env::temp_dir().join(format!(
         "locus-registry-{}-{}",
@@ -818,7 +817,7 @@ fn loads_all_twelve() {
     let harnesses = load_from_directory(&registry).expect("registry definitions load");
     std::fs::remove_dir_all(registry).expect("temporary registry directory is removed");
 
-    assert_eq!(harnesses.len(), 12);
+    assert_eq!(harnesses.len(), 11);
     assert!(
         harnesses
             .iter()
@@ -839,7 +838,6 @@ fn loads_all_twelve() {
             "cursor",
             "dsh",
             "gemini",
-            "hermes",
             "omp",
             "opencode",
             "pi",
@@ -867,26 +865,17 @@ fn queries() {
             .by_telemetry_source("acp")
             .map(|harness| harness.name.as_str())
             .collect::<Vec<_>>(),
-        ["cursor"]
+        [
+            "aider", "antigravity", "claude", "codex", "copilot", "cursor", "dsh",
+            "gemini", "omp", "opencode", "pi",
+        ]
     );
     assert_eq!(
         harnesses
             .by_declared_verbs(&["tool_call", "tool_result"])
             .map(|harness| harness.name.as_str())
             .collect::<Vec<_>>(),
-        [
-            "antigravity",
-            "claude",
-            "codex",
-            "copilot",
-            "cursor",
-            "dsh",
-            "gemini",
-            "hermes",
-            "omp",
-            "opencode",
-            "pi",
-        ]
+        ["claude", "cursor"]
     );
 }
 
@@ -895,20 +884,20 @@ fn queries() {
 fn smoke_gates_registration() {
     let source = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../harnesses");
     let registry = register_from_directory(source).expect("registered harnesses pass canary smoke");
-    assert_eq!(registry.len(), 12);
+    assert_eq!(registry.len(), 11);
 }
 
 #[cfg(test)]
 #[test]
-fn counts_are_96_and_33() {
+fn counts_are_88_and_29() {
     let source = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../harnesses");
     let harnesses = load_from_directory(source).expect("registry definitions load");
 
     assert_eq!(
         harnesses.counts(),
         RegistryCounts {
-            entries: 96,
-            downgrades: 33,
+            entries: 88,
+            downgrades: 29,
         }
     );
 }

@@ -8,8 +8,8 @@ const harnessDir = resolve(SRC, '../../../harnesses')
 const tomlFiles = readdirSync(harnessDir).filter((f) => f.endsWith('.toml'))
 
 describe('fixtures/harness-count', () => {
-  it('reports 12 harnesses', () => {
-    expect(HARNESS_COUNT).toBe(12)
+  it('reports 11 harnesses', () => {
+    expect(HARNESS_COUNT).toBe(11)
   })
 
   it('counts one per harnesses/*.toml, so adding a file moves the number', () => {
@@ -20,7 +20,7 @@ describe('fixtures/harness-count', () => {
   it('names each harness by the name inside its file, not its filename', () => {
     expect(HARNESSES.map((h) => h.name).sort()).toEqual([
       'aider', 'antigravity', 'claude', 'codex', 'copilot', 'cursor',
-      'dsh', 'gemini', 'hermes', 'omp', 'opencode', 'pi',
+      'dsh', 'gemini', 'omp', 'opencode', 'pi',
     ])
   })
 

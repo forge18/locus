@@ -21,7 +21,7 @@ describe('settings/harness-tiers', () => {
     const { getByTestId } = mount()
     const grid = useHarnessTierGrid()
 
-    expect(grid).toHaveLength(12)
+    expect(grid).toHaveLength(11)
     for (const harness of grid) {
       expect(getByTestId(`hn-card-${harness.name}`)).toBeTruthy()
       expect(harness.tiers.map(({ tier }) => tier)).toEqual(['low', 'medium', 'high', 'xhigh'])

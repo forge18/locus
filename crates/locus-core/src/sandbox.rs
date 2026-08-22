@@ -544,9 +544,9 @@ mod images {
     }
 
     #[test]
-    fn metadata_is_declarative_for_all_twelve_harnesses() {
+    fn metadata_is_declarative_for_all_registered_harnesses() {
         let registry = registry();
-        assert_eq!(registry.len(), 12);
+        assert_eq!(registry.len(), 11);
 
         for harness in registry.iter() {
             assert!(

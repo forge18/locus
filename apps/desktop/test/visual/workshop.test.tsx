@@ -77,10 +77,10 @@ describe('visual: workshop', () => {
     expect(getByTestId('wf-inspector')).toBeTruthy()
   })
 
-  it('harnesses: twelve cards in a grid that reflows', () => {
+  it('harnesses: registered cards in a grid that reflows', () => {
     const { getByTestId } = mount('harnesses', () => <HarnessesView />)
     expect(rule('.hn-grid').body).toContain('repeat(auto-fit, minmax(230px, 1fr))')
-    expect(getByTestId('harnesses-grid').querySelectorAll('.hn-card').length).toBe(12)
+    expect(getByTestId('harnesses-grid').querySelectorAll('.hn-card').length).toBe(11)
   })
 
   it('carries the copy the screenshots show, verbatim', () => {
@@ -102,10 +102,10 @@ describe('visual: workshop', () => {
     )
   })
 
-  it('shows 33 of 96, not the 27 of 88 the screenshot itself carries', () => {
+  it('shows the computed 29 of 88, not the screenshot’s stale 27 of 88', () => {
     const { getByTestId } = mount('harnesses', () => <HarnessesView />)
     const foot = getByTestId('harnesses-foot').textContent!
-    expect(foot).toContain('33 of 96')
+    expect(foot).toContain('29 of 88')
     expect(foot).not.toContain('27 of 88')
   })
 

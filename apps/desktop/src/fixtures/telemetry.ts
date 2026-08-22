@@ -70,7 +70,6 @@ export const FACET_GROUPS: FacetGroup[] = [
       { value: 'cursor', count: 41, active: false },
       { value: 'gemini', count: 26, active: false },
       { value: 'aider', count: 14, active: false },
-      { value: 'hermes', count: 9, active: false },
     ],
   },
   {

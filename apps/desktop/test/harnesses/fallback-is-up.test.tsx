@@ -28,11 +28,10 @@ describe('harnesses/fallback-is-up', () => {
   })
 
   it('lets two harnesses nominate different fallbacks', () => {
-    // Both are missing `low`; they land in different places because their
-    // settings say so, which is the whole point of it being configuration.
-    expect(fallbackTierFor('hermes')).toBe('high')
+    // Their missing tiers land differently because the fallback is configuration.
+    expect(fallbackTierFor('claude')).toBe('high')
     expect(fallbackTierFor('aider')).toBe('medium')
-    expect(resolveTier('hermes', 'low').fellBackTo).toBe('high')
+    expect(resolveTier('claude', 'xhigh').fellBackTo).toBe('high')
     expect(resolveTier('aider', 'low').fellBackTo).toBe('medium')
 
     // And pi, which has every tier mapped, never falls back at all.

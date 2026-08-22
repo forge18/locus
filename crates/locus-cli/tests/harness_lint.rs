@@ -14,6 +14,6 @@ fn validates_the_registered_harnesses() {
     );
     assert_eq!(
         String::from_utf8(output.stdout).expect("stdout is UTF-8"),
-        "12 harness definitions passed validation\n"
+        "11 harness definitions passed validation\n"
     );
 }
