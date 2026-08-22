@@ -54,3 +54,6 @@
 | 50 | Render Automate agents list with run status, transcript, and filters | 30 | `pnpm -C apps/desktop test -- automate/agents-v2` |
 | 51 | Render agent handoff, pause, cancel, and needs-attention controls | 32,50 | `pnpm -C apps/desktop test -- automate/agent-controls` |
 | 52 | Render all Guardrails controls: iterations, budget, stuck, reassignment, wall-clock, and parallelism | 27,28 | `pnpm -C apps/desktop test -- settings/guardrails-v2` |
+| 53 | Persist the per-job bypass-permissions toggle, defaulting to bypass | 1 | `cargo test -p locus-core dispatch::permission_posture` |
+| 54 | Record gated permission requests as waiting human actions, not bypass alarms | 53 | `cargo test -p locus-core dispatch::gated_permission_request` |
+| 55 | Render the Dispatch permission control and its per-job consequence | 53 | `pnpm -C apps/desktop test -- dispatch/permission-mode` |

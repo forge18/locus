@@ -91,6 +91,7 @@ the strongest available argument that skipping VSCodium costs less than it would
 | Editor | CodeMirror 6, used directly — no abstraction seam. **One editor at two zoom levels**: a side pane beside an agent, and a full-window module. No second editor, no VSCodium. |
 | Debug | A **DAP client in Rust**, because agents need to debug. **No debug UI at all** — the whole surface is `locus debug` in a container, and a human debugs in their own editor. |
 | Harness I/O | **ACP is the only agent-session transport.** One container hosts one ACP conversation and the UI renders its normalized events. Human terminals remain available for hand work only; they are never agent sessions. |
+| Agent panel | **One session surface, not a monitor.** The ACP stream, steering composer, docked human-action gates, plan, checkpoints, and session research feed live together; the delivered ACP panel handoff is its visual contract. |
 | `local-dx` relationship | Inspiration, not dependency. Locus owns its own registry and schema. |
 | Sandbox | One container per agent run. The workspace is a **clone from a local bare remote**, not a mount. Credential handling must be easy and secure; the mechanism is Spike 1's to settle. |
 | Projects | A Locus project holds **one or more repos** and owns the board, wiki, and memory across all of them. **Unrelated to GitHub Projects** — the name collision is unfortunate and means nothing. |
@@ -115,7 +116,7 @@ the strongest available argument that skipping VSCodium costs less than it would
 | Board | **Fixed columns across every project**, not configurable: Ready → In Progress → Testing → Reviewing → Waiting For Approval → Done. **`blocked` is a status, not a column.** Two gating rules only. |
 | Planning | **Three agents** — interviewer, researcher, auditor — over ACP. Goal is an input, not an output. The approved spec is decomposed into board cards explicitly: spec-only, every task, or spec plus selected carve-outs. Nothing reaches the board until the single final approval. |
 | Testing Locus | **Event-based.** Every run normalizes into `memory.event`, so a test is "run this, assert these events appeared" — identical across all eleven harnesses, no test-only instrumentation. |
-| Permissions | **You are never prompted.** A run that stops to ask has nobody watching it. What an agent may do is *declared* — the tool allowlist on the agent definition, narrowed per role by the workflow's `Agent` node — and enforced by the container, not by the harness's own gate. |
+| Permissions | **Bypass is the default; a job may explicitly opt into gated approval.** What an agent may do is *declared* — the tool allowlist on the agent definition, narrowed per role by the workflow's `Agent` node — and enforced by the container. A gated request blocks as a visible human action; an unexpected bypass request is an alarm. |
 | UI components | **Kobalte** headless primitives + **shadcn-solid** components copied into the repo + **Tailwind**. Headless, because an IDE's chrome is small and its large surfaces are all bespoke or bring their own DOM. |
 
 ### v2 desktop revision
@@ -713,9 +714,10 @@ so a normalization bug is repairable by replay rather than by re-running the age
 the number from the model API, and Locus never counts tokens itself. Where a harness reports nothing,
 `usage` is null and spend reads *unknown* rather than zero.
 
-**`permission_request` is a misconfiguration alarm.** Since every harness launches with its own gate
-off, one firing means a gate was left on and the run is about to hang. It stays in the vocabulary for
-exactly that reason — see Permissions below.
+**`permission_request` is posture-aware.** In the default bypass posture, every harness gate is off,
+so a request is a misconfiguration alarm. A dispatch-selected gated posture makes the same event a
+visible human-action request that blocks until resolved. The run's stored posture, not the verb alone,
+determines its meaning — see Permissions below.
 
 **How each source normalizes.** `[telemetry].source` is `acp` for every supported harness; the module
 under `crates/locus-core/src/telemetry/` is one ACP path, and nothing downstream knows which one:
@@ -1743,10 +1745,11 @@ Two consequences worth stating:
 Agent definitions live in Postgres like everything else, with import and export as `.md` so they can
 be reviewed in a PR or copied between machines when that is what you want.
 
-#### Permissions are declared, never prompted
+#### Permissions are declared; gated runs can ask
 
-The human is never asked mid-run, because a headless run that stops to ask has nobody to answer it.
-What an agent may do is set in two places, and the second may only ever **narrow** the first:
+Bypass is the default because an unattended run that stops to ask has nobody to answer it. A dispatch
+job may explicitly opt into a gated posture, where a protected action blocks as a visible human request.
+What an agent may do is still set in two places, and the second may only ever **narrow** the first:
 
 | Set on | Declares | Rule |
 | --- | --- | --- |
@@ -1758,9 +1761,10 @@ workflow would be a place to re-grant privileges, and reading an agent would sto
 can do.
 
 Enforcement is the container, not the harness: an unlisted tool is not installed, the network tier is
-applied at the proxy, and the run's branch is the only writable thing in reach. The harness's own
-permission gate is switched **off** at launch, by the `argv` its harness file declares — which is why
-`permission_request` firing means a misconfiguration rather than a decision waiting for you.
+applied at the proxy, and the run's branch is the only writable thing in reach. In bypass posture the
+harness gate is switched **off** at launch, so `permission_request` is an alarm. In gated posture,
+Locus records and resolves the request in the Agent Pane; it never grants a capability outside the same
+allowlist and container boundary.
 
 ### The Workflow Canvas
 

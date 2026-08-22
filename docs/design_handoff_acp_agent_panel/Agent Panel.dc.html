@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/nocturne-4f4ea656-e13f-4b48-8c4f-532a78ad2114/styles.css">
+<script src="_ds/nocturne-4f4ea656-e13f-4b48-8c4f-532a78ad2114/_ds_bundle.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#1d2731; --bg-deep:#151d25; --sf:#22303c; --sf2:#293947; --sf3:#314454;
+  --blue:#083c5d; --blue-lit:#0d5480;
+  --ac:#ffbb39; --ac2:#9184d9; --ac2-dim:rgba(145,132,217,.16);
+  --tx:#eef2f6; --mu:rgba(238,242,246,.78); --mu2:rgba(238,242,246,.62);
+  --line:rgba(238,242,246,.14); --line2:rgba(238,242,246,.24);
+  --ok:#68ad91; --bad:#df8a7d; --ok-solid:#4fa07f; --bad-solid:#d4614f;
+  --data-1:#35495a; --data-2:#4e6c81; --data-3:#62869e; --data-hi:#8fb8d6;
+  --color-bg:#1d2731; --color-surface:#22303c; --color-text:#eef2f6;
+  --color-accent:#ffbb39; --color-accent-800:#5c4413; --color-accent-100:#fff3d9;
+  --color-neutral-800:#314454; --color-neutral-100:#eef2f6;
+  --color-divider:rgba(238,242,246,.14);
+  --fm:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:var(--ac);text-decoration:none}
+a:hover{color:#ffd27a}
+*::-webkit-scrollbar{width:8px;height:8px}
+*::-webkit-scrollbar-thumb{background:rgba(238,242,246,.14);border-radius:8px}
+*::-webkit-scrollbar-track{background:transparent}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+@keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+@keyframes breathe{0%,100%{opacity:1}50%{opacity:.2}}
+.btn{white-space:nowrap}
+:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+::selection{background:rgba(255,187,57,.28)}
+</style>
+</helmet>
+
+<div style="display:flex;height:100vh;background:var(--bg);color:var(--tx);font:400 15px Inter,system-ui,sans-serif;overflow:hidden">
+
+  <div style="flex:1;min-width:0;display:flex;flex-direction:column;position:relative">
+
+    <div style="flex:none;height:44px;display:flex;align-items:center;gap:9px;padding:0 11px;background:rgba(0,0,0,.3);border-bottom:1px solid var(--line);position:relative;z-index:40;min-width:0">
+      <span style="flex:0 1 auto;min-width:0;font-family:var(--fm);font-size:13px;color:var(--ac2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">#tapestry</span>
+      <span style="flex:none;width:1px;height:18px;background:var(--line)"></span>
+      <div onClick="{{ editName }}" style="{{ nameBox }}">
+        <sc-if value="{{ taskLinked }}" hint-placeholder-val="{{ true }}">
+          <span style="flex:none;display:inline-flex;align-items:center;gap:4px;padding:1px 6px;border-radius:5px;background:var(--sf2);font-family:var(--fm);font-size:11px;color:var(--mu)"><i class="ph ph-kanban" style="font-size:11px"></i>T-118</span>
+        </sc-if>
+        <span style="min-width:0;font-size:14px;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ sessionName }}</span>
+        <sc-if value="{{ naming }}"><span style="flex:none;width:1px;height:15px;background:var(--ac);animation:blink 1.1s infinite"></span></sc-if>
+        <i class="{{ nameIcon }}" style="flex:none;font-size:12px;color:var(--mu2)"></i>
+      </div>
+      <div style="margin-left:auto;flex:none;display:flex;align-items:center;gap:7px">
+        <sc-if value="{{ hasWorkflow }}" hint-placeholder-val="{{ true }}">
+          <span style="flex:none;display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:6px;background:var(--sf);box-shadow:inset 0 0 0 1px var(--line);white-space:nowrap">
+            <i class="ph ph-flow-arrow" style="font-size:12px;color:var(--ac2)"></i>
+            <span style="font-family:var(--fm);font-size:11.5px;color:var(--mu)">{{ workflow }}</span>
+          </span>
+        </sc-if>
+        <sc-if value="{{ costOn }}">
+          <span style="display:inline-flex;align-items:center;gap:6px;font-family:var(--fm);font-size:12px;color:var(--mu)"><span style="color:var(--tx)">38.4k</span>tok<span style="color:var(--line2)">·</span><span style="color:var(--tx)">$0.41</span></span>
+        </sc-if>
+        <span onClick="{{ toggleResearch }}" style="{{ resBtn }}"><i class="ph ph-flask" style="font-size:14px"></i><span style="font-size:12.5px">Research</span><span style="{{ resCount }}">4</span></span>
+        <span onClick="{{ toggleMenu }}" style="{{ menuBtn }}"><i class="ph ph-dots-three-vertical" style="font-size:15px"></i></span>
+      </div>
+
+      <sc-if value="{{ menuOpen }}">
+      <div style="position:absolute;top:41px;right:9px;z-index:90;width:326px;padding:6px;border-radius:9px;background:var(--sf);border:1px solid var(--line2);box-shadow:0 14px 34px rgba(0,0,0,.55)">
+        <sc-for list="{{ menuActions }}" as="a" hint-placeholder-count="3">
+          <div onClick="{{ a.act }}" style="display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:6px;cursor:pointer" style-hover="background:var(--sf2)">
+            <i class="{{ a.icon }}" style="font-size:15px;color:var(--mu)"></i>
+            <span style="font-size:13.5px">{{ a.label }}</span>
+            <span style="margin-left:auto;font-family:var(--fm);font-size:11.5px;color:var(--mu2)">{{ a.cmd }}</span>
+          </div>
+        </sc-for>
+        <div style="margin:6px 3px 4px;padding-top:8px;border-top:1px solid var(--line);font:500 10.5px Inter,sans-serif;letter-spacing:.13em;text-transform:uppercase;color:var(--mu)">Disclosure</div>
+        <sc-for list="{{ discRows }}" as="s" hint-placeholder-count="4">
+          <div style="display:flex;align-items:center;gap:8px;padding:5px 6px 5px 9px">
+            <span style="font-size:13px;color:var(--mu)">{{ s.label }}</span>
+            <span style="margin-left:auto;display:inline-flex;border-radius:6px;overflow:hidden;border:1px solid var(--line2)">
+              <sc-for list="{{ s.opts }}" as="o" hint-placeholder-count="3">
+                <span onClick="{{ o.pick }}" style="{{ o.st }}">{{ o.label }}</span>
+              </sc-for>
+            </span>
+          </div>
+        </sc-for>
+      </div>
+      </sc-if>
+    </div>
+
+    <div style="flex:1;min-height:0;position:relative;display:flex;flex-direction:column">
+    <span onClick="{{ jumpToAction }}" style="{{ livePill }}"><span style="{{ liveDotBig }}"></span>{{ liveLabel }}</span>
+    <div ref="{{ streamRef }}" style="flex:1;min-height:0;overflow:auto;padding:14px 16px 18px">
+
+      <div style="display:flex;flex-direction:column;align-items:flex-end;margin-bottom:16px">
+        <div style="{{ user1 }}">
+          <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
+            <div style="flex:none;width:22px;height:22px;border-radius:6px;background:var(--sf);box-shadow:inset 0 0 0 1px var(--line2);display:grid;place-items:center"><i class="ph ph-user" style="font-size:12px;color:var(--mu)"></i></div>
+            <span style="font:500 12.5px Inter,sans-serif;color:var(--tx)">You</span>
+            <span style="margin-left:auto;flex:none;display:flex;align-items:center;gap:10px">
+              <i onClick="{{ noop }}" class="ph ph-copy" style="font-size:13px;color:var(--mu2);cursor:pointer" style-hover="color:var(--tx)"></i>
+              <span style="font-family:var(--fm);font-size:11.5px;color:var(--mu2)">09:14</span>
+            </span>
+          </div>
+          <div onClick="{{ u1 }}" style="display:flex;align-items:flex-start;gap:10px;cursor:pointer">
+            <span style="{{ user1Text }}">Auth rotates far more than it should. Find where the churn comes from and reduce it to one rotation path — do not rewrite the existing tests.</span>
+            <i class="{{ u1Caret }}" style="flex:none;font-size:11px;color:var(--mu2);margin-top:4px"></i>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:6px;padding-right:3px">
+          <span style="font-size:11.5px;color:var(--mu2)">You</span>
+          <span style="font-size:11.5px;color:var(--mu2)">·</span>
+          <span style="font-family:var(--fm);font-size:11.5px;color:var(--mu2)">09:14</span>
+        </div>
+      </div>
+
+      <div style="{{ turnBox }}">
+      <div style="display:flex;align-items:center;gap:9px;margin:0 0 11px">
+        <div style="flex:none;width:24px;height:24px;border-radius:7px;background:var(--blue-lit);box-shadow:inset 0 0 0 1px var(--blue);display:grid;place-items:center;font:500 10px 'JetBrains Mono',monospace;color:#bfe0f5">RF</div>
+        <span style="font:500 13.5px Inter,sans-serif">refac</span>
+        <span style="font-size:12px;color:var(--mu2)">refactor</span>
+        <span style="margin-left:auto;flex:none;display:flex;align-items:center;gap:10px">
+          <i onClick="{{ noop }}" class="ph ph-copy" style="font-size:13px;color:var(--mu2);cursor:pointer" style-hover="color:var(--tx)"></i>
+          <span style="font-family:var(--fm);font-size:11.5px;color:var(--mu2)">09:16</span>
+        </span>
+      </div>
+
+      <div style="{{ thinkBox }}">
+        <div onClick="{{ cycleThink }}" style="display:flex;align-items:center;gap:8px;padding:7px 11px;cursor:pointer">
+          <i class="ph ph-brain" style="font-size:14px;color:var(--mu2)"></i>
+          <span style="font-size:12.5px;color:var(--mu)">Thought for <span style="font-family:var(--fm);color:var(--tx)">8s</span></span>
+          <span style="font-size:12px;color:var(--mu2)">· 3 considerations</span>
+          <span style="margin-left:auto;display:inline-flex;border-radius:6px;overflow:hidden;border:1px solid var(--line)">
+            <sc-for list="{{ thinkOpts }}" as="t" hint-placeholder-count="3">
+              <span onClick="{{ t.pick }}" style="{{ t.st }}">{{ t.label }}</span>
+            </sc-for>
+          </span>
+        </div>
+        <sc-if value="{{ thinkBody }}" hint-placeholder-val="{{ true }}">
+        <div style="padding:0 11px 10px 33px;display:flex;flex-direction:column;gap:5px">
+          <sc-for list="{{ thoughts }}" as="t" hint-placeholder-count="3">
+            <div style="font-size:12.5px;color:var(--mu2);line-height:1.55">{{ t.s }}</div>
+          </sc-for>
+        </div>
+        </sc-if>
+      </div>
+
+      <div style="display:flex;gap:11px;margin-bottom:14px">
+        <div style="min-width:0;max-width:70ch;font-size:14.5px;line-height:1.68;color:var(--tx)">
+          <p style="margin:0 0 10px">Churn is not in the refresh policy — it is in three call sites that each decide to rotate on their own. <span onClick="{{ noop }}" style="{{ pathLink }}">crates/locus-core/src/auth/session.rs</span> counts hits, <span onClick="{{ noop }}" style="{{ pathLink }}">auth/token.rs</span> rotates on any decode failure, and <span onClick="{{ noop }}" style="{{ pathLink }}">auth/mfa.rs</span> rotates defensively after a step-up.</p>
+          <div style="margin:0 0 11px;border-radius:7px;overflow:hidden;border:1px solid var(--line)">
+            <div style="display:flex;align-items:center;gap:8px;padding:5px 10px;background:rgba(0,0,0,.3);border-bottom:1px solid var(--line)">
+              <span style="font-family:var(--fm);font-size:11px;color:var(--mu2)">rust</span>
+              <span onClick="{{ noop }}" style="{{ pathLink }}">auth/session.rs:42</span>
+              <i class="ph ph-copy" style="font-size:12px;color:var(--mu2);margin-left:auto;cursor:pointer"></i>
+            </div>
+            <div style="padding:9px 11px;background:rgba(0,0,0,.3);font-family:var(--fm);font-size:12.5px;line-height:1.65;color:var(--mu);white-space:pre">if self.hits &gt; CHURN_MAX &amp;&amp; now - self.born &gt; MIN_AGE {
+    self.rotate();       <span style="color:var(--mu2)">// and two more like it</span>
+}</div>
+          </div>
+          <p style="margin:0 0 10px">Only the first is load-bearing. Measured over the last day of staging traffic:</p>
+          <div style="margin:0 0 10px;display:flex;flex-direction:column;gap:1px">
+            <sc-for list="{{ churn }}" as="c" hint-placeholder-count="3">
+              <div style="display:flex;align-items:center;gap:10px;padding:4px 0">
+                <span onClick="{{ noop }}" style="{{ pathLink }}">{{ c.mod }}</span>
+                <span style="margin-left:auto;flex:none;display:block;width:118px;height:6px;border-radius:3px;background:var(--data-1)"><span style="display:block;width:{{ c.w }};height:6px;border-radius:3px;background:var(--data-3)"></span></span>
+                <span style="flex:none;width:64px;text-align:right;font-family:var(--fm);font-size:12.5px;color:var(--tx)">{{ c.n }}</span>
+                <span style="flex:none;width:70px;font-size:12.5px;color:var(--mu2)">{{ c.unit }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <p style="margin:0">The other two can defer to it. That is one edit per call site and no new tests.</p>
+        </div>
+      </div>
+
+      <div style="{{ tool1Box }}">
+        <div onClick="{{ t1 }}" style="display:flex;align-items:center;gap:9px;padding:7px 11px;cursor:pointer">
+          <span style="flex:none;width:19px;height:19px;border-radius:5px;background:var(--sf3);display:grid;place-items:center"><i class="ph ph-magnifying-glass" style="font-size:11px;color:var(--mu)"></i></span>
+          <span style="font-size:11px;letter-spacing:.11em;text-transform:uppercase;color:var(--mu2)">search</span>
+          <span style="font-family:var(--fm);font-size:12.5px;color:var(--tx);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">rg -n "rotate\(" crates/locus-core/src/auth</span>
+          <span style="margin-left:auto;flex:none;display:flex;align-items:center;gap:9px">
+            <span style="{{ okChip }}"><i class="ph ph-check" style="font-size:10px"></i>completed</span>
+            <span style="font-family:var(--fm);font-size:11.5px;color:var(--mu2)">0.4s</span>
+            <i class="{{ t1Caret }}" style="font-size:11px;color:var(--mu2)"></i>
+          </span>
+        </div>
+        <sc-if value="{{ t1Open }}" hint-placeholder-val="{{ true }}">
+        <div style="border-top:1px solid var(--line);background:rgba(0,0,0,.3);padding:9px 12px;font-family:var(--fm);font-size:12px;line-height:1.72;color:var(--mu)">
+          <div><span style="color:var(--data-hi)">auth/session.rs</span>:44<span style="color:var(--mu2)">:</span>            self.rotate();</div>
+          <div><span style="color:var(--data-hi)">auth/token.rs</span>:88<span style="color:var(--mu2)">:</span>        self.rotate();  <span style="color:var(--mu2)">// on any decode failure</span></div>
+          <div><span style="color:var(--data-hi)">auth/mfa.rs</span>:131<span style="color:var(--mu2)">:</span>    session.rotate();</div>
+          <div style="margin-top:6px;color:var(--mu2)">3 matches in 3 files · 38 files scanned</div>
+        </div>
+        </sc-if>
+      </div>
+
+      <div style="{{ tool2Box }}">
+        <div onClick="{{ t2 }}" style="display:flex;align-items:center;gap:9px;padding:7px 11px;cursor:pointer">
+          <span style="flex:none;width:19px;height:19px;border-radius:5px;background:rgba(212,97,79,.16);display:grid;place-items:center"><i class="ph ph-database" style="font-size:11px;color:var(--bad)"></i></span>
+          <span style="font-size:11px;letter-spacing:.11em;text-transform:uppercase;color:var(--mu2)">execute</span>
+          <span style="font-family:var(--fm);font-size:12.5px;color:var(--mu);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">sqlx prepare --check</span>
+          <span style="margin-left:auto;flex:none;display:flex;align-items:center;gap:9px">
+            <span style="{{ badChip }}"><i class="ph ph-x" style="font-size:10px"></i>tool_error</span>
+            <span style="font-size:11.5px;color:var(--mu2)">retried once</span>
+            <i class="{{ t2Caret }}" style="font-size:11px;color:var(--mu2)"></i>
+          </span>
+        </div>
+        <sc-if value="{{ t2Open }}">
+        <div style="border-top:1px solid var(--line);background:rgba(0,0,0,.3);padding:9px 12px;font-family:var(--fm);font-size:12px;line-height:1.72;color:var(--mu)">
+          <div style="color:var(--bad)">error: DATABASE_URL is not set in this container</div>
+          <div style="margin-top:5px;color:var(--mu2)">The offline query cache was used instead; nothing in this turn depends on a live database.</div>
+        </div>
+        </sc-if>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:10px;margin:0 0 14px">
+        <span style="flex:none;font-size:11px;letter-spacing:.11em;text-transform:uppercase;color:var(--mu2)">plan_update</span>
+        <span style="flex:none;font-size:12.5px;color:var(--mu)">step 3 of 5 — <span style="color:var(--tx)">collapse the three rotation call sites</span></span>
+        <span style="flex:1;height:1px;background:var(--line)"></span>
+      </div>
+
+      <div style="{{ tool3Box }}">
+        <div onClick="{{ t3 }}" style="display:flex;align-items:center;gap:9px;padding:7px 11px;cursor:pointer">
+          <span style="flex:none;width:19px;height:19px;border-radius:5px;background:var(--ac2-dim);display:grid;place-items:center"><i class="ph ph-pencil-line" style="font-size:11px;color:var(--ac2)"></i></span>
+          <span style="font-size:11px;letter-spacing:.11em;text-transform:uppercase;color:var(--mu2)">edit</span>
+          <span onClick="{{ noop }}" style="{{ pathLinkMono }}">auth/token.rs</span>
+          <span style="font-family:var(--fm);font-size:12px;color:var(--ok)">+4</span>
+          <span style="font-family:var(--fm);font-size:12px;color:var(--bad)">&minus;9</span>
+          <span style="margin-left:auto;flex:none;display:flex;align-items:center;gap:9px">
+            <span style="{{ okChip }}"><i class="ph ph-check" style="font-size:10px"></i>{{ appliedWord }}</span>
+            <i class="{{ t3Caret }}" style="font-size:11px;color:var(--mu2)"></i>
+          </span>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:10px;margin:-4px 0 14px">
+        <span style="{{ ck1Chip }}"><i class="ph ph-clock-counter-clockwise" style="font-size:11px"></i>Checkpoint 7</span>
+        <span style="flex:none;font-size:11.5px;color:var(--mu2);white-space:nowrap">{{ ck1Label }}</span>
+        <span style="flex:1;min-width:12px;border-top:1px dashed var(--line)"></span>
+        <span onClick="{{ restore }}" style="{{ ck1Btn }}">{{ ck1Word }}</span>
+      </div>
+
+      <sc-if value="{{ restored }}">
+      <div style="display:flex;align-items:center;gap:9px;margin:-6px 0 14px;padding:7px 11px;border-radius:7px;background:rgba(255,187,57,.06);box-shadow:inset 3px 0 0 var(--ac)">
+        <i class="ph ph-arrow-counter-clockwise" style="flex:none;font-size:13px;color:var(--ac)"></i>
+        <span style="font-size:12.5px;color:var(--mu);min-width:0;line-height:1.45">Workspace reverted to <span style="color:var(--tx)">Checkpoint 7</span> — 2 files, 13 lines. The transcript is kept.</span>
+        <span onClick="{{ restore }}" style="margin-left:auto;flex:none;font-size:11.5px;color:var(--ac);cursor:pointer">Undo</span>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ elicitAnswered }}" hint-placeholder-val="{{ true }}">
+      <div onClick="{{ elicitEdit }}" style="display:flex;align-items:center;gap:9px;margin:0 0 14px;padding:8px 11px;border-radius:7px;cursor:pointer;background:var(--sf2);box-shadow:inset 3px 0 0 var(--data-1)">
+        <i class="ph ph-list-dashes" style="flex:none;font-size:14px;color:var(--mu)"></i>
+        <span style="flex:none;font-size:11px;letter-spacing:.11em;text-transform:uppercase;color:var(--mu2)">elicitation</span>
+        <span style="font-size:12.5px;color:var(--mu);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Which rotation path survives — <span style="color:var(--tx)">one TTL read, callers defer</span></span>
+        <span style="margin-left:auto;flex:none;font-size:11.5px;color:var(--mu2)">answered 09:31</span>
+      </div>
+      </sc-if>
+
+      <div style="display:flex;align-items:center;gap:9px;margin:0 0 14px;padding:8px 11px;border-radius:7px;background:var(--sf2);box-shadow:inset 3px 0 0 var(--data-1)">
+        <i class="ph ph-arrow-square-out" style="flex:none;font-size:14px;color:var(--mu)"></i>
+        <span style="flex:none;font-size:11px;letter-spacing:.11em;text-transform:uppercase;color:var(--mu2)">consent</span>
+        <span style="font-size:12.5px;color:var(--mu);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Staging registry sign-in opened in your browser</span>
+        <span style="margin-left:auto;flex:none;font-size:11.5px;color:var(--ok)">returned ok · 09:33</span>
+      </div>
+
+      <sc-if value="{{ showResolved }}">
+      <div style="{{ resolvedBox }}">
+        <div style="display:flex;align-items:center;gap:9px;padding:7px 11px">
+          <span style="flex:none;width:19px;height:19px;border-radius:5px;background:var(--ac2-dim);display:grid;place-items:center"><i class="ph ph-pencil-line" style="font-size:11px;color:var(--ac2)"></i></span>
+          <span style="font-size:11px;letter-spacing:.11em;text-transform:uppercase;color:var(--mu2)">edit</span>
+          <span onClick="{{ noop }}" style="{{ pathLinkMono }}">auth/session.rs</span>
+          <span style="font-family:var(--fm);font-size:12px;color:var(--ok)">+2</span>
+          <span style="font-family:var(--fm);font-size:12px;color:var(--bad)">&minus;3</span>
+          <span style="margin-left:auto;flex:none;display:flex;align-items:center;gap:9px">
+            <span style="{{ resolvedChip }}"><i class="{{ resolvedIcon }}" style="font-size:10px"></i>{{ resolvedWord }}</span>
+            <span style="font-size:11.5px;color:var(--mu2)">{{ resolvedWhen }}</span>
+          </span>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;margin:-4px 0 14px">
+        <span style="{{ ck2Chip }}"><i class="ph ph-clock-counter-clockwise" style="font-size:11px"></i>Checkpoint 8</span>
+        <span style="flex:none;font-size:11.5px;color:var(--mu2);white-space:nowrap">{{ resolvedNote }}</span>
+        <span style="flex:1;min-width:12px;border-top:1px dashed var(--line)"></span>
+        <span onClick="{{ restore2 }}" style="{{ ck2Btn }}">{{ ck2Word }}</span>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ showTests }}">
+      <div style="{{ tool4Box }}">
+        <div style="display:flex;align-items:center;gap:9px;padding:7px 11px">
+          <span style="flex:none;width:19px;height:19px;border-radius:5px;background:var(--sf3);display:grid;place-items:center"><i class="ph ph-test-tube" style="font-size:11px;color:var(--mu)"></i></span>
+          <span style="font-size:11px;letter-spacing:.11em;text-transform:uppercase;color:var(--mu2)">execute</span>
+          <span style="font-family:var(--fm);font-size:12.5px;color:var(--tx);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">cargo nextest run -p locus-core auth::</span>
+          <span style="margin-left:auto;flex:none;display:flex;align-items:center;gap:9px">
+            <span style="{{ liveChip }}"><span style="{{ liveDot }}"></span>{{ liveWord }}</span>
+            <i class="ph ph-caret-down" style="font-size:11px;color:var(--mu2)"></i>
+          </span>
+        </div>
+        <div style="border-top:1px solid var(--line);background:rgba(0,0,0,.3);padding:9px 12px;font-family:var(--fm);font-size:12px;line-height:1.72;color:var(--mu)">
+          <sc-for list="{{ testLines }}" as="l" hint-placeholder-count="4">
+            <div style="color:{{ l.c }};white-space:pre-wrap">{{ l.s }}</div>
+          </sc-for>
+          <sc-if value="{{ liveStreaming }}">
+            <div style="display:flex;align-items:center;margin-top:2px"><span style="width:7px;height:14px;background:var(--ac2);animation:blink 1.1s infinite"></span></div>
+          </sc-if>
+        </div>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ idle }}">
+      <div style="display:flex;gap:11px">
+        <div style="min-width:0;max-width:70ch">
+          <p style="margin:0;font-size:14.5px;line-height:1.68;color:var(--tx)">Three call sites are now one. <span style="font-family:var(--fm);font-size:13px;color:var(--data-hi)">auth::</span> is green at 4 passed, and the four session tests are untouched — turn done.</p>
+          <sc-if value="{{ costOn }}">
+            <div style="margin-top:7px;display:inline-flex;align-items:center;gap:7px;padding:2px 8px;border-radius:5px;background:var(--sf);font-family:var(--fm);font-size:11.5px;color:var(--mu2)"><span style="color:var(--mu)">this turn</span>6.2k in · 1.4k out · $0.09</div>
+          </sc-if>
+        </div>
+      </div>
+      </sc-if>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:8px;margin:7px 0 2px 3px">
+        <span style="font-size:11.5px;color:var(--mu2)">refac</span>
+        <span style="font-size:11.5px;color:var(--mu2)">·</span>
+        <span style="font-family:var(--fm);font-size:11.5px;color:var(--mu2)">09:16</span>
+        <sc-if value="{{ costOn }}">
+          <span style="margin-left:auto;font-family:var(--fm);font-size:11.5px;color:var(--mu2)">6.2k in · 1.4k out · $0.09</span>
+        </sc-if>
+      </div>
+
+    </div>
+    <sc-if value="{{ scrim }}">
+    <div onClick="{{ minimizeAll }}" style="position:absolute;inset:0;z-index:30;background:rgba(8,12,16,.82);cursor:pointer"></div>
+    </sc-if>
+    </div>
+
+    <sc-if value="{{ gatePill }}">
+    <div onClick="{{ restoreGate }}" style="flex:none;display:flex;align-items:center;gap:9px;margin:0 16px 10px;padding:8px 11px;border-radius:7px;cursor:pointer;background:rgba(255,187,57,.09);border:1px solid rgba(255,187,57,.45);box-shadow:inset 3px 0 0 var(--ac)">
+      <i class="ph-fill ph-seal-warning" style="flex:none;font-size:15px;color:var(--ac)"></i>
+      <span style="flex:none;font:500 10.5px Inter,sans-serif;letter-spacing:.13em;text-transform:uppercase;color:var(--ac)">Needs you · edit</span>
+      <span style="font-family:var(--fm);font-size:12.5px;color:var(--mu);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">auth/session.rs</span>
+      <span style="margin-left:auto;flex:none;font-size:12px;color:var(--ac)">Review</span>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ elicitPill }}">
+    <div onClick="{{ restoreElicit }}" style="flex:none;display:flex;align-items:center;gap:9px;margin:0 16px 10px;padding:8px 11px;border-radius:7px;cursor:pointer;background:rgba(255,187,57,.09);border:1px solid rgba(255,187,57,.45);box-shadow:inset 3px 0 0 var(--ac)">
+      <i class="ph-fill ph-list-dashes" style="flex:none;font-size:15px;color:var(--ac)"></i>
+      <span style="flex:none;font:500 10.5px Inter,sans-serif;letter-spacing:.13em;text-transform:uppercase;color:var(--ac)">Needs you · elicitation</span>
+      <span style="font-size:12.5px;color:var(--mu);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Which rotation path should survive?</span>
+      <span style="margin-left:auto;flex:none;font-size:12px;color:var(--ac)">Answer</span>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ showGateCard }}" hint-placeholder-val="{{ true }}">
+    <div ref="{{ gateRef }}" style="{{ gateBox }}">
+      <div style="flex:none;display:flex;align-items:center;gap:9px;padding:9px 12px">
+        <i class="ph-fill ph-seal-warning" style="flex:none;font-size:16px;color:var(--ac)"></i>
+        <span style="flex:none;font:500 10.5px Inter,sans-serif;letter-spacing:.13em;text-transform:uppercase;color:var(--ac)">Needs you · edit</span>
+        <span onClick="{{ noop }}" style="{{ pathLinkMono }}">crates/locus-core/src/auth/session.rs</span>
+        <span style="flex:none;font-family:var(--fm);font-size:12px;color:var(--ok)">+2</span>
+        <span style="flex:none;font-family:var(--fm);font-size:12px;color:var(--bad)">&minus;3</span>
+        <span style="margin-left:auto;flex:none;display:flex;align-items:center;gap:9px">
+          <span style="font-size:11.5px;color:var(--mu2)">09:37</span>
+          <i onClick="{{ minimizeGate }}" class="ph ph-minus" style="font-size:13px;color:var(--mu2);cursor:pointer" style-hover="color:var(--tx)"></i>
+        </span>
+      </div>
+      <div style="flex:1 1 auto;min-height:44px;max-height:148px;overflow:auto;background:var(--bg-deep);border-top:1px solid rgba(255,187,57,.28);border-bottom:1px solid rgba(255,187,57,.28);font-family:var(--fm);font-size:12.5px;line-height:1.72">
+        <div style="padding:7px 12px 3px;font-size:11.5px;color:var(--mu2)">@@ -42,9 +42,7 @@ impl Session</div>
+        <sc-for list="{{ diff }}" as="d" hint-placeholder-count="7">
+          <div style="{{ d.row }}"><span style="width:38px;flex:none;text-align:right;padding-right:11px;color:var(--mu2)">{{ d.n }}</span><span style="width:13px;flex:none;color:{{ d.sc }}">{{ d.sign }}</span><span style="white-space:pre">{{ d.s }}</span></div>
+        </sc-for>
+      </div>
+      <div style="flex:none;display:flex;align-items:center;gap:8px;padding:10px 12px;flex-wrap:wrap">
+        <button onClick="{{ approve }}" class="btn btn-primary" style="font-size:13px;padding:5px 12px;margin-top:0"><i class="ph ph-check" style="font-size:14px"></i>Approve</button>
+        <button onClick="{{ decline }}" class="btn btn-secondary" style="font-size:13px;padding:5px 12px;margin-top:0">Decline</button>
+        <span onClick="{{ toggleAll }}" style="display:inline-flex;align-items:center;gap:7px;margin-left:4px;cursor:pointer">
+          <span style="{{ allBox }}"><sc-if value="{{ approveAll }}"><i class="ph ph-check" style="font-size:10px;color:#1d2731"></i></sc-if></span>
+          <span style="font-size:12.5px;color:var(--mu)">Approve the remaining <span style="font-family:var(--fm);color:var(--tx)">2</span> edits in this turn</span>
+        </span>
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ elicitCard }}">
+    <div style="flex:0 1 auto;min-height:0;max-height:52%;display:flex;flex-direction:column;margin:0 16px 12px;border-radius:8px;overflow:hidden;background:rgba(255,187,57,.05);border:1px solid rgba(255,187,57,.5);box-shadow:inset 3px 0 0 var(--ac),0 -6px 20px rgba(0,0,0,.3)">
+      <div style="flex:none;display:flex;align-items:center;gap:9px;padding:9px 12px 7px">
+        <i class="ph-fill ph-list-dashes" style="flex:none;font-size:15px;color:var(--ac)"></i>
+        <span style="flex:none;font:500 10.5px Inter,sans-serif;letter-spacing:.13em;text-transform:uppercase;color:var(--ac)">Elicitation</span>
+        <span style="font-size:12.5px;color:var(--mu);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">refac is waiting on an answer</span>
+        <span style="margin-left:auto;flex:none;display:flex;align-items:center;gap:9px">
+          <span style="font-size:11.5px;color:var(--mu2)">09:31</span>
+          <i onClick="{{ minimizeElicit }}" class="ph ph-minus" style="font-size:13px;color:var(--mu2);cursor:pointer" style-hover="color:var(--tx)"></i>
+        </span>
+      </div>
+      <div style="flex:1 1 auto;min-height:0;overflow:auto;padding:0 12px 12px">
+        <div style="font-size:13.5px;color:var(--tx);line-height:1.55;margin-bottom:9px">Which rotation path should survive the refactor?</div>
+        <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:11px">
+          <sc-for list="{{ elicitOpts }}" as="e" hint-placeholder-count="3">
+            <div onClick="{{ e.pick }}" style="{{ e.row }}">
+              <span style="{{ e.dot }}"></span>
+              <span style="font-size:13px;color:var(--tx)">{{ e.label }}</span>
+              <span style="margin-left:auto;font-size:11.5px;color:var(--mu2);white-space:nowrap">{{ e.note }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="font-size:12px;color:var(--mu2);margin-bottom:5px">Anything the refactor must preserve? <span style="color:var(--mu)">optional</span></div>
+        <div style="{{ elicitField }}">
+          <span style="font-size:13px;color:var(--tx);min-width:0">the four existing session tests, unrewritten</span>
+          <span style="flex:none;width:1px;height:15px;background:var(--ac);animation:blink 1.1s infinite"></span>
+        </div>
+        <div style="margin-top:10px;display:flex;align-items:center;gap:7px">
+          <button onClick="{{ elicitSend }}" class="btn btn-primary" style="font-size:12.5px;padding:4px 11px;margin-top:0">Send answer</button>
+          <button onClick="{{ elicitCancel }}" class="btn btn-secondary" style="font-size:12.5px;padding:4px 11px;margin-top:0">Decline</button>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <div style="flex:none;border-top:1px solid var(--line);background:var(--bg)">
+      <sc-if value="{{ planOpen }}" hint-placeholder-val="{{ true }}">
+      <div style="padding:9px 14px 3px;display:flex;flex-direction:column;gap:1px;border-bottom:1px solid var(--line)">
+        <sc-for list="{{ planItems }}" as="p" hint-placeholder-count="5">
+          <div style="display:flex;align-items:center;gap:9px;padding:5px 7px;border-radius:6px" style-hover="background:var(--sf)">
+            <span style="{{ p.glyph }}"><i class="{{ p.icon }}" style="font-size:10px"></i></span>
+            <span style="font-family:var(--fm);font-size:11.5px;color:var(--mu2);width:16px">{{ p.n }}</span>
+            <span style="{{ p.text }}">{{ p.label }}</span>
+            <span style="margin-left:auto;font-family:var(--fm);font-size:11.5px;color:var(--mu2);white-space:nowrap">{{ p.meta }}</span>
+          </div>
+        </sc-for>
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 7px 8px">
+          <span style="font-size:11.5px;color:var(--mu2)">1 draft kept</span>
+        </div>
+      </div>
+      </sc-if>
+      <div onClick="{{ togglePlan }}" style="display:flex;align-items:center;gap:9px;padding:7px 14px;cursor:pointer;min-width:0;overflow:hidden" style-hover="background:var(--sf)">
+        <i class="ph ph-list-checks" style="flex:none;font-size:15px;color:var(--mu)"></i>
+        <span style="flex:none;font:500 12.5px Inter,sans-serif">Plan</span>
+        <span style="flex:none;display:flex;gap:2px">
+          <span style="width:11px;height:5px;border-radius:1px;background:var(--ac2)"></span><span style="width:11px;height:5px;border-radius:1px;background:var(--ac2)"></span><span style="width:11px;height:5px;border-radius:1px;background:var(--ac2);animation:pulse 2s infinite"></span><span style="width:11px;height:5px;border-radius:1px;background:var(--data-1)"></span><span style="width:11px;height:5px;border-radius:1px;background:var(--data-1)"></span>
+        </span>
+        <span style="flex:none;font-family:var(--fm);font-size:12px;color:var(--tx)">2 / 5</span>
+        <span style="flex:none;width:1px;height:15px;background:var(--line);margin:0 2px"></span>
+        <span style="{{ planNowGlyph }}"><i class="{{ planNowIcon }}" style="font-size:10px"></i></span>
+        <span style="font-size:12.5px;color:var(--tx);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ planNow }}</span>
+        <span style="flex:none;margin-left:auto;display:flex;align-items:center;gap:9px">
+          <span style="font-family:var(--fm);font-size:11.5px;color:var(--mu2);white-space:nowrap">{{ planNowMeta }}</span>
+          <i class="{{ planCaret }}" style="font-size:12px;color:var(--mu2)"></i>
+        </span>
+      </div>
+    </div>
+
+    <div style="flex:none;position:relative;border-top:1px solid var(--line);background:var(--bg-deep);padding:10px 13px 9px">
+      <sc-if value="{{ slashOpen }}" hint-placeholder-val="{{ true }}">
+      <div style="position:absolute;left:13px;right:13px;bottom:calc(100% - 4px);z-index:60;padding:6px;border-radius:9px;background:var(--sf);border:1px solid var(--line2);box-shadow:0 -12px 30px rgba(0,0,0,.5)">
+        <div style="padding:4px 9px 7px;font:500 10.5px Inter,sans-serif;letter-spacing:.13em;text-transform:uppercase;color:var(--mu)">Commands · available_commands_update</div>
+        <sc-for list="{{ slashItems }}" as="s" hint-placeholder-count="4">
+          <div onClick="{{ s.pick }}" style="{{ s.row }}">
+            <span style="font-family:var(--fm);font-size:13px;width:88px;flex:none"><span style="color:var(--ac)">{{ s.pre }}</span>{{ s.post }}</span>
+            <span style="font-size:12.5px;color:var(--mu)">{{ s.desc }}</span>
+            <span style="margin-left:auto;font-size:11.5px;color:var(--mu2);white-space:nowrap">{{ s.note }}</span>
+          </div>
+        </sc-for>
+      </div>
+      </sc-if>
+      <div style="{{ inputBox }}">
+        <span onClick="{{ toggleSlash }}" style="{{ slashBtn }}">/</span>
+        <span onClick="{{ focusInput }}" style="flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:2px;cursor:text;padding-top:1px">
+          <span style="{{ inputText }}">{{ inputVal }}</span>
+          <span style="flex:none;width:1px;height:16px;background:var(--ac);animation:blink 1.1s infinite"></span>
+        </span>
+        <sc-if value="{{ running }}">
+          <span onClick="{{ interrupt }}" style="{{ stopBtn }}"><i class="ph-fill ph-stop" style="font-size:12px"></i></span>
+        </sc-if>
+        <sc-if value="{{ notRunning }}" hint-placeholder-val="{{ true }}">
+          <span onClick="{{ noop }}" style="{{ sendBtn }}"><i class="ph ph-paper-plane-right" style="font-size:14px"></i></span>
+        </sc-if>
+      </div>
+      <div style="margin-top:8px;display:flex;align-items:center;gap:7px;min-width:0;overflow:hidden">
+        <span onClick="{{ openPicker }}" style="{{ runBtn }}">
+          <i class="ph ph-sliders-horizontal" style="font-size:12px;color:var(--mu2)"></i>
+          <span style="font-size:12.5px;color:var(--tx)">{{ harness }}</span>
+          <span style="color:var(--line2)">·</span>
+          <span style="font-family:var(--fm);font-size:12.5px;color:var(--tx)">{{ model }}</span>
+          <span style="color:var(--line2)">·</span>
+          <span style="font-size:12.5px;color:var(--mu)">{{ effort }}</span>
+          <i class="ph ph-caret-up" style="font-size:10px;color:var(--mu2);margin-left:1px"></i>
+        </span>
+        <span style="margin-left:auto;flex:0 1 auto;min-width:0;overflow:hidden;display:flex;align-items:center;justify-content:flex-end;gap:8px">
+          <sc-if value="{{ gatedMode }}" hint-placeholder-val="{{ true }}">
+          <span style="flex:none;display:inline-flex;align-items:center;border-radius:6px;overflow:hidden;border:1px solid var(--line2)">
+            <sc-for list="{{ flowOpts }}" as="f" hint-placeholder-count="2">
+              <span onClick="{{ f.pick }}" style="{{ f.st }}">{{ f.label }}</span>
+            </sc-for>
+          </span>
+          </sc-if>
+          <span onClick="{{ toggleCtx }}" style="{{ ctxChip }}">
+            <span style="display:block;width:30px;height:5px;border-radius:3px;background:var(--data-1)"><span style="display:block;width:19%;height:5px;border-radius:3px;background:var(--data-3)"></span></span>
+            <span style="font-family:var(--fm);font-size:12px;color:var(--tx)">12k</span>
+            <span style="font-family:var(--fm);font-size:12px;color:var(--mu2)">/ 200k</span>
+            <i class="ph ph-arrows-in-simple" style="font-size:12px;color:var(--mu2)"></i>
+          </span>
+        </span>
+      </div>
+      <sc-if value="{{ ctxOpen }}">
+      <div style="position:absolute;bottom:38px;right:13px;z-index:95;width:392px;padding:12px 13px 11px;border-radius:9px;background:var(--sf);border:1px solid var(--line2);box-shadow:0 -12px 34px rgba(0,0,0,.55)">
+        <div style="display:flex;align-items:baseline;gap:8px">
+          <span style="font:500 13.5px Inter,sans-serif">Context window</span>
+          <span style="font-family:var(--fm);font-size:12px;color:var(--mu)">12,480 / 200,000</span>
+          <span style="margin-left:auto;font-family:var(--fm);font-size:12px;color:var(--mu2)">6%</span>
+          <i onClick="{{ toggleCtx }}" class="ph ph-x" style="font-size:12px;color:var(--mu2);cursor:pointer"></i>
+        </div>
+        <div style="margin-top:10px;display:flex;height:7px;border-radius:4px;overflow:hidden;background:var(--data-1)">
+          <span style="width:10%;background:var(--data-hi)"></span><span style="width:27%;background:var(--data-3)"></span><span style="width:23%;background:var(--data-2)"></span><span style="width:33%;background:var(--data-1);box-shadow:inset 1px 0 0 var(--bg-deep)"></span>
+        </div>
+        <div style="margin-top:11px;display:flex;flex-direction:column;gap:1px">
+          <sc-for list="{{ ctxRows }}" as="c" hint-placeholder-count="5">
+            <div style="{{ c.row }}">
+              <span style="flex:none;width:9px;height:9px;border-radius:2px;background:{{ c.color }}"></span>
+              <span style="font-family:var(--fm);font-size:12.5px;color:var(--mu);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ c.name }}</span>
+              <span style="margin-left:auto;flex:none;font-family:var(--fm);font-size:12px;color:var(--tx)">{{ c.tok }}</span>
+              <span onClick="{{ c.act }}" style="flex:none;font-size:11.5px;color:var(--ac);cursor:pointer;width:52px;text-align:right">{{ c.action }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>
+    </div>
+
+    <sc-if value="{{ pickerOpen }}">
+    <div onClick="{{ closePicker }}" style="position:absolute;inset:0;z-index:120;background:rgba(11,16,21,.62);display:grid;place-items:center;padding:24px">
+      <div onClick="{{ stop }}" style="width:432px;max-height:100%;min-height:0;display:flex;flex-direction:column;border-radius:10px;overflow:hidden;background:var(--sf);border:1px solid var(--line2);box-shadow:0 24px 60px rgba(0,0,0,.6)">
+        <div style="flex:none;display:flex;align-items:center;gap:9px;padding:12px 14px;border-bottom:1px solid var(--line)">
+          <i class="ph ph-sliders-horizontal" style="font-size:15px;color:var(--mu)"></i>
+          <span style="font:500 14px Inter,sans-serif">Run configuration</span>
+          <i onClick="{{ closePicker }}" class="ph ph-x" style="font-size:13px;color:var(--mu2);margin-left:auto;cursor:pointer"></i>
+        </div>
+        <div style="flex:1 1 auto;min-height:0;overflow:auto;padding:4px 10px 12px">
+          <sc-for list="{{ pickerGroups }}" as="g" hint-placeholder-count="3">
+            <div style="padding:11px 4px 5px;display:flex;align-items:baseline;gap:8px">
+              <span style="font:500 10.5px Inter,sans-serif;letter-spacing:.13em;text-transform:uppercase;color:var(--mu)">{{ g.label }}</span>
+              <span style="font-size:11.5px;color:var(--mu2)">{{ g.hint }}</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:2px">
+              <sc-for list="{{ g.items }}" as="o" hint-placeholder-count="4">
+                <div onClick="{{ o.pick }}" style="{{ o.row }}">
+                  <span style="{{ o.dot }}"></span>
+                  <span style="{{ o.name }}">{{ o.label }}</span>
+                  <span style="margin-left:auto;font-size:11.5px;color:var(--mu2);white-space:nowrap">{{ o.note }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </sc-for>
+        </div>
+        <div style="flex:none;display:flex;align-items:center;gap:8px;padding:11px 14px;border-top:1px solid var(--line);background:var(--sf)">
+          <button onClick="{{ closePicker }}" class="btn btn-primary" style="margin-top:0;font-size:13px;padding:5px 13px">Done</button>
+          <span style="font-size:11.5px;color:var(--mu2);min-width:0">Applies to the next turn</span>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+  </div>
+
+  <sc-if value="{{ researchOpen }}" hint-placeholder-val="{{ true }}">
+  <div style="flex:none;width:340px;display:flex;flex-direction:column;min-height:0;border-left:1px solid var(--line);background:var(--bg-deep)">
+    <div style="flex:none;display:flex;align-items:center;gap:8px;height:44px;padding:0 12px;border-bottom:1px solid var(--line)">
+      <i class="ph ph-flask" style="font-size:15px;color:var(--mu)"></i>
+      <span style="font:500 13.5px Inter,sans-serif">Research</span>
+      <span style="font-size:12px;color:var(--mu2)">this session</span>
+      <i onClick="{{ toggleResearch }}" class="ph ph-x" style="font-size:13px;color:var(--mu2);margin-left:auto;cursor:pointer"></i>
+    </div>
+    <div style="flex:none;display:flex;align-items:center;gap:7px;padding:8px 12px;border-bottom:1px solid var(--line)">
+      <span style="flex:none;display:inline-flex;padding:1px 7px;border-radius:5px;background:var(--ac2-dim);font:400 10.5px Inter,sans-serif;color:var(--ac2)">seeded</span>
+      <span style="font-size:12px;color:var(--mu2)">2 of 4 came from the plan</span>
+    </div>
+    <div style="flex:1;min-height:0;overflow:auto;padding:9px 10px;display:flex;flex-direction:column;gap:7px">
+      <sc-for list="{{ findings }}" as="f" hint-placeholder-count="4">
+        <div style="{{ f.card }}">
+          <div style="display:flex;align-items:center;gap:7px">
+            <span style="{{ f.badge }}">{{ f.kind }}</span>
+            <span style="font-family:var(--fm);font-size:11.5px;color:var(--mu2);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ f.src }}</span>
+          </div>
+          <div style="margin-top:6px;font-size:13px;line-height:1.5;color:var(--tx)">{{ f.title }}</div>
+          <div style="margin-top:5px;font-size:12px;line-height:1.55;color:var(--mu2)">{{ f.body }}</div>
+          <div style="margin-top:8px;display:flex;align-items:center;gap:7px">
+            <span onClick="{{ noop }}" style="display:inline-flex;align-items:center;gap:5px;padding:1px 7px;border-radius:5px;background:var(--sf2);font-size:11px;color:var(--data-hi);cursor:pointer" style-hover="background:var(--sf3)"><i class="ph ph-link-simple" style="font-size:11px"></i>claim &rarr; source</span>
+            <span style="margin-left:auto;font-family:var(--fm);font-size:11px;color:var(--mu2)">{{ f.when }}</span>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+    <div style="flex:none;display:flex;align-items:center;gap:8px;padding:10px 12px;border-top:1px solid var(--line)">
+      <span style="flex:none;display:inline-flex;padding:1px 7px;border-radius:5px;background:var(--ac2-dim);font:400 10.5px Inter,sans-serif;color:var(--ac2)">at close</span>
+      <span style="font-size:12.5px;color:var(--mu);min-width:0;line-height:1.45">refac nominates <span style="font-family:var(--fm);color:var(--tx)">3</span> for long-term memory</span>
+    </div>
+  </div>
+  </sc-if>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1320,&quot;height&quot;:900},&quot;workflow&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;nightly-auth-sweep&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Run&quot;},&quot;permissionMode&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;gated&quot;,&quot;bypass&quot;],&quot;default&quot;:&quot;gated&quot;,&quot;tsType&quot;:&quot;'gated'|'bypass'&quot;,&quot;section&quot;:&quot;Run&quot;},&quot;permissionGate&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;pending&quot;,&quot;approved&quot;,&quot;declined&quot;],&quot;default&quot;:&quot;pending&quot;,&quot;tsType&quot;:&quot;'pending'|'approved'|'declined'&quot;,&quot;section&quot;:&quot;Run&quot;},&quot;elicitation&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;answered&quot;,&quot;pending&quot;],&quot;default&quot;:&quot;answered&quot;,&quot;tsType&quot;:&quot;'answered'|'pending'&quot;,&quot;section&quot;:&quot;Run&quot;},&quot;sessionState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;running&quot;,&quot;idle&quot;],&quot;default&quot;:&quot;running&quot;,&quot;tsType&quot;:&quot;'running'|'idle'&quot;,&quot;section&quot;:&quot;Run&quot;},&quot;taskLinked&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Run&quot;},&quot;thinkingDisplay&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;summary&quot;,&quot;full&quot;,&quot;hidden&quot;],&quot;default&quot;:&quot;summary&quot;,&quot;tsType&quot;:&quot;'summary'|'full'|'hidden'&quot;,&quot;section&quot;:&quot;Disclosure&quot;},&quot;showCost&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Disclosure&quot;},&quot;researchOpen&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Disclosure&quot;},&quot;planOpen&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Disclosure&quot;}}">
+class Component extends DCLogic {
+  state = {
+    mode: null, st: null, cost: null, research: null, plan: null, think: null,
+    u1: false, t1: true, t2: false, t3: false,
+    ctx: false, menu: false, slash: false, picker: false, taskLinked: null, flow: 'Manual',
+    gateMin: false, elicitMin: false,
+    gate: null, all: false, elicit: null, restored: false,
+    naming: false, input: '', toolRows: 'expanded', userCards: 'collapsed',
+    harness: 'Claude Code', model: 'Opus 4.6', effort: 'High'
+  };
+
+  componentDidUpdate(prev) {
+    const p = this.props, r = {};
+    if (prev.permissionGate !== p.permissionGate) { r.gate = null; r.gateMin = false; }
+    if (prev.elicitation !== p.elicitation) { r.elicit = null; r.elicitMin = false; }
+    if (prev.permissionMode !== p.permissionMode) { r.mode = null; r.gate = null; }
+    if (prev.sessionState !== p.sessionState) { r.st = null; r.gate = null; }
+    if (prev.thinkingDisplay !== p.thinkingDisplay) r.think = null;
+    if (prev.planOpen !== p.planOpen) r.plan = null;
+    if (prev.researchOpen !== p.researchOpen) r.research = null;
+    if (prev.showCost !== p.showCost) r.cost = null;
+    if (prev.taskLinked !== p.taskLinked) r.taskLinked = null;
+    if (Object.keys(r).length) this.setState(r);
+  }
+
+  streamRef = React.createRef();
+  gateRef = React.createRef();
+
+  jump() {
+    this.set('flash', true);
+    setTimeout(() => this.set('flash', false), 1500);
+  }
+
+  g(k, p, d) { return this.state[k] ?? this.props[p] ?? d; }
+  set(k, v) { this.setState({ [k]: v }); }
+  flip(k) { this.setState(s => ({ [k]: !s[k] })); }
+
+  seg(cur, opts, key) {
+    return opts.map(o => ({
+      label: o.label,
+      st: 'padding:2px 7px;font:400 11px Inter,sans-serif;cursor:pointer;white-space:nowrap;'
+        + (cur === o.v
+          ? 'background:var(--sf3);color:var(--tx)'
+          : 'color:var(--mu2)'),
+      pick: () => this.set(key, o.v)
+    }));
+  }
+
+  row(sel) {
+    return 'display:flex;align-items:center;gap:9px;padding:6px 9px;border-radius:6px;cursor:pointer;'
+      + (sel ? 'background:var(--sf2);box-shadow:inset 0 0 0 1px var(--ac)' : '');
+  }
+
+  chip(c, bg) {
+    return 'display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:5px;'
+      + 'font:400 11.5px Inter,sans-serif;white-space:nowrap;background:' + bg + ';color:' + c;
+  }
+
+  ckChip(on) {
+    return 'flex:none;display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:20px;'
+      + 'font:400 11.5px Inter,sans-serif;white-space:nowrap;'
+      + (on
+        ? 'background:rgba(255,187,57,.16);color:var(--ac);box-shadow:inset 0 0 0 1px rgba(255,187,57,.5)'
+        : 'background:var(--sf2);color:var(--mu);box-shadow:inset 0 0 0 1px var(--line2)');
+  }
+
+  ckBtn(on) {
+    return 'flex:none;font-size:11.5px;cursor:pointer;color:' + (on ? 'var(--mu2)' : 'var(--ac)');
+  }
+
+  card(kind) {
+    const base = 'margin:0 0 14px;border-radius:7px;overflow:hidden;background:var(--sf2);';
+    const rail = kind === 'bad' ? 'var(--bad-solid)' : 'var(--data-2)';
+    return base + 'box-shadow:inset 3px 0 0 ' + rail;
+  }
+
+  renderVals() {
+    const s = this.state;
+    const mode = this.g('mode', 'permissionMode', 'gated');
+    const st = this.g('st', 'sessionState', 'requires_action');
+    const gated = mode === 'gated';
+    const idle = st === 'idle';
+    const gateState = s.gate ?? this.props.permissionGate ?? 'pending';
+    const elicit = s.elicit ?? (this.props.elicitation === 'pending' ? 'editing' : 'answered');
+    const gate = idle ? 'approved' : gateState;
+    const showGate = gated && !idle && gate === 'pending';
+    const think = this.g('think', 'thinkingDisplay', 'summary');
+    const toolRows = s.toolRows;
+    const research = this.g('research', 'researchOpen', true);
+    const gateUp = gated && !idle && gateState === 'pending';
+    const elicitUp = elicit === 'editing';
+    const showGateCard = gateUp && !s.gateMin;
+    const elicitCard = elicitUp && !s.elicitMin;
+    const blocker = showGateCard || elicitCard;
+    const planOpen = this.g('plan', 'planOpen', true) && !blocker;
+    const cost = this.g('cost', 'showCost', false);
+    const waiting = !idle && (gateUp || elicitUp || st === 'requires_action');
+    const running = !idle && !waiting;
+
+    const groups = [
+      ['Harness', 'harness', 'sets which models exist', [['Claude Code', 'ACP native · 6 models'], ['Codex', 'ACP native · 4 models'], ['Cursor', 'agent acp · 5 models'], ['pi', 'bridged mapping · 3 models']], true],
+      ['Model', 'model', 'Claude Code · preferred', [['Opus 4.6', '200k · $15 / $75'], ['Sonnet 4.6', '200k · $3 / $15'], ['Haiku 4.4', '200k · $0.80 / $4']], true],
+      ['Effort', 'effort', 'resolved per harness', [['Low', 'fast'], ['Medium', 'default'], ['High', ''], ['Max', 'needs approval']], false]
+    ];
+
+    const diffRows = [
+      ['42', ' ', '  pub fn refresh(&mut self, now: Instant) -> Refresh {', null],
+      ['43', '-', '      if self.hits > CHURN_MAX && now - self.born > MIN_AGE {', 'bad'],
+      ['44', '-', '          self.rotate();', 'bad'],
+      ['45', '-', '          self.hits = 0;', 'bad'],
+      ['43', '+', '      if self.should_rotate(now) {', 'ok'],
+      ['44', '+', '          self.rotate();', 'ok'],
+      ['46', ' ', '      }', null],
+      ['47', ' ', '      Refresh::Kept', null]
+    ].map(([n, sign, str, k]) => ({
+      n, sign, s: str,
+      sc: k === 'bad' ? 'var(--bad)' : k === 'ok' ? 'var(--ok)' : 'transparent',
+      row: 'display:flex;padding:0 12px;' + (k === 'bad' ? 'background:rgba(223,138,125,.13)' : k === 'ok' ? 'background:rgba(104,173,145,.14)' : '')
+    }));
+
+    const testLines = running
+      ? [['    Compiling locus-core v0.4.1', 'var(--mu2)'], ['     Running 4 tests', 'var(--mu)'], ['  ok  rotates_once · ttl_read_is_single_source', 'var(--ok)']]
+      : waiting
+        ? [['    queued · waiting on you', 'var(--mu2)']]
+        : [['     Running 4 tests', 'var(--mu)'], ['  ok  rotates_once · ttl_read_is_single_source · mfa_defers · token_defers', 'var(--ok)'], ['  Summary  4 passed in 0.38s', 'var(--mu)']];
+
+    return {
+      sessionName: 'Reduce auth churn to one rotation path',
+      workflow: this.props.workflow ?? 'nightly-auth-sweep',
+      hasWorkflow: !!(this.props.workflow ?? 'nightly-auth-sweep'),
+      taskLinked: this.g('taskLinked', 'taskLinked', true),
+      nameIcon: this.g('taskLinked', 'taskLinked', true) ? 'ph ph-arrow-square-out' : 'ph ph-pencil-simple',
+      naming: s.naming && !this.g('taskLinked', 'taskLinked', true),
+      nameBox: 'display:flex;align-items:center;gap:7px;min-width:0;flex:1 1 0;max-width:360px;overflow:hidden;padding:3px 8px;border-radius:6px;'
+        + (this.g('taskLinked', 'taskLinked', true) ? 'cursor:pointer;' : 'cursor:text;')
+        + (s.naming && !this.g('taskLinked', 'taskLinked', true) ? 'background:var(--bg);box-shadow:inset 0 0 0 1px var(--ac)' : ''),
+      editName: () => { if (!this.g('taskLinked', 'taskLinked', true)) this.flip('naming'); },
+      noop: () => {},
+
+      harness: s.harness, model: s.model, effort: s.effort,
+      runBtn: 'flex:none;display:inline-flex;align-items:center;gap:7px;padding:4px 9px;border-radius:6px;cursor:pointer;'
+        + 'white-space:nowrap;background:var(--sf);border:1px solid ' + (s.picker ? 'var(--ac2)' : 'var(--line2)'),
+      openPicker: () => this.setState({ picker: true, ctx: false }),
+      closePicker: () => this.set('picker', false),
+      stop: e => { if (e && e.stopPropagation) e.stopPropagation(); },
+      pickerOpen: s.picker,
+      pickerGroups: groups.map(([label, key, hint, items, mono]) => ({
+        label, hint,
+        items: items.map(([name, note]) => {
+          const on = s[key] === name;
+          return {
+            label: name, note,
+            name: (mono && key === 'model' ? 'font-family:var(--fm);' : '') + 'font-size:13px;color:'
+              + (on ? 'var(--tx)' : 'var(--mu)'),
+            dot: 'flex:none;width:12px;height:12px;border-radius:50%;box-shadow:inset 0 0 0 1px '
+              + (on ? 'var(--ac)' : 'var(--line2)')
+              + (on ? ';background:radial-gradient(circle,var(--ac) 0 3px,transparent 3px)' : ''),
+            row: 'display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:6px;cursor:pointer;'
+              + (on ? 'background:var(--sf2);box-shadow:inset 0 0 0 1px var(--ac)' : ''),
+            pick: () => this.set(key, name)
+          };
+        })
+      })),
+
+      costOn: cost,
+      ctxChip: 'flex:none;display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:6px;cursor:pointer;white-space:nowrap;'
+        + 'background:var(--sf);border:1px solid ' + (s.ctx ? 'var(--ac)' : 'var(--line)'),
+      ctxOpen: s.ctx,
+      toggleCtx: () => this.setState({ ctx: !s.ctx, menu: false, slash: false }),
+      ctxRows: [
+        ['base.md · project context', '1,240', 'var(--data-hi)', 'edit'],
+        ['memory catalogue · 18 entries', '3,380', 'var(--data-3)', 'view'],
+        ['returned tool docs · 6 tools', '2,910', 'var(--data-2)', 'drop'],
+        ['transcript · this session', '4,050', 'var(--data-1)', 'compact'],
+        ['active plan · 5 items', '900', 'var(--data-1)', 'view']
+      ].map(([name, tok, color, action]) => ({
+        name, tok, color, action, act: () => {},
+        row: 'display:flex;align-items:center;gap:9px;padding:4px 6px;border-radius:5px'
+      })),
+
+      resBtn: 'display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:6px;cursor:pointer;background:'
+        + (research ? 'var(--sf2)' : 'var(--sf)') + ';border:1px solid ' + (research ? 'var(--line2)' : 'var(--line)')
+        + ';color:' + (research ? 'var(--tx)' : 'var(--mu)'),
+      resCount: 'min-width:16px;height:16px;display:grid;place-items:center;border-radius:8px;background:var(--sf3);'
+        + 'font:400 10.5px "JetBrains Mono",monospace;color:var(--mu)',
+      researchOpen: research,
+      toggleResearch: () => this.set('research', !research),
+
+      menuBtn: 'display:grid;place-items:center;width:26px;height:24px;border-radius:6px;cursor:pointer;color:var(--mu);background:'
+        + (s.menu ? 'var(--sf2)' : 'transparent'),
+      menuOpen: s.menu,
+      toggleMenu: () => this.setState({ menu: !s.menu, ctx: false }),
+      menuActions: [
+        { icon: 'ph ph-plus-circle', label: 'New session', cmd: '/new', act: () => {} },
+        { icon: 'ph ph-arrows-in-simple', label: 'Compact context', cmd: '/compact', act: () => {} },
+        { icon: 'ph ph-eraser', label: 'Clear context', cmd: '/clear', act: () => {} }
+      ],
+      discRows: [
+        { label: 'Thinking', opts: this.seg(think, [{ v: 'summary', label: 'Summary' }, { v: 'full', label: 'Full' }, { v: 'hidden', label: 'Hidden' }], 'think') },
+        { label: 'Tool calls', opts: this.seg(toolRows, [{ v: 'expanded', label: 'Expanded' }, { v: 'collapsed', label: 'Collapsed' }, { v: 'hidden', label: 'Hidden' }], 'toolRows') },
+        { label: 'User cards', opts: this.seg(s.userCards, [{ v: 'collapsed', label: 'Collapsed' }, { v: 'expanded', label: 'Expanded' }], 'userCards') },
+        { label: 'Token / cost', opts: this.seg(cost ? 'on' : 'off', [{ v: 'off', label: 'Off' }, { v: 'on', label: 'On' }], 'costSeg') },
+        { label: 'Research pane', opts: this.seg(research ? 'on' : 'off', [{ v: 'off', label: 'Closed' }, { v: 'on', label: 'Open' }], 'resSeg') }
+      ],
+      costSeg: null, resSeg: null,
+
+      modeStrip: 'flex:none;display:flex;align-items:center;gap:10px;padding:7px 14px;border-bottom:1px solid var(--line);background:'
+        + (gated ? 'rgba(255,187,57,.06)' : 'var(--sf)'),
+      modeChip: 'display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:6px;white-space:nowrap;'
+        + 'font:500 12px Inter,sans-serif;'
+        + (gated
+          ? 'background:rgba(255,187,57,.14);color:var(--ac);box-shadow:inset 0 0 0 1px rgba(255,187,57,.5)'
+          : 'background:var(--sf2);color:var(--tx);box-shadow:inset 0 0 0 1px var(--line2)'),
+      modeIcon: gated ? 'ph-fill ph-shield-check' : 'ph ph-lock-simple-open',
+      modeName: gated ? 'Gated' : 'Bypass',
+      modeCopy: gated
+        ? 'Every irreversible action stops here for your approval — file edits arrive as a diff you accept or refuse.'
+        : 'No prompts. The container-enforced allowlist is the only limit, and every edit still leaves a checkpoint.',
+      streamRef: this.streamRef,
+      gateRef: this.gateRef,
+      hasAction: showGate,
+      jumpToAction: () => { if (showGate) this.jump(); },
+      gateBox: 'flex:0 1 auto;min-height:0;max-height:52%;display:flex;flex-direction:column;'
+        + 'margin:0 16px 12px;border-radius:8px;overflow:hidden;background:rgba(255,187,57,.05);'
+        + 'border:1px solid rgba(255,187,57,.55);'
+        + (s.flash
+          ? 'box-shadow:inset 3px 0 0 var(--ac),0 0 0 3px rgba(255,187,57,.3),0 -6px 20px rgba(0,0,0,.3)'
+          : 'box-shadow:inset 3px 0 0 var(--ac),0 -6px 20px rgba(0,0,0,.3)'),
+      stateChip: this.chip(idle ? 'var(--mu)' : running ? 'var(--ac2)' : 'var(--ac)',
+        idle ? 'var(--sf2)' : running ? 'var(--ac2-dim)' : 'rgba(255,187,57,.14)')
+        + (showGate ? ';cursor:pointer' : ''),
+      stateDot: 'width:6px;height:6px;border-radius:50%;background:currentColor;'
+        + (running ? 'animation:pulse 2s infinite' : ''),
+      stateName: idle ? 'idle' : running ? 'running' : 'requires_action',
+
+      planOpen, planCaret: planOpen ? 'ph ph-caret-down' : 'ph ph-caret-up',
+      togglePlan: () => this.set('plan', !planOpen),
+      planNow: idle ? 'Write the handoff' : 'Collapse the three call sites into one',
+      planNowMeta: idle ? 'step 5 of 5' : waiting ? 'step 3 · waiting on you' : 'step 3 · in flight',
+      planNowIcon: 'ph-fill ph-circle',
+      planNowGlyph: 'flex:none;width:15px;height:15px;border-radius:50%;display:grid;place-items:center;'
+        + 'background:var(--ac2-dim);color:var(--ac2);animation:pulse 2s infinite',
+      planItems: [
+        ['1', 'Locate every rotation call site', 'done', '3 found'],
+        ['2', 'Measure which one carries the load', 'done', 'staging, 24h'],
+        ['3', 'Collapse the three call sites into one', 'live', waiting ? 'waiting on you' : 'in flight'],
+        ['4', 'Run auth:: without touching its tests', 'todo', '4 tests'],
+        ['5', 'Write the handoff', 'todo', '—']
+      ].map(([n, label, k, meta]) => ({
+        n, label, meta,
+        icon: k === 'done' ? 'ph ph-check' : k === 'live' ? 'ph-fill ph-circle' : 'ph ph-minus',
+        glyph: 'flex:none;width:15px;height:15px;border-radius:50%;display:grid;place-items:center;'
+          + (k === 'done' ? 'background:rgba(104,173,145,.18);color:var(--ok)'
+            : k === 'live' ? 'background:var(--ac2-dim);color:var(--ac2);animation:pulse 2s infinite'
+            : 'background:var(--sf2);color:var(--mu2)'),
+        text: 'font-size:13px;color:' + (k === 'todo' ? 'var(--mu2)' : k === 'live' ? 'var(--tx)' : 'var(--mu)')
+      })),
+
+      u1Open: s.u1,
+      u1: () => this.flip('u1'),
+      user1: 'display:block;max-width:74%;padding:9px 12px;'
+        + 'border-radius:11px 11px 3px 11px;background:var(--sf3);border:1px solid '
+        + (s.u1 ? 'var(--ac2)' : 'rgba(145,132,217,.55)'),
+      user1Text: 'font-size:13.5px;line-height:1.55;color:var(--tx);min-width:0;'
+        + (s.u1 ? '' : 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap'),
+      u1Caret: s.u1 ? 'ph ph-caret-up' : 'ph ph-caret-down',
+      turnBox: 'margin:0 0 14px;padding:12px 12px 0;border-radius:11px;background:var(--bg-deep);'
+        + 'border:1px solid var(--line);box-shadow:inset 3px 0 0 var(--blue-lit)',
+      livePill: 'position:absolute;top:11px;left:16px;z-index:40;display:inline-flex;align-items:center;gap:7px;'
+        + 'padding:4px 10px;border-radius:20px;white-space:nowrap;cursor:pointer;'
+        + 'font:400 11.5px Inter,sans-serif;color:var(--tx);'
+        + (idle
+          ? 'background:#314454;box-shadow:0 2px 10px rgba(0,0,0,.45)'
+          : running
+            ? 'background:#4b4183;box-shadow:0 2px 10px rgba(0,0,0,.45)'
+            : 'background:#7a5410;box-shadow:0 2px 10px rgba(0,0,0,.45)'),
+      liveDotBig: 'width:7px;height:7px;border-radius:50%;background:var(--ac);'
+        + (running ? 'animation:breathe 1.4s ease-in-out infinite' : ''),
+      liveLabel: idle ? 'idle' : running ? 'working' : 'waiting on you',
+      turnStatus: idle ? 'turn complete' : running ? 'working' : 'waiting on you',
+      turnIcon: idle ? 'ph ph-check' : running ? 'ph-fill ph-circle' : 'ph-fill ph-seal-warning',
+      turnChip: this.chip(idle ? 'var(--ok)' : running ? 'var(--ac2)' : 'var(--ac)',
+        idle ? 'rgba(104,173,145,.15)' : running ? 'var(--ac2-dim)' : 'rgba(255,187,57,.14)'),
+
+      thinkBox: 'margin:0 0 14px;border-radius:7px;overflow:hidden;background:rgba(0,0,0,.34);'
+        + 'border:1px dashed rgba(238,242,246,.16);'
+        + (think === 'hidden' ? 'opacity:.72;' : ''),
+      thinkOpts: this.seg(think, [{ v: 'summary', label: 'Summary' }, { v: 'full', label: 'Full' }, { v: 'hidden', label: 'Hidden' }], 'think'),
+      cycleThink: () => this.set('think', think === 'summary' ? 'full' : think === 'full' ? 'hidden' : 'summary'),
+      thinkBody: think !== 'hidden',
+      thinkFull: think === 'full',
+      thoughts: (think === 'full' ? [
+        { s: 'Rotation could be policy-driven, but a policy object would be a third source of truth next to the TTL and the hit counter.' },
+        { s: 'The hit counter is the only site with traffic behind it; the other two rotate on conditions that are already handled upstream.' },
+        { s: 'Rewriting the tests would hide whether behaviour changed, and the user asked for them to stay.' }
+      ] : [
+        { s: 'Considered a policy object, a single TTL read, and leaving mfa alone — the TTL read is the only one that removes a source of truth rather than adding one.' }
+      ]),
+
+      pathLink: 'font-family:var(--fm);font-size:13px;color:var(--data-hi);border-bottom:1px dotted rgba(143,184,214,.55);cursor:pointer',
+      pathLinkMono: 'font-family:var(--fm);font-size:12.5px;color:var(--data-hi);border-bottom:1px dotted rgba(143,184,214,.55);cursor:pointer;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap',
+      churn: [
+        { mod: 'auth::session', w: '96%', n: '412', unit: 'rotations/h' },
+        { mod: 'auth::token', w: '23%', n: '96', unit: 'rotations/h' },
+        { mod: 'auth::mfa', w: '4%', n: '11', unit: 'rotations/h' }
+      ],
+
+      okChip: this.chip('var(--ok)', 'rgba(104,173,145,.15)'),
+      badChip: this.chip('var(--bad)', 'rgba(212,97,79,.16)'),
+      tool1Box: this.card('ok'), tool2Box: this.card('bad'),
+      tool3Box: this.card('done'), tool4Box: this.card(running ? 'live' : 'done'),
+      t1Open: s.t1 && toolRows === 'expanded', t1: () => this.flip('t1'),
+      t1Caret: s.t1 ? 'ph ph-caret-up' : 'ph ph-caret-down',
+      t2Open: s.t2, t2: () => this.flip('t2'),
+      t2Caret: s.t2 ? 'ph ph-caret-up' : 'ph ph-caret-down',
+      t3Open: s.t3, t3: () => this.flip('t3'),
+      t3Caret: s.t3 ? 'ph ph-caret-up' : 'ph ph-caret-down',
+      appliedWord: gated ? 'approved · applied' : 'applied',
+      restored: s.restored,
+      ck1Chip: this.ckChip(s.restored),
+      ck1Label: s.restored ? 'restored from here · 09:28' : 'before auth/token.rs · 09:28',
+      ck1Btn: this.ckBtn(s.restored),
+      ck1Word: s.restored ? 'restored' : 'Restore',
+      restore: () => this.flip('restored'),
+      ck2Chip: this.ckChip(s.restored2),
+      ck2Btn: this.ckBtn(s.restored2),
+      ck2Word: s.restored2 ? 'restored' : 'Restore',
+      restore2: () => this.flip('restored2'),
+
+      elicitBox: 'margin:0 0 14px;border-radius:7px;overflow:hidden;'
+        + (elicit === 'editing'
+          ? 'background:rgba(255,187,57,.045);border:1px solid rgba(255,187,57,.5);box-shadow:inset 3px 0 0 var(--ac)'
+          : 'background:var(--sf2);box-shadow:inset 3px 0 0 var(--data-1)'),
+      elicitEditing: elicit === 'editing',
+      elicitAnswered: elicit === 'answered',
+      elicitTint: elicit === 'editing' ? 'var(--ac)' : 'var(--mu2)',
+      elicitMeta: elicit === 'editing' ? 'answer to continue' : 'answered 09:31',
+      elicitCaret: elicit === 'editing' ? 'ph ph-caret-up' : 'ph ph-caret-down',
+      elicitToggle: () => this.set('elicit', elicit === 'editing' ? 'answered' : 'editing'),
+      showTests: !showGate,
+      elicitEdit: () => this.set('elicit', 'editing'),
+      elicitSend: () => this.set('elicit', 'answered'),
+      elicitCancel: () => this.set('elicit', 'answered'),
+      elicitField: 'display:flex;align-items:center;gap:7px;padding:6px 9px;border-radius:6px;background:var(--bg-deep);'
+        + 'border:1px solid ' + (elicit === 'editing' ? 'var(--ac)' : 'var(--line)'),
+      elicitOpts: [
+        ['Keep the hit counter', 'rejected — three sources of truth'],
+        ['One TTL read, callers defer', 'chosen'],
+        ['Defer the decision to the plan', 'declined']
+      ].map(([label, note], i) => ({
+        label, note,
+        dot: 'flex:none;width:13px;height:13px;border-radius:50%;box-shadow:inset 0 0 0 1px '
+          + (i === 1 ? 'var(--ac)' : 'var(--line2)') + ';display:grid;place-items:center;'
+          + (i === 1 ? 'background:radial-gradient(circle,var(--ac) 0 3.5px,transparent 3.5px)' : ''),
+        row: 'display:flex;align-items:center;gap:9px;padding:6px 9px;border-radius:6px;cursor:pointer;'
+          + (i === 1 ? 'background:var(--sf2);box-shadow:inset 0 0 0 1px rgba(255,187,57,.4)' : 'background:var(--sf)'),
+        pick: () => {}
+      })),
+
+      showGate,
+      showGateCard,
+      gatePill: gateUp && s.gateMin,
+      elicitCard,
+      elicitPill: elicitUp && s.elicitMin,
+      scrim: blocker,
+      minimizeAll: () => this.setState({ gateMin: true, elicitMin: true }),
+      minimizeGate: () => this.set('gateMin', true),
+      minimizeElicit: () => this.set('elicitMin', true),
+      restoreGate: () => this.set('gateMin', false),
+      restoreElicit: () => this.set('elicitMin', false),
+      diff: diffRows,
+      approveAll: s.all,
+      allBox: 'flex:none;width:14px;height:14px;border-radius:4px;display:grid;place-items:center;'
+        + (s.all ? 'background:var(--ac)' : 'box-shadow:inset 0 0 0 1px var(--line2)'),
+      toggleAll: () => this.flip('all'),
+      approve: () => this.set('gate', 'approved'),
+      decline: () => this.set('gate', 'declined'),
+      showResolved: !showGate,
+      resolvedBox: this.card(gate === 'declined' ? 'bad' : 'done'),
+      resolvedChip: gate === 'declined' ? this.chip('var(--bad)', 'rgba(212,97,79,.16)') : this.chip('var(--ok)', 'rgba(104,173,145,.15)'),
+      resolvedIcon: gate === 'declined' ? 'ph ph-x' : 'ph ph-check',
+      resolvedWord: gate === 'declined' ? 'declined · not written' : gated ? 'approved · applied' : 'applied',
+      resolvedWhen: gated ? (gate === 'declined' ? 'you declined' : 'you approved · 09:37') : 'no prompt · bypass',
+      resolvedNote: gate === 'declined' ? 'nothing written · re-planning step 3' : 'before auth/session.rs · 09:37',
+
+      liveChip: running ? this.chip('var(--ac2)', 'var(--ac2-dim)') : waiting ? this.chip('var(--ac)', 'rgba(255,187,57,.14)') : this.chip('var(--ok)', 'rgba(104,173,145,.15)'),
+      liveDot: 'width:6px;height:6px;border-radius:50%;background:currentColor;' + (running ? 'animation:pulse 2s infinite' : ''),
+      liveWord: running ? 'running' : waiting ? 'waiting on you' : 'completed',
+      liveStreaming: running,
+      testLines: testLines.map(([str, c]) => ({ s: str, c })),
+      idle,
+      running,
+
+      gatedMode: gated,
+      flowOpts: [['Manual', 'every edit stops'], ['Auto', 'approve as they come']].map(([label]) => ({
+        label,
+        st: 'padding:4px 9px;font:400 12px Inter,sans-serif;cursor:pointer;white-space:nowrap;'
+          + (s.flow === label
+            ? 'background:rgba(255,187,57,.14);color:var(--ac);box-shadow:inset 0 0 0 1px var(--ac)'
+            : 'color:var(--mu2)'),
+        pick: () => this.set('flow', label)
+      })),
+      slashOpen: s.slash,
+      slashBtn: 'flex:none;width:26px;height:26px;display:grid;place-items:center;border-radius:6px;cursor:pointer;'
+        + 'font-family:var(--fm);font-size:13px;color:var(--ac2);box-shadow:inset 0 0 0 1px var(--ac2);'
+        + (s.slash ? 'background:var(--ac2-dim)' : ''),
+      sendBtn: 'flex:none;width:26px;height:26px;display:grid;place-items:center;border-radius:6px;cursor:pointer;'
+        + 'color:var(--ac);box-shadow:inset 0 0 0 1px var(--ac)',
+      stopBtn: 'flex:none;width:26px;height:26px;display:grid;place-items:center;border-radius:6px;cursor:pointer;'
+        + 'color:var(--bad);box-shadow:inset 0 0 0 1px var(--bad)',
+      notRunning: !running,
+      toggleSlash: () => this.setState({ slash: !s.slash, ctx: false }),
+      slashItems: [
+        ['/comp', 'act', 'Compact the context window', 'rewrites the transcript only'],
+        ['/cl', 'ear', 'Clear the context', 'keeps the plan and the research'],
+        ['/n', 'ew', 'New session on this task', 'this one goes inactive, not away'],
+        ['/c', 'ontext', 'Show what is in the window', 'same as the toolbar chip']
+      ].map(([pre, post, desc, note], i) => ({
+        pre, post, desc, note,
+        row: this.row(i === 0),
+        pick: () => this.setState({ slash: false, input: pre + post + ' ' })
+      })),
+      inputVal: s.input || 'Ask, steer, or press / for commands',
+      inputText: 'font-size:13.5px;min-width:0;color:' + (s.input ? 'var(--tx)' : 'var(--mu2)')
+        + (s.input.startsWith('/') ? ';font-family:var(--fm);font-size:13px' : ''),
+      inputBox: 'display:flex;align-items:center;gap:9px;min-height:40px;padding:6px 8px 6px 10px;border-radius:8px;'
+        + 'background:var(--bg);border:1px solid ' + (s.slash ? 'var(--ac)' : 'var(--line2)'),
+      focusInput: () => this.flip('slash'),
+      interrupt: () => this.set('st', 'idle'),
+      composerNote: '',
+
+      findings: [
+        ['seed', 'postgresql.org/docs · NOTIFY', 'Session rotation invalidates the listener channel', 'Each rotate() drops and re-establishes the LISTEN channel, which is where the reconnect storms in staging come from.', '09:02'],
+        ['seed', 'tapestry · adr/0031-auth-ttl.md', 'TTL was always meant to be the single source', 'The hit counter was added as a stopgap in March and the ADR was never revised to match.', '09:02'],
+        ['this run', 'rfc 9068 §2.2', 'Access tokens may not be rotated on decode failure', 'A decode failure is a client error; rotating on it hands the caller a new token for a request that was never valid.', '09:19'],
+        ['this run', 'sqlx 0.8 changelog', 'prepare --check needs no live database offline', 'Explains the tool_error above: the offline cache covers this turn, so the failure is not load-bearing.', '09:26']
+      ].map(([kind, src, title, body, when]) => ({
+        kind, src, title, body, when,
+        card: 'padding:10px 11px;border-radius:8px;background:var(--sf);border:1px solid var(--line)',
+        badge: 'display:inline-flex;padding:1px 7px;border-radius:5px;font:400 10.5px Inter,sans-serif;white-space:nowrap;'
+          + (kind === 'seed' ? 'background:var(--ac2-dim);color:var(--ac2)' : 'background:var(--sf3);color:var(--mu)')
+      }))
+    };
+  }
+
+}
+
+</script>
+</body>
+</html>

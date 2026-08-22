@@ -39,8 +39,10 @@ every run, which is why both exist rather than one.
 tokens itself.** Where a harness reports nothing, `usage` is null and spend reads *unknown* rather than
 zero — a zero would be a claim the system cannot support.
 
-**`permission_request` is a misconfiguration alarm.** Every harness launches with its own gate off, so
-one firing means a gate was left on and the run is about to hang with nobody to answer it.
+**`permission_request` is posture-aware.** On a bypass run, every harness launches with its own gate
+off, so one firing is a misconfiguration alarm. On a gated run, it is the expected human-action request
+that blocks the run until the panel resolves it. The recorded run posture, not the event name alone,
+determines which meaning applies.
 
 **One source**, and `[telemetry].source` is `acp` for every supported harness:
 
@@ -92,7 +94,8 @@ vocabularies stay apart.
 7. `usage` is null, never zero, where a harness reports nothing.
 8. `raw` is present on every event, and a normalization bug is repaired by replay without re-running
    the agent — proven by a test that replays with a fixed parser.
-9. `permission_request` firing raises an alarm rather than being counted quietly.
+9. A bypass-run `permission_request` raises an alarm; a gated-run request is preserved for a resolvable
+   human-action gate rather than being counted quietly.
 10. Every supported harness fronts `acp`; a harness with no native ACP mode is bridged by a Locus-side
     mapping that is registered and asserted per harness. No telemetry path renders a terminal.
 11. The telemetry append path writes one table and runs no projector — asserted, not assumed.

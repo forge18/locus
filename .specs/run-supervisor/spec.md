@@ -31,7 +31,7 @@ Project
 | | Session | Run |
 | --- | --- | --- |
 | Bounded by | you closing it | the container exiting |
-| Holds | agent@version, its branch, the board task, core-memory base, pane state | events, usage, exit status, artifacts, **the resolved model id** |
+| Holds | agent@version, its branch, the board task, core-memory base, pane state | events, usage, exit status, artifacts, **the resolved model id**, permission posture, checkpoints |
 | Resumable | yes — by starting another run | no |
 | Cost | the sum of its runs | measured directly |
 
@@ -53,6 +53,11 @@ with work that ended weeks ago.
 **Pause means the loop stops being fed, not that a process is frozen.** The supervisor lets the current
 turn finish, holds before the next iteration, and notifies; the container stays up so its state is
 inspectable. `SIGSTOP` mid-request would leave sockets half-written and a model call in flight.
+
+**Permission posture is selected at dispatch and pinned on the run.** `bypass` keeps the declared
+allowlist/container boundary and treats an unexpected request as an alarm. `gated` turns a protected
+request into a waiting human action. Before an edit, the supervisor records a checkpoint; restore and
+undo change the workspace state but never truncate the persisted transcript.
 
 ## Acceptance
 

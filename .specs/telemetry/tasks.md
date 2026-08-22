@@ -15,9 +15,11 @@
 | 11 | Assert Locus never computes a token count itself | 10 | `cargo test -p locus-core telemetry::never_counts_tokens` |
 | 12 | A missing verb is absent, never synthesized empty | 1 | `cargo test -p locus-core telemetry::missing_verb_stays_missing` |
 | 13 | Per-harness declared verb set drives what a test expects | 12 | `cargo test -p locus-core telemetry::expectations_per_harness` |
-| 14 | `permission_request` raises an alarm | 1 | `cargo test -p locus-core telemetry::permission_request_alarms` |
+| 14 | A bypass-run `permission_request` raises an alarm | 1 | `cargo test -p locus-core telemetry::permission_request_alarms` |
 | 15 | One ACP source yields the shared downstream shape for every harness | 4 | `cargo test -p locus-core telemetry::single_source_shape` |
 | 16 | Event-based test harness: "run this, assert these events" | 15 | `cargo test -p locus-core telemetry::event_assertions` |
 | 17 | Stream normalized events to the UI over `Channel<Event>` | 15 | `pnpm -C apps/desktop test -- transcript/from-core` |
 | 18 | `stream_pos` assigned at the core from one monotonic counter, total per project across runs | 3 | `cargo test -p locus-core telemetry::stream_pos_is_total_per_project` |
 | 19 | Two concurrent runs: union of polls at `stream_pos > watermark` equals every event written | 18 | `cargo test -p locus-core telemetry::cursor_never_skips` |
+| 20 | A gated-run `permission_request` becomes a human-action request rather than an alarm | 14 | `cargo test -p locus-core telemetry::permission_request_gated` |
+| 21 | Preserve the request identity and diff payload needed to resolve a gate after replay | 20 | `cargo test -p locus-core telemetry::permission_request_replay` |

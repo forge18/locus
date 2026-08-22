@@ -25,17 +25,17 @@ of those blocks the shell or the other twelve screens. It can run alongside M0.
 | --- | --- | ---: | ---: | ---: |
 | **M0** | Spikes — these gate M1 · **closed** | 3 | 39 | 39 |
 | **M0.5** | Desktop UI on fixtures · **closed** | 12 | 268 | 268 |
-| **M0.6** | v2 desktop reconciliation | 6 | 195 | 0 |
-| **M1** | Core runtime · **closed** | 14 | 270 | 270 |
+| **M0.6** | v2 desktop reconciliation | 6 | 198 | 0 |
+| **M1** | Core runtime | 15 | 309 | 270 |
 | **M2** | Workspace | 3 | 57 | 0 |
-| **M3** | Coordination, memory, and mail | 6 | 133 | 0 |
+| **M3** | Coordination, memory, and mail | 6 | 134 | 0 |
 | **M3.5** | Agent capabilities: debug and browser | 3 | 56 | 0 |
 | **M4** | Workflow canvas | 3 | 69 | 0 |
-| **M5** | Project management | 4 | 109 | 0 |
+| **M5** | Project management | 4 | 110 | 0 |
 | **M6** | Automation and discoverability | 3 | 46 | 0 |
 | **M7** | GitHub | 3 | 42 | 0 |
 | **M8** | Marketplace installer | 1 | 11 | 0 |
-| | | **61** | **1295** | **577** |
+| | | **62** | **1339** | **577** |
 
 ---
 
@@ -116,7 +116,7 @@ below; it is short and it is load-bearing.
 
 ## M0.6 — v2 desktop reconciliation
 
-6 features · 195 tasks
+6 features · 198 tasks
 
 - [ ] **[design-v2](.specs/design-v2/spec.md)** · 24 tasks · [tasks](.specs/design-v2/tasks.md)
   Adopt the v2 handoff without porting its HTML or JavaScript. Replace the v1 fixture contract and
@@ -131,7 +131,7 @@ below; it is short and it is load-bearing.
   Replace the v1 shell with the project-scoped rail, running popover, locator, and accessible shared
   navigation.
   *Depends on:* `design-v2`, `theme-system`
-- [ ] **[v2-project-operations](.specs/v2-project-operations/spec.md)** · 52 tasks · [tasks](.specs/v2-project-operations/tasks.md)
+- [ ] **[v2-project-operations](.specs/v2-project-operations/spec.md)** · 55 tasks · [tasks](.specs/v2-project-operations/tasks.md)
   Make Project Settings, planning decomposition, Automate, queue policy, and safe Dispatch controls
   durable and reviewable.
   *Depends on:* `v2-application-shell`
@@ -144,9 +144,9 @@ below; it is short and it is load-bearing.
 
 ## M1 — Core runtime
 
-14 features · 270 tasks
+15 features · 309 tasks
 
-- [x] **[acp-client](.specs/acp-client/spec.md)** · 13 tasks · **complete** · [tasks](.specs/acp-client/tasks.md)
+- [ ] **[acp-client](.specs/acp-client/spec.md)** · 18 tasks · **13/18 complete** · [tasks](.specs/acp-client/tasks.md)
   An Agent Client Protocol client — **the only agent interface**, successor to "planning/chat module
   only". Each supported harness fronts ACP; a Locus-side mapping bridges harnesses without a native mode.
   *Depends on:* `sandbox`, `telemetry`
@@ -156,7 +156,10 @@ below; it is short and it is load-bearing.
 - [x] **[agent-definitions](.specs/agent-definitions/spec.md)** · 16 tasks · **complete** · [tasks](.specs/agent-definitions/tasks.md)
   An agent is a Markdown file with frontmatter.
   *Depends on:* `store`, `materializers`
-- [x] **[artifacts](.specs/artifacts/spec.md)** · 21 tasks · **complete** · [tasks](.specs/artifacts/tasks.md)
+- [ ] **[agent-interface](.specs/agent-interface/spec.md)** · 26 tasks · [tasks](.specs/agent-interface/tasks.md)
+  The ACP session surface: one stream with steering, gated approvals, research, plan, and checkpoints.
+  *Depends on:* `v2-project-operations`, `pane-manager`, `acp-client`, `run-supervisor`, `artifacts`
+- [ ] **[artifacts](.specs/artifacts/spec.md)** · 23 tasks · **21/23 complete** · [tasks](.specs/artifacts/tasks.md)
   What you review instead of tool calls.
   *Depends on:* `store`, `run-supervisor`
 - [x] **[ci](.specs/ci/spec.md)** · 15 tasks · **complete** · [tasks](.specs/ci/tasks.md)
@@ -178,7 +181,7 @@ below; it is short and it is load-bearing.
 - [x] **[pane-manager](.specs/pane-manager/spec.md)** · 17 tasks · **complete** · [tasks](.specs/pane-manager/tasks.md)
   The pane manager and the IPC discipline behind it.
   *Depends on:* `app-shell`, `run-supervisor`, `telemetry`
-- [x] **[run-supervisor](.specs/run-supervisor/spec.md)** · 22 tasks · **complete** · [tasks](.specs/run-supervisor/tasks.md)
+- [ ] **[run-supervisor](.specs/run-supervisor/spec.md)** · 26 tasks · **22/26 complete** · [tasks](.specs/run-supervisor/tasks.md)
   Spawn, stream, normalize, persist, cancel — and hold the session/run/turn model that everything above depends on.
   *Depends on:* `sandbox`, `materializers`, `agent-definitions`, `telemetry`
 - [x] **[sandbox](.specs/sandbox/spec.md)** · 24 tasks · **complete** · [tasks](.specs/sandbox/tasks.md)
@@ -187,7 +190,7 @@ below; it is short and it is load-bearing.
 - [x] **[store](.specs/store/spec.md)** · 24 tasks · **complete** · [tasks](.specs/store/tasks.md)
   Postgres as the single source of truth, plus the backup that makes that safe.
   *Depends on:* none
-- [x] **[telemetry](.specs/telemetry/spec.md)** · 19 tasks · **complete** · [tasks](.specs/telemetry/tasks.md)
+- [ ] **[telemetry](.specs/telemetry/spec.md)** · 21 tasks · **19/21 complete** · [tasks](.specs/telemetry/tasks.md)
   One ACP path, one event vocabulary, and an append-only transcript that is deliberately never projected.
   *Depends on:* `harness-registry`, `store`
 
@@ -208,7 +211,7 @@ below; it is short and it is load-bearing.
 
 ## M3 — Coordination, memory, and mail
 
-6 features · 133 tasks
+6 features · 134 tasks
 
 - [ ] **[guardrails](.specs/guardrails/spec.md)** · 23 tasks · [tasks](.specs/guardrails/tasks.md)
   What makes leaving a loop unattended defensible.
@@ -219,7 +222,7 @@ below; it is short and it is load-bearing.
 - [ ] **[mail](.specs/mail/spec.md)** · 20 tasks · [tasks](.specs/mail/tasks.md)
   Agent-to-agent messages, Rust-native, identical for every harness.
   *Depends on:* `store`
-- [ ] **[memory](.specs/memory/spec.md)** · 40 tasks · [tasks](.specs/memory/tasks.md)
+- [ ] **[memory](.specs/memory/spec.md)** · 41 tasks · [tasks](.specs/memory/tasks.md)
   What an agent recalls: scoped facts with provenance, embeddings and decay.
   *Depends on:* `store`, `telemetry`, `materializers`
 - [ ] **[repo-manager](.specs/repo-manager/spec.md)** · 17 tasks · [tasks](.specs/repo-manager/tasks.md)
@@ -259,7 +262,7 @@ below; it is short and it is load-bearing.
 
 ## M5 — Project management
 
-4 features · 109 tasks
+4 features · 110 tasks
 
 - [ ] **[board](.specs/board/spec.md)** · 23 tasks · [tasks](.specs/board/tasks.md)
   Deliberately small.
@@ -267,7 +270,7 @@ below; it is short and it is load-bearing.
 - [ ] **[calibration-loop](.specs/calibration-loop/spec.md)** · 20 tasks · [tasks](.specs/calibration-loop/tasks.md)
   **What makes the system improve rather than merely repeat.** A failure that only ever produces a retry teaches nothing; a failure that changes a template is paid for once.
   *Depends on:* `workflow-engine`, `planning-module`, `memory`
-- [ ] **[planning-module](.specs/planning-module/spec.md)** · 40 tasks · [tasks](.specs/planning-module/tasks.md)
+- [ ] **[planning-module](.specs/planning-module/spec.md)** · 41 tasks · [tasks](.specs/planning-module/tasks.md)
   A guided conversation that produces a reviewable plan.
   *Depends on:* `acp-client`, `board`, `wiki`, `screens-plan`
 - [ ] **[wiki](.specs/wiki/spec.md)** · 26 tasks · [tasks](.specs/wiki/tasks.md)
@@ -314,7 +317,7 @@ below; it is short and it is load-bearing.
 
 ## Open decisions
 
-54 questions the specs record as genuinely undecided, rather than answering by guess.
+56 questions the specs record as genuinely undecided, rather than answering by guess.
 Each names what would settle it. They are listed here because a decision made twice in two features
 is a decision that will disagree with itself.
 
@@ -338,6 +341,7 @@ is a decision that will disagree with itself.
 | M1 | `acp-client` | Whether the planning conversation is a distinct pane or the same event-rendered Agent Pane. **Resolved in the ACP-only revision:** with the PTY gone from the agent surface, both are events — the distinction is layout, not transport, and is now pane-manager's call. |
 | M1 | `agent-cli` | The row threshold at which key-packing engages. PLAN.md gives the technique and the saving but not the count, and below some size the header row costs more than it saves. |
 | M1 | `agent-definitions` | Whether `harness: any` should resolve at run start or be pinned at save. PLAN.md does not say, and the difference only matters once one project runs more than one harness for the same agent. |
+| M1 | `agent-interface` | Exact panel variants, permission label, always-available research CLI set, checkpoint retention, workflow provenance, and agent identity remain deliberate open decisions; the ACP panel handoff supplies the fixed baseline. |
 | M1 | `artifacts` | The compaction threshold. PLAN.md says "over a threshold" without naming one; it should be a setting with a defensible default rather than a constant chosen here. |
 | M1 | `ci` | Whether CI runs the container-dependent tests on every push or on a schedule. Twelve harness smoke tests each starting a container is not free, and the tradeoff is real — but skipping them silently is the failure this feature exists to p… |
 | M1 | `harness-registry` | **CLOSED — both verified against real binaries**, with four claims refuted. See the corrections below. One new registry-shape question falls out: `dsh` selects its model through a profile patch, not a flag, so model resolution needs a strategy that is not `[models] flag`. |

@@ -54,7 +54,7 @@ reason to leave the sandbox.**
 | `AgentMessageChunk` | `assistant` |
 | `AgentThoughtChunk` | `thinking` |
 | `ToolCall` / `ToolCallUpdate` | `tool_call` / `tool_result` / `tool_error`, by its `status` |
-| `RequestPermission` | `permission_request` |
+| `RequestPermission` | `permission_request`, interpreted from the run's posture |
 
 ## Acceptance
 
@@ -66,7 +66,8 @@ reason to leave the sandbox.**
     no new mapping code.
  5. **An ACP run is the run.** ACP events are the only conversation Locus has with an agent; there is no
     terminal stream to cross-check against.
- 6. A tool-call permission request surfaces as `permission_request` and raises the misconfiguration alarm.
+ 6. A tool-call permission request surfaces as `permission_request`: it raises the misconfiguration
+    alarm for a bypass run, and becomes a resolvable human-action request for a gated run.
  7. **No PTY is attached to any agent run.** A test asserts the agent process has no terminal
     attached beyond what stdio requires — sealed at the container.
  8. A harness with no native ACP mode still fronts an ACP surface through a Locus-side mapping, and that

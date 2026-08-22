@@ -42,3 +42,4 @@
 | 38 | Re-planning: close a deleted requirement as `superseded` | 35 | `cargo test -p locus-core planning::replan_supersedes` |
 | 39 | Specialization records as wiki `concept` pages, applied above a confidence threshold | 14 | `cargo test -p locus-core planning::specialization_records` |
 | 40 | Wire the Plan screen to a real ACP conversation | 27 | `pnpm -C apps/desktop test -- plan/from-core` |
+| 41 | Hand planning findings to the task session as research-feed seeds without auto-promoting them | 30 | `cargo test -p locus-core planning::findings_seed_task_session` |

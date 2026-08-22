@@ -12,8 +12,10 @@ schedules, queue visibility, parallelism policy, and safe global stopping.
 
 Projects own harness allow-lists/defaults, repos, base context, extension toggles, and CLI role scope.
 Planning has nine stages and commits an editable spec/task-to-card mapping only at final approval.
-Dispatch owns queue policy, caps, preemption-at-boundary, autorun, schedules, Stop all, and bounded
-restore. Automate renders project cards/agents from that durable state.
+Dispatch owns queue policy, caps, preemption-at-boundary, autorun, schedules, Stop all, bounded
+restore, and a per-job permission posture. Bypass is the default and relies on the declared allowlist
+plus container boundary; a user may opt a job into gated approval. Automate renders project
+cards/agents from that durable state.
 
 ## Acceptance
 
