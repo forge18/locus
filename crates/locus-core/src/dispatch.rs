@@ -7,10 +7,14 @@ use std::collections::BTreeMap;
 
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use sqlx::{query, Row};
 use uuid::Uuid;
 
-use crate::store::Store;
+use crate::{
+    session::{Run, RunStatus, Session},
+    store::Store,
+};
 
 /// The configured ordering for queued runs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -70,6 +74,8 @@ pub struct DispatchPolicy {
     pub per_project_parallelism: u32,
     pub priority_method: PriorityMethod,
     pub tie_break: TieBreak,
+    /// Whether the supervisor may pause a named run at its next iteration boundary.
+    pub preemption_enabled: bool,
 }
 
 impl Default for DispatchPolicy {
@@ -79,6 +85,7 @@ impl Default for DispatchPolicy {
             per_project_parallelism: 3,
             priority_method: PriorityMethod::PlanOrder,
             tie_break: TieBreak::LongestWaiting,
+            preemption_enabled: false,
         }
     }
 }
@@ -147,6 +154,69 @@ impl QueuedRun {
 pub enum RunState {
     Queued,
     Running,
+}
+
+/// The durable session context supplied when preempted work resumes.
+///
+/// This is intentionally a context snapshot, not the M3 ownership-transfer payload and never a
+/// transcript. A paused run remains in its own session and retains the branch, task, and memory
+/// scope it needs to resume.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct PreemptionHandoff {
+    pub session_id: Uuid,
+    pub branch: String,
+    pub board_task_id: Option<Uuid>,
+    pub memory_base: Value,
+}
+
+impl PreemptionHandoff {
+    pub fn from_session(session: &Session) -> Self {
+        Self {
+            session_id: session.id,
+            branch: session.branch.clone(),
+            board_task_id: session.board_task_id,
+            memory_base: session.memory_base.clone(),
+        }
+    }
+}
+
+/// Holds an explicit supervisor preemption request until the active iteration completes.
+#[derive(Default)]
+pub struct PreemptionController {
+    pending: BTreeMap<Uuid, PreemptionHandoff>,
+}
+
+impl PreemptionController {
+    /// Request a pause for one running run. The request has no mid-iteration effect.
+    pub fn request(&mut self, run: &Run, handoff: PreemptionHandoff) -> Result<()> {
+        if run.status != RunStatus::Running {
+            bail!("only running runs may be preempted")
+        }
+        if run.session_id != handoff.session_id {
+            bail!("preemption handoff must belong to the preempted run session")
+        }
+        self.pending.insert(run.id, handoff);
+        Ok(())
+    }
+
+    /// Pause a requested run only after its workflow iteration completes.
+    pub fn after_iteration(
+        &mut self,
+        run: &mut Run,
+        iteration_completed: bool,
+    ) -> Result<Option<PreemptionHandoff>> {
+        if !iteration_completed {
+            return Ok(None);
+        }
+        if run.status != RunStatus::Running {
+            bail!("only running runs may be preempted")
+        }
+        let Some(handoff) = self.pending.remove(&run.id) else {
+            return Ok(None);
+        };
+        run.status = RunStatus::Paused;
+        Ok(Some(handoff))
+    }
 }
 
 fn priority_order(
@@ -219,7 +289,8 @@ impl Store {
     /// Read the durable, machine-wide dispatch policy.
     pub async fn dispatch_policy(&self) -> Result<DispatchPolicy> {
         let row = query(
-            "SELECT global_parallelism, per_project_parallelism, priority_method, tie_break
+            "SELECT global_parallelism, per_project_parallelism, priority_method, tie_break,
+                    preemption_enabled
              FROM core.dispatch_policy
              WHERE singleton = TRUE",
         )
@@ -234,13 +305,15 @@ impl Store {
         policy.validate()?;
         query(
             "INSERT INTO core.dispatch_policy (
-                 singleton, global_parallelism, per_project_parallelism, priority_method, tie_break
-             ) VALUES (TRUE, $1, $2, $3, $4)
+                 singleton, global_parallelism, per_project_parallelism, priority_method, tie_break,
+                 preemption_enabled
+             ) VALUES (TRUE, $1, $2, $3, $4, $5)
              ON CONFLICT (singleton) DO UPDATE SET
                  global_parallelism = EXCLUDED.global_parallelism,
                  per_project_parallelism = EXCLUDED.per_project_parallelism,
                  priority_method = EXCLUDED.priority_method,
-                 tie_break = EXCLUDED.tie_break",
+                 tie_break = EXCLUDED.tie_break,
+                 preemption_enabled = EXCLUDED.preemption_enabled",
         )
         .bind(i32::try_from(policy.global_parallelism).context("global parallelism exceeds i32")?)
         .bind(
@@ -249,6 +322,7 @@ impl Store {
         )
         .bind(policy.priority_method.as_str())
         .bind(policy.tie_break.as_str())
+        .bind(policy.preemption_enabled)
         .execute(self.pool())
         .await
         .context("persist dispatch policy")?;
@@ -291,7 +365,8 @@ impl Store {
     pub async fn claim_dispatchable_runs(&self) -> Result<Vec<Uuid>> {
         let mut transaction = self.pool().begin().await.context("begin dispatch claim")?;
         let policy_row = query(
-            "SELECT global_parallelism, per_project_parallelism, priority_method, tie_break
+            "SELECT global_parallelism, per_project_parallelism, priority_method, tie_break,
+                    preemption_enabled
              FROM core.dispatch_policy
              WHERE singleton = TRUE
              FOR UPDATE",
@@ -350,6 +425,102 @@ impl Store {
             .context("commit dispatch claim")?;
         Ok(selected)
     }
+
+    /// Persist an explicit supervisor request to pause a run at its next completed iteration.
+    ///
+    /// The snapshot is derived from the run's own session so a caller cannot substitute context
+    /// from another task. The request is refused while boundary preemption is disabled.
+    pub async fn request_dispatch_preemption(&self, run_id: Uuid) -> Result<()> {
+        let requested = query(
+            "INSERT INTO agents.dispatch_preemptions (run_id, handoff_context)
+             SELECT $1, jsonb_build_object(
+                 'session_id', sessions.id,
+                 'branch', sessions.branch,
+                 'board_task_id', sessions.board_task_id,
+                 'memory_base', sessions.memory_base
+             )
+             FROM agents.runs AS runs
+             JOIN agents.sessions AS sessions ON sessions.id = runs.session_id
+             JOIN core.dispatch_policy AS policy ON policy.singleton = TRUE
+             WHERE runs.id = $1
+               AND runs.status = 'running'
+               AND policy.preemption_enabled = TRUE
+             ON CONFLICT (run_id) DO UPDATE SET
+                 handoff_context = EXCLUDED.handoff_context,
+                 requested_at = now()",
+        )
+        .bind(run_id)
+        .execute(self.pool())
+        .await
+        .context("request dispatch preemption")?;
+        if requested.rows_affected() != 1 {
+            bail!("only running runs may be preempted when boundary preemption is enabled")
+        }
+        Ok(())
+    }
+
+    /// Apply a pending preemption only once the run's workflow iteration has completed.
+    ///
+    /// A missing or incomplete iteration leaves the request durable and the run running, so a
+    /// restart cannot turn a mid-iteration request into an interruption.
+    pub async fn preempt_dispatch_at_iteration_boundary(
+        &self,
+        run_id: Uuid,
+    ) -> Result<Option<PreemptionHandoff>> {
+        let mut transaction = self
+            .pool()
+            .begin()
+            .await
+            .context("begin dispatch preemption")?;
+        let handoff = query(
+            "SELECT preemptions.handoff_context
+             FROM agents.dispatch_preemptions AS preemptions
+             JOIN agents.runs AS runs ON runs.id = preemptions.run_id
+             WHERE preemptions.run_id = $1
+               AND runs.status = 'running'
+               AND EXISTS (
+                   SELECT 1
+                   FROM workflows.iterations AS iterations
+                   WHERE iterations.run_id = runs.id
+                     AND iterations.ended_at IS NOT NULL
+               )
+             FOR UPDATE OF preemptions, runs",
+        )
+        .bind(run_id)
+        .fetch_optional(&mut *transaction)
+        .await
+        .context("lock pending dispatch preemption")?;
+
+        let Some(handoff) = handoff else {
+            transaction
+                .commit()
+                .await
+                .context("commit unchanged dispatch preemption")?;
+            return Ok(None);
+        };
+        let handoff: PreemptionHandoff =
+            serde_json::from_value(handoff.try_get("handoff_context")?)
+                .context("decode dispatch preemption handoff")?;
+        let paused =
+            query("UPDATE agents.runs SET status = 'paused' WHERE id = $1 AND status = 'running'")
+                .bind(run_id)
+                .execute(&mut *transaction)
+                .await
+                .context("pause preempted run")?;
+        if paused.rows_affected() != 1 {
+            bail!("dispatch run `{run_id}` was no longer running")
+        }
+        query("DELETE FROM agents.dispatch_preemptions WHERE run_id = $1")
+            .bind(run_id)
+            .execute(&mut *transaction)
+            .await
+            .context("clear completed dispatch preemption")?;
+        transaction
+            .commit()
+            .await
+            .context("commit dispatch preemption")?;
+        Ok(Some(handoff))
+    }
 }
 
 fn policy_from_row(row: &sqlx::postgres::PgRow) -> Result<DispatchPolicy> {
@@ -362,6 +533,7 @@ fn policy_from_row(row: &sqlx::postgres::PgRow) -> Result<DispatchPolicy> {
             .context("stored per-project parallelism is negative")?,
         priority_method: PriorityMethod::parse(row.try_get::<&str, _>("priority_method")?)?,
         tie_break: TieBreak::parse(row.try_get::<&str, _>("tie_break")?)?,
+        preemption_enabled: row.try_get("preemption_enabled")?,
     };
     policy.validate()?;
     Ok(policy)
@@ -399,6 +571,7 @@ mod enforces_parallel_caps {
             per_project_parallelism: 2,
             priority_method: PriorityMethod::PlanOrder,
             tie_break: TieBreak::LongestWaiting,
+            preemption_enabled: false,
         };
         let runs = vec![
             QueuedRun::running(1, 10),
@@ -412,12 +585,70 @@ mod enforces_parallel_caps {
 }
 
 #[cfg(test)]
+mod preempts_at_boundary {
+    use serde_json::json;
+    use uuid::Uuid;
+
+    use super::{PreemptionController, PreemptionHandoff};
+    use crate::session::{Run, RunStatus, Session, SessionStatus};
+
+    #[test]
+    fn test() {
+        let session = Session {
+            id: Uuid::new_v4(),
+            project_id: Uuid::new_v4(),
+            agent_def_id: Uuid::new_v4(),
+            name: "preempted work".into(),
+            branch: "agent/preempted-work".into(),
+            board_task_id: Some(Uuid::new_v4()),
+            memory_base: json!({"decision": "keep the migration additive"}),
+            pane_state: json!({}),
+            status: SessionStatus::Active,
+        };
+        let mut run = Run {
+            id: Uuid::new_v4(),
+            session_id: session.id,
+            resolved_model_id: "test-model".into(),
+            status: RunStatus::Running,
+            events: vec![],
+            usage: None,
+            exit_code: None,
+            cancel_reason: None,
+            native_session_id: None,
+            artifacts: vec![],
+        };
+        let handoff = PreemptionHandoff::from_session(&session);
+        let mut preemption = PreemptionController::default();
+
+        preemption
+            .request(&run, handoff.clone())
+            .expect("request preemption");
+        assert_eq!(
+            preemption
+                .after_iteration(&mut run, false)
+                .expect("do not preempt mid-iteration"),
+            None
+        );
+        assert_eq!(run.status, RunStatus::Running);
+
+        assert_eq!(
+            preemption
+                .after_iteration(&mut run, true)
+                .expect("preempt at boundary"),
+            Some(handoff)
+        );
+        assert_eq!(run.status, RunStatus::Paused);
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use std::{
         net::TcpListener,
         process::{Command, Stdio},
     };
 
+    use serde_json::json;
     use sqlx::{query, query_scalar};
 
     use super::*;
@@ -496,6 +727,7 @@ mod tests {
             per_project_parallelism: 1,
             priority_method: PriorityMethod::UnblocksMost,
             tie_break: TieBreak::LongestWaiting,
+            preemption_enabled: false,
         };
         let mut older = QueuedRun::queued(1, 10, 0);
         older.priority.unblocks_count = 2;
@@ -574,6 +806,7 @@ mod tests {
             per_project_parallelism: 1,
             priority_method: PriorityMethod::PlanOrder,
             tie_break: TieBreak::LongestWaiting,
+            preemption_enabled: false,
         };
         store
             .set_dispatch_policy(policy)
@@ -620,6 +853,155 @@ mod tests {
                 .await
                 .expect("read eligible status"),
             "running"
+        );
+    }
+
+    #[tokio::test]
+    async fn preemption_handoff_is_durable_and_boundary_only() {
+        let (store, _cleanup) = store().await;
+        let project = Uuid::new_v4();
+        let agent = Uuid::new_v4();
+        let session = Uuid::new_v4();
+        let run = Uuid::new_v4();
+        let task = Uuid::new_v4();
+        let memory_base = json!({"decision": "keep the migration additive"});
+        query("INSERT INTO core.projects (id, name) VALUES ($1, 'preemption')")
+            .bind(project)
+            .execute(store.pool())
+            .await
+            .expect("insert project");
+        query(
+            "INSERT INTO agents.agent_defs (id, name, version, frontmatter, body)
+             VALUES ($1, 'preemption test', 1, '{}'::jsonb, '')",
+        )
+        .bind(agent)
+        .execute(store.pool())
+        .await
+        .expect("insert agent");
+        query(
+            "INSERT INTO agents.sessions
+                 (id, project_id, agent_def_id, name, branch, board_task_id, memory_base)
+             VALUES ($1, $2, $3, 'preempted', 'agent/preempted', $4, $5)",
+        )
+        .bind(session)
+        .bind(project)
+        .bind(agent)
+        .bind(task)
+        .bind(&memory_base)
+        .execute(store.pool())
+        .await
+        .expect("insert session");
+        query(
+            "INSERT INTO agents.runs (id, session_id, resolved_model_id, status)
+             VALUES ($1, $2, 'test-model', 'running')",
+        )
+        .bind(run)
+        .bind(session)
+        .execute(store.pool())
+        .await
+        .expect("insert running run");
+        store
+            .set_dispatch_policy(DispatchPolicy {
+                global_parallelism: 1,
+                per_project_parallelism: 1,
+                priority_method: PriorityMethod::PlanOrder,
+                tie_break: TieBreak::LongestWaiting,
+                preemption_enabled: true,
+            })
+            .await
+            .expect("enable boundary preemption");
+
+        store
+            .request_dispatch_preemption(run)
+            .await
+            .expect("persist preemption request");
+        assert_eq!(
+            store
+                .preempt_dispatch_at_iteration_boundary(run)
+                .await
+                .expect("defer mid-iteration preemption"),
+            None
+        );
+        assert_eq!(
+            query_scalar::<_, String>("SELECT status FROM agents.runs WHERE id = $1")
+                .bind(run)
+                .fetch_one(store.pool())
+                .await
+                .expect("read mid-iteration run status"),
+            "running"
+        );
+        assert_eq!(
+            query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM agents.dispatch_preemptions WHERE run_id = $1",
+            )
+            .bind(run)
+            .fetch_one(store.pool())
+            .await
+            .expect("read pending preemption"),
+            1
+        );
+
+        let workflow = Uuid::new_v4();
+        let execution = Uuid::new_v4();
+        query(
+            "INSERT INTO workflows.workflow_defs
+                 (id, project_id, name, version, graph, spec, verify_command)
+             VALUES ($1, $2, 'preemption', 1, '{}'::jsonb, '{}'::jsonb, 'true')",
+        )
+        .bind(workflow)
+        .bind(project)
+        .execute(store.pool())
+        .await
+        .expect("insert workflow");
+        query(
+            "INSERT INTO workflows.executions (id, workflow_def_id, status)
+             VALUES ($1, $2, 'running')",
+        )
+        .bind(execution)
+        .bind(workflow)
+        .execute(store.pool())
+        .await
+        .expect("insert execution");
+        query(
+            "INSERT INTO workflows.iterations (id, execution_id, run_id, number, ended_at)
+             VALUES ($1, $2, $3, 1, now())",
+        )
+        .bind(Uuid::new_v4())
+        .bind(execution)
+        .bind(run)
+        .execute(store.pool())
+        .await
+        .expect("complete iteration");
+
+        assert_eq!(
+            store
+                .preempt_dispatch_at_iteration_boundary(run)
+                .await
+                .expect("preempt at iteration boundary"),
+            Some(PreemptionHandoff {
+                session_id: session,
+                branch: "agent/preempted".into(),
+                board_task_id: Some(task),
+                memory_base,
+            })
+        );
+        assert_eq!(
+            query_scalar::<_, String>("SELECT status FROM agents.runs WHERE id = $1")
+                .bind(run)
+                .fetch_one(store.pool())
+                .await
+                .expect("read preempted run status"),
+            "paused"
+        );
+        assert_eq!(
+            query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM agents.dispatch_preemptions WHERE run_id = $1",
+            )
+            .bind(run)
+            .fetch_one(store.pool())
+            .await
+            .expect("read cleared preemption"),
+            0
         );
     }
 }
