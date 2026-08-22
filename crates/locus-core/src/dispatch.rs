@@ -5,7 +5,7 @@
 
 use std::collections::BTreeMap;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sqlx::{query, Row};
@@ -109,6 +109,13 @@ pub struct DispatchPriority {
     pub manual_order: i64,
     pub unblocks_count: u32,
     pub estimate_minutes: u32,
+}
+
+/// The durable scope captured by one global Stop all action.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StopAllSnapshot {
+    pub id: Uuid,
+    pub run_ids: Vec<Uuid>,
 }
 
 /// A supervisor-visible run used to apply capacity and priority rules.
@@ -326,6 +333,225 @@ impl Store {
         .execute(self.pool())
         .await
         .context("persist dispatch policy")?;
+        Ok(())
+    }
+
+    /// Set whether a project may automatically start dispatchable work.
+    pub async fn set_project_autorun(&self, project_id: Uuid, enabled: bool) -> Result<()> {
+        query(
+            "INSERT INTO core.project_autorun (project_id, enabled)
+             VALUES ($1, $2)
+             ON CONFLICT (project_id) DO UPDATE SET
+                 enabled = EXCLUDED.enabled,
+                 updated_at = now()",
+        )
+        .bind(project_id)
+        .bind(enabled)
+        .execute(self.pool())
+        .await
+        .context("set project autorun")?;
+        Ok(())
+    }
+
+    /// Read a project's autorun state; projects without a setting default to disabled.
+    pub async fn project_autorun(&self, project_id: Uuid) -> Result<bool> {
+        let row = query(
+            "SELECT COALESCE(
+                 (SELECT enabled FROM core.project_autorun WHERE project_id = $1),
+                 FALSE
+             ) AS enabled",
+        )
+        .bind(project_id)
+        .fetch_one(self.pool())
+        .await
+        .context("read project autorun")?;
+        row.try_get("enabled").context("decode project autorun")
+    }
+
+    /// Snapshot and stop all active dispatch work, autorun settings, and schedules.
+    ///
+    /// Queued and running runs become `stopped`; branches, artifacts, memory, queue entries, and
+    /// all other durable work remain untouched. The returned snapshot is restorable for ten minutes.
+    pub async fn stop_all(&self) -> Result<StopAllSnapshot> {
+        let mut transaction = self.pool().begin().await.context("begin stop all")?;
+        query("SELECT singleton FROM core.dispatch_policy WHERE singleton = TRUE FOR UPDATE")
+            .fetch_one(&mut *transaction)
+            .await
+            .context("lock dispatch policy for stop all")?;
+        let existing = query(
+            "SELECT id FROM core.stop_all_snapshots
+             WHERE restored_at IS NULL AND restore_expires_at > now()
+             LIMIT 1",
+        )
+        .fetch_optional(&mut *transaction)
+        .await
+        .context("check active stop all snapshot")?;
+        if existing.is_some() {
+            bail!("an unexpired Stop all snapshot already exists")
+        }
+
+        let id = Uuid::new_v4();
+        query(
+            "INSERT INTO core.stop_all_snapshots (id, stopped_at, restore_expires_at)
+             VALUES ($1, now(), now() + INTERVAL '10 minutes')",
+        )
+        .bind(id)
+        .execute(&mut *transaction)
+        .await
+        .context("create stop all snapshot")?;
+
+        let rows = query(
+            "INSERT INTO core.stop_all_run_snapshots (snapshot_id, run_id, prior_status)
+             SELECT $1, id, status
+             FROM agents.runs
+             WHERE status IN ('queued', 'running')
+             RETURNING run_id",
+        )
+        .bind(id)
+        .fetch_all(&mut *transaction)
+        .await
+        .context("snapshot active runs")?;
+        let run_ids = rows
+            .iter()
+            .map(|row| row.try_get::<Uuid, _>("run_id").map_err(Into::into))
+            .collect::<Result<Vec<_>>>()
+            .context("decode stopped run ids")?;
+        query(
+            "UPDATE agents.runs AS runs
+             SET status = 'stopped'
+             FROM core.stop_all_run_snapshots AS snapshot
+             WHERE snapshot.snapshot_id = $1
+               AND snapshot.run_id = runs.id
+               AND runs.status = snapshot.prior_status",
+        )
+        .bind(id)
+        .execute(&mut *transaction)
+        .await
+        .context("stop active runs")?;
+
+        query(
+            "INSERT INTO core.stop_all_autorun_snapshots (snapshot_id, project_id, enabled)
+             SELECT $1, project_id, enabled FROM core.project_autorun",
+        )
+        .bind(id)
+        .execute(&mut *transaction)
+        .await
+        .context("snapshot autorun state")?;
+        query("UPDATE core.project_autorun SET enabled = FALSE, updated_at = now() WHERE enabled")
+            .execute(&mut *transaction)
+            .await
+            .context("disable autorun")?;
+
+        query(
+            "INSERT INTO core.stop_all_schedule_snapshots (snapshot_id, schedule_id, paused_at)
+             SELECT $1, id, paused_at FROM workflows.schedules",
+        )
+        .bind(id)
+        .execute(&mut *transaction)
+        .await
+        .context("snapshot schedule state")?;
+        query("UPDATE workflows.schedules SET paused_at = now(), updated_at = now() WHERE paused_at IS NULL")
+            .execute(&mut *transaction)
+            .await
+            .context("pause schedules")?;
+
+        transaction.commit().await.context("commit stop all")?;
+        Ok(StopAllSnapshot { id, run_ids })
+    }
+
+    /// Restore a Stop all snapshot before its ten-minute window expires.
+    ///
+    /// A stopped run that had been running is requeued, rather than falsely marked running after
+    /// its container was stopped. Queued runs return to the queue unchanged.
+    pub async fn restore_stop_all(&self, snapshot_id: Uuid) -> Result<()> {
+        let mut transaction = self
+            .pool()
+            .begin()
+            .await
+            .context("begin stop all restore")?;
+        query("SELECT singleton FROM core.dispatch_policy WHERE singleton = TRUE FOR UPDATE")
+            .fetch_one(&mut *transaction)
+            .await
+            .context("lock dispatch policy for stop all restore")?;
+        let snapshot = query(
+            "SELECT restored_at IS NULL AND restore_expires_at >= now() AS restorable
+             FROM core.stop_all_snapshots
+             WHERE id = $1
+             FOR UPDATE",
+        )
+        .bind(snapshot_id)
+        .fetch_optional(&mut *transaction)
+        .await
+        .context("read stop all snapshot")?;
+        let restorable: bool = snapshot
+            .ok_or_else(|| anyhow::anyhow!("Stop all snapshot does not exist"))?
+            .try_get("restorable")
+            .context("decode Stop all restore window")?;
+        if !restorable {
+            bail!("Stop all snapshot is expired or already restored")
+        }
+
+        query(
+            "INSERT INTO agents.dispatch_queue (
+                 run_id, plan_order, manual_order, unblocks_count, estimate_minutes
+             )
+             SELECT snapshot.run_id, 0, 0, 0, 0
+             FROM core.stop_all_run_snapshots AS snapshot
+             JOIN agents.runs AS runs ON runs.id = snapshot.run_id
+             WHERE snapshot.snapshot_id = $1 AND runs.status = 'stopped'
+             ON CONFLICT (run_id) DO NOTHING",
+        )
+        .bind(snapshot_id)
+        .execute(&mut *transaction)
+        .await
+        .context("restore dispatch queue entries")?;
+        query(
+            "UPDATE agents.runs AS runs
+             SET status = CASE snapshot.prior_status
+                 WHEN 'running' THEN 'queued'
+                 ELSE snapshot.prior_status
+             END
+             FROM core.stop_all_run_snapshots AS snapshot
+             WHERE snapshot.snapshot_id = $1
+               AND snapshot.run_id = runs.id
+               AND runs.status = 'stopped'",
+        )
+        .bind(snapshot_id)
+        .execute(&mut *transaction)
+        .await
+        .context("restore stopped runs")?;
+        query(
+            "INSERT INTO core.project_autorun (project_id, enabled)
+             SELECT project_id, enabled
+             FROM core.stop_all_autorun_snapshots
+             WHERE snapshot_id = $1
+             ON CONFLICT (project_id) DO UPDATE SET
+                 enabled = EXCLUDED.enabled,
+                 updated_at = now()",
+        )
+        .bind(snapshot_id)
+        .execute(&mut *transaction)
+        .await
+        .context("restore autorun state")?;
+        query(
+            "UPDATE workflows.schedules AS schedules
+             SET paused_at = snapshot.paused_at, updated_at = now()
+             FROM core.stop_all_schedule_snapshots AS snapshot
+             WHERE snapshot.snapshot_id = $1 AND snapshot.schedule_id = schedules.id",
+        )
+        .bind(snapshot_id)
+        .execute(&mut *transaction)
+        .await
+        .context("restore schedules")?;
+        query("UPDATE core.stop_all_snapshots SET restored_at = now() WHERE id = $1")
+            .bind(snapshot_id)
+            .execute(&mut *transaction)
+            .await
+            .context("mark Stop all snapshot restored")?;
+        transaction
+            .commit()
+            .await
+            .context("commit Stop all restore")?;
         Ok(())
     }
 
@@ -642,7 +868,8 @@ mod preempts_at_boundary {
 }
 
 #[cfg(test)]
-mod tests {
+mod stop_all_restores {
+
     use std::{
         net::TcpListener,
         process::{Command, Stdio},
@@ -740,6 +967,166 @@ mod tests {
             select_to_start(&policy, [newer, older]),
             vec![Uuid::from_u128(1)]
         );
+    }
+
+    #[tokio::test]
+    async fn stop_all_restores() {
+        let (store, _cleanup) = store().await;
+        let project = Uuid::new_v4();
+        let agent = Uuid::new_v4();
+        let queued_session = Uuid::new_v4();
+        let running_session = Uuid::new_v4();
+        let queued_run = Uuid::new_v4();
+        let running_run = Uuid::new_v4();
+        let workflow = Uuid::new_v4();
+        let schedule = Uuid::new_v4();
+
+        query("INSERT INTO core.projects (id, name) VALUES ($1, 'stop all')")
+            .bind(project)
+            .execute(store.pool())
+            .await
+            .expect("insert project");
+        query(
+            "INSERT INTO agents.agent_defs (id, name, version, frontmatter, body)
+             VALUES ($1, 'stop all test', 1, '{}'::jsonb, '')",
+        )
+        .bind(agent)
+        .execute(store.pool())
+        .await
+        .expect("insert agent");
+        query(
+            "INSERT INTO agents.sessions (id, project_id, agent_def_id, name, branch) VALUES
+             ($1, $2, $3, 'queued', 'agent/queued'),
+             ($4, $2, $3, 'running', 'agent/running')",
+        )
+        .bind(queued_session)
+        .bind(project)
+        .bind(agent)
+        .bind(running_session)
+        .execute(store.pool())
+        .await
+        .expect("insert sessions");
+        query(
+            "INSERT INTO agents.runs (id, session_id, resolved_model_id, status) VALUES
+             ($1, $2, 'test-model', 'queued'),
+             ($3, $4, 'test-model', 'running')",
+        )
+        .bind(queued_run)
+        .bind(queued_session)
+        .bind(running_run)
+        .bind(running_session)
+        .execute(store.pool())
+        .await
+        .expect("insert runs");
+        query(
+            "INSERT INTO workflows.workflow_defs
+                 (id, project_id, name, version, graph, spec, verify_command)
+             VALUES ($1, $2, 'stop all', 1, '{}'::jsonb, '{}'::jsonb, 'cargo test')",
+        )
+        .bind(workflow)
+        .bind(project)
+        .execute(store.pool())
+        .await
+        .expect("insert workflow");
+        query(
+            "INSERT INTO workflows.schedules (id, workflow_def_id, cron_expression)
+             VALUES ($1, $2, '* * * * *')",
+        )
+        .bind(schedule)
+        .bind(workflow)
+        .execute(store.pool())
+        .await
+        .expect("insert schedule");
+        store
+            .set_project_autorun(project, true)
+            .await
+            .expect("enable autorun");
+
+        let mut snapshot = store.stop_all().await.expect("stop all");
+        snapshot.run_ids.sort();
+        let mut expected_run_ids = vec![queued_run, running_run];
+        expected_run_ids.sort();
+        assert_eq!(snapshot.run_ids, expected_run_ids);
+        assert_eq!(
+            query_scalar::<_, String>("SELECT status FROM agents.runs WHERE id = $1")
+                .bind(queued_run)
+                .fetch_one(store.pool())
+                .await
+                .expect("read queued run"),
+            "stopped"
+        );
+        assert_eq!(
+            query_scalar::<_, String>("SELECT status FROM agents.runs WHERE id = $1")
+                .bind(running_run)
+                .fetch_one(store.pool())
+                .await
+                .expect("read running run"),
+            "stopped"
+        );
+        assert!(!store.project_autorun(project).await.expect("read autorun"));
+        assert!(
+            query_scalar::<_, bool>(
+                "SELECT paused_at IS NOT NULL FROM workflows.schedules WHERE id = $1",
+            )
+            .bind(schedule)
+            .fetch_one(store.pool())
+            .await
+            .expect("read paused schedule")
+        );
+
+        store
+            .restore_stop_all(snapshot.id)
+            .await
+            .expect("restore within ten minutes");
+        assert_eq!(
+            query_scalar::<_, String>("SELECT status FROM agents.runs WHERE id = $1")
+                .bind(queued_run)
+                .fetch_one(store.pool())
+                .await
+                .expect("read restored queued run"),
+            "queued"
+        );
+        assert_eq!(
+            query_scalar::<_, String>("SELECT status FROM agents.runs WHERE id = $1")
+                .bind(running_run)
+                .fetch_one(store.pool())
+                .await
+                .expect("read requeued running run"),
+            "queued"
+        );
+        assert!(
+            store
+                .project_autorun(project)
+                .await
+                .expect("read restored autorun")
+        );
+        assert!(
+            !query_scalar::<_, bool>(
+                "SELECT paused_at IS NOT NULL FROM workflows.schedules WHERE id = $1",
+            )
+            .bind(schedule)
+            .fetch_one(store.pool())
+            .await
+            .expect("read restored schedule")
+        );
+    }
+
+    #[tokio::test]
+    async fn restore_window_rejects_expired_snapshot() {
+        let (store, _cleanup) = store().await;
+        let snapshot = store.stop_all().await.expect("stop all");
+        query(
+            "UPDATE core.stop_all_snapshots
+             SET stopped_at = now() - INTERVAL '11 minutes',
+                 restore_expires_at = now() - INTERVAL '1 minute'
+             WHERE id = $1",
+        )
+        .bind(snapshot.id)
+        .execute(store.pool())
+        .await
+        .expect("expire snapshot");
+
+        assert!(store.restore_stop_all(snapshot.id).await.is_err());
     }
 
     #[tokio::test]
