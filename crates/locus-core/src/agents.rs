@@ -592,7 +592,7 @@ mod tests {
             .unwrap()
             .materialize_for_registry(&registry, &root, Some(&plugin))
             .unwrap();
-        assert_eq!(materialized.len(), 12);
+        assert_eq!(materialized.len(), registry.len());
         let _ = std::fs::remove_dir_all(root);
     }
 
