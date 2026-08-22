@@ -10,13 +10,8 @@
 | 6 | Assert the ACP agent's process is not on the host | 5 | `cargo test -p locus-core acp::not_on_host` |
 | 7 | Shared `session/update` → verb mapping | 4 | `cargo test -p locus-core acp::update_mapping` |
 | 8 | `ToolCallUpdate.status` → `tool_result` or `tool_error` | 7 | `cargo test -p locus-core acp::tool_status_split` |
-| 9 | `RequestPermission` → a run-mode-aware `permission_request` | 7 | `cargo test -p locus-core acp::permission_request` |
+| 9 | `RequestPermission` → `permission_request` and the alarm | 7 | `cargo test -p locus-core acp::permission_request` |
 | 10 | A second ACP harness needs no new mapping code | 7 | `cargo test -p locus-core acp::mapping_is_shared` |
 | 11 | ACP events indistinguishable downstream from hooks events | 7 | `cargo test -p locus-core acp::indistinguishable` |
 | 12 | Assert every agent session starts over ACP (the only interface) | 4 | `cargo test -p locus-core acp::only_interface` |
 | 13 | Expose the ACP conversation to the event-rendered Agent Pane over IPC | 11 | `pnpm -C apps/desktop test -- agent/conversation-from-core` |
-| 14 | Project `plan_update` into the session's one active plan without widening the canonical event vocabulary | 4 | `cargo test -p locus-core acp::plan_update` |
-| 15 | Implement restricted-schema elicitation with accept, decline, cancel, validation, and defaults | 4 | `cargo test -p locus-core acp::elicitation` |
-| 16 | Expose new-session, compact, clear-context, and context-view session commands | 4 | `cargo test -p locus-core acp::session_commands` |
-| 17 | Queue a steering prompt for the next turn boundary and cancel only the active turn | 4 | `cargo test -p locus-core acp::steering_boundary` |
-| 18 | Create a panel-requested subagent through the existing bounded invocation path | 4 | `cargo test -p locus-core acp::panel_subagent` |

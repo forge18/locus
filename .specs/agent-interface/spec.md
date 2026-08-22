@@ -1,6 +1,7 @@
 # agent-interface
 
-**Milestone** M1 · **Depends on** `v2-project-operations`, `pane-manager`, `acp-client`,
+**Milestone** M1.5 · **Depends on** `agent-dispatch-permissions`, `agent-session-controls`,
+`agent-session-research`, `pane-manager`, `acp-client`,
 `run-supervisor`, `artifacts` · **Blocks** M2 Agent Pane/editor integration
 
 ## Purpose

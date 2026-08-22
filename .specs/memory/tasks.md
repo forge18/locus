@@ -42,4 +42,3 @@
 | 38 | Facts, scope and provenance fold from the log | 37 | `cargo test -p locus-core project::memory_foldable` |
 | 39 | Decay computed at read from `last_active` and the curve; no tick entry is written | 37 | `cargo test -p locus-core memory::decay_read_time_no_ticks` |
 | 40 | `locus rebuild --schema memory` leaves stored vectors byte-identical | 38 | `cargo test -p locus-core rebuild::memory_vectors_untouched` |
-| 41 | At session close, promote only human-reviewed research findings into long-term memory | 13,22 | `cargo test -p locus-core memory::promotes_reviewed_session_findings` |

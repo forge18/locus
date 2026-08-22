@@ -23,5 +23,3 @@
 | 19 | Assert text artifacts are never pruned | 18 | `cargo test -p locus-core artifact::text_never_pruned` |
 | 20 | Backup covers the blob tree; restored paths resolve | 5 | `cargo test -p locus-core artifact::backup_covers_blobs` |
 | 21 | Wire the Review Artifacts screen to real artifacts over IPC | 8,12 | `pnpm -C apps/desktop test -- artifacts/from-core` |
-| 22 | Query `finding` artifacts as a session-scoped research feed with seed/run/close provenance | 2 | `cargo test -p locus-core artifact::session_research_feed` |
-| 23 | Seed a child task session's research feed from its planning-session findings without promoting them | 22 | `cargo test -p locus-core artifact::research_inherits_from_plan` |

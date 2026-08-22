@@ -26,7 +26,3 @@
 | 20 | No terminal on the agent path; an agent run renders as events only | 7 | `cargo test -p locus-core run::no_terminal_surface` |
 | 21 | Two harnesses running concurrently, events indistinguishable downstream | 9 | `cargo test -p locus-core run::two_harnesses_concurrent` |
 | 22 | A third run on a different project appears in the same strip | 21 | `pnpm -C apps/desktop test -- strip/cross-project` |
-| 23 | Persist the dispatch-selected `bypass` or `gated` permission posture on the run | 4 | `cargo test -p locus-core run::permission_posture` |
-| 24 | A gated permission request waits for a human response; a bypass request raises the existing alarm | 23 | `cargo test -p locus-core run::permission_request_by_posture` |
-| 25 | Snapshot a checkpoint before an edit; restore and undo preserve the transcript | 4 | `cargo test -p locus-core run::checkpoints` |
-| 26 | Replay a session into a newly attached Agent Pane without re-running the agent | 9,19 | `cargo test -p locus-core session::panel_replay` |

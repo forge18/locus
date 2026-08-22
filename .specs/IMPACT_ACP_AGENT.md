@@ -24,8 +24,8 @@ per-session research pane.
 
 1. `acp-client` and `telemetry` currently define every `permission_request` as a misconfiguration alarm.
    The handoff introduces a run-pinned `gated` posture, where it is expected and blocks for the user.
-2. M1 is marked closed, but the new M1 `agent-interface` feature has no task list and has not been built.
-   M1 must reopen without relabeling the 270 completed runtime tasks.
+2. M1 is closed. The new Agent Panel work must live in a follow-on M1.5 milestone without relabeling
+   the 270 completed runtime tasks.
 3. `agent-interface` currently cites only its internal mockup brief. The delivered ACP panel handoff is
    the visual contract and must be cited directly.
 
@@ -42,6 +42,5 @@ This changes shared event semantics, run state, project dispatch policy, and the
 
 ## Recommended action
 
-Add the new `agent-interface` feature to M1; extend the dependent feature contracts and task tables;
-update `TODO.md` totals and reopen M1 with its existing 270 tasks still complete. No production code
-changes belong in this reconciliation.
+Add the Agent Panel work as M1.5 feature specs; keep M1 immutable at 270/270; update `TODO.md`
+totals and dependent contracts. No production code changes belong in this reconciliation.
