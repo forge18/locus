@@ -25,7 +25,7 @@ of those blocks the shell or the other twelve screens. It can run alongside M0.
 | --- | --- | ---: | ---: | ---: |
 | **M0** | Spikes — these gate M1 · **closed** | 3 | 39 | 39 |
 | **M0.5** | Desktop UI on fixtures · **closed** | 12 | 268 | 268 |
-| **M0.6** | v2 desktop reconciliation | 6 | 195 | 41 |
+| **M0.6** | v2 desktop reconciliation | 6 | 195 | 42 |
 | **M1** | Core runtime · **closed** | 14 | 270 | 270 |
 | **M1.5** | ACP agent panel and controls | 4 | 44 | 0 |
 | **M2** | Workspace | 3 | 57 | 0 |
@@ -124,7 +124,7 @@ below; it is short and it is load-bearing.
   settle provider references, adapter-gated routing, project scope, plan decomposition, dispatch
   policy, and workflow Governance before implementation depends on them.
   *Depends on:* M0.5
-- [ ] **[theme-system](.specs/theme-system/spec.md)** · 8 tasks · **7/8 complete** · [tasks](.specs/theme-system/tasks.md)
+- [x] **[theme-system](.specs/theme-system/spec.md)** · 8 tasks · **complete** · [tasks](.specs/theme-system/tasks.md)
   Ship v2 Dark and cool-neutral Light through semantic tokens and a root-theme contract; later themes
   add values and fixtures without component forks.
   *Depends on:* `design-v2`
