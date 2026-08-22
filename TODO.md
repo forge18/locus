@@ -27,7 +27,7 @@ of those blocks the shell or the other twelve screens. It can run alongside M0.
 | **M0.5** | Desktop UI on fixtures · **closed** | 12 | 268 | 268 |
 | **M0.6** | v2 desktop reconciliation | 6 | 195 | 0 |
 | **M1** | Core runtime · **closed** | 14 | 270 | 270 |
-| **M2** | Workspace | 3 | 50 | 0 |
+| **M2** | Workspace | 3 | 57 | 0 |
 | **M3** | Coordination, memory, and mail | 6 | 133 | 0 |
 | **M3.5** | Agent capabilities: debug and browser | 3 | 56 | 0 |
 | **M4** | Workflow canvas | 3 | 69 | 0 |
@@ -35,7 +35,7 @@ of those blocks the shell or the other twelve screens. It can run alongside M0.
 | **M6** | Automation and discoverability | 3 | 46 | 0 |
 | **M7** | GitHub | 3 | 42 | 0 |
 | **M8** | Marketplace installer | 1 | 11 | 0 |
-| | | **61** | **1288** | **577** |
+| | | **61** | **1295** | **577** |
 
 ---
 
@@ -193,13 +193,14 @@ below; it is short and it is load-bearing.
 
 ## M2 — Workspace
 
-3 features · 50 tasks
+3 features · 57 tasks
 
 - [ ] **[editor](.specs/editor/spec.md)** · 22 tasks · [tasks](.specs/editor/tasks.md)
   CodeMirror 6 used directly, no wrapper interface.
   *Depends on:* `spike-editor-embed`, `screens-develop`, `pane-manager`
-- [ ] **[lsp](.specs/lsp/spec.md)** · 17 tasks · [tasks](.specs/lsp/tasks.md)
-  Semantic navigation for two consumers with one implementation.
+- [ ] **[lsp](.specs/lsp/spec.md)** · 24 tasks · [tasks](.specs/lsp/tasks.md)
+  Semantic navigation for two consumers with one implementation, backed by Locus-owned language
+  descriptors which projects pin and pre-provision.
   *Depends on:* `editor`, `sandbox`
 - [ ] **[project-search](.specs/project-search/spec.md)** · 11 tasks · [tasks](.specs/project-search/tasks.md)
   Search across a project's repos — plural, because a Locus project holds one or more and the board, wiki and memory already span all of them.
@@ -347,8 +348,8 @@ is a decision that will disagree with itself.
 | M1 | `sandbox` | Egress policy tiers. PLAN.md puts them at the same chokepoint as credential injection; whether that holds depends on Spike 1's mechanism, so the tier names and their defaults are settled with it. |
 | M1 | `store` | PLAN.md defers detailed table definitions for six of the eight schemas, keeping full tables only for `memory` and `board`. The rest get written properly with their migration — this spec does not pre-empt that, and each consuming feature'… |
 | M1 | `telemetry` | `dx-telemetry` in `local-dx` has absorbed four harness dialects already and PLAN.md names its normalization pass as the reference. Whether to port its per-harness tables or rewrite them is an implementation call for task 4. |
-| M2 | `editor` | Which languages get Lezer grammars at M2. The spike exercised **Rust only** — LSP is one protocol and the client is language-agnostic, so that answers the protocol question and not per-language coverage. A language is a plugin: grammar, server and root-detection declared per entry, nothing hard-coded in core. |
-| M2 | `lsp` | **Semantic tokens have no implementation to import** — `@codemirror/lsp-client` has none, and PLAN.md:2095/2167 assume they exist. Whoever owns M2 writes `textDocument/semanticTokens/full`, its delta form, and the decoration layer, or the tail languages get no colour. Separately: which language servers ship in a base image by default. PLAN.md makes them marketplace entries, so the honest answer may be none — but that makes `locus lsp` unavailable until an agent asks for it, which should be a deliberate choice rat… |
+| M2 | `editor` | Which languages get Lezer grammars at M2. The spike exercised **Rust only** — LSP is one protocol and the client is language-agnostic, so that answers the protocol question and not per-language coverage. A language is an internal descriptor: grammar, server, and root-detection are declared per entry, with no core language branch. |
+| M2 | `lsp` | **Semantic tokens have no implementation to import** — `@codemirror/lsp-client` has none, so M2 implements `textDocument/semanticTokens/full`, its delta form, and the decoration layer. The language catalog is internal: built-ins ship with Locus, user imports are explicit and hashed, and project activation pins then pre-provisions descriptors. |
 | M2 | `project-search` | Whether `codanna` indexes on a schedule, on demand, or on git change. PLAN.md has it queried live for code structure but does not say what triggers an index. |
 | M3 | `guardrails` | Whether the idle window should scale with the agent's `task_class`. A research agent reading for 90 seconds is not the same as a builder silent for 90 seconds, and 60s is a single number for both. |
 | M3 | `handoffs` | Whether a handoff can cross projects. PLAN.md scopes memory as never cross-project and a session to a project, which implies no — but it is not stated for handoffs. |

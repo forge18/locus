@@ -1005,8 +1005,16 @@ the code is**, which is the agent's own container:
 | **Debugging** | `locus debug break\|run\|step\|stack\|eval\|vars` | An agent that can inspect a live stack stops guessing at runtime state from print statements |
 | **Browser validation** | `locus browse open\|click\|fill\|assert\|screenshot` | An agent that changed a UI can look at it |
 
-**On demand, not always on.** These are tools in an agent's allowlist, resolved from the marketplace
-like any other. An agent that does not need a debugger does not get one, and pays nothing for it.
+**LSP is internal and pre-provisioned.** When a repository joins a project, Locus detects trusted root
+markers and file extensions, resolves enabled internal language descriptors, and prepares the host
+server cache plus agent-image layers before first use. Built-in descriptors ship with Locus; users can
+explicitly import a local descriptor bundle into their user catalog. Repository contents can suggest a
+descriptor, never import one or execute its installer. The project pins the selected descriptor id,
+version, and content hash.
+
+**Other capabilities remain on demand.** DAP and browser tools are allowlist-gated and marketplace
+resolved. `locus lsp` remains allowlist-gated for agents, but that gate controls invocation, not the
+project-time provisioning of its server.
 
 **Where each server runs:**
 
@@ -2236,8 +2244,12 @@ CodeMirror 6 used directly, no wrapper interface.
   repo Locus keeps one normal clone per project beside the bare remote and opens that. No worktrees
   anywhere in the design — a clone is what the git model already produces, and adding a second
   checkout mechanism would mean two ways to be on the wrong branch.
-- Language servers are spawned and supervised **on the host** by the LSP supervisor, one set per
-  project, shared across panes. Agents' containers do not run language servers.
+- Language servers for editor panes are spawned and supervised **on the host** by the LSP supervisor,
+  one set per project, shared across panes. `locus lsp` starts a separate server inside an agent
+  container against that run's clone; it never reuses the host server because the two trees can differ.
+- A language is a Locus-owned descriptor, not a core branch or marketplace plugin. A descriptor declares
+  its root markers, file extensions, server argv, capabilities, and grammar metadata. Built-ins ship
+  with Locus; a user import is immutable and hash-pinned when explicitly enabled for a project.
 
 **One editor, two zoom levels.** The side pane beside an agent and the full-window editor module are
 the same CodeMirror components at different sizes, sharing one keymap, one theme, one LSP client. A
@@ -2249,8 +2261,10 @@ either native to CodeMirror or chrome built once and reused at both sizes.
 Declined on purpose, restated so they are not rediscovered later: **no debug UI** — no gutter, no
 variables pane, no step controls, because `locus debug` serves the side that needed it. Accepted gaps:
 no VS Code extensions, and Lezer grammar
-coverage thins out in the tail — Odin and GDScript have none. Mitigation when it bites is LSP semantic
-tokens for color plus tree-sitter-WASM decorations for structure.
+coverage thins out in the tail — Odin and GDScript have none. M2 implements LSP semantic-token full
+and delta requests plus CodeMirror decorations for colour, with tree-sitter-WASM decorations for
+structure. Until that work lands, a language without a grammar is editable plain text rather than a
+broken editor.
 
 **Debugging is not an editor feature here.** The DAP client lands in the core because *agents* need to
 debug, and it is reached only through `locus debug` in a container. The editor gets no debug UI — no

@@ -43,9 +43,10 @@ second checkout mechanism would mean two ways to be on the wrong branch.
   not something this milestone can import.** `spike-editor-embed` found `@codemirror/lsp-client` has
   no semantic-token support at all, so the mitigation is work, not a fallback — see `.specs/lsp` Open.
   Until it is written, a language with no Lezer grammar opens as plain text.
-- **A language is a plugin.** Grammar, server, and root-detection are declared per language and
-  resolved at runtime; `.specs/lsp` owns the contract. Nothing here hard-codes a language list, so
-  adding one later is a manifest entry rather than a change to the editor.
+- **A language is a descriptor.** Grammar, server, and root-detection are declared per language and
+  resolved at runtime; `.specs/lsp` owns the Locus-internal catalog and explicit user-import contract.
+  Nothing here hard-codes a language list, so adding one later is a descriptor entry rather than a
+  change to the editor.
 
 ## Acceptance
 
@@ -65,5 +66,5 @@ second checkout mechanism would mean two ways to be on the wrong branch.
 
 ## Open
 
-- Which languages get Lezer grammars at M2. The spike records what it exercised; this consumes that
-  list rather than guessing.
+- Which languages get Lezer grammars at M2. The spike records what it exercised; the internal catalog
+  consumes that list rather than guessing.
