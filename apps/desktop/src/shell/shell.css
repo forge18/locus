@@ -124,7 +124,7 @@
 .project-rail button { display: block; width: 100%; text-align: left; }
 .project-rail section { padding: var(--g-3); border-radius: var(--r-card); background: var(--sf2); }
 
-.body { flex: 1; display: flex; min-height: 0;
+.body { flex: 1; display: flex; min-height: 0; }
 
 .rail {
   width: clamp(68px, 6vw, 92px);
