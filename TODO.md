@@ -26,7 +26,7 @@ of those blocks the shell or the other twelve screens. It can run alongside M0.
 | **M0** | Spikes — these gate M1 · **closed** | 3 | 39 | 39 |
 | **M0.5** | Desktop UI on fixtures · **closed** | 12 | 268 | 268 |
 | **M0.6** | v2 desktop reconciliation | 6 | 195 | 0 |
-| **M1** | Core runtime | 14 | 270 | 0 |
+| **M1** | Core runtime · **closed** | 14 | 270 | 270 |
 | **M2** | Workspace | 3 | 50 | 0 |
 | **M3** | Coordination, memory, and mail | 6 | 133 | 0 |
 | **M3.5** | Agent capabilities: debug and browser | 3 | 56 | 0 |
@@ -35,7 +35,7 @@ of those blocks the shell or the other twelve screens. It can run alongside M0.
 | **M6** | Automation and discoverability | 3 | 46 | 0 |
 | **M7** | GitHub | 3 | 42 | 0 |
 | **M8** | Marketplace installer | 1 | 11 | 0 |
-| | | **61** | **1288** | **307** |
+| | | **61** | **1288** | **577** |
 
 ---
 
@@ -146,48 +146,48 @@ below; it is short and it is load-bearing.
 
 14 features · 270 tasks
 
-- [ ] **[acp-client](.specs/acp-client/spec.md)** · 13 tasks · [tasks](.specs/acp-client/tasks.md)
+- [x] **[acp-client](.specs/acp-client/spec.md)** · 13 tasks · **complete** · [tasks](.specs/acp-client/tasks.md)
   An Agent Client Protocol client — **the only agent interface**, successor to "planning/chat module
   only". Each supported harness fronts ACP; a Locus-side mapping bridges harnesses without a native mode.
   *Depends on:* `sandbox`, `telemetry`
-- [ ] **[agent-cli](.specs/agent-cli/spec.md)** · 24 tasks · [tasks](.specs/agent-cli/tasks.md)
+- [x] **[agent-cli](.specs/agent-cli/spec.md)** · 24 tasks · **complete** · [tasks](.specs/agent-cli/tasks.md)
   `crates/locus-cli` — the binary agents call from inside their container, and **the MCP replacement**.
   *Depends on:* `store`, `sandbox`
-- [ ] **[agent-definitions](.specs/agent-definitions/spec.md)** · 16 tasks · [tasks](.specs/agent-definitions/tasks.md)
+- [x] **[agent-definitions](.specs/agent-definitions/spec.md)** · 16 tasks · **complete** · [tasks](.specs/agent-definitions/tasks.md)
   An agent is a Markdown file with frontmatter.
   *Depends on:* `store`, `materializers`
-- [ ] **[artifacts](.specs/artifacts/spec.md)** · 21 tasks · [tasks](.specs/artifacts/tasks.md)
+- [x] **[artifacts](.specs/artifacts/spec.md)** · 21 tasks · **complete** · [tasks](.specs/artifacts/tasks.md)
   What you review instead of tool calls.
   *Depends on:* `store`, `run-supervisor`
-- [ ] **[ci](.specs/ci/spec.md)** · 15 tasks · [tasks](.specs/ci/tasks.md)
+- [x] **[ci](.specs/ci/spec.md)** · 15 tasks · **complete** · [tasks](.specs/ci/tasks.md)
   Continuous integration for Locus itself, and one check that is not ordinary CI hygiene: the **materialization smoke test**.
   *Depends on:* `materializers`, `harness-registry`, `telemetry`
-- [ ] **[event-store](.specs/event-store/spec.md)** · 23 tasks · [tasks](.specs/event-store/tasks.md)
+- [x] **[event-store](.specs/event-store/spec.md)** · 23 tasks · **complete** · [tasks](.specs/event-store/tasks.md)
   `log.entries` is the only thing Locus writes; every other table is a fold over it. Two logs sharing one
   ordering, a synchronous in-transaction fold, and two declared carve-outs for what a model or a clock produced.
   *Depends on:* `store`
-- [ ] **[harness-registry](.specs/harness-registry/spec.md)** · 18 tasks · [tasks](.specs/harness-registry/tasks.md)
+- [x] **[harness-registry](.specs/harness-registry/spec.md)** · 18 tasks · **complete** · [tasks](.specs/harness-registry/tasks.md)
   Load `harnesses/*`, validate them, and resolve a model tier into an actual model.
   *Depends on:* `store`
-- [ ] **[linters](.specs/linters/spec.md)** · 14 tasks · [tasks](.specs/linters/tasks.md)
+- [x] **[linters](.specs/linters/spec.md)** · 14 tasks · **complete** · [tasks](.specs/linters/tasks.md)
   `locus lint` — **the one extension type no harness reads.** The other seven are consumed by the harness; linters exist so that `locus lint` can find them, which is why **every harness supports linters trivially and identically** and why the registry has to say that rather than leaving the entry out.
   *Depends on:* `materializers`, `agent-cli`
-- [ ] **[materializers](.specs/materializers/spec.md)** · 20 tasks · [tasks](.specs/materializers/tasks.md)
+- [x] **[materializers](.specs/materializers/spec.md)** · 20 tasks · **complete** · [tasks](.specs/materializers/tasks.md)
   The code half of the harness contract.
   *Depends on:* `harness-registry`
-- [ ] **[pane-manager](.specs/pane-manager/spec.md)** · 17 tasks · [tasks](.specs/pane-manager/tasks.md)
+- [x] **[pane-manager](.specs/pane-manager/spec.md)** · 17 tasks · **complete** · [tasks](.specs/pane-manager/tasks.md)
   The pane manager and the IPC discipline behind it.
   *Depends on:* `app-shell`, `run-supervisor`, `telemetry`
-- [ ] **[run-supervisor](.specs/run-supervisor/spec.md)** · 22 tasks · [tasks](.specs/run-supervisor/tasks.md)
+- [x] **[run-supervisor](.specs/run-supervisor/spec.md)** · 22 tasks · **complete** · [tasks](.specs/run-supervisor/tasks.md)
   Spawn, stream, normalize, persist, cancel — and hold the session/run/turn model that everything above depends on.
   *Depends on:* `sandbox`, `materializers`, `agent-definitions`, `telemetry`
-- [ ] **[sandbox](.specs/sandbox/spec.md)** · 24 tasks · [tasks](.specs/sandbox/tasks.md)
+- [x] **[sandbox](.specs/sandbox/spec.md)** · 24 tasks · **complete** · [tasks](.specs/sandbox/tasks.md)
   One container per agent run, and the credential handling that makes it safe.
   *Depends on:* `spike-sandboxed-harness`, `harness-registry`
-- [ ] **[store](.specs/store/spec.md)** · 24 tasks · [tasks](.specs/store/tasks.md)
+- [x] **[store](.specs/store/spec.md)** · 24 tasks · **complete** · [tasks](.specs/store/tasks.md)
   Postgres as the single source of truth, plus the backup that makes that safe.
   *Depends on:* none
-- [ ] **[telemetry](.specs/telemetry/spec.md)** · 19 tasks · [tasks](.specs/telemetry/tasks.md)
+- [x] **[telemetry](.specs/telemetry/spec.md)** · 19 tasks · **complete** · [tasks](.specs/telemetry/tasks.md)
   One ACP path, one event vocabulary, and an append-only transcript that is deliberately never projected.
   *Depends on:* `harness-registry`, `store`
 
