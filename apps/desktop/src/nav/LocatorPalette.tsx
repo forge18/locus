@@ -5,13 +5,13 @@ import { Input } from '../ui/Input'
 import { InlineError } from '../ui/InlineError'
 import { Button } from '../ui/Button'
 import { LOCATOR_SCHEME } from './locator'
-import { formatV2Locator } from './v2-locator'
+import { destinationV2 } from './v2-navigation'
 import { V2_GLOBAL_ROUTE_KINDS } from './v2-route-kinds'
 
 export function v2PaletteDestinations() {
   return V2_GLOBAL_ROUTE_KINDS.slice(0, 4).map((route) => ({
     label: route.label,
-    locator: formatV2Locator(route.id),
+    locator: destinationV2(route.id),
   }))
 }
 
