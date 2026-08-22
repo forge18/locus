@@ -23,6 +23,7 @@ impl ApprovedPlan {
 pub struct PlanTask {
     pub id: String,
     pub title: String,
+    pub dependencies: Vec<String>,
 }
 
 impl PlanTask {
@@ -30,7 +31,18 @@ impl PlanTask {
         Self {
             id: id.into(),
             title: title.into(),
+            dependencies: Vec::new(),
         }
+    }
+
+    /// Declare approved tasks that must complete before this task can start.
+    pub fn with_dependencies<I, S>(mut self, dependencies: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.dependencies = dependencies.into_iter().map(Into::into).collect();
+        self
     }
 }
 
@@ -48,8 +60,17 @@ struct CardDraft {
     title: String,
 }
 
+/// A card created from an approved decomposition.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BoardCard {
+    pub id: String,
+    pub source: CardSource,
+    pub title: String,
+    pub dependencies: Vec<String>,
+}
+
 /// An editable spec/task-to-card mapping. It deliberately contains no board-card id.
-/// Task 20 owns final approval, persistence, and board-card creation.
+/// Cards only exist after final approval.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Decomposition {
     plan: ApprovedPlan,
@@ -149,6 +170,56 @@ impl Decomposition {
             .collect()
     }
 
+    /// Final approval creates cards only when every selected task dependency is also mapped.
+    pub fn approve(&self) -> Result<Vec<BoardCard>> {
+        for card in &self.cards {
+            let CardSource::Task(task_id) = &card.source else {
+                continue;
+            };
+            let task = self
+                .plan
+                .tasks
+                .iter()
+                .find(|task| task.id == *task_id)
+                .expect("task card drafts always come from the approved plan");
+            for dependency in &task.dependencies {
+                if !self
+                    .cards
+                    .iter()
+                    .any(|candidate| candidate.id == task_card_id(dependency))
+                {
+                    bail!("task `{task_id}` depends on unmapped task `{dependency}`");
+                }
+            }
+        }
+
+        Ok(self
+            .cards
+            .iter()
+            .map(|card| {
+                let dependencies = match &card.source {
+                    CardSource::Spec => Vec::new(),
+                    CardSource::Task(task_id) => self
+                        .plan
+                        .tasks
+                        .iter()
+                        .find(|task| task.id == *task_id)
+                        .expect("task card drafts always come from the approved plan")
+                        .dependencies
+                        .iter()
+                        .map(|dependency| task_card_id(dependency))
+                        .collect(),
+                };
+                BoardCard {
+                    id: card.id.clone(),
+                    source: card.source.clone(),
+                    title: card.title.clone(),
+                    dependencies,
+                }
+            })
+            .collect())
+    }
+
     fn add_spec(&mut self) {
         self.cards.push(CardDraft {
             id: "spec".into(),
@@ -245,4 +316,62 @@ fn mapping_can_change_before_approval() {
         decomposition.cards(),
         [("spec", CardSource::Spec, "Provider routing")]
     );
+}
+
+#[cfg(test)]
+#[test]
+fn approval_commits_cards() {
+    let plan = ApprovedPlan::new(
+        "Provider routing",
+        vec![
+            PlanTask::new("provider-schema", "Add provider schema"),
+            PlanTask::new("routing", "Add routing").with_dependencies(["provider-schema"]),
+        ],
+    );
+
+    let cards = Decomposition::every_task(plan)
+        .expect("every approved task is mapped")
+        .approve()
+        .expect("final approval creates cards");
+
+    assert_eq!(
+        cards,
+        [
+            BoardCard {
+                id: "task:provider-schema".into(),
+                source: CardSource::Task("provider-schema".into()),
+                title: "Add provider schema".into(),
+                dependencies: vec![],
+            },
+            BoardCard {
+                id: "task:routing".into(),
+                source: CardSource::Task("routing".into()),
+                title: "Add routing".into(),
+                dependencies: vec!["task:provider-schema".into()],
+            },
+        ]
+    );
+
+    let plan = ApprovedPlan::new(
+        "Provider routing",
+        vec![
+            PlanTask::new("provider-schema", "Add provider schema"),
+            PlanTask::new("routing", "Add routing").with_dependencies(["provider-schema"]),
+        ],
+    );
+    let mut decomposition =
+        Decomposition::spec_plus_selected(plan, ["routing"]).expect("selected task exists");
+    let error = decomposition
+        .approve()
+        .expect_err("approval rejects unmapped dependencies");
+    assert!(error
+        .to_string()
+        .contains("task `routing` depends on unmapped task `provider-schema`"));
+
+    decomposition
+        .include_task("provider-schema")
+        .expect("rejected approval leaves the draft editable");
+    assert!(decomposition
+        .approve()
+        .is_ok_and(|cards| cards.iter().any(|card| card.id == "task:routing")));
 }
