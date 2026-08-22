@@ -1,14 +1,11 @@
 import { createSignal, onCleanup, onMount } from 'solid-js'
 import type { JSX } from 'solid-js'
-import { Rail } from './Rail'
-import { Strip } from './Strip'
-import { TabBar } from './TabBar'
-import { TitleBar } from './TitleBar'
+import { AppTitleBar } from './AppTitleBar'
+import { ProjectRail } from './ProjectRail'
 import { LocatorPalette } from '../nav/LocatorPalette'
 import { Sheet } from '../ui/Sheet'
-import { useProjects } from '../data/core'
-import { useInboxItems } from '../data/inbox'
 import { useRunningCount, useStripCards } from '../data/strip'
+import type { ActiveSession } from './RunningPill'
 import type { NavStore } from '../nav'
 
 export interface ShellProps {
@@ -16,17 +13,21 @@ export interface ShellProps {
   children: JSX.Element
 }
 
-/**
- * The four bands, composed once. A screen renders into the body between the tab
- * bar and the strip and never draws any of this itself.
- */
+/** The v2 title bar and project-scoped rail frame every screen. */
 export function Shell(props: ShellProps) {
-  const [selectedProjects, setSelectedProjects] = createSignal<string[]>([])
   const [paletteOpen, setPaletteOpen] = createSignal(false)
-  const projects = useProjects().map((p) => ({ id: p.id, name: p.name }))
+  const activeSessions: ActiveSession[] = useStripCards()
+    .filter((card) => card.kind === 'agent')
+    .map((card) => ({
+      id: card.id,
+      label: `${card.project} · ${card.agent}`,
+      needsAttention: card.status === 'waiting' || card.status === 'stuck',
+      lastActivityAt: -card.idleMinutes,
+    }))
+  const needsYou = activeSessions.filter((session) => session.needsAttention).length
 
-  // ⌘K resolves a locator. It is bound here because the locator bar it opens is
-  // shell chrome, and there is one of it per window.
+  // ⌘K resolves a locator. It is bound here because the palette is shell
+  // chrome, and there is one of it per window.
   const onKeyDown = (e: KeyboardEvent) => {
     if (e.key.toLowerCase() === 'k' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault()
@@ -38,32 +39,21 @@ export function Shell(props: ShellProps) {
 
   return (
     <div class="window" data-testid="window">
-      <TitleBar
-        locatorPath={props.nav.locatorPath()}
-        projects={projects}
-        selectedProjects={selectedProjects()}
-        onProjectsChange={setSelectedProjects}
-        runningCount={useRunningCount()}
-        onOpenLocator={() => setPaletteOpen(true)}
+      <AppTitleBar
+        categoryLabel={props.nav.categoryLabel()}
+        viewLabel={props.nav.view()}
+        running={useRunningCount()}
+        needsYou={needsYou}
+        sessions={activeSessions}
       />
       <div class="body">
-        <Rail
-          view={props.nav.view()}
-          onNavigate={props.nav.go}
-          inboxCount={useInboxItems().length}
-        />
+        <ProjectRail selectedProject={props.nav.params().project} />
         <div class="main">
-          <TabBar
-            view={props.nav.view()}
-            onNavigate={props.nav.go}
-            locator={props.nav.locatorPath()}
-          />
           <div class="screen" data-testid="screen">
             {props.children}
           </div>
         </div>
       </div>
-      <Strip cards={useStripCards()} />
 
       <LocatorPalette
         open={paletteOpen()}

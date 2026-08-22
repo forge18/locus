@@ -7,7 +7,7 @@ export interface ProjectRailProps {
 
 export function ProjectRail(props: ProjectRailProps) {
   return (
-    <nav aria-label="Application navigation" class="project-rail">
+    <nav aria-label="Application navigation" class="project-rail" data-testid="project-rail">
       <div data-testid="global-rail-routes">
         <For each={V2_GLOBAL_ROUTE_KINDS}>{(route) => <button type="button">{route.label}</button>}</For>
       </div>

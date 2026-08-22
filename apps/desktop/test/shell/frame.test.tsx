@@ -29,14 +29,14 @@ describe('shell/frame', () => {
     expect(win).toContain('background: var(--bg)')
   })
 
-  it('renders all four bands', () => {
+  it('renders the v2 title bar and project-scoped rail', () => {
     const { getByTestId } = mount()
-    for (const band of ['titlebar', 'rail', 'tabbar', 'strip']) {
-      expect(getByTestId(band), `missing ${band}`).toBeTruthy()
-    }
+    expect(getByTestId('app-titlebar')).toBeTruthy()
+    expect(getByTestId('project-rail')).toBeTruthy()
+    expect(getByTestId('selected-project-card')).toBeTruthy()
   })
 
-  it('gives the screen its own body between the tab bar and the strip', () => {
+  it('gives the screen its own body beside the project rail', () => {
     const { getByTestId } = mount()
     expect(getByTestId('screen').textContent).toBe('screen body')
   })
