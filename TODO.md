@@ -25,7 +25,7 @@ of those blocks the shell or the other twelve screens. It can run alongside M0.
 | --- | --- | ---: | ---: | ---: |
 | **M0** | Spikes — these gate M1 · **closed** | 3 | 39 | 39 |
 | **M0.5** | Desktop UI on fixtures · **closed** | 12 | 268 | 268 |
-| **M0.6** | v2 desktop reconciliation | 6 | 195 | 2 |
+| **M0.6** | v2 desktop reconciliation | 6 | 195 | 4 |
 | **M1** | Core runtime · **closed** | 14 | 270 | 270 |
 | **M1.5** | ACP agent panel and controls | 4 | 44 | 0 |
 | **M2** | Workspace | 3 | 57 | 0 |
@@ -36,7 +36,7 @@ of those blocks the shell or the other twelve screens. It can run alongside M0.
 | **M6** | Automation and discoverability | 3 | 46 | 0 |
 | **M7** | GitHub | 3 | 42 | 0 |
 | **M8** | Marketplace installer | 1 | 11 | 0 |
-| | | **65** | **1339** | **579** |
+| | | **65** | **1339** | **581** |
 
 ---
 
@@ -119,12 +119,12 @@ below; it is short and it is load-bearing.
 
 6 features · 195 tasks
 
-- [ ] **[design-v2](.specs/design-v2/spec.md)** · 24 tasks · **1/24 complete** · [tasks](.specs/design-v2/tasks.md)
+- [ ] **[design-v2](.specs/design-v2/spec.md)** · 24 tasks · **2/24 complete** · [tasks](.specs/design-v2/tasks.md)
   Adopt the v2 handoff without porting its HTML or JavaScript. Replace the v1 fixture contract and
   settle provider references, adapter-gated routing, project scope, plan decomposition, dispatch
   policy, and workflow Governance before implementation depends on them.
   *Depends on:* M0.5
-- [ ] **[theme-system](.specs/theme-system/spec.md)** · 8 tasks · **1/8 complete** · [tasks](.specs/theme-system/tasks.md)
+- [ ] **[theme-system](.specs/theme-system/spec.md)** · 8 tasks · **2/8 complete** · [tasks](.specs/theme-system/tasks.md)
   Ship v2 Dark and cool-neutral Light through semantic tokens and a root-theme contract; later themes
   add values and fixtures without component forks.
   *Depends on:* `design-v2`

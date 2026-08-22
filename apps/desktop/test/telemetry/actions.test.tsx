@@ -25,8 +25,8 @@ describe('telemetry/actions', () => {
     expect(body).toContain('background: rgba(238,242,246,.06)')
   })
 
-  it('fills the track in accent, and in --bad where the verb is a problem', () => {
-    expect(rule('.bar-fill').body).toContain('background: var(--ac)')
+  it('fills the track from the data ramp, and in --bad where the verb is a problem', () => {
+    expect(rule('.bar-fill').body).toContain('background: var(--data-3)')
     expect(rule('.bar-fill-bad').body).toContain('background: var(--bad)')
     const { getByTestId } = mount()
     expect(getByTestId('action-tool_error').querySelector('.bar-fill')!.className).toContain(

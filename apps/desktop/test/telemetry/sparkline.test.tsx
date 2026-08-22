@@ -14,9 +14,9 @@ describe('telemetry/sparkline', () => {
     expect(useSparkline().length).toBe(16)
   })
 
-  it('draws them in accent at 85% opacity', () => {
+  it('draws them with the data ramp at 85% opacity', () => {
     const body = rule('.sparkline-bar').body
-    expect(body).toContain('background: var(--ac)')
+    expect(body).toContain('background: var(--data-2)')
     expect(body).toMatch(/opacity:\s*\.85/)
   })
 

@@ -1109,7 +1109,7 @@
 .tm-metric-bad .metric-numeral { color: var(--bad); }
 .tm-metric-bad .metric-label { color: var(--bad); }
 .sparkline { display: flex; align-items: flex-end; gap: 3px; height: 44px; }
-.sparkline-bar { flex: 1; background: var(--ac); opacity: .85; border-radius: 1px; }
+.sparkline-bar { flex: 1; background: var(--data-2); opacity: .85; border-radius: 1px; }
 
 .tm-band { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--g-5); min-height: 0; }
 .tm-panel { display: flex; flex-direction: column; gap: var(--g-3); padding: 11px 13px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--sf); overflow: auto; }
@@ -1146,7 +1146,7 @@
 .bar-label { width: 132px; flex: none; color: var(--mu); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bar-label-tool { width: 112px; }
 .bar-track { flex: 1; height: 7px; border-radius: 2px; background: rgba(238,242,246,.06); overflow: hidden; }
-.bar-fill { height: 100%; background: var(--ac); }
+.bar-fill { height: 100%; background: var(--data-3); }
 .bar-fill-bad { background: var(--bad); }
 .bar-count { width: 54px; flex: none; text-align: right; color: var(--mu2); }
 .bar-row-bad .bar-label { color: var(--bad); }
