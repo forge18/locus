@@ -3,7 +3,7 @@
 | # | Task | Deps | verify |
 | --- | --- | --- | --- |
 | 1 | `PreToolUse` hook binary in the base image | — | `cargo test -p locus-cli compact::hook_builds` |
-| 2 | Materialize it into all twelve harnesses | 1 | `cargo test -p locus-core compact::materializes_everywhere` |
+| 2 | Materialize it into all eleven harnesses | 1 | `cargo test -p locus-core compact::materializes_everywhere` |
 | 3 | Command rewrite table for verbose operations | 1 | `cargo test -p locus-core compact::rewrites` |
 | 4 | Rewrite is visible in the event stream | 3 | `cargo test -p locus-core compact::rewrite_observable` |
 | 5 | Result compaction before append | 1 | `cargo test -p locus-core compact::compacts_result` |

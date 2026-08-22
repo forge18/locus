@@ -35,7 +35,7 @@ CI and cache rate is on the dashboard, so a regression shows up as a number rath
 nobody attributes.
 
 **Tests assert on the event stream.** Unit tests cover the pure parts; everything above them is "run
-this, assert these events appeared", which works identically across all twelve harnesses and needs no
+this, assert these events appeared", which works identically across all eleven harnesses and needs no
 test-only instrumentation.
 
 ## Acceptance

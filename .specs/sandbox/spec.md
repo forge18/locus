@@ -25,7 +25,7 @@ property that must hold rather than the technique that achieves it.
 | Container | Lifetime |
 | --- | --- |
 | `locus-postgres` | per machine |
-| `locus-agent-<run_id>` | per agent run — one harness process, one session, no TUI, PTY from the host |
+| `locus-agent-<run_id>` | per agent run — one harness process, one session, no TUI, ACP over stdio |
 | `locus-svc-<project>-<name>` | per project — the project's own Postgres, Redis, browser |
 
 Network `locus-<project>` joins a project's agents and services. Agents reach each other and the

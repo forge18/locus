@@ -1,5 +1,8 @@
 # screens-develop
 
+> **Historical M0.5 contract.** V2 replaces this fixture's shell and geometry; new work follows
+> `.specs/design-v2/spec.md`.
+
 **Milestone** M0.5 · **Depends on** `app-shell`, `navigation`, `fixtures` · View `develop`
 
 ## Purpose
@@ -16,7 +19,7 @@ faithful enough to specify against.
 
 - PLAN.md §Editor — one editor at two zoom levels; `MergeView` as the primary surface
 - PLAN.md §The git model — clone not mount; you decide what lands
-- `docs/design_handoff_locus_desktop_ui/README.md` screen 4
+- `.specs/design-v2/spec.md` §Shell and screen inventory
 
 ## Contract
 
@@ -38,6 +41,7 @@ Footer 52px: secondary "Revert chunk", primary "Open PR from this branch", mono 
 errors · 2 hints`, and the note "Reviewing what an agent changed is the primary editor surface".
 
 **Git panel** (`--bg-deep`, left hairline):
+
 - Header `GIT`, mono `2↑` in accent and `0↓` in `--mu2`, `arrows-clockwise`.
 - Branch block: `git-branch`, mono branch, "from main · pushed by builder@4 6m ago".
 - `STAGED N` with an accent "Unstage all" and `UNSTAGED N` with "Stage all". Rows are a 9px status

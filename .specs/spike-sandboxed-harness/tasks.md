@@ -15,5 +15,5 @@ Experiment, not product code. Every task ends in evidence written to the spike d
 | 9 | Capture a full session's hook events and normalize them to the canonical vocabulary | 4,8 | `jq -e 'map(.kind) \| index("session_end")' spikes/01-sandboxed-harness/out/claude.events.json` |
 | 10 | Confirm `usage` carries real input/output/cache numbers, not nulls | 9 | `jq -e '[.[] \| select(.usage.input > 0)] \| length > 0' spikes/01-sandboxed-harness/out/claude.events.json` |
 | 11 | Repeat 2, 4, 9 for a second capture source — `cursor` (ACP) or `antigravity` (stream-json) | 9 | `jq -e 'map(.kind) \| index("tool_call")' spikes/01-sandboxed-harness/out/second.events.json` |
-| 12 | Attempt `dsh` and `hermes` against real binaries; record UNVERIFIED with a reason if unavailable | 11 | `grep -Eq 'dsh.*(VERIFIED\|UNVERIFIED)' spikes/01-sandboxed-harness/FINDINGS.md` |
+| 12 | Attempt `dsh` against a real binary; record UNVERIFIED with a reason if unavailable | 11 | `grep -Eq 'dsh.*(VERIFIED | UNVERIFIED)' spikes/01-sandboxed-harness/FINDINGS.md` |
 | 13 | Write `FINDINGS.md`: the verdict per question, what the container held, the falsifier, the fallback | 8,10,11,12 | `bash spikes/01-sandboxed-harness/check-findings.sh` |

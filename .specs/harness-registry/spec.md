@@ -8,7 +8,8 @@ Load `harnesses/*`, validate them, and resolve a model tier into an actual model
 PLAN.md's first carried-over rule lives: **nothing in core names a harness.** Adding one is a TOML
 file, plus a materializer plugin only where that harness's config is code.
 
-The twelve TOMLs are already written. This feature is the loader, the validator, and the tier policy.
+The eleven TOMLs are already written. This feature is the loader, the validator, and the tier policy.
+(`hermes` was removed from the set: ACP-only support, and it ships no first-class ACP mode.)
 
 ## Governed by
 
@@ -30,16 +31,19 @@ rather than being left out, and carries `weaker_than_native` naming the loss.
 registration. That is why the field is required rather than defaulted.
 
 **`locus harness lint`** refuses: an undeclared extension, an unknown `via` strategy, `tui = true`, a
-missing `[telemetry].source`, a source outside `hooks | acp | stream-json | session-log`, and a
-downgrade with no `weaker_than_native`.
+missing `[telemetry].source`, a source other than `acp` (the only telemetry source), and a downgrade
+with no `weaker_than_native`.
 
 **Model routing.** The file carries only mechanism:
+
 ```toml
 [models]
 flag      = "--model"
 list_argv = ["models", "list"]   # optional
 ```
+
 Policy is `core.settings`, keyed by harness and tier. Three rules:
+
 - **A missing tier falls back UP, never down.** `xhigh` on a harness with no `xhigh` gets `high`.
   Falling down would answer a hard question with a cheap model and read as a bad agent rather than a
   bad setting.
@@ -51,7 +55,7 @@ a tier means is a setting.
 
 ## Acceptance
 
-1. All twelve TOMLs load and pass `locus harness lint`.
+1. All eleven TOMLs load and pass `locus harness lint`.
 2. A file with an omitted extension is refused, with a message naming the extension.
 3. A file with `tui = true` is refused at registration.
 4. A downgrade without `weaker_than_native` is refused.
@@ -64,5 +68,6 @@ a tier means is a setting.
 
 ## Open
 
-- `dsh` and `hermes` are UNVERIFIED against running binaries and their files say so. Confirming them is
-  Spike 1's other half; until then the registry loads them and the lint passes on declaration alone.
+- `dsh` is UNVERIFIED against a running binary and its file says so. Confirming it is Spike 1's
+  other half; until then the registry loads it and the lint passes on declaration alone. `hermes` was
+  removed under ACP-only for having no first-class ACP mode.

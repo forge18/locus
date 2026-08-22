@@ -38,3 +38,7 @@
 | 34 | `locus memory recall`, `write`, `forget` | 25 | `cargo test -p locus-cli memory::store_verbs` |
 | 35 | Empty store degrades to the no-memory baseline | 8,25 | `cargo test -p locus-core memory::empty_store_degrades_cleanly` |
 | 36 | Cross-harness: one harness writes, a different one recalls | 34 | `cargo test -p locus-core memory::cross_harness_recall -- --ignored` |
+| 37 | `carve_out` on `embedding` and decay state; unannotated non-foldable column fails | — | `cargo test -p locus-core memory::carve_outs_declared` |
+| 38 | Facts, scope and provenance fold from the log | 37 | `cargo test -p locus-core project::memory_foldable` |
+| 39 | Decay computed at read from `last_active` and the curve; no tick entry is written | 37 | `cargo test -p locus-core memory::decay_read_time_no_ticks` |
+| 40 | `locus rebuild --schema memory` leaves stored vectors byte-identical | 38 | `cargo test -p locus-core rebuild::memory_vectors_untouched` |

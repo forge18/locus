@@ -1,5 +1,8 @@
 # screens-review
 
+> **Historical M0.5 contract.** V2 replaces this fixture's shell and navigation; new work follows
+> `.specs/design-v2/spec.md`.
+
 **Milestone** M0.5 · **Depends on** `app-shell`, `navigation`, `fixtures` · Views `telemetry`, `runs`, `artifact`
 
 ## Purpose
@@ -14,7 +17,7 @@ queries rather than new instrumentation.
 - PLAN.md §Canonical event vocabulary — the action list these facets count
 - PLAN.md §Artifacts — one viewer per kind; comments steer the agent that made it
 - PLAN.md §Token discipline — cache rate and payload-by-tool as first-class metrics
-- `docs/design_handoff_locus_desktop_ui/README.md` screens 7, 8, 9
+- `.specs/design-v2/spec.md` §Shell and screen inventory
 
 ## Contract
 
@@ -27,6 +30,7 @@ Four metric cards — Sessions, Events, **Tool errors** in `--bad` with a red ha
 plus a 1.5fr sparkline card of 16 accent bars at 85% opacity.
 
 A three-column 434px band:
+
 - **Filters** — grouped facet chips on `--sf3` with counts in `--mu2`: harness, capture source, project,
   agent · role, model tier, verify (active chip = accent tint + accent inset ring), arbiter class,
   branch. **The branch group states the invariant**: `main 0` at `opacity:.5`, because Locus never works

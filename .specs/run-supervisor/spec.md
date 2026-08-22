@@ -23,7 +23,7 @@ reconciles.**
 ```
 Project
 └── Session          a durable, named thread of work with ONE agent
-    ├── Run          one container lifetime = one terminal
+    ├── Run          one container lifetime = one ACP session
     │    └── Turn    one prompt → one response
     └── Run          (after a loop reset: new container, same session)
 ```
@@ -40,7 +40,7 @@ Project
 a native session id the core stores it on the run and hands it back — an optimization, not the
 mechanism.
 
-**A terminal you drive yourself is not a session.** Same pane type, no agent, no events, no cost.
+**A run you drive yourself is not a session.** Same pane type, no agent, no events, no cost.
 
 **`locusd` outlives the window.** Closing the app detaches the UI and nothing else. Runs keep streaming
 into Postgres and reopening re-attaches to state that never stopped.
@@ -62,7 +62,7 @@ inspectable. `SIGSTOP` mid-request would leave sockets half-written and a model 
 3. Killing `locusd` mid-run and restarting re-attaches to the live container and resumes streaming.
 4. Killing the container instead closes the run as `aborted`, emits the event, and files an inbox item.
 5. Closing the app window leaves the run streaming into Postgres.
-6. A human-driven terminal produces no session row, no events, and no cost attribution.
+6. A human-driven run produces no session row, no events, and no cost attribution.
 7. Resume primes a new run from the session's events, and works on a harness with no native session id.
 8. Pause lets the current turn finish and leaves the container up.
 9. Cancel stops the run and records the reason.

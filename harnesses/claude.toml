@@ -17,9 +17,7 @@ home_env = "CLAUDE_CONFIG_DIR"
 home     = "/locus/config"
 
 [telemetry]
-source  = "hooks"
-log_dir = "/locus/config/projects"  # transcripts, for backfill
-format  = "claude-jsonl"
+source  = "acp"
 emits   = ["session_start", "user", "assistant", "thinking", "tool_call",
            "tool_result", "tool_error", "permission_request",
            "subagent_start", "subagent_stop", "aborted", "session_end"]

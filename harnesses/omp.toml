@@ -13,11 +13,7 @@ tui  = false
 home = "/locus/config"
 
 [telemetry]
-source    = "hooks"
-generated = "/locus/config/extensions/locus-hooks.ts"
-format    = "pi-hooks-json"
-emits     = ["session_start", "user", "assistant", "tool_call", "tool_result",
-             "tool_error", "subagent_start", "subagent_stop", "session_end"]
+source = "acp"
 
 [models]
 flag      = "--model"                 # UNVERIFIED against the installed binary

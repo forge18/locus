@@ -1,5 +1,8 @@
 # fixtures
 
+> **Historical M0.5 contract.** V1 fixtures are superseded for new work by the 31-screen inventory in
+> `.specs/design-v2/spec.md`.
+
 **Milestone** M0.5 · **Depends on** none · **Blocks** every `screens-*`
 
 ## Purpose
@@ -14,7 +17,7 @@ reconciliation at M1 is a wiring change and not a redesign.
 - PLAN.md §Data model — the eight schemas, which are the source of every fixture type
 - PLAN.md §Canonical event vocabulary (the twelve verbs) and the `usage` attribute rule
 - PLAN.md §What a session is — session / run / turn
-- `docs/design_handoff_locus_desktop_ui/README.md` §State Management — the real data each screen needs
+- `.specs/design-v2/spec.md` §Contract — the v2 fixture and data boundary
 
 ## Contract
 
@@ -27,10 +30,12 @@ Three rules that make the guess cheap to correct:
 
 1. **One module per screen** in `src/fixtures/`, each opening with a header comment naming the schema
    it draws from and the Tauri command that will replace it:
+
    ```ts
    // schema: agents.sessions + agents.events
    // replaced by: invoke("sessions_list") + Channel<Event>("session_events")
    ```
+
 2. **One accessor per data set.** Screens never import a fixture directly; they call `useSessions()`,
    `useInboxItems()`, and so on. Swapping in `invoke` is one edit inside the accessor.
 3. **Two fixture sets are computed, not authored.** Workshop Harnesses and Workshop Extensions read
@@ -53,7 +58,7 @@ rather than presenting invented data as real.
 3. No screen imports from `src/fixtures/` directly — only through an accessor.
 4. Harnesses and Extensions fixtures are generated from `harnesses/*.toml`; regenerating after adding a
    harness changes the counts with no hand edit.
-5. Those two screens report **12 harnesses and 33 downgrades**, computed — not the handoff's literal
+5. Those two screens report **11 harnesses and 29 downgrades**, computed — not the handoff's literal
    27 of 88.
 6. Fixture event streams use only the twelve canonical verbs; a thirteenth fails the test.
 7. At least one fixture session has `usage: null` so the *unknown* path is exercised.

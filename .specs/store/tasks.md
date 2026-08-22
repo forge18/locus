@@ -25,3 +25,4 @@
 | 21 | `--drill` asserts row counts against the source | 20 | `cargo test -p locus-core restore::drill_asserts_counts` |
 | 22 | Drill fails loudly on a deliberately corrupted dump | 21 | `cargo test -p locus-core restore::drill_detects_corruption` |
 | 23 | A migration triggers a backup first and is gated on its completion | 18,11 | `cargo test -p locus-core backup::gates_migration` |
+| 24 | `agents.events.stream_pos` column plus the `(project_id, stream_pos)` index, range scan verified | 4 | `cargo test -p locus-core store::event_cursor_range_scan` |

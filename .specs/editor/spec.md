@@ -16,7 +16,7 @@ in an agent-first IDE.
 
 - PLAN.md §Editor — CodeMirror direct, two zoom levels, the accepted gaps
 - PLAN.md §The git model — the editor opens an ordinary clone
-- `docs/design_handoff_locus_desktop_ui/README.md` screen 4
+- `docs/design_handoff_locus_v2/README.md` screenshot 08 · Develop
 
 ## Contract
 
@@ -33,6 +33,7 @@ Locus keeps one normal clone per project beside the bare remote and opens that.
 second checkout mechanism would mean two ways to be on the wrong branch.
 
 **Declared gaps, restated so they are not rediscovered:**
+
 - **No debug UI** — no gutter, no variables pane, no step controls. `locus debug` serves the side that
   needed it, so CodeMirror's lack of one costs nothing. That was the single real gap in the CodeMirror
   trade, and it closed by moving the capability to the agent.

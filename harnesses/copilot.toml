@@ -13,13 +13,7 @@ home_env = "COPILOT_HOME"
 home     = "/locus/config"
 
 [telemetry]
-source = "hooks"
-# User-level hooks are JSON files in <home>/hooks/. Events are camelCase:
-# sessionStart, sessionEnd, userPromptSubmitted, preToolUse, postToolUse,
-# agentStop, subagentStop, errorOccurred. No PostCompact equivalent.
-format = "copilot-hooks-json"
-emits  = ["session_start", "user", "assistant", "tool_call", "tool_result",
-          "tool_error", "subagent_stop", "aborted", "session_end"]
+source = "acp"
 
 [auth]
 env = ["GH_TOKEN", "GITHUB_TOKEN"]

@@ -1,5 +1,8 @@
 # screens-dashboard
 
+> **Historical M0.5 contract.** V2 replaces this surface's screen geometry and scope in
+> `.specs/design-v2/spec.md`.
+
 **Milestone** M0.5 · **Depends on** `app-shell`, `navigation`, `fixtures` · Views `inbox`, `status`
 
 ## Purpose
@@ -12,13 +15,14 @@ the whole design leans on — **a decision resolves in place; work routes out.**
 
 - PLAN.md §The user inbox — silence is the default
 - PLAN.md §Navigation — Dashboard is mine; Dashboard is now, Review is after
-- `docs/design_handoff_locus_desktop_ui/README.md` screens 1 and 2
+- `.specs/design-v2/spec.md` §Shell and screen inventory
 
 ## Contract
 
 ### Inbox (default view)
 
 Two panes. **Left 392px**, right hairline.
+
 - `NEEDS YOU` in accent + `N items · silence is the default`. Cards at radius 7: selected is `--sf2` +
   accent inset ring with a `seal-check` fill icon, age right-aligned in `--mu2`, and a subline of
   project · agent · mono branch. Others are `--sf` + hairline — a `question` icon for `locus ask`, a
@@ -41,6 +45,7 @@ that something happened is a notification, not inbox work, and does not belong.
 ### Status
 
 Scrolling column, 15/18px padding, 14px gaps.
+
 - **Six metric cards** in a 6-col grid: Running (`N panes · N strip`), **Waiting on me** as the accent
   card (`--sf2` + accent ring, accent label and numeral, `oldest 26m`), Verify pass %, Cache read %,
   Tokens today, Guardrail trips with `1 kill & reassign` in `--bad`. Numerals 27px/500, unit suffixes

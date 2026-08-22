@@ -1,4 +1,4 @@
-# Aider — the weakest of the set. No hook system at all.
+# Aider — the single-source ACP harness.
 name   = "aider"
 binary = "aider"
 detect = ["--version"]
@@ -8,10 +8,8 @@ argv = ["--message-file", "-", "--yes-always"]
 tui  = false
 
 [telemetry]
-source = "session-log"
-# Aider keeps a markdown chat history in the repo. Parsing it is the only
-# capture path, and it is the least structured of any harness here.
-log = ".aider.chat.history.md"
+source = "acp"
+# Aider's chat history is superseded: the ACP surface is the only capture path.
 
 [models]
 flag      = "--model"

@@ -12,14 +12,7 @@ tui  = false                        # bare `opencode` is a TUI; `run` is not
 home = "/locus/config"              # global config is <XDG>/opencode, NOT ~/.opencode
 
 [telemetry]
-source = "hooks"
-# Registered in plugin code via ctx.tool.hook(point, cb). Points are
-# execute.before and execute.after — nothing else exists to fire on.
-generated = "/locus/config/plugin/locus-hooks.ts"
-format    = "opencode-plugin-json"
-emits     = ["tool_call", "tool_result", "tool_error"]
-# Session bounds come from the run supervisor instead: the container's start and
-# exit ARE session_start and session_end for this harness.
+source = "acp"
 
 [models]
 flag      = "--model"

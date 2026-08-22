@@ -1,6 +1,6 @@
 # TODO
 
-54 features, 1055 tasks, across eleven milestones. Every task carries a runnable
+61 features, 1288 tasks, across twelve milestones. Every task carries a runnable
 `verify:`; a task with none is not a task.
 
 **How this fits together.** [PLAN.md](PLAN.md) is the architecture and the authority.
@@ -25,16 +25,17 @@ of those blocks the shell or the other twelve screens. It can run alongside M0.
 | --- | --- | ---: | ---: | ---: |
 | **M0** | Spikes — these gate M1 · **closed** | 3 | 39 | 39 |
 | **M0.5** | Desktop UI on fixtures · **closed** | 12 | 268 | 268 |
-| **M1** | Core runtime | 13 | 253 | 0 |
+| **M0.6** | v2 desktop reconciliation | 6 | 195 | 0 |
+| **M1** | Core runtime | 14 | 270 | 0 |
 | **M2** | Workspace | 3 | 50 | 0 |
-| **M3** | Coordination, memory, and mail | 6 | 125 | 0 |
+| **M3** | Coordination, memory, and mail | 6 | 133 | 0 |
 | **M3.5** | Agent capabilities: debug and browser | 3 | 56 | 0 |
-| **M4** | Workflow canvas | 3 | 65 | 0 |
-| **M5** | Project management | 4 | 100 | 0 |
+| **M4** | Workflow canvas | 3 | 69 | 0 |
+| **M5** | Project management | 4 | 109 | 0 |
 | **M6** | Automation and discoverability | 3 | 46 | 0 |
 | **M7** | GitHub | 3 | 42 | 0 |
 | **M8** | Marketplace installer | 1 | 11 | 0 |
-| | | **54** | **1055** | **307** |
+| | | **61** | **1288** | **307** |
 
 ---
 
@@ -74,7 +75,7 @@ below; it is short and it is load-bearing.
 
 ## M0.5 — Desktop UI on fixtures
 
-12 features · 265 tasks
+12 features · 268 tasks
 
 - [x] **[app-shell](.specs/app-shell/spec.md)** · 20 tasks · [tasks](.specs/app-shell/tasks.md)
   The four bands present on every screen: title bar, category rail, per-category tab bar, and the running-agent strip.
@@ -113,12 +114,41 @@ below; it is short and it is load-bearing.
   The chrome, and only the chrome.
   *Depends on:* `design-system`
 
+## M0.6 — v2 desktop reconciliation
+
+6 features · 195 tasks
+
+- [ ] **[design-v2](.specs/design-v2/spec.md)** · 24 tasks · [tasks](.specs/design-v2/tasks.md)
+  Adopt the v2 handoff without porting its HTML or JavaScript. Replace the v1 fixture contract and
+  settle provider references, adapter-gated routing, project scope, plan decomposition, dispatch
+  policy, and workflow Governance before implementation depends on them.
+  *Depends on:* M0.5
+- [ ] **[theme-system](.specs/theme-system/spec.md)** · 8 tasks · [tasks](.specs/theme-system/tasks.md)
+  Ship v2 Dark and cool-neutral Light through semantic tokens and a root-theme contract; later themes
+  add values and fixtures without component forks.
+  *Depends on:* `design-v2`
+- [ ] **[v2-application-shell](.specs/v2-application-shell/spec.md)** · 28 tasks · [tasks](.specs/v2-application-shell/tasks.md)
+  Replace the v1 shell with the project-scoped rail, running popover, locator, and accessible shared
+  navigation.
+  *Depends on:* `design-v2`, `theme-system`
+- [ ] **[v2-project-operations](.specs/v2-project-operations/spec.md)** · 52 tasks · [tasks](.specs/v2-project-operations/tasks.md)
+  Make Project Settings, planning decomposition, Automate, queue policy, and safe Dispatch controls
+  durable and reviewable.
+  *Depends on:* `v2-application-shell`
+- [ ] **[v2-knowledge-review](.specs/v2-knowledge-review/spec.md)** · 30 tasks · [tasks](.specs/v2-knowledge-review/tasks.md)
+  Replace v1 Inbox, Dashboard, Develop, Review, and Wiki fixtures with the scoped v2 viewers.
+  *Depends on:* `v2-application-shell`, `theme-system`
+- [ ] **[v2-workshop-runtime](.specs/v2-workshop-runtime/spec.md)** · 53 tasks · [tasks](.specs/v2-workshop-runtime/tasks.md)
+  Build Providers, Minisign tool verification, adapter-gated harness routing, and Workflow Governance.
+  *Depends on:* `v2-application-shell`, `theme-system`
+
 ## M1 — Core runtime
 
-13 features · 253 tasks
+14 features · 270 tasks
 
 - [ ] **[acp-client](.specs/acp-client/spec.md)** · 13 tasks · [tasks](.specs/acp-client/tasks.md)
-  An Agent Client Protocol client, **for the planning/chat module only**.
+  An Agent Client Protocol client — **the only agent interface**, successor to "planning/chat module
+  only". Each supported harness fronts ACP; a Locus-side mapping bridges harnesses without a native mode.
   *Depends on:* `sandbox`, `telemetry`
 - [ ] **[agent-cli](.specs/agent-cli/spec.md)** · 24 tasks · [tasks](.specs/agent-cli/tasks.md)
   `crates/locus-cli` — the binary agents call from inside their container, and **the MCP replacement**.
@@ -132,6 +162,10 @@ below; it is short and it is load-bearing.
 - [ ] **[ci](.specs/ci/spec.md)** · 15 tasks · [tasks](.specs/ci/tasks.md)
   Continuous integration for Locus itself, and one check that is not ordinary CI hygiene: the **materialization smoke test**.
   *Depends on:* `materializers`, `harness-registry`, `telemetry`
+- [ ] **[event-store](.specs/event-store/spec.md)** · 23 tasks · [tasks](.specs/event-store/tasks.md)
+  `log.entries` is the only thing Locus writes; every other table is a fold over it. Two logs sharing one
+  ordering, a synchronous in-transaction fold, and two declared carve-outs for what a model or a clock produced.
+  *Depends on:* `store`
 - [ ] **[harness-registry](.specs/harness-registry/spec.md)** · 18 tasks · [tasks](.specs/harness-registry/tasks.md)
   Load `harnesses/*`, validate them, and resolve a model tier into an actual model.
   *Depends on:* `store`
@@ -141,7 +175,7 @@ below; it is short and it is load-bearing.
 - [ ] **[materializers](.specs/materializers/spec.md)** · 20 tasks · [tasks](.specs/materializers/tasks.md)
   The code half of the harness contract.
   *Depends on:* `harness-registry`
-- [ ] **[pane-manager](.specs/pane-manager/spec.md)** · 21 tasks · [tasks](.specs/pane-manager/tasks.md)
+- [ ] **[pane-manager](.specs/pane-manager/spec.md)** · 17 tasks · [tasks](.specs/pane-manager/tasks.md)
   The pane manager and the IPC discipline behind it.
   *Depends on:* `app-shell`, `run-supervisor`, `telemetry`
 - [ ] **[run-supervisor](.specs/run-supervisor/spec.md)** · 22 tasks · [tasks](.specs/run-supervisor/tasks.md)
@@ -150,11 +184,11 @@ below; it is short and it is load-bearing.
 - [ ] **[sandbox](.specs/sandbox/spec.md)** · 24 tasks · [tasks](.specs/sandbox/tasks.md)
   One container per agent run, and the credential handling that makes it safe.
   *Depends on:* `spike-sandboxed-harness`, `harness-registry`
-- [ ] **[store](.specs/store/spec.md)** · 23 tasks · [tasks](.specs/store/tasks.md)
+- [ ] **[store](.specs/store/spec.md)** · 24 tasks · [tasks](.specs/store/tasks.md)
   Postgres as the single source of truth, plus the backup that makes that safe.
   *Depends on:* none
-- [ ] **[telemetry](.specs/telemetry/spec.md)** · 22 tasks · [tasks](.specs/telemetry/tasks.md)
-  Four capture paths, one event vocabulary, and nothing downstream knowing which path a run arrived through.
+- [ ] **[telemetry](.specs/telemetry/spec.md)** · 19 tasks · [tasks](.specs/telemetry/tasks.md)
+  One ACP path, one event vocabulary, and an append-only transcript that is deliberately never projected.
   *Depends on:* `harness-registry`, `store`
 
 ## M2 — Workspace
@@ -173,7 +207,7 @@ below; it is short and it is load-bearing.
 
 ## M3 — Coordination, memory, and mail
 
-6 features · 125 tasks
+6 features · 133 tasks
 
 - [ ] **[guardrails](.specs/guardrails/spec.md)** · 23 tasks · [tasks](.specs/guardrails/tasks.md)
   What makes leaving a loop unattended defensible.
@@ -181,10 +215,10 @@ below; it is short and it is load-bearing.
 - [ ] **[handoffs](.specs/handoffs/spec.md)** · 17 tasks · [tasks](.specs/handoffs/tasks.md)
   The guardrails already kill and reassign after three stuck iterations, and a session already belongs to exactly one agent.
   *Depends on:* `mail`, `run-supervisor`, `guardrails`
-- [ ] **[mail](.specs/mail/spec.md)** · 16 tasks · [tasks](.specs/mail/tasks.md)
+- [ ] **[mail](.specs/mail/spec.md)** · 20 tasks · [tasks](.specs/mail/tasks.md)
   Agent-to-agent messages, Rust-native, identical for every harness.
   *Depends on:* `store`
-- [ ] **[memory](.specs/memory/spec.md)** · 36 tasks · [tasks](.specs/memory/tasks.md)
+- [ ] **[memory](.specs/memory/spec.md)** · 40 tasks · [tasks](.specs/memory/tasks.md)
   What an agent recalls: scoped facts with provenance, embeddings and decay.
   *Depends on:* `store`, `telemetry`, `materializers`
 - [ ] **[repo-manager](.specs/repo-manager/spec.md)** · 17 tasks · [tasks](.specs/repo-manager/tasks.md)
@@ -210,7 +244,7 @@ below; it is short and it is load-bearing.
 
 ## M4 — Workflow canvas
 
-3 features · 65 tasks
+3 features · 69 tasks
 
 - [ ] **[marketplace-index](.specs/marketplace-index/spec.md)** · 15 tasks · [tasks](.specs/marketplace-index/tasks.md)
   The resolver, not the installer.
@@ -218,15 +252,15 @@ below; it is short and it is load-bearing.
 - [ ] **[workflow-canvas](.specs/workflow-canvas/spec.md)** · 24 tasks · [tasks](.specs/workflow-canvas/tasks.md)
   Where orchestration becomes authorable, and where PLAN.md says the product's character arrives.
   *Depends on:* `spike-workflow-canvas`, `screens-workshop`, `workflow-engine`
-- [ ] **[workflow-engine](.specs/workflow-engine/spec.md)** · 26 tasks · [tasks](.specs/workflow-engine/tasks.md)
+- [ ] **[workflow-engine](.specs/workflow-engine/spec.md)** · 30 tasks · [tasks](.specs/workflow-engine/tasks.md)
   The execution half.
   *Depends on:* `guardrails`, `run-supervisor`, `sandbox`
 
 ## M5 — Project management
 
-4 features · 100 tasks
+4 features · 109 tasks
 
-- [ ] **[board](.specs/board/spec.md)** · 18 tasks · [tasks](.specs/board/tasks.md)
+- [ ] **[board](.specs/board/spec.md)** · 23 tasks · [tasks](.specs/board/tasks.md)
   Deliberately small.
   *Depends on:* `store`, `workflow-engine`, `screens-automate`
 - [ ] **[calibration-loop](.specs/calibration-loop/spec.md)** · 20 tasks · [tasks](.specs/calibration-loop/tasks.md)
@@ -235,7 +269,7 @@ below; it is short and it is load-bearing.
 - [ ] **[planning-module](.specs/planning-module/spec.md)** · 40 tasks · [tasks](.specs/planning-module/tasks.md)
   A guided conversation that produces a reviewable plan.
   *Depends on:* `acp-client`, `board`, `wiki`, `screens-plan`
-- [ ] **[wiki](.specs/wiki/spec.md)** · 22 tasks · [tasks](.specs/wiki/tasks.md)
+- [ ] **[wiki](.specs/wiki/spec.md)** · 26 tasks · [tasks](.specs/wiki/tasks.md)
   **Ingested and typed, not a blank page.** The premise taken from `llm-wiki-agent` is the right one: most knowledge tools make you search your own notes; this one reads everything you have collected and writes a structured wiki that compounds.
   *Depends on:* `store`, `screens-wiki`, `workflow-canvas`
 
@@ -300,7 +334,7 @@ is a decision that will disagree with itself.
 | M0.5 | `screens-wiki` | Whether wiki search lives on this screen or only in the command palette. PLAN.md gives the palette global search across wiki, code, tasks and runs; the handoff draws no search field here. |
 | M0.5 | `screens-workshop` | PLAN.md §Navigation lists **settings and the marketplace** as Workshop contents, but the handoff's Workshop tab bar has only three tabs and neither appears. Either they are drill-downs like agent definitions, or the tab set grows. Undeci… |
 | M0.5 | `ui-primitives` | Whether long lists need `@tanstack/solid-virtual` at M0.5 or only once real row counts arrive. The Sessions table is drawn at 300 rows and Runs at 612, so fixtures can answer this rather than guessing. |
-| M1 | `acp-client` | Whether the planning conversation gets a PTY-less pane type of its own or reuses the Agent Pane with the terminal suppressed. The handoff draws the Plan screen as a conversation, which suggests its own. |
+| M1 | `acp-client` | Whether the planning conversation is a distinct pane or the same event-rendered Agent Pane. **Resolved in the ACP-only revision:** with the PTY gone from the agent surface, both are events — the distinction is layout, not transport, and is now pane-manager's call. |
 | M1 | `agent-cli` | The row threshold at which key-packing engages. PLAN.md gives the technique and the saving but not the count, and below some size the header row costs more than it saves. |
 | M1 | `agent-definitions` | Whether `harness: any` should resolve at run start or be pinned at save. PLAN.md does not say, and the difference only matters once one project runs more than one harness for the same agent. |
 | M1 | `artifacts` | The compaction threshold. PLAN.md says "over a threshold" without naming one; it should be a setting with a defensible default rather than a constant chosen here. |
@@ -401,6 +435,27 @@ harness file currently asserts.
   telemetry reads as an agent that did nothing. hermes also ships an `acp` subcommand, so its
   `telemetry.source` is a choice rather than a constraint.
 
+## ACP-only sweep queue — CLOSED (`[x]` list below records the executed work)
+
+The ACP-only decision (`.specs/acp-client`) retires the PTY from the agent surface and makes ACP the
+only harness interface. **The sweep has been executed** — the checkbox list below records what was
+reconciled (PLAN.md, pane-manager, telemetry, run-supervisor, sandbox, all eleven harness TOMLs, and
+`hermes.toml` removal). No file here is pending anymore.
+
+- [x] **`PLAN.md`** — §Harness I/O, §One clarification, container table, §Headless, §ACP, `[launch]`,
+  telemetry single-source, harness table, TOML examples.
+- [x] **`.specs/pane-manager`** — Shell/PTY pane retired; `Channel<Event>` only; keyboard/xterm gone.
+- [x] **`.specs/telemetry`** — four sources collapsed to `acp`; teeing retired.
+- [x] **`.specs/run-supervisor`** — run = one ACP session per container; no human-terminal.
+- [x] **`.specs/sandbox`** — host PTY row → ACP stdio.
+- [x] **`harnesses/*.toml`** — `[telemetry].source` is `acp` for all eleven; `hermes.toml` removed;
+  dependent counts (11 harnesses, 29 of 88) updated across fixtures, screens-workshop, materializers,
+  linters, compact, agent-definitions.
+
+**Recorded tension:** hermes ships an `acp` subcommand per M0, so its removal is a support decision
+(drop it) rather than a technical necessity; restoring it is git-recoverable and tips counts back to
+twelve.
+
 ## Conflicts between PLAN.md and the design handoff
 
 Found while writing the specs. Recorded rather than silently resolved.
@@ -427,4 +482,3 @@ Each verified against the files rather than inferred.
 - [x] "Five strategies … only the last needs a plugin" → **six**, and `core-driven` is last.
 - [x] M0's 22-document list and 27-ADR table replaced with a pointer to `.specs/`; M0.5 inserted;
   M1's superseded UI bullet rewritten.
-

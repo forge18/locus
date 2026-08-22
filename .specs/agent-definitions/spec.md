@@ -56,7 +56,7 @@ copied between machines.
 5. `tools` naming an entry absent from the marketplace index is rejected at save with the name given.
 6. `memory.scope` cannot be set to anything cross-project.
 7. Export produces a `.md` that re-imports to an identical definition.
-8. Materializing a definition into all twelve harnesses produces the expected file in each layout.
+8. Materializing a definition into all eleven harnesses produces the expected file in each layout.
 9. Nesting deeper than 3 or wider than 4 is refused by the core, and a workflow cannot raise either.
 
 ## Open

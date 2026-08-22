@@ -1,6 +1,6 @@
 # wiki
 
-**Milestone** M5 · **Depends on** `store`, `screens-wiki`, `workflow-canvas`
+**Milestone** M5 · **Depends on** `store`, `event-store`, `screens-wiki`, `workflow-canvas`
 
 ## Purpose
 
@@ -12,6 +12,7 @@ writes a structured wiki that compounds. **A wiki nobody writes is a wiki nobody
 
 - PLAN.md §The wiki — typed pages, ingest, contradictions, the linter, the graph
 - PLAN.md §Knowledge, as one model — the wiki is not the memory store
+- PLAN.md §Event sourcing and its two carve-outs — pages fold; their embeddings do not
 
 ## Contract
 
@@ -50,6 +51,13 @@ assertions with no source.
 **A graph view, nearly free.** Pages are nodes, `[[wikilinks]]` are edges — the canvas renderer,
 repointed. A palette, not a subsystem.
 
+**Pages fold; their embeddings do not.** A page, its kind, its revisions and its links are a
+projection of ingest and edit entries — which is what makes acceptance 9 (revisions attributed to the
+run that made them) structural rather than bookkeeping, since the run *is* the entry's `actor`. The
+`embedding` column carries a `carve_out`: it is a model output, so `locus rebuild` restores page text
+and leaves vectors untouched, and contradiction detection after a bare rebuild needs a re-embed before
+it can run.
+
 **Seeding:** every project already has written memory in git — ADRs, specs, READMEs, `AGENTS.md`. Ingest
 reads those on day one so the first keeper pass has a corpus rather than a blank store.
 
@@ -68,6 +76,9 @@ reads those on day one so the first keeper pass has a corpus rather than a blank
 8. A page edited in the GUI is read back by an agent in a container.
 9. Revisions are attributed to the run that made them.
 10. A memory-store fact conflicting with a wiki statement raises the same contradiction.
+11. Pages, revisions and links are projections; nothing writes them directly.
+12. A revision's `actor` is the run that made it, and attribution survives `locus rebuild`.
+13. `embedding` carries `carve_out`; rebuild leaves stored vectors byte-identical.
 
 ## Open
 

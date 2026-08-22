@@ -19,6 +19,6 @@
 | 15 | Config tree frozen for the run; a mid-run write fails | 13 | `cargo test -p locus-core materialize::tree_is_frozen` |
 | 16 | pi's plugin: generate the TypeScript extension pi reads | 7 | `cargo test -p locus-core materialize::pi_plugin_generates` |
 | 17 | pi actually loads the generated extension in a container | 16 | `cargo test -p locus-core materialize::pi_loads_generated -- --ignored` |
-| 18 | Materialize all eight extensions for all twelve harnesses | 2,3,4,5,6,7 | `cargo test -p locus-core materialize::all_twelve_all_eight` |
+| 18 | Materialize all eight extensions for all eleven harnesses | 2,3,4,5,6,7 | `cargo test -p locus-core materialize::all_eleven_all_eight` |
 | 19 | Materialization report carrying every `weaker_than_native` string | 18 | `cargo test -p locus-core materialize::report_carries_losses` |
 | 20 | Expose the report over IPC for the Extensions screen | 19 | `pnpm -C apps/desktop test -- extensions/report-from-core` |

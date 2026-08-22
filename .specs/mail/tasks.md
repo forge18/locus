@@ -18,3 +18,7 @@
 | 14 | Assert a normally running session produces zero inbox items | 10 | `cargo test -p locus-core inbox::silence_is_the_default` |
 | 15 | Mail survives a harness swap mid-project | 2 | `cargo test -p locus-core mail::survives_harness_swap` |
 | 16 | Wire the Inbox screen to real items over IPC | 12 | `pnpm -C apps/desktop test -- inbox/from-core` |
+| 17 | `mail.sent` / `mail.read` / `mail.drained` entry kinds | — | `cargo test -p locus-core mail::entry_kinds` |
+| 18 | Mail projector: threads, messages, delivery state; no direct writer | 17 | `cargo test -p locus-core project::mail` |
+| 19 | `locus rebuild --schema mail` reproduces threads and delivery state | 18 | `cargo test -p locus-core rebuild::mail` |
+| 20 | An interrupted `drain` leaves the thread fully drained or untouched | 18 | `cargo test -p locus-core mail::drain_is_atomic` |

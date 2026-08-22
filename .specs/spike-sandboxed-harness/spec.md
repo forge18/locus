@@ -43,8 +43,9 @@ proves less than it appears to.
 3. `docker exec <container> env` and a filesystem scan show **no long-lived credential** — the finding
    states exactly what the container did hold and for how long.
 4. The finding names **what would falsify the sandbox model** and what the fallback is if it did.
-5. `dsh` and `hermes` are confirmed against real binaries or the finding records that they remain
-   UNVERIFIED and why — PLAN.md:2248 calls this Spike 1's other half.
+5. `dsh` is confirmed against a real binary or the finding records that it remains
+   UNVERIFIED and why — PLAN.md:2248 calls this Spike 1's other half. `hermes` was removed under
+   ACP-only support.
 
 ## Open
 

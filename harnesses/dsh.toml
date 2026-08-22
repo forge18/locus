@@ -14,12 +14,7 @@ home_env = "DSH_HOME"               # NOT ~/.deepseek, which is a different TUI
 home     = "/locus/config"
 
 [telemetry]
-source = "hooks"
-# @deepseek-ai/dsh-hooks-claude-code reads a Claude-Code-shaped hook config, so
-# locus-hook registers unmodified and the bridge does the translating.
-bridge = { plugin = "@deepseek-ai/dsh-hooks-claude-code", config = "/locus/config/locus-hooks.json", registered_in = "/locus/config/cordis.patch.yml" }
-format = "claude-hooks-json"
-emits  = ["session_start", "user", "tool_call", "tool_result", "tool_error", "session_end"]
+source = "acp"
 
 [models]
 flag      = "--model"                 # UNVERIFIED — dsh is not installed here

@@ -1,6 +1,6 @@
 # memory
 
-**Milestone** M3 · **Depends on** `store`, `telemetry`, `materializers` · **Blocks** `calibration-loop`
+**Milestone** M3 · **Depends on** `store`, `event-store`, `telemetry`, `materializers` · **Blocks** `calibration-loop`
 
 ## Purpose
 
@@ -16,6 +16,7 @@ memory, and keeping them out is what keeps the store small enough to be trustwor
 - PLAN.md §Memory — the four layers, capture, injection, promotion, decay, recall, the keeper
 - PLAN.md §Knowledge, as one model — why three kinds are not memory
 - PLAN.md §Token discipline — the frozen catalog and prefix stability
+- PLAN.md §Event sourcing and its two carve-outs — memory holds both of them
 
 ## Contract
 
@@ -85,6 +86,22 @@ wrong one measured below the no-memory baseline.
 idle. **The primary agent has no memory-edit tools at all** — memory management is the keeper's job
 exclusively.
 
+**Memory holds both carve-outs, and they are declared here.** Facts, scope and provenance fold from
+the log like everything else. Two columns do not, and carry a `carve_out` annotation:
+
+| Column | Why it cannot fold |
+| --- | --- |
+| `embedding` | a model output, not a function of the events behind its text, and not reproducible across embedding-model versions |
+| `confidence` / decay state | a function of wall-clock time — the Ebbinghaus curve over `active_days` — not of appended entries |
+
+Decay is therefore **evaluated at read** from `last_active` plus the curve, rather than materialized and
+folded. The alternative is writing tick entries so the log can model a clock, which is the point at
+which event sourcing stops paying for itself.
+
+**`locus rebuild` restores memory's text and loses its vectors.** That is not a bug in the rebuild; the
+vectors were never derived from the log. Recovery is a restore plus a re-embed, and it is one of the
+two reasons backup is non-deferrable.
+
 **An empty store degrades cleanly**: no catalog, no injection, no recall — agents run exactly as they
 would with no memory layer, which is the correct baseline.
 
@@ -103,6 +120,12 @@ would with no memory layer, which is the correct baseline.
 10. `code`-class recall returns k=1 with graph expansion off; `research` returns high-k with it on.
 11. The primary agent cannot write memory directly unless `write: direct` is set.
 12. An empty store produces no catalog and no recall, and runs succeed anyway.
+13. `embedding` and decay state carry `carve_out`; a new non-foldable column without one fails the
+    schema test.
+14. Decay is computed at read from `last_active` and the curve — no tick entry is ever written to the
+    log.
+15. `locus rebuild --schema memory` restores facts, scope and provenance and leaves stored vectors
+    byte-identical, recomputing none of them.
 
 ## Open
 
