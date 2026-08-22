@@ -31,7 +31,7 @@ describe("visual: plan", () => {
     expect(existsSync(resolve(SHOTS, "05-plan-conversation.png"))).toBe(true);
   });
 
-  it("is three panes around 216 / flex / 296 inside the four bands", () => {
+  it("is a v2 workspace around the plan list, active tab, and outputs", () => {
     const { getByTestId } = mount();
     for (const part of [
       "titlebar",
@@ -39,7 +39,7 @@ describe("visual: plan", () => {
       "tabbar",
       "strip",
       "plan-list",
-      "plan-convo",
+      "plan-conversation",
       "plan-outputs",
     ]) {
       expect(getByTestId(part), part).toBeTruthy();
@@ -59,12 +59,12 @@ describe("visual: plan", () => {
     expect(getByTestId("tabbar-tabs").querySelectorAll(".tab").length).toBe(0);
   });
 
-  it("runs the title and the eight-step breadcrumb along one row", () => {
+  it("runs the title and nine-stage breadcrumb along the workspace summary", () => {
     const { getByTestId } = mount();
-    const head = getByTestId("plan-convo").querySelector(".plan-convo-head")!;
+    const head = getByTestId("plan").querySelector(".plan-summary")!;
     expect(head.contains(getByTestId("plan-title"))).toBe(true);
     expect(head.contains(getByTestId("breadcrumb"))).toBe(true);
-    expect(getByTestId("breadcrumb").children.length).toBe(8);
+    expect(getByTestId("breadcrumb").children.length).toBe(9);
   });
 
   it("stacks the conversation: messages, the scope card, then the live line", () => {

@@ -9,6 +9,7 @@
 @import '../shell/shell.css';
 @import '../screens/screens.css';
 @import '../screens/projects/projects.css';
+@import '../screens/plan/plan-v2.css';
 
 *, *::before, *::after { box-sizing: border-box; }
 
