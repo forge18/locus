@@ -1,3 +1,4 @@
+import { invoke } from '@tauri-apps/api/core'
 import { RECENTLY_EDITED, TYPE_CARDS } from '../fixtures/extensions'
 import type { EditedEntry, TypeCard } from '../fixtures/extensions'
 
@@ -11,6 +12,13 @@ export {
   SEARCH_PLACEHOLDER,
 } from '../fixtures/extensions'
 export type { EditedEntry, TypeCard } from '../fixtures/extensions'
+
+export const LINTERS_ROOT = '/locus/config/linters'
+
+/** Read the one extension type Locus owns directly rather than a harness. */
+export async function fetchLinterCountFromCore(): Promise<number> {
+  return invoke<number>('linter_count', { root: LINTERS_ROOT })
+}
 
 /** Becomes: invoke("extension_inventory") */
 export function useTypeCards(): TypeCard[] {

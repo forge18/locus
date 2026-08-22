@@ -4,6 +4,12 @@ name   = "codex"
 binary = "codex"
 detect = ["--version"]
 
+[image]
+base     = "debian:bookworm-slim"
+version  = "unverified"
+install  = []
+verified = false
+
 [launch]
 argv = ["exec", "--skip-git-repo-check"]
 tui  = false                        # `codex` alone opens a TUI; `codex exec` does not

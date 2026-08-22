@@ -81,7 +81,19 @@ export interface RunEdge {
 }
 
 /** @schema agents — what an artifact is, which decides how it is reviewed. */
-export type ArtifactKind = 'diff' | 'plan' | 'report' | 'log' | 'image' | 'video' | 'handoff'
+export type ArtifactKind =
+  | 'diff'
+  | 'plan'
+  | 'diagram'
+  | 'image'
+  | 'recording'
+  | 'walkthrough'
+  | 'finding'
+  | 'payload'
+  | 'report'
+  | 'log'
+  | 'video'
+  | 'handoff'
 
 /**
  * @schema agents — what you review instead of tool calls. Carries a text body or a

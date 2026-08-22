@@ -4,6 +4,12 @@ name   = "claude"
 binary = "claude"
 detect = ["--version"]
 
+[image]
+base     = "debian:bookworm-slim"
+version  = "unverified"
+install  = []
+verified = false
+
 [launch]
 argv = ["--permission-mode", "bypassPermissions"]   # own gate OFF: the container is
                                                     # the boundary and nobody is

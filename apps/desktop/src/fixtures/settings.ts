@@ -33,6 +33,14 @@ export const MODEL_TIERS: ModelTierSetting[] = Object.entries(MAPPINGS).flatMap(
     TIERS.map((tier) => ({ harness, tier, model: mapping[tier] ?? null })),
 )
 
+/** Results of the registry's configured `list_argv` discovery, keyed by harness.
+ * Missing entries deliberately mean free text; an empty array would mean discovery
+ * ran and found no available models. */
+export const DISCOVERED_MODEL_IDS: Record<string, string[]> = {
+  aider: ['sonnet-4.6', 'opus-4.6'],
+  opencode: ['haiku-4.5', 'sonnet-4.6', 'opus-4.6'],
+}
+
 /**
  * Which tier an unmapped one resolves to, **per harness**. This is a setting, not
  * a rule baked into the resolver: what a given harness should reach for when a

@@ -5,6 +5,12 @@ name   = "pi"
 binary = "pi"
 detect = ["--version"]
 
+[image]
+base     = "debian:bookworm-slim"
+version  = "unverified"
+install  = []
+verified = false
+
 [launch]
 argv = ["--print"]
 tui  = false
