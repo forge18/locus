@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { read, rules } from '../css'
 
 const tokens = read('styles/tokens.css')
-const dark = rules(tokens).find((rule) => rule.selector === "[data-theme='dark']")
+const dark = rules(tokens).find((rule) => /\[data-theme=["']dark["']\]/.test(rule.selector))
 
 describe('theme/dark-token-contract', () => {
   it('defines the v2 Dark semantic palette under the dark theme selector', () => {

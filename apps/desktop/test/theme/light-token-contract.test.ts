@@ -2,9 +2,7 @@ import { describe, expect, it } from "vitest";
 import { read, rules } from "../css";
 
 const tokens = read("styles/tokens.css");
-const light = rules(tokens).find(
-  (rule) => rule.selector === "[data-theme='light']",
-);
+const light = rules(tokens).find((rule) => /\[data-theme=["']light["']\]/.test(rule.selector));
 
 describe("theme/light-token-contract", () => {
   it("defines the cool-neutral Light semantic palette under the light theme selector", () => {
@@ -50,6 +48,6 @@ describe("theme/light-token-contract", () => {
     const root = rules(tokens).find((rule) => rule.selector === ":root");
     expect(root?.body).toContain("--r-card: 7px");
     expect(root?.body).toContain("--t-body: 14px");
-    expect(root?.body).toContain("--fs: 'Inter'");
+    expect(root?.body).toContain('--fs: "Inter"');
   });
 });

@@ -25,7 +25,11 @@ describe("theme/registers-without-component-changes", () => {
 
   it("rejects incomplete value sets before a theme can ship", () => {
     const incomplete = { ...testTheme, values: { ...testTheme.values } };
-    delete (incomplete.values as Partial<typeof incomplete.values>)["--status-danger"];
-    expect(() => registerThemes([incomplete as ThemeRegistration])).toThrow("--status-danger");
+    delete (incomplete.values as Partial<typeof incomplete.values>)[
+      "--status-danger"
+    ];
+    expect(() => registerThemes([incomplete as ThemeRegistration])).toThrow(
+      "--status-danger",
+    );
   });
 });
