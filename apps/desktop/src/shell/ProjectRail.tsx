@@ -1,6 +1,8 @@
 import { createMemo, createSignal, For } from "solid-js";
 import { V2_GLOBAL_ROUTE_KINDS } from "../nav/v2-route-kinds";
 
+export const RAIL_EXPANSION_STORAGE_KEY = "locus.rail-expansion";
+
 const PROJECT_RAIL_LINKS = ["Plan", "Develop", "Automate", "Review"] as const;
 const MEMORY_ROUTES = V2_GLOBAL_ROUTE_KINDS.filter((route) =>
   route.id.startsWith("memory-"),
@@ -16,10 +18,14 @@ export interface ProjectRailProps {
 }
 
 export function ProjectRail(props: ProjectRailProps) {
+  const savedExpansion = () => JSON.parse(localStorage.getItem(RAIL_EXPANSION_STORAGE_KEY) ?? "{}") as Record<string, boolean>;
+  const persistExpansion = (name: "memory" | "workshop", value: boolean) => {
+    localStorage.setItem(RAIL_EXPANSION_STORAGE_KEY, JSON.stringify({ ...savedExpansion(), [name]: value }));
+  };
   const [filter, setFilter] = createSignal("");
   const [activeProject, setActiveProject] = createSignal(0);
-  const [memoryExpanded, setMemoryExpanded] = createSignal(false);
-  const [workshopExpanded, setWorkshopExpanded] = createSignal(false);
+  const [memoryExpanded, setMemoryExpanded] = createSignal(savedExpansion().memory ?? false);
+  const [workshopExpanded, setWorkshopExpanded] = createSignal(savedExpansion().workshop ?? false);
   const projects = createMemo(() => {
     const needle = filter().trim().toLowerCase();
     return (props.projects ?? [props.selectedProject]).filter((project) =>
@@ -57,7 +63,11 @@ export function ProjectRail(props: ProjectRailProps) {
         <button
           type="button"
           aria-expanded={memoryExpanded()}
-          onClick={() => setMemoryExpanded((open) => !open)}
+          onClick={() => setMemoryExpanded((open) => {
+            const next = !open;
+            persistExpansion("memory", next);
+            return next;
+          })}
         >
           Memory
         </button>
@@ -75,7 +85,11 @@ export function ProjectRail(props: ProjectRailProps) {
         <button
           type="button"
           aria-expanded={workshopExpanded()}
-          onClick={() => setWorkshopExpanded((open) => !open)}
+          onClick={() => setWorkshopExpanded((open) => {
+            const next = !open;
+            persistExpansion("workshop", next);
+            return next;
+          })}
         >
           Workshop
         </button>
