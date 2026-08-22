@@ -3,17 +3,35 @@
    §Design Tokens), with three deliberate departures from it, each recorded below:
    text contrast, the type scale, and the fixed window size. */
 
-:root {
-  /* --- grounds and accents, verbatim from the handoff --- */
-  --bg: #1d2731;
-  --bg-deep: #151d25;
-  --sf: #22303c;
-  --sf2: #293947;
-  --sf3: #314454;
-  --blue: #083c5d;
-  --blue-lit: #0d5480;
-  --ac: #ffbb39;
-  --tx: #eef2f6;
+[data-theme='dark'] {
+  /* Theme values. New styles name the role; v2 aliases keep existing styles stable. */
+  --surface-ground: #1d2731;
+  --surface-chrome: #151d25;
+  --surface-raised: #22303c;
+  --surface-selected: #293947;
+  --surface-elevated: #314454;
+  --avatar-ground: #083c5d;
+  --avatar-ground-lit: #0d5480;
+  --text-primary: #eef2f6;
+  --action-attention: #ffbb39;
+  --status-working: #9184d9;
+  --status-success: #68ad91;
+  --status-danger: #df8a7d;
+  --data-1: #35495a;
+  --data-2: #4e6c81;
+  --data-3: #62869e;
+  --data-hi: #8fb8d6;
+
+  --bg: var(--surface-ground);
+  --bg-deep: var(--surface-chrome);
+  --sf: var(--surface-raised);
+  --sf2: var(--surface-selected);
+  --sf3: var(--surface-elevated);
+  --blue: var(--avatar-ground);
+  --blue-lit: var(--avatar-ground-lit);
+  --ac: var(--action-attention);
+  --ac2: var(--status-working);
+  --tx: var(--text-primary);
 
   /* --- secondary text: raised for contrast ---
      The handoff draws --mu at .56 and --mu2 at .34. Measured against the five
@@ -21,18 +39,22 @@
      surface in the app, and it carries most of the metadata. Both are raised to
      the alpha that clears 4.5:1 everywhere. --mu2 stays a step below --mu so the
      hierarchy survives; it just no longer buys the step with legibility. */
-  --mu: rgba(238,242,246,.78);
-  --mu2: rgba(238,242,246,.62);
+  --text-secondary: rgba(238,242,246,.78);
+  --text-muted: rgba(238,242,246,.62);
+  --mu: var(--text-secondary);
+  --mu2: var(--text-muted);
 
   /* Hairlines are decoration, not text: 3:1 is the bar and they clear it. */
-  --line: rgba(238,242,246,.14);
-  --line2: rgba(238,242,246,.24);
+  --border-subtle: rgba(238,242,246,.14);
+  --border-strong: rgba(238,242,246,.24);
+  --line: var(--border-subtle);
+  --line2: var(--border-strong);
 
   /* --- status colours, lifted to 4.5:1 on --sf and --sf2 ---
      The handoff's #4fa07f and #d4614f measure 3.77 and 3.18 on --sf2, where both
      are used for text. These are the same hues lightened until they pass. */
-  --ok: #68ad91;
-  --bad: #df8a7d;
+  --ok: var(--status-success);
+  --bad: var(--status-danger);
   /* The original pair, kept for fills and rings where nothing has to be read. */
   --ok-solid: #4fa07f;
   --bad-solid: #d4614f;

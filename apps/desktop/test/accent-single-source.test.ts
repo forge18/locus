@@ -19,7 +19,7 @@ describe('accent-single-source', () => {
 
   it('derives every accent tint from --ac rather than restating it', () => {
     const derived = ['--ac-ring', '--ac-ring-soft', '--ac-wash', '--ac-deep', '--ac-pale', '--ac-ink']
-    const root = rules(tokens).find((r) => r.selector === ':root')!
+    const root = rules(tokens).find((r) => r.selector === "[data-theme='dark']")!
     for (const name of derived) {
       const value = root.body.match(new RegExp(`${name}:\\s*([^;]+)`))?.[1]
       expect(value, `missing ${name}`).toBeDefined()
