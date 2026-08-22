@@ -2,7 +2,12 @@ import { createMemo, createSignal, For } from "solid-js";
 import { V2_GLOBAL_ROUTE_KINDS } from "../nav/v2-route-kinds";
 
 const PROJECT_RAIL_LINKS = ["Plan", "Develop", "Automate", "Review"] as const;
-const MEMORY_ROUTES = V2_GLOBAL_ROUTE_KINDS.filter((route) => route.id.startsWith("memory-"));
+const MEMORY_ROUTES = V2_GLOBAL_ROUTE_KINDS.filter((route) =>
+  route.id.startsWith("memory-"),
+);
+const WORKSHOP_ROUTES = V2_GLOBAL_ROUTE_KINDS.filter((route) =>
+  route.id.startsWith("workshop-"),
+);
 
 export interface ProjectRailProps {
   selectedProject: string;
@@ -14,6 +19,7 @@ export function ProjectRail(props: ProjectRailProps) {
   const [filter, setFilter] = createSignal("");
   const [activeProject, setActiveProject] = createSignal(0);
   const [memoryExpanded, setMemoryExpanded] = createSignal(false);
+  const [workshopExpanded, setWorkshopExpanded] = createSignal(false);
   const projects = createMemo(() => {
     const needle = filter().trim().toLowerCase();
     return (props.projects ?? [props.selectedProject]).filter((project) =>
@@ -48,11 +54,39 @@ export function ProjectRail(props: ProjectRailProps) {
         </For>
       </div>
       <section>
-        <button type="button" aria-expanded={memoryExpanded()} onClick={() => setMemoryExpanded((open) => !open)}>
+        <button
+          type="button"
+          aria-expanded={memoryExpanded()}
+          onClick={() => setMemoryExpanded((open) => !open)}
+        >
           Memory
         </button>
         <div data-testid="memory-rail-links" hidden={!memoryExpanded()}>
-          <For each={MEMORY_ROUTES}>{(route) => <button type="button">{route.label.replace("Memory ", "")}</button>}</For>
+          <For each={MEMORY_ROUTES}>
+            {(route) => (
+              <button type="button">
+                {route.label.replace("Memory ", "")}
+              </button>
+            )}
+          </For>
+        </div>
+      </section>
+      <section>
+        <button
+          type="button"
+          aria-expanded={workshopExpanded()}
+          onClick={() => setWorkshopExpanded((open) => !open)}
+        >
+          Workshop
+        </button>
+        <div data-testid="workshop-rail-links" hidden={!workshopExpanded()}>
+          <For each={WORKSHOP_ROUTES}>
+            {(route) => (
+              <button type="button">
+                {route.label.replace("Workshop ", "")}
+              </button>
+            )}
+          </For>
         </div>
       </section>
       <section data-testid="selected-project-card">
