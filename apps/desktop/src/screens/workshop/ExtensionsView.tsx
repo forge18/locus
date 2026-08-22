@@ -1,8 +1,8 @@
-import { createSignal, For, onMount, Show } from 'solid-js'
-import { Button } from '../../ui/Button'
-import { Icon } from '../../ui/Icon'
-import { Input } from '../../ui/Input'
-import { Tag } from '../../ui/Tag'
+import { createSignal, For, onMount, Show } from "solid-js";
+import { Button } from "../../ui/Button";
+import { Icon } from "../../ui/Icon";
+import { Input } from "../../ui/Input";
+import { Tag } from "../../ui/Tag";
 import {
   CACHE_READ_RATE,
   DETERMINISM_NOTE,
@@ -14,31 +14,32 @@ import {
   fetchLinterCountFromCore,
   useRecentlyEdited,
   useTypeCards,
-} from '../../data/extensions'
-import { useExtensionCounts, useHarnessSummary } from '../../data/harnesses'
-import type { View } from '../../nav'
+} from "../../data/extensions";
+import { useExtensionCounts, useHarnessSummary } from "../../data/harnesses";
+import type { View } from "../../nav";
 
 export interface ExtensionsViewProps {
-  onNavigate: (view: View) => void
+  onNavigate: (view: View) => void;
 }
 
 /**
  * The one surface. Every native/downgraded figure here is computed from
- * harnesses/*.toml — the handoff's own copy said 88/27 and the files say 96/33,
- * which is exactly what a literal would have frozen in place.
+ * harnesses/*.toml, so registry changes cannot leave the interface stale.
  */
 export function ExtensionsView(props: ExtensionsViewProps) {
-  const counts = useExtensionCounts()
-  const summary = useHarnessSummary()
-  const [linterCount, setLinterCount] = createSignal<number>()
+  const counts = useExtensionCounts();
+  const summary = useHarnessSummary();
+  const [linterCount, setLinterCount] = createSignal<number>();
 
   onMount(() => {
-    void fetchLinterCountFromCore().then(setLinterCount).catch(() => {})
-  })
+    void fetchLinterCountFromCore()
+      .then(setLinterCount)
+      .catch(() => {});
+  });
 
-  const countFor = (type: string) => counts.find((c) => c.type === type)!
+  const countFor = (type: string) => counts.find((c) => c.type === type)!;
   const displayedCount = (type: string, fallback: number) =>
-    type === 'linters' ? (linterCount() ?? fallback) : fallback
+    type === "linters" ? (linterCount() ?? fallback) : fallback;
 
   return (
     <div class="workshop" data-testid="extensions">
@@ -53,7 +54,7 @@ export function ExtensionsView(props: ExtensionsViewProps) {
           <Input
             data-testid="extensions-search"
             placeholder={SEARCH_PLACEHOLDER}
-            style={{ width: '180px' }}
+            style={{ width: "180px" }}
           />
           <Button variant="primary" data-testid="extensions-new">
             <Icon name="plus" size={11} />
@@ -65,16 +66,18 @@ export function ExtensionsView(props: ExtensionsViewProps) {
       <div class="type-grid" data-testid="type-grid">
         <For each={useTypeCards()}>
           {(card) => {
-            const count = countFor(card.type)
-            const dominated = count.downgraded > count.native
-            const entry = card.type === ENTRY_TYPE
+            const count = countFor(card.type);
+            const dominated = count.downgraded > count.native;
+            const entry = card.type === ENTRY_TYPE;
             return (
               <button
                 type="button"
-                class={['type-card', entry ? 'type-card-entry' : ''].filter(Boolean).join(' ')}
+                class={["type-card", entry ? "type-card-entry" : ""]
+                  .filter(Boolean)
+                  .join(" ")}
                 data-testid={`type-card-${card.type}`}
-                data-entry={entry ? 'true' : undefined}
-                onClick={() => entry && props.onNavigate('agents')}
+                data-entry={entry ? "true" : undefined}
+                onClick={() => entry && props.onNavigate("agents")}
               >
                 <div class="type-card-head">
                   <Icon name={card.icon} size={12} />
@@ -85,21 +88,27 @@ export function ExtensionsView(props: ExtensionsViewProps) {
                     </span>
                   </Show>
                 </div>
-                <span class="type-card-count" data-testid={`type-count-${card.type}`}>
+                <span
+                  class="type-card-count"
+                  data-testid={`type-count-${card.type}`}
+                >
                   {displayedCount(card.type, card.count)}
                 </span>
                 <span class="type-card-desc">{card.description}</span>
                 <span
-                  class={['type-card-foot', dominated ? 'type-card-foot-bad' : '']
+                  class={[
+                    "type-card-foot",
+                    dominated ? "type-card-foot-bad" : "",
+                  ]
                     .filter(Boolean)
-                    .join(' ')}
+                    .join(" ")}
                   data-testid={`type-native-${card.type}`}
-                  data-dominated={dominated ? 'true' : undefined}
+                  data-dominated={dominated ? "true" : undefined}
                 >
                   {count.native} native · {count.downgraded} downgraded
                 </span>
               </button>
-            )
+            );
           }}
         </For>
       </div>
@@ -120,27 +129,40 @@ export function ExtensionsView(props: ExtensionsViewProps) {
 
       <section class="panel materialization" data-testid="materialization">
         <span class="panel-title">Materialization</span>
-        <span class="ws-note" style={{ 'max-width': 'none' }} data-testid="determinism-note">
+        <span
+          class="ws-note"
+          style={{ "max-width": "none" }}
+          data-testid="determinism-note"
+        >
           {DETERMINISM_NOTE}
         </span>
         <div class="materialization-figures">
-          <div class="materialization-figure" data-testid="materialization-entries">
+          <div
+            class="materialization-figure"
+            data-testid="materialization-entries"
+          >
             <span class="materialization-value">{summary.entries}</span>
             <span class="materialization-label">entries</span>
           </div>
-          <div class="materialization-figure" data-testid="materialization-downgrades">
+          <div
+            class="materialization-figure"
+            data-testid="materialization-downgrades"
+          >
             <span class="materialization-value">{summary.downgrades}</span>
             <span class="materialization-label">downgrades</span>
           </div>
-          <div class="materialization-figure" data-testid="materialization-cache">
+          <div
+            class="materialization-figure"
+            data-testid="materialization-cache"
+          >
             <span class="materialization-value">{CACHE_READ_RATE}</span>
             <span class="materialization-label">cache read</span>
           </div>
         </div>
       </section>
     </div>
-  )
+  );
 }
 
 /** Default export so the view can be code-split at the route boundary. */
-export default ExtensionsView
+export default ExtensionsView;
