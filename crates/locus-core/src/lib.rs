@@ -25,6 +25,7 @@ pub mod planning;
 pub mod provider;
 pub mod registry;
 pub mod restore;
+pub mod routing;
 pub mod run;
 pub mod sandbox;
 pub mod session;
