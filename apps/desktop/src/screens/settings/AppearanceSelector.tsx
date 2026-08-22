@@ -1,15 +1,20 @@
-import { createSignal, For } from 'solid-js'
-import { INSTALLED_THEMES, persistTheme, savedTheme, type ThemeId } from '../../styles/theme'
+import { createSignal, For } from "solid-js";
+import {
+  INSTALLED_THEMES,
+  persistTheme,
+  savedTheme,
+  type ThemeId,
+} from "../../styles/theme";
 
-const label: Record<ThemeId, string> = { dark: 'Dark', light: 'Light' }
+const label: Record<ThemeId, string> = { dark: "Dark", light: "Light" };
 
 /** Install-wide Appearance preference. It stores only the stable theme identifier. */
 export function AppearanceSelector() {
-  const [theme, setTheme] = createSignal(savedTheme(window.localStorage))
+  const [theme, setTheme] = createSignal(savedTheme(window.localStorage));
 
   const select = (next: ThemeId) => {
-    setTheme(persistTheme(window.localStorage, document.documentElement, next))
-  }
+    setTheme(persistTheme(window.localStorage, document.documentElement, next));
+  };
 
   return (
     <section class="settings-section" data-testid="appearance-theme">
@@ -25,7 +30,7 @@ export function AppearanceSelector() {
               <button
                 type="button"
                 class="settings-select"
-                classList={{ 'settings-theme-selected': theme() === id }}
+                classList={{ "settings-theme-selected": theme() === id }}
                 aria-pressed={theme() === id}
                 onClick={() => select(id)}
               >
@@ -36,5 +41,5 @@ export function AppearanceSelector() {
         </div>
       </div>
     </section>
-  )
+  );
 }
