@@ -13,6 +13,7 @@ pub mod board;
 pub mod bus;
 pub mod daemon;
 pub mod dispatch;
+pub mod harness;
 pub mod invoke;
 pub mod ipc;
 pub mod lint;
