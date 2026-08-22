@@ -15,13 +15,13 @@ describe('plan/live-line', () => {
     expect(usePlanLiveLine()).toContain('re-opening')
   })
 
-  it('pulses an accent dot beside it', () => {
+  it('pulses a working-state dot beside it', () => {
     const { getByTestId } = mount()
     const dot = getByTestId('plan-live-dot')
     expect(dot.className).toContain('pulse')
     expect(
       rules(read('shell/shell.css')).find((r) => r.selector === '.live-dot')!.body,
-    ).toContain('background: var(--ac)')
+    ).toContain('background: var(--ac2)')
   })
 
   it('reuses the one pulse keyframe rather than adding another', () => {
