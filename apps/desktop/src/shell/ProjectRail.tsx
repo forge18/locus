@@ -62,7 +62,9 @@ export function ProjectRail(props: ProjectRailProps) {
         onKeyDown={(event) => {
           if (event.key === "ArrowDown") {
             event.preventDefault();
-            setActiveGlobalRoute((index) => (index + 1) % V2_GLOBAL_ROUTE_KINDS.length);
+            setActiveGlobalRoute(
+              (index) => (index + 1) % V2_GLOBAL_ROUTE_KINDS.length,
+            );
           }
         }}
       >
@@ -73,7 +75,10 @@ export function ProjectRail(props: ProjectRailProps) {
         />
         <For each={V2_GLOBAL_ROUTE_KINDS}>
           {(route, index) => (
-            <button type="button" tabIndex={activeGlobalRoute() === index() ? 0 : -1}>
+            <button
+              type="button"
+              tabIndex={activeGlobalRoute() === index() ? 0 : -1}
+            >
               {route.label}
               {route.id === "inbox" && props.inboxCount ? (
                 <span data-testid="global-rail-inbox-badge">

@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { read, rules } from "../css";
 
 const tokens = read("styles/tokens.css");
-const light = rules(tokens).find((rule) => /\[data-theme=["']light["']\]/.test(rule.selector));
+const light = rules(tokens).find((rule) =>
+  /\[data-theme=["']light["']\]/.test(rule.selector),
+);
 
 describe("theme/light-token-contract", () => {
   it("defines the cool-neutral Light semantic palette under the light theme selector", () => {
