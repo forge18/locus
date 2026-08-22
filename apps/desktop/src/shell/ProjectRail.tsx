@@ -1,8 +1,7 @@
 import { createMemo, createSignal, For } from "solid-js";
-import {
-  V2_GLOBAL_ROUTE_KINDS,
-  V2_PROJECT_ROUTE_KINDS,
-} from "../nav/v2-route-kinds";
+import { V2_GLOBAL_ROUTE_KINDS } from "../nav/v2-route-kinds";
+
+const PROJECT_RAIL_LINKS = ["Plan", "Develop", "Automate", "Review"] as const;
 
 export interface ProjectRailProps {
   selectedProject: string;
@@ -82,8 +81,8 @@ export function ProjectRail(props: ProjectRailProps) {
           </For>
         </div>
         <div data-testid="project-rail-routes">
-          <For each={V2_PROJECT_ROUTE_KINDS}>
-            {(route) => <button type="button">{route.label}</button>}
+          <For each={PROJECT_RAIL_LINKS}>
+            {(label) => <button type="button">{label}</button>}
           </For>
         </div>
       </section>
