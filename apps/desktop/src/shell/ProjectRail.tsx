@@ -14,18 +14,29 @@ const WORKSHOP_ROUTES = V2_GLOBAL_ROUTE_KINDS.filter((route) =>
 export interface ProjectRailProps {
   selectedProject: string;
   inboxCount?: number;
+  dispatchState?: "ready" | "working" | "blocked";
   projects?: readonly string[];
 }
 
 export function ProjectRail(props: ProjectRailProps) {
-  const savedExpansion = () => JSON.parse(localStorage.getItem(RAIL_EXPANSION_STORAGE_KEY) ?? "{}") as Record<string, boolean>;
+  const savedExpansion = () =>
+    JSON.parse(
+      localStorage.getItem(RAIL_EXPANSION_STORAGE_KEY) ?? "{}",
+    ) as Record<string, boolean>;
   const persistExpansion = (name: "memory" | "workshop", value: boolean) => {
-    localStorage.setItem(RAIL_EXPANSION_STORAGE_KEY, JSON.stringify({ ...savedExpansion(), [name]: value }));
+    localStorage.setItem(
+      RAIL_EXPANSION_STORAGE_KEY,
+      JSON.stringify({ ...savedExpansion(), [name]: value }),
+    );
   };
   const [filter, setFilter] = createSignal("");
   const [activeProject, setActiveProject] = createSignal(0);
-  const [memoryExpanded, setMemoryExpanded] = createSignal(savedExpansion().memory ?? false);
-  const [workshopExpanded, setWorkshopExpanded] = createSignal(savedExpansion().workshop ?? false);
+  const [memoryExpanded, setMemoryExpanded] = createSignal(
+    savedExpansion().memory ?? false,
+  );
+  const [workshopExpanded, setWorkshopExpanded] = createSignal(
+    savedExpansion().workshop ?? false,
+  );
   const projects = createMemo(() => {
     const needle = filter().trim().toLowerCase();
     return (props.projects ?? [props.selectedProject]).filter((project) =>
@@ -46,6 +57,7 @@ export function ProjectRail(props: ProjectRailProps) {
       data-testid="project-rail"
     >
       <div data-testid="global-rail-routes">
+        <span data-testid="dispatch-dot" data-state={props.dispatchState ?? "ready"} aria-label="Dispatch status" />
         <For each={V2_GLOBAL_ROUTE_KINDS}>
           {(route) => (
             <button type="button">
@@ -63,11 +75,13 @@ export function ProjectRail(props: ProjectRailProps) {
         <button
           type="button"
           aria-expanded={memoryExpanded()}
-          onClick={() => setMemoryExpanded((open) => {
-            const next = !open;
-            persistExpansion("memory", next);
-            return next;
-          })}
+          onClick={() =>
+            setMemoryExpanded((open) => {
+              const next = !open;
+              persistExpansion("memory", next);
+              return next;
+            })
+          }
         >
           Memory
         </button>
@@ -85,11 +99,13 @@ export function ProjectRail(props: ProjectRailProps) {
         <button
           type="button"
           aria-expanded={workshopExpanded()}
-          onClick={() => setWorkshopExpanded((open) => {
-            const next = !open;
-            persistExpansion("workshop", next);
-            return next;
-          })}
+          onClick={() =>
+            setWorkshopExpanded((open) => {
+              const next = !open;
+              persistExpansion("workshop", next);
+              return next;
+            })
+          }
         >
           Workshop
         </button>
