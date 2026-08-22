@@ -1,6 +1,10 @@
+import { RunningPill } from './RunningPill'
+
 export interface AppTitleBarProps {
   categoryLabel: string
   viewLabel: string
+  running: number
+  needsYou: number
 }
 
 export function AppTitleBar(props: AppTitleBarProps) {
@@ -18,6 +22,8 @@ export function AppTitleBar(props: AppTitleBarProps) {
         <span data-testid="title-category">{props.categoryLabel}</span>
         <span data-testid="title-view">{props.viewLabel}</span>
       </div>
+      <div style={{ flex: 1 }} />
+      <RunningPill running={props.running} needsYou={props.needsYou} />
     </div>
   )
 }

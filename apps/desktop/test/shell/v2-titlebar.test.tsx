@@ -7,11 +7,12 @@ const rule = (selector: string) => rules(read('shell/shell.css')).find((candidat
 
 describe('shell/v2-titlebar', () => {
   it('renders the fixed-height desktop title-bar foundation', () => {
-    const { getByTestId } = render(() => <AppTitleBar categoryLabel="Plan" viewLabel="Spec" />)
+    const { getByTestId } = render(() => <AppTitleBar categoryLabel="Plan" viewLabel="Spec" running={8} needsYou={1} />)
 
     expect(getByTestId('app-titlebar').className).toContain('titlebar')
     expect(getByTestId('traffic-lights').querySelectorAll('span')).toHaveLength(3)
     expect(getByTestId('wordmark').textContent).toBe('Locus')
+    expect(getByTestId('running-pill').textContent).toContain('8 running')
     expect(rule('.titlebar')?.body).toContain('height: 42px')
   })
 })
