@@ -4,6 +4,7 @@ import { EmptyPane } from './ui/EmptyPane'
 import { SkeletonRows } from './ui/SkeletonRows'
 import { mountIconSprite } from './ui/sprite'
 import { createNavStore } from './nav'
+import { applyTheme, savedTheme } from './styles/theme'
 
 import './styles/app.css'
 
@@ -31,7 +32,10 @@ const HarnessesView = lazy(() => import('./screens/workshop/HarnessesView'))
 
 function App() {
   const nav = createNavStore()
-  onMount(() => mountIconSprite())
+  onMount(() => {
+    applyTheme(document.documentElement, savedTheme(window.localStorage))
+    mountIconSprite()
+  })
 
   return (
     <Shell nav={nav}>

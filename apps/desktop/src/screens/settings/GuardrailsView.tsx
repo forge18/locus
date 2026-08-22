@@ -1,6 +1,7 @@
 import { For, Show } from 'solid-js'
 import { PRIORITY_METHODS, SETTINGS_NAVIGATION, useGuardrails } from '../../data/guardrails'
 import type { GuardrailControl } from '../../fixtures/settings-guardrails'
+import { AppearanceSelector } from './AppearanceSelector'
 
 function Stepper(props: { id: string; control: Extract<GuardrailControl, { kind: 'stepper' }> }) {
   return (
@@ -96,6 +97,7 @@ export function GuardrailsView() {
             </p>
           </header>
 
+          <AppearanceSelector />
           <For each={useGuardrails()}>
             {(section) => (
               <section class="settings-section" data-testid={`settings-section-${section.id}`}>
