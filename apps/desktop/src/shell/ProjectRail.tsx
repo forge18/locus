@@ -31,6 +31,7 @@ export function ProjectRail(props: ProjectRailProps) {
   };
   const [filter, setFilter] = createSignal("");
   const [activeProject, setActiveProject] = createSignal(0);
+  const [activeGlobalRoute, setActiveGlobalRoute] = createSignal(0);
   const [memoryExpanded, setMemoryExpanded] = createSignal(
     savedExpansion().memory ?? false,
   );
@@ -56,11 +57,23 @@ export function ProjectRail(props: ProjectRailProps) {
       class="project-rail"
       data-testid="project-rail"
     >
-      <div data-testid="global-rail-routes">
-        <span data-testid="dispatch-dot" data-state={props.dispatchState ?? "ready"} aria-label="Dispatch status" />
+      <div
+        data-testid="global-rail-routes"
+        onKeyDown={(event) => {
+          if (event.key === "ArrowDown") {
+            event.preventDefault();
+            setActiveGlobalRoute((index) => (index + 1) % V2_GLOBAL_ROUTE_KINDS.length);
+          }
+        }}
+      >
+        <span
+          data-testid="dispatch-dot"
+          data-state={props.dispatchState ?? "ready"}
+          aria-label="Dispatch status"
+        />
         <For each={V2_GLOBAL_ROUTE_KINDS}>
-          {(route) => (
-            <button type="button">
+          {(route, index) => (
+            <button type="button" tabIndex={activeGlobalRoute() === index() ? 0 : -1}>
               {route.label}
               {route.id === "inbox" && props.inboxCount ? (
                 <span data-testid="global-rail-inbox-badge">
