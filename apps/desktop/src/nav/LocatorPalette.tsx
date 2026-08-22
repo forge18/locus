@@ -1,10 +1,19 @@
-import { createSignal } from 'solid-js'
+import { createSignal, For } from 'solid-js'
 import { Show } from 'solid-js'
 import { Sheet } from '../ui/Sheet'
 import { Input } from '../ui/Input'
 import { InlineError } from '../ui/InlineError'
 import { Button } from '../ui/Button'
 import { LOCATOR_SCHEME } from './locator'
+import { formatV2Locator } from './v2-locator'
+import { V2_GLOBAL_ROUTE_KINDS } from './v2-route-kinds'
+
+export function v2PaletteDestinations() {
+  return V2_GLOBAL_ROUTE_KINDS.slice(0, 4).map((route) => ({
+    label: route.label,
+    locator: formatV2Locator(route.id),
+  }))
+}
 
 export interface LocatorPaletteProps {
   open: boolean
@@ -44,6 +53,15 @@ export function LocatorPalette(props: LocatorPaletteProps) {
             if (e.key === 'Enter') submit()
           }}
         />
+        <div aria-label="Suggested destinations" data-testid="palette-results">
+          <For each={v2PaletteDestinations()}>
+            {(destination) => (
+              <button type="button" onClick={() => props.onResolve(destination.locator)}>
+                {destination.label}
+              </button>
+            )}
+          </For>
+        </div>
         <Show when={error()}>
           <InlineError
             cause={error()!}
