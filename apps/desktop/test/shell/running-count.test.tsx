@@ -12,11 +12,11 @@ describe('shell/running-count', () => {
     expect(getByTestId('running-count').textContent).toContain('8 running')
   })
 
-  it('pulses an accent dot beside it', () => {
+  it('pulses the machine-working dot beside it', () => {
     const { getByTestId } = render(() => <RunningCount count={8} />)
     const dot = getByTestId('running-dot')
     expect(dot.className).toContain('pulse')
-    expect(rule('.live-dot')!.body).toContain('background: var(--ac)')
+    expect(rule('.live-dot')!.body).toContain('background: var(--ac2)')
   })
 
   it('animates with the shared keyframe rather than one of its own', () => {

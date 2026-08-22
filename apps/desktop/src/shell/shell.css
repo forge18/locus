@@ -85,6 +85,7 @@
 }
 .project-filter-count { font-size: var(--t-meta); color: var(--mu2); }
 
+.running-pill-wrap { position: relative; }
 .running-count {
   display: flex;
   align-items: center;
@@ -96,7 +97,17 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--ac);
+  background: var(--ac2);
+}
+.running-popover {
+  position: absolute;
+  top: calc(100% + var(--g-2));
+  right: 0;
+  z-index: 1;
+  padding: var(--g-3);
+  border: 1px solid var(--line2);
+  border-radius: var(--r-md);
+  background: var(--sf2);
 }
 
 /* ------------------------------------------------------------------ Rail --- */
