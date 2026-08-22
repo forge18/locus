@@ -8,7 +8,9 @@ describe("theme/all-installed", () => {
   it("declares one complete token value set for every installed theme", () => {
     for (const theme of INSTALLED_THEMES) {
       const rule = themeRules.find((candidate) =>
-        new RegExp(`\\[data-theme=["']${theme}["']\\]`).test(candidate.selector),
+        new RegExp(`\\[data-theme=["']${theme}["']\\]`).test(
+          candidate.selector,
+        ),
       );
       expect(rule, `${theme} selector`).toBeDefined();
       for (const token of [

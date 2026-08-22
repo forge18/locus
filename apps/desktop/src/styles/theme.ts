@@ -19,12 +19,16 @@ export interface ThemeRegistration {
   values: Readonly<Record<(typeof REQUIRED_THEME_VALUES)[number], string>>;
 }
 
-export function registerThemes(themes: readonly ThemeRegistration[]): readonly ThemeRegistration[] {
+export function registerThemes(
+  themes: readonly ThemeRegistration[],
+): readonly ThemeRegistration[] {
   const ids = new Set<string>();
   for (const theme of themes) {
-    if (!theme.id || ids.has(theme.id) || !theme.fixture) throw new Error("theme needs a unique id and fixture");
+    if (!theme.id || ids.has(theme.id) || !theme.fixture)
+      throw new Error("theme needs a unique id and fixture");
     for (const token of REQUIRED_THEME_VALUES) {
-      if (!theme.values[token]) throw new Error(`${theme.id} is missing ${token}`);
+      if (!theme.values[token])
+        throw new Error(`${theme.id} is missing ${token}`);
     }
     ids.add(theme.id);
   }
