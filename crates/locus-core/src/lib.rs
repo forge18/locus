@@ -33,3 +33,4 @@ pub mod telemetry;
 pub mod testkit;
 pub mod tools;
 pub mod wiki;
+pub mod workflow;
