@@ -1,28 +1,46 @@
-import { createMemo, createSignal, For } from 'solid-js'
-import { V2_GLOBAL_ROUTE_KINDS, V2_PROJECT_ROUTE_KINDS } from '../nav/v2-route-kinds'
+import { createMemo, createSignal, For } from "solid-js";
+import {
+  V2_GLOBAL_ROUTE_KINDS,
+  V2_PROJECT_ROUTE_KINDS,
+} from "../nav/v2-route-kinds";
 
 export interface ProjectRailProps {
-  selectedProject: string
-  inboxCount?: number
-  projects?: readonly string[]
+  selectedProject: string;
+  inboxCount?: number;
+  projects?: readonly string[];
 }
 
 export function ProjectRail(props: ProjectRailProps) {
-  const [filter, setFilter] = createSignal('')
+  const [filter, setFilter] = createSignal("");
+  const [activeProject, setActiveProject] = createSignal(0);
   const projects = createMemo(() => {
-    const needle = filter().trim().toLowerCase()
-    return (props.projects ?? [props.selectedProject]).filter((project) => project.toLowerCase().includes(needle))
-  })
+    const needle = filter().trim().toLowerCase();
+    return (props.projects ?? [props.selectedProject]).filter((project) =>
+      project.toLowerCase().includes(needle),
+    );
+  });
+
+  const moveActiveProject = (direction: 1 | -1) => {
+    const count = projects().length;
+    if (!count) return;
+    setActiveProject((current) => (current + direction + count) % count);
+  };
 
   return (
-    <nav aria-label="Application navigation" class="project-rail" data-testid="project-rail">
+    <nav
+      aria-label="Application navigation"
+      class="project-rail"
+      data-testid="project-rail"
+    >
       <div data-testid="global-rail-routes">
         <For each={V2_GLOBAL_ROUTE_KINDS}>
           {(route) => (
             <button type="button">
               {route.label}
-              {route.id === 'inbox' && props.inboxCount ? (
-                <span data-testid="global-rail-inbox-badge">{props.inboxCount}</span>
+              {route.id === "inbox" && props.inboxCount ? (
+                <span data-testid="global-rail-inbox-badge">
+                  {props.inboxCount}
+                </span>
               ) : null}
             </button>
           )}
@@ -35,15 +53,40 @@ export function ProjectRail(props: ProjectRailProps) {
           data-testid="project-switcher-filter"
           aria-label="Filter projects"
           value={filter()}
-          onInput={(event) => setFilter(event.currentTarget.value)}
+          onInput={(event) => {
+            setFilter(event.currentTarget.value);
+            setActiveProject(0);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "ArrowDown") {
+              event.preventDefault();
+              moveActiveProject(1);
+            }
+            if (event.key === "ArrowUp") {
+              event.preventDefault();
+              moveActiveProject(-1);
+            }
+          }}
         />
         <div data-testid="project-switcher-results">
-          <For each={projects()}>{(project) => <button type="button">{project}</button>}</For>
+          <For each={projects()}>
+            {(project, index) => (
+              <button
+                type="button"
+                data-testid={`project-switcher-option-${project}`}
+                aria-selected={activeProject() === index()}
+              >
+                {project}
+              </button>
+            )}
+          </For>
         </div>
         <div data-testid="project-rail-routes">
-          <For each={V2_PROJECT_ROUTE_KINDS}>{(route) => <button type="button">{route.label}</button>}</For>
+          <For each={V2_PROJECT_ROUTE_KINDS}>
+            {(route) => <button type="button">{route.label}</button>}
+          </For>
         </div>
       </section>
     </nav>
-  )
+  );
 }
