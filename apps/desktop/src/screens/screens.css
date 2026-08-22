@@ -1502,3 +1502,139 @@
   font-size: var(--t-label);
   color: var(--mu2);
 }
+
+/* --------------------------------------------------------------- Settings --- */
+.settings { display: flex; height: 100%; min-height: 0; }
+.settings-rail {
+  width: 196px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 12px 8px;
+  border-right: 1px solid var(--line);
+  background: var(--bg-deep);
+}
+.settings-rail h1 {
+  margin: 0;
+  padding: 4px 10px 10px;
+  color: var(--tx);
+  font-size: var(--t-title);
+  font-weight: 500;
+}
+.settings-rail nav { display: flex; flex-direction: column; gap: 1px; }
+.settings-nav-item {
+  padding: 7px 10px;
+  border: 0;
+  border-radius: var(--r-card);
+  background: transparent;
+  color: var(--mu);
+  font: inherit;
+  font-size: var(--t-body);
+  text-align: left;
+}
+.settings-nav-item:hover { color: var(--tx); }
+.settings-nav-active {
+  background: var(--sf2);
+  box-shadow: var(--ring-sel);
+  color: var(--tx);
+}
+.settings-rail p {
+  margin: auto 0 0;
+  padding: 11px 10px;
+  border-top: 1px solid var(--line);
+  color: var(--mu2);
+  font-size: var(--t-meta);
+  line-height: 1.5;
+}
+.settings-body { flex: 1; min-width: 0; overflow: auto; padding: 18px 24px 28px; }
+.settings-content { max-width: 820px; }
+.settings-head h2 { margin: 0; color: var(--tx); font-size: 19px; font-weight: 500; }
+.settings-head p {
+  max-width: 640px;
+  margin: 6px 0 0;
+  color: var(--mu);
+  font-size: var(--t-body);
+  line-height: 1.6;
+}
+.settings-section h3 {
+  margin: 0;
+  padding: 22px 0 6px;
+  color: var(--mu2);
+  font-size: var(--t-label);
+  font-weight: 500;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+}
+.settings-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+}
+.settings-copy { flex: 1; min-width: 0; }
+.settings-copy > span { color: var(--tx); font-size: var(--t-body); }
+.settings-copy p {
+  max-width: 520px;
+  margin: 4px 0 0;
+  color: var(--mu);
+  font-size: var(--t-row);
+  line-height: 1.55;
+}
+.settings-control { flex: none; padding-top: 1px; }
+.settings-stepper, .settings-select {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  border: 1px solid var(--line2);
+  border-radius: var(--r-card);
+  background: var(--sf);
+}
+.settings-stepper button {
+  width: 26px;
+  border: 0;
+  background: transparent;
+  color: var(--mu2);
+  font: inherit;
+  font-size: 15px;
+}
+.settings-stepper span { min-width: 52px; color: var(--tx); font-size: var(--t-body); text-align: center; }
+.settings-select {
+  gap: 9px;
+  padding: 0 10px;
+  color: var(--tx);
+  font-family: var(--fm);
+  font-size: var(--t-body);
+}
+.settings-select span { color: var(--mu2); font-family: inherit; }
+.settings-toggle {
+  position: relative;
+  width: 38px;
+  height: 22px;
+  border: 0;
+  border-radius: 11px;
+  background: var(--sf3);
+}
+.settings-toggle span {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--mu);
+}
+.settings-toggle[data-on='true'] { background: var(--ac2); }
+.settings-toggle[data-on='true'] span { right: 3px; left: auto; background: var(--bg); }
+.settings-priority-options {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 520px;
+  margin-top: 8px;
+  color: var(--mu2);
+  font-size: var(--t-meta);
+  line-height: 1.45;
+}
+.settings-priority-options .mono { color: var(--mu); }
