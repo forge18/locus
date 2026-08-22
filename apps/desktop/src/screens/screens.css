@@ -882,6 +882,27 @@
 
 /* ---------------------------------------------------------------- Kanban --- */
 .kanban { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.automate-view-switcher {
+  flex: none;
+  display: inline-flex;
+  align-self: flex-start;
+  margin: 10px 15px 0;
+  overflow: hidden;
+  border: 1px solid var(--line2);
+  border-radius: var(--r-sm);
+}
+.automate-view-tab {
+  padding: 4px 10px;
+  border: 0;
+  border-right: 1px solid var(--line2);
+  background: transparent;
+  color: var(--mu2);
+  font-family: inherit;
+  font-size: var(--t-meta);
+  cursor: default;
+}
+.automate-view-tab:last-child { border-right: 0; }
+.automate-view-tab[aria-pressed='true'] { background: var(--sf3); color: var(--tx); }
 .kanban-head {
   flex: none;
   display: flex;
@@ -936,7 +957,9 @@
 .task-card-approval-line { color: var(--ac); }
 
 /* ---------------------------------------------------------------- Agents --- */
-.agents { display: flex; height: 100%; min-height: 0; }
+.agents { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.agents .automate-view-switcher { margin-bottom: 10px; }
+.agents-body { display: flex; flex: 1; min-height: 0; }
 
 .session-list { border-right: 1px solid var(--line); }
 .session-list-head {

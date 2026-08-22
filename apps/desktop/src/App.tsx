@@ -61,10 +61,10 @@ function App() {
             <DevelopView />
           </Match>
           <Match when={nav.view() === 'board'}>
-            <KanbanView />
+            <KanbanView onShowAgents={() => nav.go('sessions')} />
           </Match>
           <Match when={nav.view() === 'sessions'}>
-            <AgentsView />
+            <AgentsView onShowKanban={() => nav.go('board')} />
           </Match>
           <Match when={nav.view() === 'telemetry'}>
             <TelemetryView />
