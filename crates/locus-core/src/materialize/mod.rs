@@ -4,7 +4,7 @@
 //! declarations to an authored extension set without naming any individual harness.
 
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     fs,
     io::{self, Read, Write},
     path::{Component, Path, PathBuf},
@@ -79,9 +79,61 @@ pub struct ExtensionSet {
     entries: BTreeMap<String, Vec<ExtensionEntry>>,
 }
 
+/// Project toggles can remove extension groups or individual entries, but cannot add authored
+/// extensions to a run.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProjectExtensionScope {
+    #[serde(default)]
+    disabled_extensions: BTreeSet<String>,
+    #[serde(default)]
+    disabled_entries: BTreeMap<String, BTreeSet<String>>,
+}
+
+impl ProjectExtensionScope {
+    pub fn disable_extension(&mut self, extension: impl Into<String>) {
+        self.disabled_extensions.insert(extension.into());
+    }
+
+    pub fn disable_entry(&mut self, extension: impl Into<String>, entry: impl Into<String>) {
+        self.disabled_entries
+            .entry(extension.into())
+            .or_default()
+            .insert(entry.into());
+    }
+
+    fn includes(&self, extension: &str, entry: &str) -> bool {
+        !self.disabled_extensions.contains(extension)
+            && !self
+                .disabled_entries
+                .get(extension)
+                .is_some_and(|entries| entries.contains(entry))
+    }
+}
+
 impl ExtensionSet {
     pub fn insert(&mut self, extension: impl Into<String>, entries: Vec<ExtensionEntry>) {
         self.entries.insert(extension.into(), entries);
+    }
+
+    /// Return the authored extensions after applying project-only subtraction.
+    pub fn project_scoped(&self, scope: &ProjectExtensionScope) -> Self {
+        Self {
+            entries: self
+                .entries
+                .iter()
+                .filter(|(extension, _)| !scope.disabled_extensions.contains(*extension))
+                .map(|(extension, entries)| {
+                    (
+                        extension.clone(),
+                        entries
+                            .iter()
+                            .filter(|entry| scope.includes(extension, &entry.name))
+                            .cloned()
+                            .collect(),
+                    )
+                })
+                .collect(),
+        }
     }
 
     pub fn entries(&self, extension: &str) -> &[ExtensionEntry] {
@@ -1060,7 +1112,6 @@ where
 use crate::registry::load_from_directory;
 #[cfg(test)]
 use std::{
-    collections::BTreeSet,
     env,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -1243,6 +1294,50 @@ fn plugin_returns_never_writes() {
     assert!(matches!(error, MaterializeError::PluginWroteDirectly));
     assert!(!root.join("direct").exists());
     let _ = fs::remove_file(host.program);
+}
+
+#[test]
+fn project_scope_subtracts() {
+    use crate::tools::{ImageTool, ProjectToolScope, RoleToolScope, ToolCatalog, TrustedKeyStore};
+
+    let mut extensions = ExtensionSet::default();
+    extensions.insert(
+        "rules",
+        vec![entry("no-secrets.md", "never commit a credential")],
+    );
+    extensions.insert(
+        "skills",
+        vec![entry("verify/SKILL.md", "run the focused check")],
+    );
+    let mut scope = ProjectExtensionScope::default();
+    scope.disable_extension("rules");
+    scope.disable_entry("skills", "verify/SKILL.md");
+
+    let registry = registry();
+    let (tree, _) = materialize(
+        registry.by_name("claude").expect("claude"),
+        &extensions.project_scoped(&scope),
+        root("project-scope"),
+        None,
+    )
+    .expect("materialize scoped extensions");
+    assert!(tree.file("rules/no-secrets.md").is_none());
+    assert!(tree.file("skills/verify/SKILL.md").is_none());
+
+    let mut catalog = ToolCatalog::new(TrustedKeyStore::default());
+    for tool in [
+        ImageTool::new("git", "2.49"),
+        ImageTool::new("rg", "14.1"),
+        ImageTool::new("sqlx", "0.8"),
+    ] {
+        catalog.add_builtin(tool).expect("add built-in");
+    }
+    let project_tools = ProjectToolScope::new(["sqlx"]);
+    let role_tools = RoleToolScope::new(["git"]);
+    assert_eq!(
+        catalog.scoped_image_set(&project_tools, &role_tools),
+        vec![ImageTool::new("rg", "14.1")]
+    );
 }
 
 #[test]

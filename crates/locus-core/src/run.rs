@@ -16,7 +16,10 @@ use serde_json::Value;
 use tokio::sync::broadcast;
 
 use crate::{
-    materialize::{materialize, ExtensionSet, MaterializationReport, MaterializedTree, PluginHost},
+    materialize::{
+        materialize, ExtensionSet, MaterializationReport, MaterializedTree, PluginHost,
+        ProjectExtensionScope,
+    },
     registry::HarnessDefinition,
     sandbox::{
         agent_image_tag, agent_mounts, project_network, Mount, PortAllocator, PtyAttachment,
@@ -25,6 +28,7 @@ use crate::{
     session::{Run, RunStatus},
     store::Store,
     telemetry::{Adapter, CapturedEvent, Event, EventCollector},
+    tools::{ProjectToolScope, RoleToolScope},
 };
 use uuid::Uuid;
 
@@ -513,7 +517,11 @@ pub struct SpawnRequest<'a> {
     /// Per-run capability validated by the daemon socket before it routes any agent request.
     pub run_nonce: String,
     pub base_image_digest: String,
+    /// The catalog-resolved baseline; project and role scopes can only remove from it.
     pub tools: Vec<ToolPin>,
+    pub project_extension_scope: ProjectExtensionScope,
+    pub project_tool_scope: ProjectToolScope,
+    pub role_tool_scope: RoleToolScope,
     pub plugin: Option<&'a PluginHost>,
 }
 
@@ -556,9 +564,12 @@ fn spawn_at_port(
         bail!("only queued runs may be spawned")
     }
 
+    let extensions = request
+        .extensions
+        .project_scoped(&request.project_extension_scope);
     let (config, materialization) = materialize(
         request.harness,
-        request.extensions,
+        &extensions,
         &request.config_root,
         request.plugin,
     )
@@ -571,7 +582,15 @@ fn spawn_at_port(
         bail!("run socket capability nonce is required")
     }
 
-    let image = agent_image_tag(&request.base_image_digest, &request.tools);
+    let tools = request
+        .tools
+        .into_iter()
+        .filter(|tool| {
+            request.project_tool_scope.permits(&tool.name)
+                && request.role_tool_scope.permits(&tool.name)
+        })
+        .collect::<Vec<_>>();
+    let image = agent_image_tag(&request.base_image_digest, &tools);
     let image_disposition = runtime
         .build_or_reuse_image(&image)
         .context("build or reuse agent image")?;
@@ -1309,6 +1328,14 @@ mod spawns {
             "context",
             vec![ExtensionEntry::new("base.md", json!({}), "base context")],
         );
+        extensions.insert(
+            "rules",
+            vec![ExtensionEntry::new(
+                "no-secrets.md",
+                json!({}),
+                "never commit secrets",
+            )],
+        );
         let config_root = root();
         let run_id = Uuid::new_v4();
         let mut run = Run {
@@ -1336,10 +1363,27 @@ mod spawns {
             )]),
             run_nonce: "nonce".into(),
             base_image_digest: "sha256:base".into(),
-            tools: vec![ToolPin {
-                name: "rg".into(),
-                version: "14".into(),
-            }],
+            tools: vec![
+                ToolPin {
+                    name: "git".into(),
+                    version: "2.49".into(),
+                },
+                ToolPin {
+                    name: "rg".into(),
+                    version: "14".into(),
+                },
+                ToolPin {
+                    name: "sqlx".into(),
+                    version: "0.8".into(),
+                },
+            ],
+            project_extension_scope: {
+                let mut scope = ProjectExtensionScope::default();
+                scope.disable_extension("rules");
+                scope
+            },
+            project_tool_scope: ProjectToolScope::new(["sqlx"]),
+            role_tool_scope: RoleToolScope::new(["git"]),
             plugin: None,
         };
         let mut runtime = RecordingRuntime::default();
@@ -1357,6 +1401,7 @@ mod spawns {
         assert_eq!(run.status, RunStatus::Running);
         assert_eq!(spawned.image, image);
         assert!(spawned.config.file("CLAUDE.md").is_some());
+        assert!(spawned.config.file("rules/no-secrets.md").is_none());
         assert_eq!(
             fs::read_to_string(config_root.join("CLAUDE.md")).unwrap(),
             "base context"

@@ -97,6 +97,44 @@ impl ImageTool {
     }
 }
 
+/// Project-level tool removals from the enabled catalog baseline.
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ProjectToolScope {
+    #[serde(default)]
+    disabled_tools: BTreeSet<String>,
+}
+
+impl ProjectToolScope {
+    pub fn new(disabled_tools: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        Self {
+            disabled_tools: disabled_tools.into_iter().map(Into::into).collect(),
+        }
+    }
+
+    pub fn permits(&self, tool: &str) -> bool {
+        !self.disabled_tools.contains(tool)
+    }
+}
+
+/// Workflow roles may further remove tools from the project's effective set.
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct RoleToolScope {
+    #[serde(default)]
+    disabled_tools: BTreeSet<String>,
+}
+
+impl RoleToolScope {
+    pub fn new(disabled_tools: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        Self {
+            disabled_tools: disabled_tools.into_iter().map(Into::into).collect(),
+        }
+    }
+
+    pub fn permits(&self, tool: &str) -> bool {
+        !self.disabled_tools.contains(tool)
+    }
+}
+
 /// Built-ins and verified user tools, with image eligibility held separately from admission.
 pub struct ToolCatalog {
     trusted_keys: TrustedKeyStore,
@@ -167,6 +205,19 @@ impl ToolCatalog {
     /// Return a stable, sorted image set without any unadmitted or disabled tools.
     pub fn enabled_image_set(&self) -> Vec<ImageTool> {
         self.enabled.iter().cloned().collect()
+    }
+
+    /// Apply project then role subtraction to the enabled catalog baseline.
+    pub fn scoped_image_set(
+        &self,
+        project: &ProjectToolScope,
+        role: &RoleToolScope,
+    ) -> Vec<ImageTool> {
+        self.enabled
+            .iter()
+            .filter(|tool| project.permits(&tool.name) && role.permits(&tool.name))
+            .cloned()
+            .collect()
     }
 
     fn admit(&mut self, tool: ImageTool) -> Result<(), ToolAdmissionError> {
