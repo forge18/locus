@@ -13,7 +13,7 @@ export interface LocatorBarProps {
 export function LocatorBar(props: LocatorBarProps) {
   return (
     <button class="locator-bar" data-testid="locator-bar" onClick={props.onOpen} type="button">
-      <Icon name="magnifying-glass" size={12} style={{ color: 'var(--mu2)' }} />
+      <Icon name="magnifying-glass" size={12} style={{ color: 'var(--text-muted)' }} />
       <span class="locator-scheme" data-testid="locator-scheme">
         locus://
       </span>

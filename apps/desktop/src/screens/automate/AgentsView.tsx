@@ -66,7 +66,7 @@ export function AgentsView(props: AgentsViewProps) {
           </span>
           <span style={{ 'margin-left': 'auto', display: 'flex', gap: 'var(--g-3)' }}>
             <Icon name="funnel" size={11} label="Filter" />
-            <Icon name="sort-ascending" size={11} style={{ color: 'var(--ac)' }} label="Sort" />
+            <Icon name="sort-ascending" size={11} style={{ color: 'var(--action-attention)' }} label="Sort" />
           </span>
         </div>
 

@@ -79,7 +79,7 @@ export function TelemetryView() {
   return (
     <div class="telemetry" data-testid="telemetry">
       <div class="tm-search" data-testid="tm-search">
-        <Icon name="magnifying-glass" size={12} style={{ color: 'var(--mu2)' }} />
+        <Icon name="magnifying-glass" size={12} style={{ color: 'var(--text-muted)' }} />
         <span class="tm-query" data-testid="tm-query">
           {SEARCH_QUERY}
         </span>
@@ -193,7 +193,7 @@ export function TelemetryView() {
                       <span class="bar-count">{action.count.toLocaleString('en-US')}</span>
                     </div>
                     <div class="alarm-callout" data-testid="permission-alarm">
-                      <Icon name="warning-octagon" weight="fill" size={12} style={{ 'flex-shrink': 0, color: 'var(--bad)' }} />
+                      <Icon name="warning-octagon" weight="fill" size={12} style={{ 'flex-shrink': 0, color: 'var(--status-danger)' }} />
                       <span>{action.alarm}</span>
                     </div>
                   </>

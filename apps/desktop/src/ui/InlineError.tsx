@@ -27,15 +27,15 @@ export function InlineError(props: InlineErrorProps) {
         gap: 'var(--g-3)',
         padding: 'var(--g-4)',
         'border-radius': 'var(--r-card)',
-        background: 'var(--sf)',
-        'box-shadow': 'inset 0 0 0 1px var(--bad)',
-        color: 'var(--bad)',
+        background: 'var(--surface-raised)',
+        'box-shadow': 'inset 0 0 0 1px var(--status-danger)',
+        color: 'var(--status-danger)',
       }}
     >
       <Icon name="warning-octagon" weight="fill" size={13} style={{ 'flex-shrink': 0, 'margin-top': '1px' }} />
       <div style={{ display: 'flex', 'flex-direction': 'column', gap: '3px' }}>
         <span class="t-body em" data-testid="inline-error-cause">{props.cause}</span>
-        <span class="t-meta" style={{ color: 'var(--mu)' }} data-testid="inline-error-next">
+        <span class="t-meta" style={{ color: 'var(--text-secondary)' }} data-testid="inline-error-next">
           {props.next}
         </span>
       </div>

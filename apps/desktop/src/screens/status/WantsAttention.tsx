@@ -12,9 +12,9 @@ export interface WantsAttentionProps {
  * producing no events at all, and confusing them wastes a person on the wrong one.
  */
 const KIND_ICON: Record<AttentionKind, { name: string; weight: 'regular' | 'fill'; color: string }> = {
-  stuck: { name: 'warning-octagon', weight: 'fill', color: 'var(--bad)' },
-  idle: { name: 'moon', weight: 'regular', color: 'var(--mu)' },
-  waiting: { name: 'hourglass-medium', weight: 'regular', color: 'var(--mu)' },
+  stuck: { name: 'warning-octagon', weight: 'fill', color: 'var(--status-danger)' },
+  idle: { name: 'moon', weight: 'regular', color: 'var(--text-secondary)' },
+  waiting: { name: 'hourglass-medium', weight: 'regular', color: 'var(--text-secondary)' },
 }
 
 export function WantsAttention(props: WantsAttentionProps) {

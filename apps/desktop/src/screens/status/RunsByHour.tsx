@@ -5,7 +5,7 @@ export interface RunsByHourProps {
   hours: HourBar[]
 }
 
-/** Accent passed, --bad failed, --blue-lit aborted, stacked bottom-up. */
+/** Accent passed, --status-danger failed, --avatar-ground-lit aborted, stacked bottom-up. */
 const SEGMENTS = [
   { key: 'passed', class: 'hour-seg-passed' },
   { key: 'failed', class: 'hour-seg-failed' },

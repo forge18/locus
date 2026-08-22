@@ -37,7 +37,7 @@ export function TaskCard(props: TaskCardProps) {
           <Icon
             name="prohibit-inset"
             size={12}
-            style={{ color: 'var(--bad)', 'flex-shrink': 0, 'margin-top': '1px' }}
+            style={{ color: 'var(--status-danger)', 'flex-shrink': 0, 'margin-top': '1px' }}
             label="Blocked"
           />
         </Show>

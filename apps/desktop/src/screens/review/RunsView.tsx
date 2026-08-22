@@ -63,7 +63,7 @@ export function RunsView() {
     <div class="runs" data-testid="runs">
       <div class="runs-head" data-testid="runs-head">
         <div class="tm-search" style={{ flex: '1', 'max-width': '420px' }} data-testid="runs-search">
-          <Icon name="magnifying-glass" size={12} style={{ color: 'var(--mu2)' }} />
+          <Icon name="magnifying-glass" size={12} style={{ color: 'var(--text-muted)' }} />
           <span class="tm-search-note" style={{ 'margin-left': '0' }} data-testid="runs-search-note">
             {SEARCH_NOTE}
           </span>

@@ -66,7 +66,7 @@ export function InboxView(props: InboxViewProps) {
         <div class="inbox-section" style={{ 'margin-top': 'var(--g-4)' }}>
           <span
             class="inbox-section-title"
-            style={{ color: 'var(--mu2)' }}
+            style={{ color: 'var(--text-muted)' }}
             data-testid="resolved-title"
           >
             Resolved today
@@ -78,7 +78,7 @@ export function InboxView(props: InboxViewProps) {
               <div class="inbox-resolved-row" data-testid={`resolved-${row.id}`}>
                 <Icon name={RESOLVED_ICON[row.kind]} size={11} />
                 <span>{row.title}</span>
-                <span style={{ 'margin-left': 'auto', color: 'var(--mu2)' }}>
+                <span style={{ 'margin-left': 'auto', color: 'var(--text-muted)' }}>
                   {age(row.ageMinutes)}
                 </span>
               </div>

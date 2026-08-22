@@ -18,33 +18,33 @@ select,
 /* Every focusable thing, no exceptions. Keyboard focus only; a mouse press on a
    button should not leave a ring behind it. */
 :focus-visible {
-  outline: 2px solid var(--ac);
+  outline: 2px solid var(--action-attention);
   outline-offset: 2px;
 }
 
 /* A surface that responds to the pointer. Applied to cards, rows, tabs, chips. */
 .interactive {
-  background: var(--sf);
+  background: var(--surface-raised);
   cursor: default;
 }
-.interactive:hover { background: var(--sf2); }
-.interactive:active { background: var(--sf3); }
+.interactive:hover { background: var(--surface-selected); }
+.interactive:active { background: var(--surface-elevated); }
 
 /* Same ladder for something that sits on the deep ground rather than a card. */
 .interactive-deep {
   background: transparent;
   cursor: default;
 }
-.interactive-deep:hover { background: var(--sf); }
-.interactive-deep:active { background: var(--sf2); }
+.interactive-deep:hover { background: var(--surface-raised); }
+.interactive-deep:active { background: var(--surface-selected); }
 
 /* Selection: an inset accent ring over the raised surface. Never an outer glow. */
 .selected {
-  background: var(--sf2);
+  background: var(--surface-selected);
   box-shadow: var(--ring-sel);
 }
 .selected-soft {
-  background: var(--sf2);
+  background: var(--surface-selected);
   box-shadow: var(--ring-sel-soft);
 }
 

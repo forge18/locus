@@ -4,8 +4,8 @@
 
 html, body {
   margin: 0;
-  background: var(--bg);
-  color: var(--tx);
+  background: var(--surface-ground);
+  color: var(--text-primary);
   font-family: var(--fs);
   font-size: var(--t-row);
   font-weight: 400;
@@ -27,7 +27,7 @@ html, body {
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: .115em;
-  color: var(--mu);
+  color: var(--text-secondary);
 }
 
 .t-section-lg {
@@ -35,12 +35,12 @@ html, body {
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: .1em;
-  color: var(--mu);
+  color: var(--text-secondary);
 }
 
 /* 10.5-11px metadata */
-.t-meta { font-size: var(--t-meta); color: var(--mu2); }
-.t-meta-lg { font-size: var(--t-body); color: var(--mu); }
+.t-meta { font-size: var(--t-meta); color: var(--text-muted); }
+.t-meta-lg { font-size: var(--t-body); color: var(--text-secondary); }
 
 /* 11.5-12.5px body and rows */
 .t-body { font-size: var(--t-body); }
@@ -55,5 +55,5 @@ html, body {
 .t-metric { font-size: var(--t-metric-sm); font-weight: 500; line-height: 1; }
 .t-metric-lg { font-size: var(--t-metric-lg); font-weight: 500; line-height: 1; }
 
-/* A metric's unit suffix rides at 15px in --mu, per the Status screen. */
-.t-metric-unit { font-size: var(--t-title); font-weight: 400; color: var(--mu); }
+/* A metric's unit suffix rides at 15px in --text-secondary, per the Status screen. */
+.t-metric-unit { font-size: var(--t-title); font-weight: 400; color: var(--text-secondary); }

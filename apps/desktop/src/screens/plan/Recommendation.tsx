@@ -16,7 +16,7 @@ export function Recommendation(props: RecommendationProps) {
   return (
     <section class="output-card recommendation" data-testid="recommendation">
       <div class="output-card-head">
-        <Icon name="seal-check" size={12} style={{ color: 'var(--ac)' }} />
+        <Icon name="seal-check" size={12} style={{ color: 'var(--action-attention)' }} />
         recommendation
       </div>
 

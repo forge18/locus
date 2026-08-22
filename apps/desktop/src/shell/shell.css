@@ -13,7 +13,7 @@
  display: flex;
  flex-direction: column;
  overflow: hidden;
- background: var(--bg);
+ background: var(--surface-ground);
  font-size: var(--t-lead);
 }
 
@@ -25,8 +25,8 @@
  align-items: center;
  gap: var(--g-5);
  padding: 0 12px;
- background: var(--bg-deep);
- border-bottom: 1px solid var(--line);
+ background: var(--surface-chrome);
+ border-bottom: 1px solid var(--border-subtle);
 }
 
 .traffic {
@@ -55,17 +55,17 @@
  font-weight: 500;
  letter-spacing: 0.14em;
  text-transform: uppercase;
- color: var(--mu);
+ color: var(--text-secondary);
 }
 
 .title-context {
  display: flex;
  gap: var(--g-3);
  font-size: var(--t-body);
- color: var(--mu);
+ color: var(--text-secondary);
 }
 .title-context span + span {
- color: var(--mu2);
+ color: var(--text-muted);
 }
 
 .locator-bar {
@@ -75,28 +75,28 @@
  align-items: center;
  gap: 8px;
  padding: 0 var(--g-4);
- border: 1px solid var(--line);
+ border: 1px solid var(--border-subtle);
  border-radius: var(--r-md);
- background: var(--sf);
+ background: var(--surface-raised);
 }
 .locator-scheme {
  font-family: var(--fm);
  font-size: var(--t-body);
- color: var(--mu2);
+ color: var(--text-muted);
 }
 .locator-path {
  font-family: var(--fm);
  font-size: var(--t-body);
- color: var(--mu);
+ color: var(--text-secondary);
 }
 .locator-key {
  margin-left: auto;
  padding: 1px 5px;
- border: 1px solid var(--line2);
+ border: 1px solid var(--border-strong);
  border-radius: 4px;
  font-family: var(--fm);
  font-size: var(--t-meta);
- color: var(--mu2);
+ color: var(--text-muted);
 }
 
 .project-filter {
@@ -104,17 +104,17 @@
  align-items: center;
  gap: var(--g-3);
  padding: 3px 8px;
- border: 1px solid var(--line);
+ border: 1px solid var(--border-subtle);
  border-radius: var(--r-md);
- background: var(--sf);
+ background: var(--surface-raised);
  font-family: inherit;
  font-size: var(--t-body);
- color: var(--tx);
+ color: var(--text-primary);
  cursor: default;
 }
 .project-filter-count {
  font-size: var(--t-meta);
- color: var(--mu2);
+ color: var(--text-muted);
 }
 
 .running-pill-wrap {
@@ -125,13 +125,13 @@
  align-items: center;
  gap: 5px;
  font-size: var(--t-body);
- color: var(--mu);
+ color: var(--text-secondary);
 }
 .live-dot {
  width: 6px;
  height: 6px;
  border-radius: 50%;
- background: var(--ac2);
+ background: var(--status-working);
 }
 .running-popover {
  position: absolute;
@@ -139,9 +139,9 @@
  right: 0;
  z-index: 1;
  padding: var(--g-3);
- border: 1px solid var(--line2);
+ border: 1px solid var(--border-strong);
  border-radius: var(--r-md);
- background: var(--sf2);
+ background: var(--surface-selected);
 }
 
 /* ------------------------------------------------------------------ Rail --- */
@@ -152,8 +152,8 @@
  flex-direction: column;
  gap: var(--g-4);
  padding: var(--g-4);
- background: var(--bg-deep);
- border-right: 1px solid var(--line);
+ background: var(--surface-chrome);
+ border-right: 1px solid var(--border-subtle);
 }
 .project-rail button {
  display: block;
@@ -163,7 +163,7 @@
 .project-rail section {
  padding: var(--g-3);
  border-radius: var(--r-card);
- background: var(--sf2);
+ background: var(--surface-selected);
 }
 
 .body {
@@ -180,8 +180,8 @@
  align-items: stretch;
  gap: var(--g-1);
  padding: 8px var(--g-3);
- background: var(--bg-deep);
- border-right: 1px solid var(--line);
+ background: var(--surface-chrome);
+ border-right: 1px solid var(--border-subtle);
 }
 
 .rail-item {
@@ -194,21 +194,21 @@
  border: 0;
  border-radius: var(--r-card);
  background: transparent;
- color: var(--mu);
+ color: var(--text-secondary);
  font-family: inherit;
  cursor: default;
 }
 .rail-item:hover {
- background: var(--sf);
+ background: var(--surface-raised);
 }
 .rail-item-label {
  font-size: var(--t-label);
  letter-spacing: 0.02em;
 }
 .rail-item[aria-current="true"] {
- background: var(--sf2);
+ background: var(--surface-selected);
  box-shadow: var(--ring-sel-soft);
- color: var(--ac);
+ color: var(--action-attention);
 }
 
 /* The badge is a pill, not text — the one weight above 500 in the whole app. */
@@ -222,8 +222,8 @@
  place-items: center;
  padding: 0 3px;
  border-radius: 8px;
- background: var(--ac);
- color: var(--ac-ink);
+ background: var(--action-attention);
+ color: var(--action-attention-ink);
  font-size: var(--t-label);
  font-weight: 700;
 }
@@ -235,7 +235,7 @@
  justify-content: center;
  gap: var(--g-4);
  padding: var(--g-4) 0 var(--g-2);
- color: var(--mu2);
+ color: var(--text-muted);
 }
 
 /* --------------------------------------------------------------- Tab bar --- */
@@ -253,15 +253,15 @@
  align-items: center;
  gap: var(--g-4);
  padding: 0 12px;
- background: linear-gradient(var(--sf), var(--bg));
- border-bottom: 1px solid var(--line);
+ background: linear-gradient(var(--surface-raised), var(--surface-ground));
+ border-bottom: 1px solid var(--border-subtle);
 }
 .tabbar-category {
  font-size: var(--t-row);
  font-weight: 500;
  letter-spacing: 0.1em;
  text-transform: uppercase;
- color: var(--mu);
+ color: var(--text-secondary);
 }
 .tabbar-locator {
  margin-left: auto;
@@ -270,7 +270,7 @@
  gap: var(--g-3);
  font-family: var(--fm);
  font-size: var(--t-meta);
- color: var(--mu2);
+ color: var(--text-muted);
 }
 
 .screen {
@@ -287,15 +287,15 @@
  align-items: center;
  gap: var(--g-4);
  padding: 0 12px;
- background: var(--bg-deep);
- border-top: 1px solid var(--line);
+ background: var(--surface-chrome);
+ border-top: 1px solid var(--border-subtle);
 }
 .strip-label {
  writing-mode: vertical-rl;
  font-size: var(--t-micro);
  letter-spacing: 0.16em;
  text-transform: uppercase;
- color: var(--mu2);
+ color: var(--text-muted);
 }
 .strip-cards {
  flex: 1;
@@ -311,21 +311,21 @@
  flex-direction: column;
  gap: 1px;
  padding: 4px var(--g-4);
- border: 1px solid var(--line);
+ border: 1px solid var(--border-subtle);
  border-radius: var(--r-card);
- background: var(--sf);
+ background: var(--surface-raised);
  white-space: nowrap;
 }
 .strip-card-top {
  font-size: var(--t-meta);
- color: var(--tx);
+ color: var(--text-primary);
 }
 .strip-card-bottom {
  font-size: var(--t-label);
- color: var(--mu2);
+ color: var(--text-muted);
 }
 .strip-card-stuck {
- border-color: var(--bad);
+ border-color: var(--status-danger);
 }
 .strip-card-shell {
  opacity: 0.6;
@@ -333,6 +333,6 @@
 .strip-note {
  margin-left: auto;
  font-size: var(--t-label);
- color: var(--mu2);
+ color: var(--text-muted);
  white-space: nowrap;
 }

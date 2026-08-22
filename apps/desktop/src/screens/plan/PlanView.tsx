@@ -103,15 +103,15 @@ export function PlanView() {
           <aside class="plan-outputs" data-testid="plan-outputs">
             <span class="plan-outputs-title">Draft outputs</span>
             <section class="output-card" data-testid="output-spec">
-              <div class="output-card-head"><Icon name="file-text" size={12} style={{ color: 'var(--mu)' }} /><span class="mono">{outputs.spec.name}</span><button type="button" class="plan-output-edit" onClick={() => setTab('spec')}>Edit</button></div>
+              <div class="output-card-head"><Icon name="file-text" size={12} style={{ color: 'var(--text-secondary)' }} /><span class="mono">{outputs.spec.name}</span><button type="button" class="plan-output-edit" onClick={() => setTab('spec')}>Edit</button></div>
               <For each={outputs.spec.lines}>{(line) => <span class="output-line">{line}</span>}</For>
             </section>
             <section class="output-card" data-testid="output-tasks">
-              <div class="output-card-head"><Icon name="list-checks" size={12} style={{ color: 'var(--mu)' }} />tasks<button type="button" class="plan-output-edit" onClick={() => setTab('tasks')}>Edit &amp; decompose</button></div>
+              <div class="output-card-head"><Icon name="list-checks" size={12} style={{ color: 'var(--text-secondary)' }} />tasks<button type="button" class="plan-output-edit" onClick={() => setTab('tasks')}>Edit &amp; decompose</button></div>
               <ol class="output-tasks" data-testid="output-task-list"><For each={outputs.tasks}>{(task) => <li>{task}</li>}</For></ol>
             </section>
             <section class="output-card" data-testid="output-tools">
-              <div class="output-card-head"><Icon name="toolbox" size={12} style={{ color: 'var(--mu)' }} />tool list</div>
+              <div class="output-card-head"><Icon name="toolbox" size={12} style={{ color: 'var(--text-secondary)' }} />tool list</div>
               <div class="output-tools"><For each={outputs.tools}>{(tool) => <Tag variant="neutral">{tool}</Tag>}</For><For each={outputs.newTools}>{(tool) => <Tag variant="outline" data-testid={`new-tool-${tool.replace(/\W+/g, '')}`}>{tool}</Tag>}</For></div>
             </section>
             <Recommendation recommendation={usePlanRecommendation()} onApprove={() => setTab('tasks')} />

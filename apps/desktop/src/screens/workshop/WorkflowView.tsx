@@ -50,7 +50,7 @@ export function WorkflowView() {
               data-tone={node.tone}
               draggable="true"
             >
-              <Icon name="dots-six-vertical" size={10} style={{ color: 'var(--mu2)' }} />
+              <Icon name="dots-six-vertical" size={10} style={{ color: 'var(--text-muted)' }} />
               <Icon name={node.icon} size={11} />
               {node.label}
               <Show when={node.required}>
@@ -143,7 +143,7 @@ export function WorkflowView() {
               style={{ left: `${node.x}px`, top: `${node.y}px` }}
             >
               <div class="wf-node-strip" data-testid={`wf-node-strip-${node.id}`}>
-                <Icon name="cube" size={7} style={{ color: 'var(--mu2)' }} />
+                <Icon name="cube" size={7} style={{ color: 'var(--text-muted)' }} />
                 <span class="wf-node-kind">{node.kind}</span>
                 <span class="wf-node-state" data-testid={`wf-node-state-${node.id}`}>
                   {node.state}

@@ -74,7 +74,7 @@ export function DevelopView() {
                 <Icon name="file-code" size={10} />
                 {tab.name}
                 <Show when={activeTab() === tab.path}>
-                  <span class="mono" style={{ 'font-size': '8.5px', color: 'var(--mu2)' }}>
+                  <span class="mono" style={{ 'font-size': '8.5px', color: 'var(--text-muted)' }}>
                     {tab.mode}
                   </span>
                   <button
@@ -93,7 +93,7 @@ export function DevelopView() {
             <button
               type="button"
               class="git-bulk"
-              style={{ color: 'var(--mu2)' }}
+              style={{ color: 'var(--text-muted)' }}
               data-testid="collapse-unchanged"
               aria-pressed={collapseUnchanged() ? 'true' : 'false'}
               onClick={() => setCollapseUnchanged(!collapseUnchanged())}

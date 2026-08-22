@@ -28,12 +28,12 @@ export function EmptyPane(props: EmptyPaneProps) {
         gap: 'var(--g-4)',
         padding: '24px',
         height: '100%',
-        color: 'var(--mu)',
+        color: 'var(--text-secondary)',
         'text-align': 'center',
       }}
     >
       <Show when={props.icon}>
-        <Icon name={props.icon!} size={19} style={{ color: 'var(--mu2)' }} />
+        <Icon name={props.icon!} size={19} style={{ color: 'var(--text-muted)' }} />
       </Show>
       <p class="t-body" style={{ margin: 0, 'max-width': '38ch' }}>
         {props.reason}
