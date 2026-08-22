@@ -24,3 +24,7 @@
 | 20 | Graph view importing the canvas renderer | 6 | `pnpm -C apps/desktop test -- wiki/graph-shares-renderer` |
 | 21 | Wire the Wiki screen to real pages | 16 | `pnpm -C apps/desktop test -- wiki/from-core` |
 | 22 | Seed by ingesting the repo's own ADRs, specs and READMEs | 4 | `cargo test -p locus-core wiki::seeds_from_git` |
+| 23 | Page, revision and link entry kinds; no direct writer | — | `cargo test -p locus-core wiki::projector_is_only_writer` |
+| 24 | Wiki projector for the foldable columns | 23 | `cargo test -p locus-core project::wiki` |
+| 25 | A revision's `actor` is the run that made it, and survives rebuild | 24 | `cargo test -p locus-core rebuild::wiki_attribution_survives` |
+| 26 | `carve_out` on `embedding`; rebuild leaves vectors byte-identical | 24 | `cargo test -p locus-core rebuild::wiki_vectors_untouched` |

@@ -27,7 +27,7 @@ export function SkeletonRows(props: SkeletonRowsProps) {
               'grid-template-columns': columns().join(' '),
               'align-items': 'center',
               gap: 'var(--g-4)',
-              'border-bottom': '1px solid var(--line)',
+              'border-bottom': '1px solid var(--border-subtle)',
             }}
           >
             <For each={columns()}>
@@ -37,7 +37,7 @@ export function SkeletonRows(props: SkeletonRowsProps) {
                   style={{
                     height: '7px',
                     'border-radius': '3px',
-                    background: 'var(--sf2)',
+                    background: 'var(--surface-selected)',
                   }}
                 />
               )}

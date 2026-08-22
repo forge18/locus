@@ -24,16 +24,16 @@ export function FixtureNotice(props: FixtureNoticeProps) {
         gap: 'var(--g-3)',
         padding: '3px var(--g-4)',
         'border-radius': 'var(--r-sm)',
-        background: 'var(--sf)',
-        'box-shadow': 'inset 0 0 0 1px var(--line2)',
-        color: 'var(--mu)',
+        background: 'var(--surface-raised)',
+        'box-shadow': 'inset 0 0 0 1px var(--border-strong)',
+        color: 'var(--text-secondary)',
       }}
     >
-      <Icon name="info" size={11} style={{ color: 'var(--ac)' }} />
+      <Icon name="info" size={11} style={{ color: 'var(--action-attention)' }} />
       <span class="t-meta" data-testid="fixture-notice-surface">
         {props.surface} is fixture data — no backend yet
       </span>
-      <span class="t-meta mono" style={{ color: 'var(--mu2)' }} data-testid="fixture-notice-command">
+      <span class="t-meta mono" style={{ color: 'var(--text-muted)' }} data-testid="fixture-notice-command">
         {props.command}
       </span>
     </div>

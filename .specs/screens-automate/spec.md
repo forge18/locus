@@ -1,5 +1,8 @@
 # screens-automate
 
+> **Historical M0.5 contract.** V2 separates project Automate from global Dispatch; new work follows
+> `.specs/design-v2/spec.md`.
+
 **Milestone** M0.5 · **Depends on** `app-shell`, `navigation`, `fixtures` · Views `board`, `sessions`
 
 ## Purpose
@@ -13,7 +16,7 @@ the board is what assigns them.
 - PLAN.md §The board — six fixed columns, `blocked` as a status, the two gating rules
 - PLAN.md §Sessions do not all fit, so most are strips
 - PLAN.md §Workflow guardrails — waiting ≠ idle; kill and reassign at three stuck iterations
-- `docs/design_handoff_locus_desktop_ui/README.md` screens 5 and 6
+- `.specs/design-v2/spec.md` §Project, plan, and dispatch policy
 
 ## Contract
 
@@ -28,6 +31,7 @@ in `--mu2`.
 
 Cards: `--sf` + hairline, radius 7, 11.8px title, then a 10px meta line — accent project · repo, mono
 verify command, `reviewer@2 · read-only tools`, `Gate: reviewer agent`. Variants:
+
 - **blocked** — a red `prohibit-inset`, shown *on* the card wherever it sits
 - **stuck** — red inset ring plus `stuck 3/3 · 102.3k`
 - **waiting approval** — accent ring and the note "an inbox item, not a place to go looking"
@@ -51,6 +55,7 @@ session you stopped watching is not a session you ended.**"
 error — ending in a prompt line with a 7x14px blinking accent block cursor.
 
 Conditional footers, driven by the session's status:
+
 - **stuck** → red-tinted guardrail card: "kill & reassign after 3 stuck iterations", the handoff
   summary, and "Hand off to reviewer@2" / "Let it run"
 - **waiting** → `--sf` card with `hourglass-medium` and **"Waiting ≠ idle."**

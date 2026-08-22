@@ -1,6 +1,6 @@
 # board
 
-**Milestone** M5 · **Depends on** `store`, `workflow-engine`, `screens-automate`
+**Milestone** M5 · **Depends on** `store`, `event-store`, `workflow-engine`, `screens-automate`
 
 ## Purpose
 
@@ -11,6 +11,7 @@ something else already depends on**.
 
 - PLAN.md §The board — the columns, the task shape, the two gating rules
 - PLAN.md §Teams — dependency edges come from the workflow graph
+- PLAN.md §Event sourcing and its two carve-outs — the board is a projection, not a table you write
 
 ## Contract
 
@@ -38,13 +39,20 @@ task
   github_issue          nullable, linked by explicit action in either direction
 ```
 
+**A task is a fold, not a row.** Nothing writes `board.tasks`. A move appends `task.moved`, an
+assignment appends `task.assigned`, and the card you see is the projection. The consequence worth
+having is that **a status disagreeing with its evidence stops being possible rather than merely
+detectable** — the status *is* the evidence, replayed. The two gating rules below are properties of the
+fold, so an agent cannot route around them by writing the table; there is no table to write.
+
 **Two gating rules, and no more:**
 - An agent cannot move a card to **Done** without evidence.
 - **Blocked** clears automatically and never manually — it is derived from `blocked_by`, so clearing it
   by hand would just be lying about a dependency.
 
 **Everything else is unrestricted.** You can drag anything anywhere; the constraints exist to stop an
-agent asserting completion, not to stop you working.
+agent asserting completion, not to stop you working. A drag appends `task.moved` with `actor: human`,
+which is also how the board answers *"who moved this, and when"* without a separate audit table.
 
 **Evidence proves the requirement was met, not that the feature is right.** No amount of verification
 reaches outside its requirement — which is why contract completeness is the highest-leverage unsolved
@@ -62,6 +70,10 @@ actually comes from.
 7. A human can drag any card to any column.
 8. Evidence links resolve to a run and the specific events that justify the transition.
 9. A card in Waiting For Approval appears in the inbox.
+10. No code path writes `board.tasks` directly — a test asserts the projector is the only writer.
+11. `locus rebuild --schema board` reproduces every card byte-identically from the log alone.
+12. `locus rebuild --schema board --to <stream_pos>` shows a task in the column it was in then.
+13. A human drag and an agent move are the same entry kind, distinguished only by `actor`.
 
 ## Open
 

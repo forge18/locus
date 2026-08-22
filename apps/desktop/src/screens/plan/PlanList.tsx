@@ -37,7 +37,7 @@ export function PlanList(props: PlanListProps) {
             <>
               <div class="plan-section" data-testid={`plan-section-${section.state}`}>
                 {section.label}
-                <span class="mono" style={{ 'margin-left': 'var(--g-3)', color: 'var(--mu2)' }}>
+                <span class="mono" style={{ 'margin-left': 'var(--g-3)', color: 'var(--text-muted)' }}>
                   {inState(section.state).length}
                 </span>
               </div>
@@ -56,7 +56,7 @@ export function PlanList(props: PlanListProps) {
                     <span class="plan-card-title">{plan.title}</span>
                     <span class="plan-card-meta">
                       <Show when={plan.state === 'in_progress'}>
-                        <Icon name="circle-notch" size={10} style={{ color: 'var(--ac)' }} />
+                        <Icon name="circle-notch" size={10} style={{ color: 'var(--action-attention)' }} />
                       </Show>
                       <span
                         class={plan.landed ? 'plan-card-landed' : ''}

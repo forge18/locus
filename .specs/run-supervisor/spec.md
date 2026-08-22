@@ -23,7 +23,7 @@ reconciles.**
 ```
 Project
 └── Session          a durable, named thread of work with ONE agent
-    ├── Run          one container lifetime = one terminal
+    ├── Run          one container lifetime = one ACP session
     │    └── Turn    one prompt → one response
     └── Run          (after a loop reset: new container, same session)
 ```
@@ -31,7 +31,7 @@ Project
 | | Session | Run |
 | --- | --- | --- |
 | Bounded by | you closing it | the container exiting |
-| Holds | agent@version, its branch, the board task, core-memory base, pane state | events, usage, exit status, artifacts, **the resolved model id** |
+| Holds | agent@version, its branch, the board task, core-memory base, pane state | events, usage, exit status, artifacts, **the resolved model id**, permission posture, checkpoints |
 | Resumable | yes — by starting another run | no |
 | Cost | the sum of its runs | measured directly |
 
@@ -40,7 +40,7 @@ Project
 a native session id the core stores it on the run and hands it back — an optimization, not the
 mechanism.
 
-**A terminal you drive yourself is not a session.** Same pane type, no agent, no events, no cost.
+**A run you drive yourself is not a session.** Same pane type, no agent, no events, no cost.
 
 **`locusd` outlives the window.** Closing the app detaches the UI and nothing else. Runs keep streaming
 into Postgres and reopening re-attaches to state that never stopped.
@@ -54,6 +54,11 @@ with work that ended weeks ago.
 turn finish, holds before the next iteration, and notifies; the container stays up so its state is
 inspectable. `SIGSTOP` mid-request would leave sockets half-written and a model call in flight.
 
+**Permission posture is selected at dispatch and pinned on the run.** `bypass` keeps the declared
+allowlist/container boundary and treats an unexpected request as an alarm. `gated` turns a protected
+request into a waiting human action. Before an edit, the supervisor records a checkpoint; restore and
+undo change the workspace state but never truncate the persisted transcript.
+
 ## Acceptance
 
 1. A session survives its run ending, and a second run in the same session inherits branch, task and
@@ -62,7 +67,7 @@ inspectable. `SIGSTOP` mid-request would leave sockets half-written and a model 
 3. Killing `locusd` mid-run and restarting re-attaches to the live container and resumes streaming.
 4. Killing the container instead closes the run as `aborted`, emits the event, and files an inbox item.
 5. Closing the app window leaves the run streaming into Postgres.
-6. A human-driven terminal produces no session row, no events, and no cost attribution.
+6. A human-driven run produces no session row, no events, and no cost attribution.
 7. Resume primes a new run from the session's events, and works on a harness with no native session id.
 8. Pause lets the current turn finish and leaves the container up.
 9. Cancel stops the run and records the reason.

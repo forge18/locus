@@ -4,6 +4,12 @@ name   = "codex"
 binary = "codex"
 detect = ["--version"]
 
+[image]
+base     = "debian:bookworm-slim"
+version  = "unverified"
+install  = []
+verified = false
+
 [launch]
 argv = ["exec", "--skip-git-repo-check"]
 tui  = false                        # `codex` alone opens a TUI; `codex exec` does not
@@ -13,16 +19,7 @@ home_env = "CODEX_HOME"
 home     = "/locus/config"
 
 [telemetry]
-source = "hooks"
-# [[hooks.<Event>]] entries in config.toml. Events: PreToolUse, PermissionRequest,
-# PostToolUse, PreCompact, PostCompact, SessionStart, SessionEnd,
-# UserPromptSubmit, SubagentStart, SubagentStop, Stop.
-log_dir = "/locus/config/sessions"
-format  = "codex-rollout-jsonl"
-emits   = ["session_start", "user", "assistant", "tool_call", "tool_result",
-           "tool_error", "permission_request", "subagent_start",
-           "subagent_stop", "session_end"]
-# no `thinking` — Codex does not surface reasoning through hooks
+source = "acp"
 
 [auth]
 env = ["OPENAI_API_KEY"]

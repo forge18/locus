@@ -90,7 +90,8 @@ the strongest available argument that skipping VSCodium costs less than it would
 | --- | --- |
 | Editor | CodeMirror 6, used directly — no abstraction seam. **One editor at two zoom levels**: a side pane beside an agent, and a full-window module. No second editor, no VSCodium. |
 | Debug | A **DAP client in Rust**, because agents need to debug. **No debug UI at all** — the whole surface is `locus debug` in a container, and a human debugs in their own editor. |
-| Harness I/O | **Agents run in real terminals, one session per terminal.** Parallel sessions get more terminal instances. **ACP is for the planning/chat module**, which is a conversation rather than a terminal. |
+| Harness I/O | **ACP is the only agent-session transport.** One container hosts one ACP conversation and the UI renders its normalized events. Human terminals remain available for hand work only; they are never agent sessions. |
+| Agent panel | **One session surface, not a monitor.** The ACP stream, steering composer, docked human-action gates, plan, checkpoints, and session research feed live together; the delivered ACP panel handoff is its visual contract. |
 | `local-dx` relationship | Inspiration, not dependency. Locus owns its own registry and schema. |
 | Sandbox | One container per agent run. The workspace is a **clone from a local bare remote**, not a mount. Credential handling must be easy and secure; the mechanism is Spike 1's to settle. |
 | Projects | A Locus project holds **one or more repos** and owns the board, wiki, and memory across all of them. **Unrelated to GitHub Projects** — the name collision is unfortunate and means nothing. |
@@ -98,25 +99,57 @@ the strongest available argument that skipping VSCodium costs less than it would
 | Kanban + wiki store | Both in Postgres, including wiki revisions. |
 | GitHub | Version control, CI/CD, PRs, **and Issues as an input to the Locus board**. Never GitHub Projects. |
 | Marketplace | Git-backed manifest index of CLIs. No MCP servers, ever. |
-| Chat | A designated harness session, not a provider API layer. Locus holds no model API keys. |
+| Chat | A designated harness session, not a provider API layer. Providers are configured once through OS-keychain references; Locus stores neither a credential in Postgres nor a credential in a repo. |
 | Shared services | **Memory, communication, and every other cross-cutting agent capability are implemented in Rust, in `locus-core`, once. Every harness uses that one implementation.** No per-harness variants, no shell-script services, no external daemons. |
-| Agents | **Markdown plus a tool list.** Frontmatter (harness, model tier, tools, skills, rules, memory scope) over a prose body. No canvas, no compile — this is what every harness already reads. |
-| Workflows | **A visual canvas** (`solid-flow`). A workflow is a **loop toward a goal**; the **goal is the approval gate**; guardrails bound it; `verify` is required and the token budget is optional. |
+| Agents | **Markdown plus a tool list.** Frontmatter (harness, model tier, tools, skills, rules, memory scope) over a prose body. Project and workflow roles narrow that baseline; no canvas, no compile. |
+| Workflows | **A visual canvas** (`solid-flow`) plus **Governance**. A workflow is a loop toward a goal; goal, guardrails, and success criteria are authored outside the graph. `verify` is required and the token budget is optional. |
 | Teams | **The workflow is the team.** Its agent nodes are the roster, each node carries a role, and the edges are the dependencies. No separate `Team` entity. |
 | Review surface | **Artifacts**, not transcripts. Plans, diffs, diagrams, screenshots, recordings, and a walkthrough on completion — all commentable, and a comment steers the agent that made it. |
 | Harness contract | **Declaration plus materialization.** A TOML file says where each of the eight extensions goes; a **materializer** puts it there. Four strategies are generic and parameterized by that TOML; the fifth is a plugin, for the harnesses whose config is code. A harness needing code is a directory, one that does not is a file. |
 | Tokens | **A design constraint, not a bill.** Prefix stability is a rule the materializer obeys, tool output is compacted before it reaches context, and every surface hands an agent a summary with a handle rather than a body. Cache rate and payload-by-tool are dashboard metrics because both are already columns. |
-| Navigation | **Seven categories on a rail** — Dashboard, Plan, Develop, Automate, Review, Workshop, Wiki. Six are named for an activity; **Dashboard is mine** — Inbox and Status, what I need to do and what I need to know, where a decision resolves in place and work routes out. Agents and workflows are *operated* in Automate and *authored* in Workshop, and a session lives with the agent it belongs to. **One control plane across every project**: project is a scope filter, never a window boundary. **One locator scheme** addresses everything, which is what lets project be a filter at all. |
+| Navigation | **A project-scoped rail**. Global views are Inbox, Dashboard, Projects, Dispatch, Memory, Settings, and Workshop. Plan, Develop, Automate, and Review live inside the selected project's card. A selected project scopes those views; global views retain their explicit scope. One locator scheme addresses everything. |
 | Handoffs | **Ownership transfers with a payload, never a transcript.** `done`, `remaining`, `attempted`, `decisions`, `open` — the successor reads that, not the predecessor's history. Kill-and-reassign already existed; this is what it hands over. |
-| Tools | **Just-in-time.** A one-line catalog per allowlisted tool; the page arrives only when an agent asks for it. Installation stays eager, because the allowlist is a privilege boundary. |
+| Tools | **Just-in-time documentation, eager installation.** The enabled CLI catalog is baked into the image; project and workflow roles only narrow it. A one-line catalog per allowlisted tool arrives only when an agent asks for it. |
 | Filesystem | **No virtual filesystem.** Docker layers and `git clone --reference` already give copy-on-write; exposing Locus state as files is the thing the store exists to stop. |
 | Artifacts on disk | **Text in Postgres, media as files the row points at.** Media is stored once for you and **derived on demand for a model** — OCR before pixels, keyframes before clips. Two representations, because a human and a model want opposite things. |
 | Plugins | **One manifest + one executable speaking JSON-RPC 2.0 over stdio**, in any language. Core services stay internal and are never plugins. **Data-driven: a plugin declares and returns data; the first-party UI knows how to render it.** No third-party UI code, ever. |
 | Board | **Fixed columns across every project**, not configurable: Ready → In Progress → Testing → Reviewing → Waiting For Approval → Done. **`blocked` is a status, not a column.** Two gating rules only. |
-| Planning | **Three agents** — interviewer, researcher, auditor — over ACP. Goal is an input, not an output. Nothing reaches the board until one approval at the end. |
-| Testing Locus | **Event-based.** Every run normalizes into `memory.event`, so a test is "run this, assert these events appeared" — identical across all twelve harnesses, no test-only instrumentation. |
-| Permissions | **You are never prompted.** A run that stops to ask has nobody watching it. What an agent may do is *declared* — the tool allowlist on the agent definition, narrowed per role by the workflow's `Agent` node — and enforced by the container, not by the harness's own gate. |
+| Planning | **Three agents** — interviewer, researcher, auditor — over ACP. Goal is an input, not an output. The approved spec is decomposed into board cards explicitly: spec-only, every task, or spec plus selected carve-outs. Nothing reaches the board until the single final approval. |
+| Testing Locus | **Event-based.** Every run normalizes into `memory.event`, so a test is "run this, assert these events appeared" — identical across all eleven harnesses, no test-only instrumentation. |
+| Permissions | **Bypass is the default; a job may explicitly opt into gated approval.** What an agent may do is *declared* — the tool allowlist on the agent definition, narrowed per role by the workflow's `Agent` node — and enforced by the container. A gated request blocks as a visible human action; an unexpected bypass request is an alarm. |
 | UI components | **Kobalte** headless primitives + **shadcn-solid** components copied into the repo + **Tailwind**. Headless, because an IDE's chrome is small and its large surfaces are all bespoke or bring their own DOM. |
+
+### v2 desktop revision
+
+`docs/design_handoff_locus_v2/` is the adopted desktop-design reference. Its HTML and JavaScript are
+reference material only: production code remains SolidJS and Rust. It replaces the removed v1 handoff
+for shell geometry, palette, screen inventory, and interaction copy.
+
+Four product changes are architecture, not paint:
+
+1. **Providers own credential configuration.** A provider stores an OS-keychain reference, optional
+   `base_url`, verification metadata, and a curated model catalog. The broker resolves the reference
+   only at the egress boundary; no API key reaches Postgres, a repository, an artifact, or an agent
+   container.
+2. **Dispatch is a durable queue.** Global and per-project parallelism caps, priority policy,
+   preemption-at-iteration-boundary, autorun state, schedules, and Stop all are supervisor state.
+   Stopping never deletes branches, artifacts, or memory; it may request a handoff before stopping a
+   run.
+3. **Harnesses declare adapter identity; routing is policy.** A harness is selectable only with an
+   adapter and configured provider. Its default model and effort, plus the six autorouting bands, live
+   in settings. The registry still owns launch, telemetry, and materialization mechanisms.
+4. **Workflow authoring separates graph and governance.** The visual graph contains executable nodes;
+   Governance owns goal, named guardrails, and success criteria. Workflow run state belongs to runs,
+   not to the authoring surface.
+5. **Custom CLI tools must be signed with Minisign.** Locus settings hold trusted public keys; a
+   manifest and its binary must verify before entering the enabled catalog or an image. An unsigned or
+   untrusted upload is rejected; read-only access is not a meaningful containment boundary for code
+   executed during an image build.
+
+The reconciliation contract and runnable work live in `.specs/design-v2/`. The v2 Dark theme and a cool-neutral Light theme are implemented as semantic roles under a root
+`data-theme` contract in `.specs/theme-system/`, so later themes add values and fixtures rather than
+component forks. These specs supersede the conflicting
+v1-derived portions of the M0.5 screen contracts without changing their historical completion record.
 
 ### Deliberately deferred
 
@@ -134,18 +167,17 @@ Recorded so they are not rediscovered as gaps. Each was considered and set aside
 
 ### One clarification carried into the design
 
-**No TUI, because one session belongs to one terminal.** A TUI harness manages several sessions inside
-a single terminal, which hides them from Locus — it could not display, count, or own them
-individually. Banning TUIs preserves a 1:1 mapping between sessions and terminals. Want more sessions
-in parallel? More terminal instances.
+**No TUI, because one session belongs to one container.** A TUI harness manages several sessions inside
+a single process, which hides them from Locus — it could not display, count, or own them
+individually. Banning TUIs preserves a 1:1 mapping between sessions and runs. Want more sessions
+in parallel? More agent runs.
 
-- **Terminal** — a real PTY. **One session per terminal, always.** Some hold an agent so you can watch
-  it work; some are yours, for running things by hand. Same pane type either way. Minimizes to a tile
-  showing status and current task.
-- **Planning / chat module** — a conversation for spec work and questions, over **ACP**. Structured,
-  not a terminal.
+- **Agent run** — one ACP conversation per container. **One session per run, always.** Every supported
+  harness fronts the same ACP surface; an agent is a conversation rendered as events, not a terminal.
+- **Planning / chat** — the same ACP conversation shaped for spec work and questions. Structured, not a
+  terminal.
 
-This is about observability, not rendering style. Locus spawns and owns every terminal, so every
+This is about observability, not rendering style. Locus spawns and owns every agent process, so every
 session is visible by construction.
 
 ---
@@ -158,7 +190,7 @@ session is visible by construction.
 Tauri application  (locus)
 │
 ├── webview — SolidJS
-│     Terminals · Editor · Board · Wiki · Planning chat · Dashboard
+│     Agent conversations · Editor · Board · Wiki · Planning chat · Dashboard
 │                            │ typed IPC (tauri::ipc, serde)
 └── Rust core — locusd  (in-process; also runnable headless for cron/CI)
       ├── harness registry     load harnesses/*, materialize config per run,
@@ -203,17 +235,18 @@ is the endpoint those interventions are converging toward, reached directly.
 | Container | Lifetime | Purpose |
 | --- | --- | --- |
 | `locus-postgres` | per machine | The store. `pgvector` + `tsvector` + window functions. |
-| `locus-agent-<run_id>` | per agent run | One harness process, one session. **No TUI**; a PTY is attached from the host. |
+| `locus-agent-<run_id>` | per agent run | One harness process, one session. **No TUI**; ACP over stdio from the host. |
 | `locus-svc-<project>-<name>` | per project | Services the *project* needs — its own Postgres, Redis, etc., declared in the project's settings. |
 
 Network `locus-<project>` joins a project's agents and service containers. Agents reach each other and
 the project's services; they do not reach other projects.
 
-**"Headless" means no TUI, not no terminal.** The core runs the harness with a PTY attached from the
-host, so a terminal pane shows exactly what the process wrote. What `tui = false` asserts is that the
-harness does not multiplex several sessions inside that PTY. The **registry enforces it, not the
-harness**: a harness file claiming `tui = true` is refused at registration, which is why the field is
-required rather than defaulted.
+**"Headless" means no TUI, not a terminal.** The core drives the harness over ACP — stdio, one
+session per run — so there is no terminal pane to show what the process wrote; the agent renders as
+normalized events instead. What `tui = false` asserts is that the harness does not multiplex several
+sessions inside one process. This is deliberately single-surface: the ACP event stream. The
+**registry** enforces `tui = false`, not the harness: a harness file claiming `tui = true` is refused
+at registration, which is why the field is required rather than defaulted.
 
 Mounts into an agent container:
 
@@ -242,7 +275,7 @@ the git model below. **No long-lived credential lives in the container** — see
 #### Images — two layers, one cache key
 
 **The harness binary lives in the image, never on the host.** That is what makes a run reproducible
-and what keeps twelve harnesses from becoming twelve host installs. `detect` runs at *image build*,
+and what keeps eleven harnesses from becoming eleven host installs. `detect` runs at *image build*,
 not on your machine, and its job is to fail the build when the binary is missing rather than to find
 one you already have.
 
@@ -445,56 +478,60 @@ else.
 `amq` and `memsearch` are **inspiration only** — read for their verb sets and scoping model, never
 linked or shelled out to. Both would put the data back in files.
 
-### ACP — the planning module only
+### ACP — the only agent interface
 
-**The planning/chat module is an [Agent Client Protocol](https://agentclientprotocol.com) client.**
-ACP is JSON-RPC 2.0 over stdio — LSP-for-agents — created by Zed in August 2025 and co-maintained with
-JetBrains. It fits a conversation: `session/new`, `session/prompt`, streamed updates, tool-call
-permission requests. That is exactly what spec work and questions need.
+**The [Agent Client Protocol](https://agentclientprotocol.com) client is the only interface an agent
+speaks to Locus over.** ACP is JSON-RPC 2.0 over stdio — LSP-for-agents — created by ZED in August 2025
+and co-maintained with JetBrains. It fits a conversation: `session/new`, `session/prompt`, streamed
+updates, tool-call permission requests. That vocabulary is now the vocabulary every agent pane speaks.
 
 - Rust crates `agent-client-protocol` and `agent-client-protocol-schema` are on crates.io and current.
 - Agents speaking it: **Claude Agent**, **Codex CLI**, **Cline**, **Cursor**, **Gemini CLI**,
   **Goose**, **Factory Droid**, Docker's **cagent**, **GitHub Copilot** (preview), and more.
 
-**ACP is not how agent sessions run.** Those run in terminals, one session each. Two reasons the
-protocol does not fit there: `session/new` accepts only `cwd` and `mcpServers`, so **a client cannot
-inject a system prompt or any instructions** — prompt assembly belongs entirely to the harness; and a
-conversation abstraction hides the thing terminals exist to show, which is the agent working.
+**ACP is how agent sessions run.** Agents run as ACP conversations, one per run. The first reason
+that kept ACP out of the working loop — `session/new` accepts only `cwd` and `mcpServers`, so **a
+client cannot inject a system prompt or any instructions** — is kept, not erased: prompt assembly
+belongs entirely to the harness, and base-context, skills, rules, and tools reach the agent through the
+materialized config tree, not through the ACP session. The second reason — that a conversation
+abstraction hides the thing terminals exist to show, the agent working — is retired with the PTY: an
+agent is an event stream, and the pane renders those events, never a terminal.
 
 `mcpServers` is passed empty. Always.
 
-**The planning agents run in containers like every other agent.** ACP is stdio, and stdio attaches to
-a container process as readily as to a host one — the only difference from a terminal run is that
-there is no PTY. Running them on the host would give the researcher your real filesystem and your real
-credentials while it indexes repos, which is precisely the exposure the container model exists to
-remove. A conversation is not a reason to leave the sandbox.
+**Every agent runs in a container.** ACP is stdio, and stdio attaches to a container process as
+readily as to a host one. Running agents on the host would give them your real filesystem and your
+real credentials, which is precisely the exposure the container model exists to remove. ACP is not a
+reason to leave the sandbox.
 
-### Harness contract
+A harness is described by one TOML file. ACP does not replace the config contract — it standardises
+the conversation loop, and says nothing about where a harness reads its skills, rules, or context.
+That knowledge is per-harness whether the harness speaks ACP or not.
 
-A harness is described by one TOML file. ACP does not replace this — it standardises a conversation
-loop, and says nothing about where a harness reads its skills, rules, or context. That knowledge is
-per-harness whether the harness speaks ACP or not.
+**Every supported harness fronts the ACP surface.** `[telemetry].source` collapses to `acp`. Where a
+harness has no native ACP mode, a Locus-side mapping (materializer/plugin) bridges it. All sources
+normalize into the one event vocabulary below, and nothing downstream knows which mapping a run
+arrived through — because there is one mapping for every ACP harness, not one per harness.
 
 **Registered harnesses.** One entry each in `harnesses/` — a file where declaration is enough, a
 directory where the harness needs a materializer plugin. Every entry complete, nothing inherited:
 
-| Harness | Binary | Capture | Session injection reaches it by |
+| Harness | Binary | ACP surface | Session injection reaches it by |
 | --- | --- | --- | --- |
-| claude | `claude` | hooks | its own `SessionStart` hook |
-| codex | `codex` | hooks | its own `SessionStart` hook |
-| copilot | `copilot` | hooks | its own `sessionStart` hook |
-| pi · omp | `pi` · `omp` | hooks, via a generated TS extension | the generated extension |
-| **gemini** | `gemini` | hooks | its own hook |
-| **hermes** | `hermes` | hooks, via a generated Python plugin | the generated plugin |
+| claude | `claude` | native | its own `SessionStart` hook |
+| codex | `codex` | native | its own `SessionStart` hook |
+| copilot | `copilot` | native | its own `sessionStart` hook |
+| pi · omp | `pi` · `omp` | native, via a generated TS extension | the generated extension |
+| **gemini** | `gemini` | native | its own hook |
 | **cursor** | `agent` | **ACP** (`agent acp`) | `[layout].context` |
-| **antigravity** | `agy` | **stream-json** | `[layout].context` |
-| **aider** | `aider` | **session log** | `--read`, a context file |
-| dsh | `dsh` | hooks, via a Claude-Code bridge | `[layout].context` |
-| opencode | `opencode` | tool lifecycle only | `[layout].context` |
+| **antigravity** | `agy` | **ACP** | `[layout].context` |
+| **aider** | `aider` | **ACP** | `--read`, a context file |
+| dsh | `dsh` | native | `[layout].context` |
+| opencode | `opencode` | **ACP** | `[layout].context` |
 
-`[telemetry].source` is a real switch rather than documentation: **hooks, ACP, a structured stream, or
-a session log**, whichever a harness actually does best. All four normalize into the one event
-vocabulary below, and nothing downstream knows which path a run arrived through.
+`[telemetry].source` is real but single-valued in the ACP-only model: for every supported harness it
+is `acp`. The four-source table that once selected a path per harness is retired; there is one path.
+Everything still normalizes into the one event vocabulary below, and nothing downstream re-diverges.
 
 **Every harness has every capability. Only the mechanism differs.** This is `local-dx`'s rule and it
 carries over unchanged: where a harness has no native mechanism, a loader bridges it, and the harness
@@ -510,7 +547,7 @@ a native session id to hand back.
 
 **The harness file declares mechanism, never policy.** No `[capabilities]` block, and **no model
 routing** — tier resolution is the app's, so changing which model `high` means is a setting rather
-than twelve file edits.
+than eleven file edits.
 
 #### Model routing — mechanism in the file, policy in the UI
 
@@ -550,15 +587,15 @@ name    = "claude"
 binary  = "claude"
 detect  = ["--version"]
 
-[launch]                              # how to start ONE session in ONE terminal
+[launch]                              # how to start ONE session in ONE run
 argv    = ["--permission-mode", "bypassPermissions"]   # the harness's own gate is OFF:
                                       # the container is the boundary, and there is
                                       # nobody attached to answer a prompt.
 tui     = false                       # REQUIRED false. A TUI multiplexes sessions
-                                      # inside one terminal and hides them from Locus.
+                                      # inside one process and hides them from Locus.
 
 [telemetry]                           # where structured events come from
-source  = "hooks"                     # hooks | acp | stream-json | session-log
+source  = "acp"                      # acp is the only source — the ACP surface
 log_dir = "~/.claude/projects"        # transcripts, for backfill
 format  = "claude-jsonl"
 
@@ -580,10 +617,10 @@ context       = { file = "/locus/config/CLAUDE.md" }   # the `base-context` exte
 No `[capabilities]`, no `[model_routing]`: what the harness *can* do is universal, and which model a
 tier resolves to is set in the app.
 
-**Telemetry does not come from scraping the terminal.** Terminal output is for you to read; parsing it
-would rot with every harness release. Structured events come from the harness's own session log on
-disk, from hooks it fires, or both — normalized into one vocabulary. `dx-telemetry` in `local-dx`
-already does exactly this across four harness dialects, and its normalization pass is the reference.
+**Telemetry does not come from a terminal.** There is no terminal on the agent path; an agent renders
+as normalized events, never as raw bytes. Structured events come from the harness's own ACP stream —
+normalized into one vocabulary. `dx-telemetry` in `local-dx` proved the normalization pattern across
+four harness dialects; ACP gives Locus one richer, structured source instead of four scraped ones.
 
 ### Materializers — the code half of the contract
 
@@ -607,7 +644,7 @@ of them needs a plugin:
 | `merged-into` | render the files into one target file as prose, frontmatter stripped | codex and copilot rules and output-styles; dsh commands |
 | `listed-in` | write the files' paths into a key of the harness's config | opencode rules and styles → `opencode.json:instructions` |
 | `entries-in` | convert each file into one structured entry in a config file | codex agents → TOML; dsh agents → `cordis.patch.yml`; claude hooks → `settings.json` |
-| `plugin` | **run an executable that returns the files to write** | pi and omp hooks and rules (TS extension); opencode hooks (plugin); hermes (Python plugin) |
+| `plugin` | **run an executable that returns the files to write** | pi and omp hooks and rules (TS extension); opencode hooks (plugin) |
 | `core-driven` | Locus fires the extension itself at the boundaries it owns | aider and cursor hooks — neither has a hook mechanism, so `session_start` and `session_end` come from the container's own lifetime |
 
 **Every entry that is weaker than native says so.** A rule folded into always-on context is not the
@@ -620,10 +657,10 @@ rules = { via = "merged-into", target = "context", strip_frontmatter = true,
           weaker_than_native = "always-on; path scoping is lost" }
 ```
 
-Thirty-three of the ninety-six entries across the twelve harnesses are downgrades. That number is
+Thirty-three of the entries across the eleven harnesses are downgrades. That number is
 the honest measure of how uneven the field is, and it is only visible because the files say it.
 
-**Both figures are computed from the registry, never maintained by hand** — twelve harnesses times
+**Both figures are computed from the registry, never maintained by hand** — eleven harnesses times
 eight extensions is the denominator, and the numerator is a count of `weaker_than_native` keys. Any
 surface that shows them reads the files, so registering a harness moves the number without an edit.
 
@@ -677,25 +714,26 @@ so a normalization bug is repairable by replay rather than by re-running the age
 the number from the model API, and Locus never counts tokens itself. Where a harness reports nothing,
 `usage` is null and spend reads *unknown* rather than zero.
 
-**`permission_request` is a misconfiguration alarm.** Since every harness launches with its own gate
-off, one firing means a gate was left on and the run is about to hang. It stays in the vocabulary for
-exactly that reason — see Permissions below.
+**`permission_request` is posture-aware.** In the default bypass posture, every harness gate is off,
+so a request is a misconfiguration alarm. A dispatch-selected gated posture makes the same event a
+visible human-action request that blocks until resolved. The run's stored posture, not the verb alone,
+determines its meaning — see Permissions below.
 
-**How each source normalizes.** `[telemetry].source` selects a module under
-`crates/locus-core/src/telemetry/`; nothing downstream knows which one ran:
+**How each source normalizes.** `[telemetry].source` is `acp` for every supported harness; the module
+under `crates/locus-core/src/telemetry/` is one ACP path, and nothing downstream knows which one:
 
 | Source | How it arrives | Mapped by |
 | --- | --- | --- |
-| `hooks` | `locus-hook` fires per harness hook event, JSON on stdin, appended to the run's buffer | hook event name → verb, one table per harness. The richest path: `tool_call` and `tool_result` arrive with name and arguments already separated |
 | `acp` | `session/update` notifications on the stream the ACP client already holds | `AgentMessageChunk` → `assistant`, `AgentThoughtChunk` → `thinking`, `ToolCall`/`ToolCallUpdate` → `tool_call`/`tool_result`/`tool_error` by its `status`, `RequestPermission` → `permission_request`. **One mapping for every ACP harness**, not one per harness |
-| `stream-json` | the harness's own newline-delimited JSON on stdout | the core **tees** stdout — the structured stream to the normalizer, the same bytes to the terminal. The TOML declares which key holds the record type and its value → verb table |
-| `session-log` | a file the harness writes; tailed while the run is live, re-read once at exit | a per-harness parser. Weakest path: ordering is file position, `thinking` is usually absent, and `usage` often appears only in the final record |
 
-**Teeing stdout is not terminal scraping.** The distinction is what the bytes *are*: `stream-json` is
-the harness's declared machine format, versioned as an interface. A TUI's paint output is its human
-rendering, which has no contract and rots on every release.
+**The four-source table is retired.** `hooks`, `stream-json`, and `session-log` no longer feed the
+agent surface; the richest and the weakest both go. A harness with no native ACP mode is bridged by a
+mapping, not dropped to a terminal capture — there is no terminal capture to fall back to.
 
-Three rules keep the four paths interchangeable:
+**Teeing stdout has no counterpart here.** `stream-json` teeing existed to mirror structured bytes to
+a terminal; there is no terminal. The single source is the ACP stream, nothing else.
+
+Three rules keep the one path honest:
 
 - **Ordering is Locus's.** `seq` is assigned on arrival at the core, so a source with no ordering
   guarantee still yields a totally ordered stream.
@@ -706,16 +744,16 @@ Three rules keep the four paths interchangeable:
 - **`raw` is kept on every event.** Harness formats change between releases; replay against a fixed
   parser is the repair, and it is the reason capture is separated from normalization at all.
 
-**What a harness must supply to be supported:** a launch command, a known config layout, and a
+**What a harness must supply to be supported:** a launch command, a known config layout, and an ACP
 telemetry source. A harness that only paints a TUI is unsupported — not because of its output format,
-but because it breaks the one-session-per-terminal mapping everything else depends on.
+but because it breaks the one-session-per-run mapping everything else depends on.
 
 **Why Tauri, restated for this model.** The usual argument for Electron is that an in-process Node
-runtime is free when the IDE drives agents through TypeScript SDKs. Locus drives agents as
-**subprocesses in terminals** — so no in-process language runtime is needed on either side of that
-choice, and the argument evaporates. What Locus does need is container lifecycle, PTY handling,
+runtime is free when the IDE drives agents through TypeScript SDKs. Locus drives agents as **subprocesses
+that answer one ACP conversation each** — so no in-process language runtime is needed on either side of
+that choice, and the argument evaporates. What Locus does need is container lifecycle, ACP over stdio,
 Postgres, and git, all first-class in Rust. **Tauri's real cost is webview inconsistency**
-(WKWebView / WebView2 / WebKitGTK), and terminal keyboard fidelity on macOS.
+(WKWebView / WebView2 / WebKitGTK); agent-terminal keyboard fidelity falls away with ACP.
 
 ### Data model — Postgres schemas
 
@@ -729,6 +767,55 @@ Postgres, and git, all first-class in Rust. **Tauri's real cost is webview incon
 | `workflows` | `workflow_defs` (versioned; `graph` + `spec` JSONB), schedules, executions, iterations, guardrail trips, verify results |
 | `mail` | threads, messages, delivery state |
 | `market` | manifests, installs, per-image tool sets |
+| `log` | `entries` — Locus's domain event log; the only table any of the above is written *from* |
+
+### Event sourcing and its two carve-outs
+
+**`log.entries` is the only thing Locus writes; every other table is a fold over it.** A row is a
+cached answer, never a fact. This was decided while nothing was built, which is the only time it is
+cheap to decide.
+
+**Two logs, one ordering.** `agents.events` is the harness transcript and keeps its closed twelve-verb
+vocabulary, enforced at the type level. `log.entries` carries Locus's own domain events — `task.moved`,
+`workflow.iteration_recorded`, `mail.sent`, `dispatch.enqueued` — with an open, per-kind versioned
+payload. Putting `task.moved` in the telemetry enum would destroy the property that makes harness
+output testable, so they stay apart and share one `stream_pos` counter per project instead. *"Everything
+since N"* spans both without merging two orderings by timestamp.
+
+**The fold is synchronous, in the append's own transaction**, so a projection is never stale and there
+is no caught-up question. That is available only because the core is the sole writer — the same
+property that makes a Postgres sequence the wrong source for `stream_pos`, since a sequence is assigned
+at insert and made visible at commit, and two concurrent runs can commit out of that order.
+
+**Telemetry is exempt from projection.** `agents.events` is appended raw; runs-by-hour, cost per
+session and verify rates are queries against it. It is the hot path — written on every tool call of
+every run — and fold work inside that transaction would tax the highest-volume writer in the system to
+serve dashboards that tolerate a query.
+
+**The line the carve-outs sit on is not a schema list:**
+
+> The fold produces everything except what a model or a clock produced.
+
+| Carve-out | Where | Why it cannot fold |
+| --- | --- | --- |
+| **Embeddings** | `memory.store`, `wiki.pages` | a model output, not a function of the events behind its text, and not reproducible across embedding-model versions |
+| **Decay and confidence** | `memory.store` | a function of wall-clock time; folding it means re-deriving on every read, or writing tick entries so the log can model a clock |
+
+Both are **declared, not discovered** — a `carve_out` annotation, and a schema test that fails when a
+new non-foldable column appears without one. The facts and pages themselves still fold; only these
+columns sit outside. **`locus rebuild` does not touch them**, because they were never derived from the
+log and nothing exists to re-derive them from.
+
+**What this costs, stated once.** Every `(kind, v)` ever written must stay foldable forever, and a fold
+meeting an unknown one **halts naming the offending `stream_pos` rather than skipping** — a skipped
+entry yields a projection that is quietly wrong, which is the failure event sourcing exists to prevent.
+Locus already carries permanent schema-evolution cost against eleven third-party harness formats it does
+not control; this adds a second obligation for events it does own. Owning them is the difference.
+
+**And it does not reduce the backup requirement — it sharpens it.** The log lives only in the Postgres
+volume, so losing the volume loses the thing everything else rebuilds *from*; and the two carve-outs
+cannot be replayed at any price. A restore brings back the log and the carve-outs, and `locus rebuild`
+regenerates everything between.
 
 ### What a session is
 
@@ -738,7 +825,7 @@ needs one definition, and this is it:
 ```
 Project
 └── Session          a durable, named thread of work with ONE agent
-    ├── Run          one container lifetime = one terminal
+    ├── Run          one container lifetime = one ACP conversation
     │    └── Turn    one prompt → one response
     ├── Run          (after a loop reset: new container, same session)
     └── Run
@@ -749,7 +836,7 @@ Project
 | Bounded by | you closing it | the container exiting |
 | Holds | agent@version, its branch on the local remote, the board task it serves, core-memory base, pane state | events, token usage, exit status, artifacts, **the resolved model id** |
 | Resumable | yes — by starting another run | no; a run is over when it is over |
-| Maps to | the harness's own conversation id, where it has one | one terminal, one harness process |
+| Maps to | the harness's own conversation id, where it has one | one ACP process and container |
 | Cost | the sum of its runs | measured directly |
 
 **The session is what survives the reset.** That is the whole reason for the split. The Ralph-loop
@@ -764,8 +851,8 @@ Three consequences worth stating:
   resume belongs to Locus rather than the harness: the next run is primed from the session's own
   events. Where a harness has a native session id the core stores it on the run and hands it back,
   which is an optimization, not the mechanism.
-- **A terminal you drive yourself is not a session.** Same pane type, but no agent, no events, no
-  cost attribution.
+- **A terminal you drive yourself is not an agent session.** It is a separate human-work pane with no
+  agent events or cost attribution.
 - **Chat is a session**, with the designated spec agent. Nothing special about it.
 
 ### Handoffs — a payload for a mechanism that already exists
@@ -920,8 +1007,16 @@ the code is**, which is the agent's own container:
 | **Debugging** | `locus debug break\|run\|step\|stack\|eval\|vars` | An agent that can inspect a live stack stops guessing at runtime state from print statements |
 | **Browser validation** | `locus browse open\|click\|fill\|assert\|screenshot` | An agent that changed a UI can look at it |
 
-**On demand, not always on.** These are tools in an agent's allowlist, resolved from the marketplace
-like any other. An agent that does not need a debugger does not get one, and pays nothing for it.
+**LSP is internal and pre-provisioned.** When a repository joins a project, Locus detects trusted root
+markers and file extensions, resolves enabled internal language descriptors, and prepares the host
+server cache plus agent-image layers before first use. Built-in descriptors ship with Locus; users can
+explicitly import a local descriptor bundle into their user catalog. Repository contents can suggest a
+descriptor, never import one or execute its installer. The project pins the selected descriptor id,
+version, and content hash.
+
+**Other capabilities remain on demand.** DAP and browser tools are allowlist-gated and marketplace
+resolved. `locus lsp` remains allowlist-gated for agents, but that gate controls invocation, not the
+project-time provisioning of its server.
 
 **Where each server runs:**
 
@@ -1650,10 +1745,11 @@ Two consequences worth stating:
 Agent definitions live in Postgres like everything else, with import and export as `.md` so they can
 be reviewed in a PR or copied between machines when that is what you want.
 
-#### Permissions are declared, never prompted
+#### Permissions are declared; gated runs can ask
 
-The human is never asked mid-run, because a headless run that stops to ask has nobody to answer it.
-What an agent may do is set in two places, and the second may only ever **narrow** the first:
+Bypass is the default because an unattended run that stops to ask has nobody to answer it. A dispatch
+job may explicitly opt into a gated posture, where a protected action blocks as a visible human request.
+What an agent may do is still set in two places, and the second may only ever **narrow** the first:
 
 | Set on | Declares | Rule |
 | --- | --- | --- |
@@ -1665,9 +1761,10 @@ workflow would be a place to re-grant privileges, and reading an agent would sto
 can do.
 
 Enforcement is the container, not the harness: an unlisted tool is not installed, the network tier is
-applied at the proxy, and the run's branch is the only writable thing in reach. The harness's own
-permission gate is switched **off** at launch, by the `argv` its harness file declares — which is why
-`permission_request` firing means a misconfiguration rather than a decision waiting for you.
+applied at the proxy, and the run's branch is the only writable thing in reach. In bypass posture the
+harness gate is switched **off** at launch, so `permission_request` is an alarm. In gated posture,
+Locus records and resolves the request in the Agent Pane; it never grants a capability outside the same
+allowlist and container boundary.
 
 ### The Workflow Canvas
 
@@ -1855,8 +1952,8 @@ to disagree about — the file *is* the definition.
 
 **Live overlay.** Opening a running workflow shows its graph with run state painted on it: which node
 is executing, which `Verify` passed or failed, which iteration the loop is on, tokens and wall-clock
-per node. The terminal shows the agent working; the canvas is the map. Both read the same
-normalized events, so there is one source and two renderings.
+per node. The agent event stream shows work; the canvas is the map. Both read the same normalized events, so
+there is one source and two renderings.
 
 ### Agent CLI (`locus`, inside the container)
 
@@ -2033,7 +2130,7 @@ not the organising principle.
 
 #### Sessions do not all fit, so most are strips
 
-One session per terminal was chosen for observability, which creates the obvious problem at ten
+One ACP conversation per run is chosen for observability, which creates the obvious problem at ten
 sessions. **Automate** holds **one to four focused panes**; everything else is a strip entry — the
 minimize-to-tile behaviour already specified, made the default rather than the exception. The strip
 persists across categories, because walking away from Automate is not a reason to lose sight of what
@@ -2090,7 +2187,7 @@ high-frequency path here is a Channel:
 
 | Path | Mechanism |
 | --- | --- |
-| Terminal PTY bytes | `Channel<&[u8]>` |
+| Human-terminal PTY bytes | `Channel<&[u8]>` — never an agent session |
 | Normalized session events, including token deltas | `Channel<Event>` |
 | LSP diagnostics and semantic tokens | `Channel<T>` |
 | "a run finished", "a task moved", "a guardrail tripped" | `emit` — low frequency, many listeners |
@@ -2117,7 +2214,7 @@ own DOM, so the library only has to cover chrome:
 | Workflow Canvas | `solid-flow` |
 | Agent editor | a Markdown editor — CodeMirror, already present |
 | Editor and diff | CodeMirror 6 |
-| Terminals | xterm.js |
+| Human terminals | xterm.js |
 | Board, wiki, dashboard | bespoke |
 | Dialogs, context menus, tabs, tooltips, combobox, toast, palette | **Kobalte**, styled via **shadcn-solid** copied into `src/ui/` |
 | Long lists | `@tanstack/solid-virtual` |
@@ -2127,8 +2224,8 @@ resizable split panes and no tree — correctly, because both of those are the p
 tree, which are product here rather than components. shadcn-solid is copied in rather than depended
 on, so nothing visual is version-locked, and it sits on Kobalte so there is one primitive layer.
 
-**Keyboard capture is a terminal problem.** Every terminal is a real PTY, so this lands across the
-board rather than in one corner, and macOS eats keystrokes before JS sees them.
+**Keyboard capture is a human-terminal problem.** xterm.js remains for hands-on work; agent sessions
+render ACP events and do not require terminal keystroke fidelity.
 
 - Option-as-Meta and pre-processing hooks are xterm.js configuration — `macOptionIsMeta` and
   `attachCustomKeyEventHandler` — not code to invent.
@@ -2151,8 +2248,12 @@ CodeMirror 6 used directly, no wrapper interface.
   repo Locus keeps one normal clone per project beside the bare remote and opens that. No worktrees
   anywhere in the design — a clone is what the git model already produces, and adding a second
   checkout mechanism would mean two ways to be on the wrong branch.
-- Language servers are spawned and supervised **on the host** by the LSP supervisor, one set per
-  project, shared across panes. Agents' containers do not run language servers.
+- Language servers for editor panes are spawned and supervised **on the host** by the LSP supervisor,
+  one set per project, shared across panes. `locus lsp` starts a separate server inside an agent
+  container against that run's clone; it never reuses the host server because the two trees can differ.
+- A language is a Locus-owned descriptor, not a core branch or marketplace plugin. A descriptor declares
+  its root markers, file extensions, server argv, capabilities, and grammar metadata. Built-ins ship
+  with Locus; a user import is immutable and hash-pinned when explicitly enabled for a project.
 
 **One editor, two zoom levels.** The side pane beside an agent and the full-window editor module are
 the same CodeMirror components at different sizes, sharing one keymap, one theme, one LSP client. A
@@ -2164,8 +2265,10 @@ either native to CodeMirror or chrome built once and reused at both sizes.
 Declined on purpose, restated so they are not rediscovered later: **no debug UI** — no gutter, no
 variables pane, no step controls, because `locus debug` serves the side that needed it. Accepted gaps:
 no VS Code extensions, and Lezer grammar
-coverage thins out in the tail — Odin and GDScript have none. Mitigation when it bites is LSP semantic
-tokens for color plus tree-sitter-WASM decorations for structure.
+coverage thins out in the tail — Odin and GDScript have none. M2 implements LSP semantic-token full
+and delta requests plus CodeMirror decorations for colour, with tree-sitter-WASM decorations for
+structure. Until that work lands, a language without a grammar is editable plain text rather than a
+broken editor.
 
 **Debugging is not an editor feature here.** The DAP client lands in the core because *agents* need to
 debug, and it is reached only through `locus debug` in a container. The editor gets no debug UI — no
@@ -2191,10 +2294,11 @@ below is decomposed that way.
 **This document stays the architecture.** A spec cites the section that governs it rather than
 restating it — one source for a decision, not two that drift.
 
-- `harnesses/*` — **all twelve written**, every one of the eight extensions declared with a `via`
-  strategy and every downgrade carrying `weaker_than_native`. Two are UNVERIFIED against a running
-  binary — `dsh` and `hermes`, neither installed here and neither present in `local-dx` — and say so
-  in the file. What remains is confirming each against its harness, which is Spike 1's other half
+- `harnesses/*` — **all eleven written**, every one of the eight extensions declared with a `via`
+  strategy and every downgrade carrying `weaker_than_native`. One is UNVERIFIED against a running
+  binary — `dsh`, not installed here and not present in `local-dx` — and says so in the file. What
+  remains is confirming it against its harness, which is Spike 1's other half. `hermes` was removed
+  ACP-only: it ships no first-class ACP mode and is declared out of support.
 - Fill in the stub `AGENTS.md` at the repo root
 - **Spike 1** `spikes/01-sandboxed-harness/` — does a harness run in a container built from
   `locus/base-<harness>`, authenticated without holding a long-lived secret, against its own clone,
@@ -2214,13 +2318,13 @@ locus harness lint          # refuses an undeclared extension or an unknown stra
 
 `verify:` all three spikes produce a written answer in their directory; every `.specs/*/` holds both a
 `spec.md` and a `tasks.md` and every task row carries a runnable command;
-`locus harness lint` passes for all twelve.
+`locus harness lint` passes for all eleven.
 
 ### M0.5 — Desktop UI on fixtures
 
-The whole shell and all fourteen screens, at the handoff's own fidelity, before any of it has a
-backend. `docs/design_handoff_locus_desktop_ui/` is the contract: final colors, type sizes, densities
-and copy at 1440x900, deliberately dense.
+**Historical record.** M0.5 delivered the v1 shell and fourteen fixture screens before the runtime.
+The v1 handoff was removed when v2 replaced it; its completed contracts remain under `.specs/` only as
+baseline history. New desktop work follows the M0.6 v2 reconciliation below.
 
 Built ahead of the runtime on purpose. The alternative — a screen arriving with the milestone that
 makes its data real — spreads one coherent visual system across five milestones and re-decides it each
@@ -2247,22 +2351,29 @@ event vocabulary rather than from what a screen happens to need; each module nam
 command that will replace it; and the Harnesses and Extensions screens compute theirs from
 `harnesses/*.toml`, so those two are correct on the first day and stay correct without an edit.
 
-`verify:` every one of the fourteen screens is reachable by rail and tab and matches its capture in
-`docs/design_handoff_locus_desktop_ui/screenshots/`; the Harnesses screen reports twelve harnesses and
-thirty-three downgrades read from the TOMLs rather than from a literal; keyboard focus is the accent
-outline everywhere and a browser default ring nowhere; `pnpm build` is clean.
+Historical verification reached every v1 screen, derived Harnesses data from the TOMLs, and enforced
+keyboard focus and a clean `pnpm build`. The v2 verification inventory is `.specs/design-v2/tasks.md`.
 
+### M0.6 — v2 desktop reconciliation
+
+The v2 handoff replaces the shell, expands the fixture set to thirty-one screens, and introduces
+Providers, CLI tools, project scope, plan decomposition, dispatch, and workflow Governance. It also
+ships Dark and cool-neutral Light themes through semantic roles. The contract is `.specs/design-v2/`;
+theme values and regression requirements are `.specs/theme-system/`.
+
+`verify:` the 31-screen fixture inventory, provider-secret redaction, selected-project navigation,
+queue-stop semantics, and both theme visual/contrast matrices pass their task commands.
 
 ### M1 — Core runtime
 
-Daemon, store, registry, containers, terminals.
+Daemon, store, registry, containers, and ACP conversations.
 
 - `locus-postgres` lifecycle, migrations (`sqlx`), and **backup/restore**: `locus backup` dumps the
   eight schemas and the artifact blob tree together, nightly and before every migration, retaining
   seven dailies and four weeklies. `locus restore --drill` restores into a scratch database and
   asserts row counts against the source — because a backup nobody has restored is a belief, not a
   backup, and this is the one piece the deferral table calls non-deferrable
-- **ACP client** on the `agent-client-protocol` crate — for the planning/chat module
+- **ACP client** on the `agent-client-protocol` crate — the only agent-session transport
 - Harness registry and TOML schema validation, refusing any entry that leaves an extension undeclared
 - **Settings → Harnesses**: the tier-to-model grid, populated from `[models].list_argv` where a harness
   can enumerate and free text where it cannot, stored in `core.settings`. Unset tiers pass no flag, so
@@ -2287,17 +2398,17 @@ Daemon, store, registry, containers, terminals.
   Status, Workshop Extensions and Workshop Harnesses. Each swaps its fixture accessor for a Tauri
   command; the shell, the rail, the navigation and the locator resolver already exist and are not
   rebuilt. Screens whose backend is still ahead of them keep their fixtures and say so on screen
-- JS-side pane manager over **one webview per window**, one window holding every project, terminals
-  (xterm.js) with one session each, and the project-labelled session strip as the default home for
-  anything not focused
+- JS-side pane manager over **one webview per window**, one window holding every project, ACP event
+  panes for agent sessions, and the project-labelled session strip as the default home for anything
+  not focused; xterm.js remains only for human terminals
 - All streaming over `tauri::ipc::Channel`, coalesced per pane on a frame tick, from the first commit
 - **CI for Locus itself** — `cargo test`, `cargo clippy`, the harness lint, and the materialization
   smoke test on every push. Cheap now, and the smoke test is the only thing standing between a harness
   release and a silent non-load
 
-`verify:` two agents from different harnesses run concurrently in their own terminals and containers
-against the same repo, and a third on a **different project** appears in the same tile strip beside
-them; their events are indistinguishable downstream; every event lands in Postgres;
+`verify:` two agents from different harnesses run concurrently as ACP conversations in their own
+containers against the same repo, and a third on a **different project** appears in the same tile strip
+beside them; their events are indistinguishable downstream; every event lands in Postgres;
 both minimize to informative tiles. A canary skill and a canary rule materialize into **every**
 registered harness and the agent can see both — including pi, where they arrive as generated
 TypeScript rather than as files. Materializing the same agent twice produces byte-identical trees:
@@ -2549,7 +2660,7 @@ Reuse rather than rebuild:
 
 **How Locus is tested: event-based.** Every run normalizes into `memory.event` regardless of harness,
 capture path, or container — so a test is *"run this, assert these events appeared."* That works
-identically across all twelve harnesses and needs no test-only instrumentation, because the substrate
+identically across all eleven harnesses and needs no test-only instrumentation, because the substrate
 is the one telemetry already requires. Unit tests cover the pure parts; everything above them asserts
 on the event stream.
 
@@ -2583,8 +2694,8 @@ short-lived credential broker on `/run/locus.sock` rather than a mounted file �
 must be known before M1 rather than during it.
 
 **Risk — TUI-only harnesses are excluded.** A harness that insists on painting a full-screen
-interface cannot be supported, because it multiplexes sessions inside one terminal and breaks the
-mapping Locus depends on. Deliberate, but real.
+interface cannot be supported, because it does not expose the one ACP conversation per run that Locus
+owns and renders. Deliberate, but real.
 
 **Risk — a complete-looking requirement that is not.** Every gate in the design checks work against a
 requirement, so a requirement that omits a behavior produces a green run, a passing adversarial suite,

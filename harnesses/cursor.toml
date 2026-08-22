@@ -4,18 +4,20 @@ name   = "cursor"
 binary = "agent"
 detect = ["--version"]
 
+[image]
+base     = "debian:bookworm-slim"
+version  = "unverified"
+install  = []
+verified = false
+
 [launch]
 argv = ["--mode", "agent"]         # modes: agent | plan | ask
 tui  = false
 
 [telemetry]
 source = "acp"
-# `agent acp` speaks JSON-RPC 2.0 over stdio, newline-delimited.
-#   initialize -> authenticate(cursor_login) -> session/new | session/load
-#   -> session/prompt -> session/update* -> session/request_permission
-# Alternative for one-shot work: --print --output-format stream-json.
-# The json envelope carries session_id, duration_ms, duration_api_ms, result.
-
+emits  = ["user", "assistant", "thinking", "tool_call", "tool_result",
+           "tool_error", "permission_request"]
 [auth]
 # Pre-authenticate before the container starts; never bake the key into an image.
 env      = ["CURSOR_API_KEY", "CURSOR_AUTH_TOKEN"]

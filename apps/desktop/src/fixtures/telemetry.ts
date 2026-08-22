@@ -70,7 +70,6 @@ export const FACET_GROUPS: FacetGroup[] = [
       { value: 'cursor', count: 41, active: false },
       { value: 'gemini', count: 26, active: false },
       { value: 'aider', count: 14, active: false },
-      { value: 'hermes', count: 9, active: false },
     ],
   },
   {
@@ -147,7 +146,7 @@ export const FACET_GROUPS: FacetGroup[] = [
 export interface ActionRow {
   verb: EventVerb
   count: number
-  /** Drawn in --bad rather than accent. */
+  /** Drawn in --status-danger rather than accent. */
   bad: boolean
   /**
    * Set on `permission_request`. It is a misconfiguration alarm, not a metric —

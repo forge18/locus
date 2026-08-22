@@ -15,6 +15,8 @@ import {
 } from '../../data/sessions'
 
 export interface AgentsViewProps {
+  /** The Kanban is the board fixture; routing stays with the shell. */
+  onShowKanban?: () => void
   /** Minimize sends the session to the strip. It does not end it. */
   onMinimize?: (id: string) => void
   /**
@@ -35,6 +37,27 @@ export function AgentsView(props: AgentsViewProps) {
 
   return (
     <div class="agents" data-testid="agents">
+      <div class="automate-view-switcher" data-testid="automate-view-switcher">
+        <button
+          type="button"
+          class="automate-view-tab"
+          data-testid="automate-kanban-tab"
+          aria-pressed="false"
+          onClick={() => props.onShowKanban?.()}
+        >
+          Kanban
+        </button>
+        <button
+          type="button"
+          class="automate-view-tab"
+          data-testid="automate-list-tab"
+          aria-pressed="true"
+        >
+          List
+        </button>
+      </div>
+
+      <div class="agents-body">
       <Resizable width={356} min={280} max={520} side="right" class="session-list" testId="session-list">
         <div class="session-list-head" data-testid="session-list-head">
           Agents
@@ -43,7 +66,7 @@ export function AgentsView(props: AgentsViewProps) {
           </span>
           <span style={{ 'margin-left': 'auto', display: 'flex', gap: 'var(--g-3)' }}>
             <Icon name="funnel" size={11} label="Filter" />
-            <Icon name="sort-ascending" size={11} style={{ color: 'var(--ac)' }} label="Sort" />
+            <Icon name="sort-ascending" size={11} style={{ color: 'var(--action-attention)' }} label="Sort" />
           </span>
         </div>
 
@@ -151,6 +174,7 @@ export function AgentsView(props: AgentsViewProps) {
           </span>
         </Show>
       </section>
+      </div>
     </div>
   )
 }

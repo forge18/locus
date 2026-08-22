@@ -23,3 +23,8 @@ Task 1 settles it and updates whichever document loses.
 | 16 | Waiting For Approval cards appear in the inbox | 3 | `cargo test -p locus-core board::approval_is_an_inbox_item` |
 | 17 | `locus task list\|show\|move\|assign\|comment` | 3 | `cargo test -p locus-cli task::verbs` |
 | 18 | Wire the Kanban screen to real tasks with drag | 17 | `pnpm -C apps/desktop test -- kanban/from-core` |
+| 19 | `task.moved` / `task.assigned` entry kinds; `board.tasks` has no direct writer | — | `cargo test -p locus-core board::projector_is_only_writer` |
+| 20 | Board projector: column, blocked, assignment, evidence | 19 | `cargo test -p locus-core project::board` |
+| 21 | Done-without-evidence is refused inside the fold, not at the API edge | 20 | `cargo test -p locus-core board::done_gate_in_fold` |
+| 22 | `locus rebuild --schema board` reproduces every card byte-identically | 20 | `cargo test -p locus-core rebuild::board_byte_identical` |
+| 23 | `--to <stream_pos>` shows a task in the column it was in then | 22 | `cargo test -p locus-core rebuild::board_time_travel` |

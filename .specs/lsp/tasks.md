@@ -18,4 +18,11 @@
 | 14 | Agent and editor agree when the trees match | 7,2 | `cargo test -p locus-core lsp::agree_when_same_tree` |
 | 15 | They diverge when the trees differ — proving separate servers | 14 | `cargo test -p locus-core lsp::differ_when_trees_differ` |
 | 16 | Allowlist enforcement: no `locus lsp` without it in `tools` | 7 | `cargo test -p locus-core lsp::allowlist_enforced` |
-| 17 | Record which servers ship in a base image by default | 6 | `cargo test -p locus-core lsp::default_servers_documented` |
+| 17 | Built-in language descriptor schema and catalog, loaded without language branches in core | 1 | `cargo test -p locus-core lsp::catalog` |
+| 18 | Import a local descriptor bundle into the user catalog; validate, copy immutably, and hash it | 17 | `cargo test -p locus-core lsp::import` |
+| 19 | Detect root markers and file extensions when a repository joins a project; suggest but never import from that repository | 17 | `cargo test -p locus-core lsp::detect` |
+| 20 | Explicitly enable a suggested or imported descriptor and pin its id, version, and hash in project state | 18,19 | `cargo test -p locus-core lsp::project_pin` |
+| 21 | Pre-provision each enabled server for the host cache and agent image layer before first use | 20 | `cargo test -p locus-core lsp::preprovision` |
+| 22 | Request and decode `textDocument/semanticTokens/full` only from servers that advertise it | 1 | `cargo test -p locus-core lsp::semantic_tokens_full` |
+| 23 | Apply semantic-token delta responses against the previous result | 22 | `cargo test -p locus-core lsp::semantic_tokens_delta` |
+| 24 | Render semantic tokens as CodeMirror decorations and degrade unsupported languages to editable plain text | 22 | `pnpm -C apps/desktop test -- editor/semantic-tokens` |

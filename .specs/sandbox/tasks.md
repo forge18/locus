@@ -25,7 +25,7 @@ of this file holds regardless.
 | 17 | Project network `locus-<project>`, joining agents and services | 1 | `cargo test -p locus-core net::project_network` |
 | 18 | Assert cross-project containers are unreachable | 17 | `cargo test -p locus-core net::project_isolation` |
 | 19 | `locus svc up\|down` starting a project service on that network | 17 | `cargo test -p locus-core svc::up_down` |
-| 20 | PTY attached from the host to the container process | 12 | `cargo test -p locus-core container::pty_attaches` |
+| 20 | ACP stdio attached from the host to the container process | 12 | `cargo test -p locus-core container::acp_stdio` |
 | 21 | Canary token written into the materialized config | 12 | `cargo test -p locus-core canary::present_in_config` |
 | 22 | Canary detection on output; a deliberate leak is caught | 21 | `cargo test -p locus-core canary::detects_leak` |
 | 23 | Per-run tool-call rate limit | 20 | `cargo test -p locus-core limits::tool_call_rate` |

@@ -20,7 +20,6 @@ const MAPPINGS: Record<string, Partial<Record<ModelTier, string>>> = {
   pi: { low: 'pi-small', medium: 'pi-base', high: 'pi-large', xhigh: 'pi-large-thin' },
   omp: { low: 'omp-lite', medium: 'omp', high: 'omp-pro' },
   gemini: { low: 'gemini-3-flash', medium: 'gemini-3-pro', high: 'gemini-3-ultra' },
-  hermes: { medium: 'hermes-3', high: 'hermes-3-xl' },
   cursor: { low: 'composer-2-mini', medium: 'composer-2', high: 'composer-2-max' },
   antigravity: { low: 'gemini-3-flash', medium: 'gemini-3-pro', high: 'gemini-3-ultra' },
   aider: { medium: 'sonnet-4.6', high: 'opus-4.6' },
@@ -32,6 +31,14 @@ export const MODEL_TIERS: ModelTierSetting[] = Object.entries(MAPPINGS).flatMap(
   ([harness, mapping]) =>
     TIERS.map((tier) => ({ harness, tier, model: mapping[tier] ?? null })),
 )
+
+/** Results of the registry's configured `list_argv` discovery, keyed by harness.
+ * Missing entries deliberately mean free text; an empty array would mean discovery
+ * ran and found no available models. */
+export const DISCOVERED_MODEL_IDS: Record<string, string[]> = {
+  aider: ['sonnet-4.6', 'opus-4.6'],
+  opencode: ['haiku-4.5', 'sonnet-4.6', 'opus-4.6'],
+}
 
 /**
  * Which tier an unmapped one resolves to, **per harness**. This is a setting, not
@@ -50,7 +57,6 @@ export const TIER_FALLBACK: Record<string, ModelTier> = {
   pi: 'xhigh',
   omp: 'high',
   gemini: 'high',
-  hermes: 'high',
   cursor: 'high',
   antigravity: 'high',
   aider: 'medium',

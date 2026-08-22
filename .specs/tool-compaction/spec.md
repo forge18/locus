@@ -23,6 +23,7 @@ the agent.
 A `PreToolUse` hook in `locus/base-<harness>`, materialized into every run.
 
 **Two behaviors:**
+
 1. **Rewrite** a verbose command into its compact equivalent before it runs.
 2. **Compact** the result before it is appended to context.
 
@@ -44,7 +45,7 @@ model call, no synchronous socket write, and the same 100ms discipline the memor
 
 ## Acceptance
 
-1. The hook materializes into all twelve harnesses and fires on tool calls in each.
+1. The hook materializes into all eleven harnesses and fires on tool calls in each.
 2. A verbose command is rewritten before it runs, and the rewrite is visible in the event stream.
 3. A large result is compacted before reaching context, and the saving is measured — a test asserts a
    ratio, not merely that something happened.

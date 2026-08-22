@@ -1,5 +1,8 @@
 # navigation
 
+> **Historical M0.5 contract.** Its seven-category rail and all-project filter are superseded for
+> new work by `.specs/design-v2/spec.md` §Shell and screen inventory.
+
 **Milestone** M0.5 · **Depends on** `app-shell` · **Blocks** every `screens-*`
 
 ## Purpose
@@ -15,7 +18,8 @@ callers.
 - PLAN.md §One address space, so there is one resolver — the locator grammar
 - PLAN.md §Navigation — seven categories; operate versus author; project as a filter
 - PLAN.md §Three rules that keep it from sprawling
-- `docs/design_handoff_locus_desktop_ui/README.md` §Navigation model — "implement exactly"
+- `docs/design_handoff_locus_v2/README.md` §Shell
+- `.specs/design-v2/spec.md`
 
 ## Contract
 
@@ -56,6 +60,7 @@ locator` are inverses. `Cmd-K` resolves a locator; `Cmd-P` searches for one; bac
 a stack of them.
 
 **Three rules, enforced not documented:**
+
 - **Detail opens in place** — as a sheet over the current category, never a new category or window.
 - **One viewer per kind, several entry points** — an artifact renders identically however you reached it.
 - **The category list is closed** at seven; a new surface joins one rather than adding an eighth.

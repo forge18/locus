@@ -47,6 +47,10 @@ delivered by starting the next one.
 **Same mechanism as the M7 PR flow.** A PR review comment and an artifact comment are the same thing
 arriving from two places, so this is one implementation, not two.
 
+**Findings form the session research feed.** They remain reference artifacts, scoped to the session that
+made or inherited them, with seed/run/close provenance. A task session receives its planning findings as
+seeds; selected findings promote to memory only through the session-close review, never automatically.
+
 **Compaction writes overflow as artifacts.** Anything over a threshold becomes a `payload` artifact and
 leaves **a one-line summary and an id** in its place; `locus artifact get` fetches the body if it turns
 out to matter. Same rule as memory, tool docs and images — the fourth surface it applies to, and the

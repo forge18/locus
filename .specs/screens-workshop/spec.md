@@ -1,5 +1,8 @@
 # screens-workshop
 
+> **Historical M0.5 contract.** V2 expands Workshop and separates workflow Governance; new work
+> follows `.specs/design-v2/spec.md`.
+
 **Milestone** M0.5 · **Depends on** `app-shell`, `navigation`, `fixtures` · Views `extensions`, `agents`, `canvas`, `harnesses`
 
 ## Purpose
@@ -17,7 +20,7 @@ tab** — see `navigation`.
 - PLAN.md §Materializers — the strategies and `weaker_than_native`
 - PLAN.md §Model routing — mechanism in the file, policy in the UI
 - PLAN.md §The Workflow Canvas — node vocabulary, guardrails, `Condition` as a total language
-- `docs/design_handoff_locus_desktop_ui/README.md` screens 10, 11, 12, 13
+- `.specs/design-v2/spec.md` §Provider, harness, and tool policy
 
 ## Contract
 
@@ -38,7 +41,8 @@ Below: `RECENTLY EDITED` (type `.tag-neutral` chip at min-width 82px, file, chan
 downgrades, cache read.
 
 **Those figures are computed from `harnesses/*.toml`, never typed.** The handoff's own copy says
-88/27; the files say 96/33. Anything hardcoded here is wrong the next time a harness is registered.
+88/27; the files say 88/29 (eleven harnesses). Anything hardcoded here is wrong the next time a harness
+is registered.
 
 ### Agent definitions (drill-down)
 
@@ -104,7 +108,7 @@ bad setting.
 1. Extensions shows exactly eight type cards.
 2. Every count on Extensions and Harnesses is computed from `harnesses/*.toml` — no literal appears in
    the source. Adding a thirteenth TOML changes both screens with no edit.
-3. Harnesses reports 12 harnesses and 33 downgrades.
+3. Harnesses reports 11 harnesses and 29 downgrades.
 4. The `agents` card navigates to the drill-down; the Extensions tab stays lit and the back link works.
 5. The agent editor's save action reads "Save as v5" — a new version, never an overwrite.
 6. Each harness card's capability bar has exactly 8 segments and its per-type colors match that

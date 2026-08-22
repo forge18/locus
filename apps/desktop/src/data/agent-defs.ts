@@ -1,3 +1,4 @@
+import { invoke } from '@tauri-apps/api/core'
 import { AGENT_DEFS, FRONTMATTER, PROSE, SELECTED_DEF } from '../fixtures/agent-defs'
 import type { AgentDefSummary, FrontmatterLine } from '../fixtures/agent-defs'
 import { EXTENSION_COUNTS, HARNESS_COUNT } from '../fixtures/generated/harnesses'
@@ -12,7 +13,24 @@ export {
 } from '../fixtures/agent-defs'
 export type { AgentDefSummary, FrontmatterLine } from '../fixtures/agent-defs'
 
-/** Becomes: invoke("agent_defs_list") */
+export interface CoreAgentDefinition {
+  name: string
+  version: number
+  frontmatter: Record<string, unknown>
+  body: string
+  warnings: string[]
+}
+
+/** The Workshop IPC boundary; fixtures remain only as the non-Tauri test fallback. */
+export async function fetchAgentDefsFromCore(): Promise<AgentDefSummary[]> {
+  return invoke<AgentDefSummary[]>('agent_defs_list')
+}
+
+export async function fetchAgentDefFromCore(name: string): Promise<CoreAgentDefinition> {
+  return invoke<CoreAgentDefinition>('agent_def', { name })
+}
+
+/** Becomes: fetchAgentDefsFromCore() after the Tauri runtime connects. */
 export function useAgentDefs(): AgentDefSummary[] {
   return AGENT_DEFS
 }
@@ -22,12 +40,12 @@ export function useDefaultAgentDef(): string {
   return SELECTED_DEF
 }
 
-/** Becomes: invoke("agent_def", { name }) */
+/** Becomes: fetchAgentDefFromCore(name) after the Tauri runtime connects. */
 export function useFrontmatter(): FrontmatterLine[] {
   return FRONTMATTER
 }
 
-/** Becomes: invoke("agent_def", { name }) */
+/** Becomes: fetchAgentDefFromCore(name) after the Tauri runtime connects. */
 export function useProse(): string[] {
   return PROSE
 }

@@ -1,0 +1,5 @@
+CREATE TABLE agents.run_ports (
+    run_id UUID PRIMARY KEY REFERENCES agents.runs (id) ON DELETE CASCADE,
+    port INTEGER NOT NULL UNIQUE CHECK (port BETWEEN 43000 AND 43999),
+    allocated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

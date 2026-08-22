@@ -1,5 +1,8 @@
 # ui-primitives
 
+> **Historical M0.5 contract.** New primitives and styles follow `.specs/design-v2/spec.md` and
+> `.specs/theme-system/spec.md`.
+
 **Milestone** M0.5 · **Depends on** `design-system` · **Blocks** every `screens-*`, `app-shell`
 
 ## Purpose
@@ -13,7 +16,7 @@ tags, cards, tables, inputs and menus, and nothing that is actually product.
 - PLAN.md §Frontend and IPC constraints — the surface/provider table; Kobalte ships no split panes and
   no tree, correctly, because both are product
 - `apps/desktop/src/ui/README.md` — copied in and owned here, never version-locked
-- `docs/design_handoff_locus_desktop_ui/README.md` §Design system — the Nocturne classes to map
+- `.specs/design-v2/spec.md` and `.specs/theme-system/spec.md
 
 ## Contract
 

@@ -73,7 +73,7 @@ export function GitPanel(props: GitPanelProps) {
 
       <div class="git-branch-block" data-testid="git-branch-block">
         <span class="git-branch-line">
-          <Icon name="git-branch" size={11} style={{ color: 'var(--ac)' }} />
+          <Icon name="git-branch" size={11} style={{ color: 'var(--action-attention)' }} />
           {props.git.branch}
         </span>
         <span class="git-branch-from" data-testid="git-branch-from">

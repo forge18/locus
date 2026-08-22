@@ -10,7 +10,7 @@ export interface Metric {
   note: string | null
   /** The one card that means "you are the blocker" gets the accent treatment. */
   attention: boolean
-  /** A note that belongs in --bad rather than --mu. */
+  /** A note that belongs in --status-danger rather than --text-secondary. */
   badNote: string | null
 }
 
@@ -67,7 +67,7 @@ export interface ProjectRow {
   repos: number
   running: number
   inReview: number
-  /** Verify pass rate; colored --ok or --bad by the screen, not stored coloured. */
+  /** Verify pass rate; colored --status-success or --status-danger by the screen, not stored coloured. */
   verify: number
   tokensToday: string | null
   /** Null where the harness reports no usage: cache read is unknown, not 0%. */

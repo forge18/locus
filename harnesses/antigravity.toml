@@ -3,16 +3,18 @@ name   = "antigravity"
 binary = "agy"
 detect = ["--version"]
 
+[image]
+base     = "debian:bookworm-slim"
+version  = "unverified"
+install  = []
+verified = false
+
 [launch]
 argv = []
 tui  = false
 
 [telemetry]
-source = "stream-json"
-argv   = ["-p", "{prompt}", "--output-format", "stream-json"]
-# stdout is the event stream; stderr carries diagnostics, auth prompts, progress.
-# The `json` envelope reports usage.{input,output,thinking,cache_read,total}_tokens
-# — cache_read_tokens is how injection stability gets measured rather than assumed.
+source = "acp"
 
 [hooks]
 config = ".agents/hooks.json"      # or ~/.gemini/config/hooks.json

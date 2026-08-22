@@ -13,5 +13,5 @@
 | 9 | `RequestPermission` → `permission_request` and the alarm | 7 | `cargo test -p locus-core acp::permission_request` |
 | 10 | A second ACP harness needs no new mapping code | 7 | `cargo test -p locus-core acp::mapping_is_shared` |
 | 11 | ACP events indistinguishable downstream from hooks events | 7 | `cargo test -p locus-core acp::indistinguishable` |
-| 12 | Assert no code path starts an ordinary agent session over ACP | 4 | `cargo test -p locus-core acp::planning_only` |
-| 13 | Expose the conversation to the Plan screen over IPC | 11 | `pnpm -C apps/desktop test -- plan/conversation-from-core` |
+| 12 | Assert every agent session starts over ACP (the only interface) | 4 | `cargo test -p locus-core acp::only_interface` |
+| 13 | Expose the ACP conversation to the event-rendered Agent Pane over IPC | 11 | `pnpm -C apps/desktop test -- agent/conversation-from-core` |

@@ -15,7 +15,7 @@ node carries a role, and the edges are the dependencies.
 - PLAN.md §The Workflow Canvas — node vocabulary and graph validation
 - PLAN.md §Teams — the workflow *is* the team
 - PLAN.md §Two pipelines — `graph` as authored, `spec` as executed
-- `docs/design_handoff_locus_desktop_ui/README.md` screen 12
+- `.specs/design-v2/spec.md` §Workflow authoring
 
 ## Contract
 

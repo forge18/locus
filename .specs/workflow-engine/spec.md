@@ -1,6 +1,6 @@
 # workflow-engine
 
-**Milestone** M4 · **Depends on** `guardrails`, `run-supervisor`, `sandbox`
+**Milestone** M4 · **Depends on** `event-store`, `guardrails`, `run-supervisor`, `sandbox`
 
 ## Purpose
 
@@ -41,6 +41,11 @@ with `== != < > <= >=`, `and or not`, and parentheses. **Every operand is a colu
 is a `WHERE` clause against the run — evaluable in the core in microseconds and reproducible from stored
 events. It is deliberately not a scripting language, and **anything it cannot express is a `Gate`**.
 
+Event sourcing makes that reproducibility exact rather than approximate. `task.status` and
+`mail.pending` are projection columns, so re-evaluating a `Condition` against the log rebuilt `--to`
+the iteration's own `stream_pos` returns **the values the orchestrator actually saw**, not today's. A
+workflow that took a branch nobody can explain becomes a replay rather than an argument.
+
 **The four-way arbiter, before retrying.** Every guardrail answers a failed iteration the same way — try
 again, then give up — and that is wrong for at least half of failures:
 
@@ -56,8 +61,8 @@ failures otherwise kill a workflow at 8 iterations having attempted the work fiv
 and ambiguity leave the workflow entirely**, which is the only path that reaches the thing actually
 broken.
 
-The arbiter's classification is **a column on the iteration**, so spec-gap rate and ambiguity-detection
-rate are queries — and a workflow that keeps producing spec gaps is visibly a planning problem rather
+The arbiter's classification is **an entry, projected to a column on the iteration**, so spec-gap rate
+and ambiguity-detection rate are queries — and a workflow that keeps producing spec gaps is visibly a planning problem rather
 than a builder problem.
 
 **The Ralph loop is a preset, not the only shape.** `locus ralph --goal … --verify …` runs one without
@@ -82,6 +87,10 @@ as its verify** — a loop iterating against a weak check converges confidently 
 9. An ambiguity restarts after requirement refinement rather than retrying the implementation.
 10. `locus ralph` runs a loop with no canvas.
 11. No model is invoked anywhere in the orchestration path.
+12. Executions, iterations, guardrail trips and verify results are projections; nothing writes them
+    directly.
+13. A `Condition` re-evaluated against the log rebuilt `--to` its iteration's `stream_pos` returns the
+    value the orchestrator saw then, not the current one.
 
 ## Open
 

@@ -1,6 +1,6 @@
 # mail
 
-**Milestone** M3 · **Depends on** `store` · **Blocks** `handoffs`, `guardrails`
+**Milestone** M3 · **Depends on** `store`, `event-store` · **Blocks** `handoffs`, `guardrails`
 
 ## Purpose
 
@@ -16,6 +16,7 @@ precisely what putting mail in Postgres is meant to fix.
 - PLAN.md §Shared services — one Rust implementation, every harness
 - PLAN.md §The user inbox — silence is the default
 - PLAN.md §Workflow guardrails — waiting ≠ idle
+- PLAN.md §Event sourcing and its two carve-outs — threads and delivery state are folded
 
 ## Contract
 
@@ -39,6 +40,11 @@ something *needs you*, not when something *happened*.
 session's chat, a contradiction opens both wiki pages. **An item that only reports that something
 happened is a notification, not inbox work** — and does not belong here.
 
+**Threads and delivery state are a fold**, with no carve-out: `mail.sent`, `mail.read`, `mail.drained`
+append, and the inbox is the projection. `drain` returning everything pending and leaving the thread
+empty is therefore a property of replay, not a mutation that could half-apply — which matters because
+`drain` is the one verb that would otherwise lose messages if it failed midway.
+
 **A handoff is not mail.** Mail is a message between agents that both keep working; a handoff transfers
 ownership and does not come back.
 
@@ -50,6 +56,9 @@ ownership and does not come back.
 3. `wait` returns empty after its timeout rather than hanging.
 4. `drain` returns everything pending and leaves the thread empty.
 5. `locus ask` reaches the human inbox with its session attached, and blocks.
+6. Threads, messages and delivery state are projections; nothing writes them directly.
+7. `locus rebuild --schema mail` reproduces every thread and its delivery state from the log alone.
+8. A `drain` interrupted mid-way leaves the thread either fully drained or untouched, never partial.
 6. Every inbox item carries a locator that resolves to the thing it is about.
 7. An item with no resolvable target is rejected as a notification, not stored as inbox work.
 8. A session running normally produces zero inbox items.

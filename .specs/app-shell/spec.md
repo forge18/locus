@@ -1,5 +1,8 @@
 # app-shell
 
+> **Historical M0.5 contract.** The v1 four-band shell is superseded for new work by
+> `.specs/design-v2/spec.md` §Shell and screen inventory.
+
 **Milestone** M0.5 · **Depends on** `design-system`, `ui-primitives` · **Blocks** every `screens-*`
 
 ## Purpose
@@ -10,7 +13,8 @@ window per project because that would rebuild the fragmentation the whole design
 
 ## Governed by
 
-- `docs/design_handoff_locus_desktop_ui/README.md` §Shell
+- `docs/design_handoff_locus_v2/README.md` §Shell
+- `.specs/design-v2/spec.md`
 - PLAN.md §Navigation — one window, project as a filter; the inbox count on the rail
 - PLAN.md §Sessions do not all fit, so most are strips
 
@@ -22,6 +26,7 @@ size of the mockup's frame, not a constraint on the app — see `design-system`
 constant.
 
 **1. Title bar** — 42px, `--bg-deep`, bottom hairline.
+
 - macOS traffic lights (11px: `#ed6a5e`, `#f4bf50`, `#61c554`), then `LOCUS` at 12px/500 uppercase,
   letter-spacing .14em, `--mu`.
 - Centered **locator bar**: `clamp(240px, 40vw, 520px)` x 26, `--sf`, radius 6, hairline. Magnifier, mono `locus://` in `--mu2`,

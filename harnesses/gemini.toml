@@ -3,15 +3,19 @@ name   = "gemini"
 binary = "gemini"
 detect = ["--version"]
 
+[image]
+base     = "debian:bookworm-slim"
+version  = "unverified"
+install  = []
+verified = false
+
 [launch]
 argv = []
 tui  = false
 
 [telemetry]
-source = "hooks"
-# Every hook payload carries `transcript_path` — an absolute path to the session
-# transcript JSON — so capture never has to reconstruct state from event order.
-# Payload: session_id, transcript_path, cwd, hook_event_name, timestamp.
+source = "acp"
+# The ACP surface is the only capture path; hooks remain for injection, not telemetry.
 
 [hooks]
 config    = "~/.gemini/settings.json"

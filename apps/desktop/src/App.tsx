@@ -1,11 +1,12 @@
-import { Match, Suspense, Switch, lazy, onMount } from 'solid-js'
-import { Shell } from './shell/Shell'
-import { EmptyPane } from './ui/EmptyPane'
-import { SkeletonRows } from './ui/SkeletonRows'
-import { mountIconSprite } from './ui/sprite'
-import { createNavStore } from './nav'
+import { Match, Suspense, Switch, lazy, onMount } from "solid-js";
+import { Shell } from "./shell/Shell";
+import { EmptyPane } from "./ui/EmptyPane";
+import { SkeletonRows } from "./ui/SkeletonRows";
+import { mountIconSprite } from "./ui/sprite";
+import { createNavStore } from "./nav";
+import { applyTheme, savedTheme } from "./styles/theme";
 
-import './styles/app.css'
+import "./styles/app.css";
 
 /**
  * Screens load on the view that needs them.
@@ -14,24 +15,27 @@ import './styles/app.css'
  * inbox paints, and most sessions never open Workshop at all. Splitting at the
  * view boundary is free: the nav store already decides which one is next.
  */
-const InboxView = lazy(() => import('./screens/inbox/InboxView'))
-const StatusView = lazy(() => import('./screens/status/StatusView'))
-const PlanView = lazy(() => import('./screens/plan/PlanView'))
-const WikiView = lazy(() => import('./screens/wiki/WikiView'))
-const DevelopView = lazy(() => import('./screens/develop/DevelopView'))
-const KanbanView = lazy(() => import('./screens/automate/KanbanView'))
-const AgentsView = lazy(() => import('./screens/automate/AgentsView'))
-const TelemetryView = lazy(() => import('./screens/review/TelemetryView'))
-const RunsView = lazy(() => import('./screens/review/RunsView'))
-const ArtifactsView = lazy(() => import('./screens/review/ArtifactsView'))
-const ExtensionsView = lazy(() => import('./screens/workshop/ExtensionsView'))
-const AgentDefsView = lazy(() => import('./screens/workshop/AgentDefsView'))
-const WorkflowView = lazy(() => import('./screens/workshop/WorkflowView'))
-const HarnessesView = lazy(() => import('./screens/workshop/HarnessesView'))
+const InboxView = lazy(() => import("./screens/inbox/InboxView"));
+const StatusView = lazy(() => import("./screens/status/StatusView"));
+const PlanView = lazy(() => import("./screens/plan/PlanView"));
+const WikiView = lazy(() => import("./screens/wiki/WikiView"));
+const DevelopView = lazy(() => import("./screens/develop/DevelopView"));
+const KanbanView = lazy(() => import("./screens/automate/KanbanView"));
+const AgentsView = lazy(() => import("./screens/automate/AgentsView"));
+const TelemetryView = lazy(() => import("./screens/review/TelemetryView"));
+const RunsView = lazy(() => import("./screens/review/RunsView"));
+const ArtifactsView = lazy(() => import("./screens/review/ArtifactsView"));
+const ExtensionsView = lazy(() => import("./screens/workshop/ExtensionsView"));
+const AgentDefsView = lazy(() => import("./screens/workshop/AgentDefsView"));
+const WorkflowView = lazy(() => import("./screens/workshop/WorkflowView"));
+const HarnessesView = lazy(() => import("./screens/workshop/HarnessesView"));
 
 function App() {
-  const nav = createNavStore()
-  onMount(() => mountIconSprite())
+  const nav = createNavStore();
+  onMount(() => {
+    applyTheme(document.documentElement, savedTheme(window.localStorage));
+    mountIconSprite();
+  });
 
   return (
     <Shell nav={nav}>
@@ -45,52 +49,52 @@ function App() {
             />
           }
         >
-          <Match when={nav.view() === 'inbox'}>
+          <Match when={nav.view() === "inbox"}>
             <InboxView nav={nav} />
           </Match>
-          <Match when={nav.view() === 'status'}>
+          <Match when={nav.view() === "status"}>
             <StatusView />
           </Match>
-          <Match when={nav.view() === 'plan'}>
+          <Match when={nav.view() === "plan"}>
             <PlanView />
           </Match>
-          <Match when={nav.view() === 'wiki'}>
+          <Match when={nav.view() === "wiki"}>
             <WikiView nav={nav} />
           </Match>
-          <Match when={nav.view() === 'develop'}>
+          <Match when={nav.view() === "develop"}>
             <DevelopView />
           </Match>
-          <Match when={nav.view() === 'board'}>
-            <KanbanView />
+          <Match when={nav.view() === "board"}>
+            <KanbanView onShowAgents={() => nav.go("sessions")} />
           </Match>
-          <Match when={nav.view() === 'sessions'}>
-            <AgentsView />
+          <Match when={nav.view() === "sessions"}>
+            <AgentsView onShowKanban={() => nav.go("board")} />
           </Match>
-          <Match when={nav.view() === 'telemetry'}>
+          <Match when={nav.view() === "telemetry"}>
             <TelemetryView />
           </Match>
-          <Match when={nav.view() === 'runs'}>
+          <Match when={nav.view() === "runs"}>
             <RunsView />
           </Match>
-          <Match when={nav.view() === 'artifact'}>
+          <Match when={nav.view() === "artifact"}>
             <ArtifactsView artifactId={nav.params().artifactId} />
           </Match>
-          <Match when={nav.view() === 'extensions'}>
+          <Match when={nav.view() === "extensions"}>
             <ExtensionsView onNavigate={nav.go} />
           </Match>
-          <Match when={nav.view() === 'agents'}>
+          <Match when={nav.view() === "agents"}>
             <AgentDefsView onNavigate={nav.go} />
           </Match>
-          <Match when={nav.view() === 'canvas'}>
+          <Match when={nav.view() === "canvas"}>
             <WorkflowView />
           </Match>
-          <Match when={nav.view() === 'harnesses'}>
+          <Match when={nav.view() === "harnesses"}>
             <HarnessesView />
           </Match>
         </Switch>
       </Suspense>
     </Shell>
-  )
+  );
 }
 
-export default App
+export default App;

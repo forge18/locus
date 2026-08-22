@@ -24,6 +24,7 @@ locus lint [--changed] [--only NAME]
 ```
 
 **Two call sites, and only two:**
+
 1. **The agent, before it commits.**
 2. **A workflow's `Verify` node.**
 
@@ -51,15 +52,15 @@ only "line 42: bad" costs a lookup; one that prints why the rule exists resolves
 2. `--only NAME` runs exactly one; `--changed` scopes to the run's diff.
 3. A failing linter exits non-zero, and a `Verify` node gates on that exit code directly.
 4. A failure prints the rule's `.md` alongside the check's message.
-5. Every one of the twelve harnesses materializes the linters directory identically — a test compares
+5. Every one of the eleven harnesses materializes the linters directory identically — a test compares
    the trees and finds them the same.
 6. `locus lint` is **never invoked from a hook** — asserted by absence, since this is the kind of thing
    a future convenience adds.
 7. A linter with a `.sh` but no `.md` is refused at materialization, naming the missing rule file.
 8. Linter output lands as evidence on a board transition.
 
-## Open
+## Decision
 
-- Whether a linter can be scoped to a path glob the way `rules` are. PLAN.md describes linters as "per
-  directory", which reads like directory scoping, but does not say whether that is the directory the
-  linter lives in or the directory it applies to.
+Linters are directory-only in M1. Their materialized `/locus/config/linters/` directory is their
+scope; path globs are not accepted. This keeps `--changed` as an input reduction rather than a
+second, competing scope model.

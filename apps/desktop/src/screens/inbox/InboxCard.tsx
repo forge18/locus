@@ -3,9 +3,9 @@ import type { InboxItem, InboxKind } from '../../data/inbox'
 
 /** Each kind gets its own glyph, so the list is readable without reading it. */
 const KIND_ICON: Record<InboxKind, { name: string; weight: 'regular' | 'fill'; color: string }> = {
-  gate: { name: 'seal-check', weight: 'fill', color: 'var(--ac)' },
-  ask: { name: 'question', weight: 'regular', color: 'var(--mu)' },
-  guardrail: { name: 'warning-octagon', weight: 'fill', color: 'var(--bad)' },
+  gate: { name: 'seal-check', weight: 'fill', color: 'var(--action-attention)' },
+  ask: { name: 'question', weight: 'regular', color: 'var(--text-secondary)' },
+  guardrail: { name: 'warning-octagon', weight: 'fill', color: 'var(--status-danger)' },
 }
 
 export interface InboxCardProps {

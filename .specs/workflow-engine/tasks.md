@@ -28,3 +28,7 @@
 | 24 | Spec-gap and ambiguity rates as queries | 19 | `cargo test -p locus-core arbiter::rates_are_queries` |
 | 25 | `locus ralph --goal --verify` running a loop with no canvas | 4 | `cargo test -p locus-cli ralph::runs` |
 | 26 | Assert no model is invoked in the orchestration path | 12,4 | `cargo test -p locus-core workflow::no_model_in_orchestration` |
+| 27 | Execution, iteration, guardrail-trip and verify-result entry kinds | — | `cargo test -p locus-core workflow::entry_kinds` |
+| 28 | Workflows projector; nothing writes execution state directly | 27 | `cargo test -p locus-core project::workflows` |
+| 29 | Arbiter classification is an entry projected onto the iteration | 28 | `cargo test -p locus-core workflow::arbiter_is_an_entry` |
+| 30 | `Condition` re-evaluated against a `--to` rebuild returns the value seen then | 28 | `cargo test -p locus-core workflow::condition_replays_historically` |

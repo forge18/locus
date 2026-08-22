@@ -23,7 +23,7 @@ export function WikiGraph() {
         x: n.x,
         y: n.y,
         r: n.center ? 7 : 5,
-        fill: n.center ? 'var(--ac)' : n.id.length % 2 === 0 ? 'var(--blue-lit)' : 'var(--sf3)',
+        fill: n.center ? 'var(--action-attention)' : n.id.length % 2 === 0 ? 'var(--avatar-ground-lit)' : 'var(--surface-elevated)',
         focal: n.center,
       }))}
       edges={graph.edges}

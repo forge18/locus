@@ -1,7 +1,7 @@
 // schema: agents.sessions (the ACP planning session) + agents.artifacts (kind = 'plan')
 // replaced by: invoke("plans_list") + Channel<AgentEvent>("acp_session_update")
 
-/** The eight steps of the planning module, in order. */
+/** The nine planning stages, with decomposition settled before final approval. */
 export const PLAN_STEPS = [
   'Inputs',
   'Orient',
@@ -10,6 +10,7 @@ export const PLAN_STEPS = [
   'Audit',
   'Recommend',
   'Override',
+  'Decompose',
   'Approve',
 ] as const
 
@@ -250,3 +251,77 @@ export const NEW_PLAN_NOTE =
 
 /** The mono label on the conversation footer: this conversation is an ACP session. */
 export const ACP_LABEL = 'ACP · session/prompt'
+
+export interface SpecRequirement {
+  id: string
+  body: string
+  finding: string | null
+}
+
+export const SPEC_REQUIREMENTS: SpecRequirement[] = [
+  {
+    id: 'R-05',
+    body: 'When two facts share a key, the system MUST rank by provenance before recency. A fact confirmed by a passing verify outranks a fact an agent asserted, whatever the timestamps say.',
+    finding: null,
+  },
+  {
+    id: 'R-06',
+    body: 'Provenance MUST be stored as a confidence value on memory.fact, written at insert time. It MUST NOT be recomputed at read time.',
+    finding: null,
+  },
+  {
+    id: 'R-07',
+    body: 'Where two facts carry equal confidence, the tie-break MUST be the older verified_at — the fact that has survived longer wins.',
+    finding: 'answers auditor finding — missed question, stage 5',
+  },
+  {
+    id: 'R-08',
+    body: 'A losing fact MUST be retained and marked superseded, not deleted. locus memory explain MUST be able to show why the winner won.',
+    finding: null,
+  },
+]
+
+export type PlanGranularity = 'spec' | 'every-task' | 'spec-carve-outs'
+
+export interface PlanGranularityOption {
+  id: PlanGranularity
+  label: string
+  detail: string
+  yield: string
+}
+
+export const PLAN_GRANULARITY_OPTIONS: PlanGranularityOption[] = [
+  {
+    id: 'spec',
+    label: 'The spec',
+    detail: 'One card for the whole plan. The agent decomposes it at run time and you watch one thing move.',
+    yield: 'coarsest · nothing to manage',
+  },
+  {
+    id: 'every-task',
+    label: 'Every task',
+    detail: 'One card per task from the spec. Full visibility, and a board you now have to tend.',
+    yield: 'finest · dependencies carried',
+  },
+  {
+    id: 'spec-carve-outs',
+    label: 'Spec + carve-outs',
+    detail: 'The spec rides as one card; the tasks you expect to be long get their own.',
+    yield: 'recommended for this plan',
+  },
+]
+
+export interface PlanTask {
+  id: string
+  title: string
+  role: string
+  estimate: string
+  dependency: string
+}
+
+export const PLAN_TASKS: PlanTask[] = [
+  { id: 'T-01', title: 'Confidence column on memory.fact, with a down migration', role: 'impl', estimate: '~1 run', dependency: '—' },
+  { id: 'T-02', title: 'Provenance ranker + the documented tie-break', role: 'impl', estimate: '~3 runs', dependency: 'T-01' },
+  { id: 'T-03', title: 'keeper: contradiction sweep over ranked facts', role: 'maintain', estimate: '~2 runs', dependency: 'T-02' },
+  { id: 'T-04', title: 'locus memory explain <key>', role: 'impl', estimate: '~1 run', dependency: 'T-02' },
+]

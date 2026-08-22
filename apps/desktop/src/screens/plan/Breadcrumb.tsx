@@ -16,7 +16,7 @@ export function stepState(step: PlanStep, current: PlanStep): StepState {
   return here < at ? 'done' : here === at ? 'current' : 'ahead'
 }
 
-/** Eight steps, three states, and which is which comes from the plan, not the markup. */
+/** Nine stages, three states, and which is which comes from the plan, not the markup. */
 export function Breadcrumb(props: BreadcrumbProps) {
   return (
     <div class="crumbs" data-testid="breadcrumb">

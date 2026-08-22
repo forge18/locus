@@ -1,6 +1,6 @@
 # store
 
-**Milestone** M1 · **Depends on** none · **Blocks** every M1 feature and everything after
+**Milestone** M1 · **Depends on** none · **Blocks** `event-store` and every M1 feature after it
 
 ## Purpose
 
@@ -23,17 +23,31 @@ operational afterthought — and it is the one item PLAN.md's deferral table cal
 | Schema | Holds |
 | --- | --- |
 | `core` | projects, repos, local remotes, settings |
-| `agents` | agent_defs (versioned), sessions, runs, run edges, events, artifacts, comment threads |
+| `agents` | agent_defs (versioned), sessions, runs, run edges, events (`seq` per run, `stream_pos` per project), artifacts, comment threads |
 | `board` | tasks, dependency edges, transitions, assignments, task-run links, evidence, GitHub issues |
 | `wiki` | pages (typed), revisions, links, contradictions, ingest log, embeddings |
 | `memory` | core (bounded) and store (facts, scope, provenance, embeddings, confidence, decay) |
 | `workflows` | workflow_defs (versioned), schedules, executions, iterations, guardrail trips, verify results |
 | `mail` | threads, messages, delivery state |
 | `market` | manifests, installs, per-image tool sets |
+| `log` | `entries` — Locus's domain event log; the only table any of the above is written *from* |
 
 **Which is derived and which is not.** Harness output, git, and the marketplace index are sources of
-truth and are never written by Locus. **Board, wiki, memory and mail exist only here** — they are
-backed up rather than rebuilt. That asymmetry is the whole reason backup is in M1.
+truth outside Locus and are never written by it. Inside Locus, **`log.entries` is the only thing
+written**; `board`, `workflows`, `mail`, and the foldable columns of `wiki` and `memory` are
+projections rebuilt from it — see `event-store` for the fold, the two carve-outs, and `locus rebuild`.
+
+**Backup is still non-deferrable, and event sourcing does not soften that.** Two reasons. The log
+itself lives only here, so losing the volume loses the log and there is nothing left to rebuild
+*from*. And the two carve-outs — embeddings in `wiki` and `memory`, decay state in `memory` — were
+never derived from the log, so a rebuild cannot restore them at all; only a backup can. A restore
+brings back the log and the carve-outs, and `locus rebuild` regenerates everything between.
+
+**The project event cursor.** `agents.events.stream_pos` is a `BIGINT`, monotonic per project across
+every run, assigned by the core rather than by a Postgres sequence — see `telemetry` for why the
+distinction is load-bearing. It is indexed `(project_id, stream_pos)` because every consumer of it is
+a range scan from a watermark. Two exist today — the memory consolidator (PLAN.md §Memory) and the
+calibration loop — and both currently describe a watermark with nothing in the schema to hold it.
 
 **Event bus**: in-process broadcast plus Postgres `LISTEN/NOTIFY` across processes. **NOTIFY carries an
 id only** — the payload cap is 8000 bytes, so anything larger is fetched by the listener.
@@ -62,6 +76,10 @@ paths to nothing.
    mismatch — proven by a test that corrupts a dump on purpose.
 6. A migration run triggers a backup first, and the backup's completion gates the migration.
 7. `NOTIFY` payloads are ids only; a test asserts none exceeds the 8000-byte cap.
+9. Backup covers `log.entries` alongside the eight schemas and the blob tree; a drill that restores
+   and then rebuilds produces the projections the source had.
+8. `agents.events` carries `stream_pos`, monotonic per project, with a `(project_id, stream_pos)`
+   index — proven by a range-scan query plan test, not just by the column existing.
 
 ## Open
 

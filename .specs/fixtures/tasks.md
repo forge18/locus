@@ -8,8 +8,8 @@
 | 4 | `src/types/board.ts`, `wiki.ts`, `workflows.ts`, `mail.ts`, `market.ts`, `memory.ts` | — | `pnpm -C apps/desktop exec tsc --noEmit` |
 | 5 | Assert every exported type names its schema in a doc comment | 1,2,4 | `bash apps/desktop/scripts/check-types-cite-schema.sh` |
 | 6 | `scripts/gen-harness-fixtures.ts` — parse `harnesses/*.toml` into the registry fixture | — | `pnpm -C apps/desktop exec tsx scripts/gen-harness-fixtures.ts` |
-| 7 | Generated fixture reports 12 harnesses | 6 | `pnpm -C apps/desktop test -- fixtures/harness-count` |
-| 8 | Generated fixture reports 33 downgrades across 96 entries, computed | 6 | `pnpm -C apps/desktop test -- fixtures/downgrade-count` |
+| 7 | Generated fixture reports 11 harnesses | 6 | `pnpm -C apps/desktop test -- fixtures/harness-count` |
+| 8 | Generated fixture reports 29 downgrades across 88 entries, computed | 6 | `pnpm -C apps/desktop test -- fixtures/downgrade-count` |
 | 9 | Per-harness mechanism badge and model tiers derived from the TOML | 6 | `pnpm -C apps/desktop test -- fixtures/harness-mechanisms` |
 | 10 | Extensions fixture: per-type native vs downgraded counts, from the same parse | 6 | `pnpm -C apps/desktop test -- fixtures/extension-counts` |
 | 11 | Authored fixtures for inbox, status, plan, develop, board, sessions, telemetry, runs, artifacts, wiki, workflow | 1,2,4 | `pnpm -C apps/desktop test -- fixtures/all-present` |

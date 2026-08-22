@@ -90,7 +90,7 @@ export function GraphRenderer(props: GraphRendererProps) {
                   cx={node.x}
                   cy={node.y}
                   r={node.r ?? DEFAULT_R}
-                  fill={node.fill ?? 'var(--sf3)'}
+                  fill={node.fill ?? 'var(--surface-elevated)'}
                 />
                 <Show when={props.showLabels}>
                   <text class="graph-label" x={node.x + (node.r ?? DEFAULT_R) + 4} y={node.y + 3}>

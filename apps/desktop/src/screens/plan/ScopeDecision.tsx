@@ -17,7 +17,7 @@ export interface ScopeDecisionProps {
 export function ScopeDecision(props: ScopeDecisionProps) {
   return (
     <div class="scope-decision" data-testid="scope-decision">
-      <Icon name="arrows-split" size={13} style={{ color: 'var(--ac)', 'flex-shrink': 0 }} />
+      <Icon name="arrows-split" size={13} style={{ color: 'var(--action-attention)', 'flex-shrink': 0 }} />
       <div>
         <div class="scope-decision-title" data-testid="scope-decision-title">
           {props.decision.question}

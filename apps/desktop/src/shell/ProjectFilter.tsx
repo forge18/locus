@@ -37,12 +37,12 @@ export function ProjectFilter(props: ProjectFilterProps) {
       ]}
     >
       <button class="project-filter" data-testid="project-filter" type="button">
-        <Icon name="funnel" size={11} style={{ color: 'var(--ac)' }} />
+        <Icon name="funnel" size={11} style={{ color: 'var(--action-attention)' }} />
         <span data-testid="project-filter-label">{label()}</span>
         <span class="project-filter-count" data-testid="project-filter-count">
           {props.projects.length}
         </span>
-        <Icon name="caret-down" size={10} style={{ color: 'var(--mu2)' }} />
+        <Icon name="caret-down" size={10} style={{ color: 'var(--text-muted)' }} />
       </button>
     </ContextMenu>
   )

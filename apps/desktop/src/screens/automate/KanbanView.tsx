@@ -17,11 +17,36 @@ import { useProjects } from '../../data/core'
  * affordance, and that is the feature: a column that means one thing in one
  * project and another somewhere else is not a column, it is a label.
  */
-export function KanbanView() {
+export interface KanbanViewProps {
+  /** The list is the agent-session fixture; routing stays with the shell. */
+  onShowAgents?: () => void
+}
+
+export function KanbanView(props: KanbanViewProps) {
   const byColumn = useTasksByColumn()
 
   return (
     <div class="kanban" data-testid="kanban">
+      <div class="automate-view-switcher" data-testid="automate-view-switcher">
+        <button
+          type="button"
+          class="automate-view-tab"
+          data-testid="automate-kanban-tab"
+          aria-pressed="true"
+        >
+          Kanban
+        </button>
+        <button
+          type="button"
+          class="automate-view-tab"
+          data-testid="automate-list-tab"
+          aria-pressed="false"
+          onClick={() => props.onShowAgents?.()}
+        >
+          List
+        </button>
+      </div>
+
       <header class="kanban-head" data-testid="kanban-head">
         <span class="kanban-head-title" data-testid="kanban-title">
           {HEADER_NOTE}

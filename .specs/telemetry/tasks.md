@@ -5,22 +5,19 @@
 | 1 | Event type: the twelve verbs as a closed enum, `usage` optional | — | `cargo test -p locus-core telemetry::vocabulary_is_closed` |
 | 2 | Assert a thirteenth verb fails to compile, not to run | 1 | `cargo test -p locus-core telemetry::no_extension_at_runtime` |
 | 3 | `seq` assigned at the core, total per run | 1 | `cargo test -p locus-core telemetry::seq_is_total` |
-| 4 | `hooks` adapter with a per-harness event-name table | 1 | `cargo test -p locus-core telemetry::hooks_adapter` |
-| 5 | `locus-hook` binary: JSON on stdin, exit 0 on every failure path | 4 | `cargo test -p locus-cli hook::always_exits_zero` |
-| 6 | Hook logging appends to a local buffer, never the socket synchronously | 5 | `cargo test -p locus-cli hook::no_sync_socket` |
-| 7 | Hook injection path carries a 100ms timeout and emits nothing on expiry | 5 | `cargo test -p locus-cli hook::injection_timeout` |
-| 8 | `acp` adapter — one mapping for every ACP harness | 1 | `cargo test -p locus-core telemetry::acp_adapter` |
-| 9 | `stream-json` adapter, driven by the TOML's type key and verb table | 1 | `cargo test -p locus-core telemetry::stream_json_adapter` |
-| 10 | Tee stdout: same bytes to terminal and normalizer | 9 | `cargo test -p locus-core telemetry::tee_is_lossless` |
-| 11 | `session-log` adapter with a per-harness parser | 1 | `cargo test -p locus-core telemetry::session_log_adapter` |
-| 12 | Tail while live, re-read once at exit | 11 | `cargo test -p locus-core telemetry::session_log_reread` |
-| 13 | Persist `raw` JSONB on every event | 1 | `cargo test -p locus-core telemetry::raw_always_present` |
-| 14 | Replay a run against a fixed parser without re-running the agent | 13 | `cargo test -p locus-core telemetry::replay_repairs` |
-| 15 | `usage` null rather than zero where unreported | 1 | `cargo test -p locus-core telemetry::usage_unknown_not_zero` |
-| 16 | Assert Locus never computes a token count itself | 15 | `cargo test -p locus-core telemetry::never_counts_tokens` |
-| 17 | A missing verb is absent, never synthesized empty | 1 | `cargo test -p locus-core telemetry::missing_verb_stays_missing` |
-| 18 | Per-harness declared verb set drives what a test expects | 17 | `cargo test -p locus-core telemetry::expectations_per_harness` |
-| 19 | `permission_request` raises an alarm | 1 | `cargo test -p locus-core telemetry::permission_request_alarms` |
-| 20 | Two sources produce the same downstream shape for the same run | 4,8,9,11 | `cargo test -p locus-core telemetry::sources_indistinguishable` |
-| 21 | Event-based test harness: "run this, assert these events" | 20 | `cargo test -p locus-core telemetry::event_assertions` |
-| 22 | Stream normalized events to the UI over `Channel<Event>` | 20 | `pnpm -C apps/desktop test -- transcript/from-core` |
+| 4 | `acp` adapter — one mapping for every ACP harness | 1 | `cargo test -p locus-core telemetry::acp_adapter` |
+| 5 | `mcpServers` empty on every ACP call | 4 | `cargo test -p locus-core telemetry::mcp_always_empty` |
+| 6 | A harness with no native ACP mode is bridged by a Locus-side mapping registered per harness | 4 | `cargo test -p locus-core telemetry::bridge_registered_per_harness` |
+| 7 | Assert the `acp` source is the only telemetry source — no hooks/stream/session-log path remains | 4 | `cargo test -p locus-core telemetry::single_source` |
+| 8 | Persist `raw` JSONB on every event | 1 | `cargo test -p locus-core telemetry::raw_always_present` |
+| 9 | Replay a run against a fixed parser without re-running the agent | 8 | `cargo test -p locus-core telemetry::replay_repairs` |
+| 10 | `usage` null rather than zero where unreported | 1 | `cargo test -p locus-core telemetry::usage_unknown_not_zero` |
+| 11 | Assert Locus never computes a token count itself | 10 | `cargo test -p locus-core telemetry::never_counts_tokens` |
+| 12 | A missing verb is absent, never synthesized empty | 1 | `cargo test -p locus-core telemetry::missing_verb_stays_missing` |
+| 13 | Per-harness declared verb set drives what a test expects | 12 | `cargo test -p locus-core telemetry::expectations_per_harness` |
+| 14 | `permission_request` raises an alarm | 1 | `cargo test -p locus-core telemetry::permission_request_alarms` |
+| 15 | One ACP source yields the shared downstream shape for every harness | 4 | `cargo test -p locus-core telemetry::single_source_shape` |
+| 16 | Event-based test harness: "run this, assert these events" | 15 | `cargo test -p locus-core telemetry::event_assertions` |
+| 17 | Stream normalized events to the UI over `Channel<Event>` | 15 | `pnpm -C apps/desktop test -- transcript/from-core` |
+| 18 | `stream_pos` assigned at the core from one monotonic counter, total per project across runs | 3 | `cargo test -p locus-core telemetry::stream_pos_is_total_per_project` |
+| 19 | Two concurrent runs: union of polls at `stream_pos > watermark` equals every event written | 18 | `cargo test -p locus-core telemetry::cursor_never_skips` |

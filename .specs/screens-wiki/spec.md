@@ -1,5 +1,8 @@
 # screens-wiki
 
+> **Historical M0.5 contract.** V2 moves this view under Memory; new work follows
+> `.specs/design-v2/spec.md`.
+
 **Milestone** M0.5 · **Depends on** `app-shell`, `navigation`, `fixtures` · View `wiki`
 
 ## Purpose
@@ -14,7 +17,7 @@ The Wiki is a category in its own right with no tabs — the seventh rail item.
 
 - PLAN.md §The wiki — typed pages, ingest not authoring, contradictions at ingest time, the linter
 - PLAN.md §Knowledge, as one model — why the wiki is not the memory store
-- `docs/design_handoff_locus_desktop_ui/README.md` screen 14
+- `.specs/design-v2/spec.md` §Shell and screen inventory
 
 ## Contract
 
@@ -34,6 +37,7 @@ counts, and ingest/curate ages. Prose at 13px/1.68, 88% opacity, max 720px, with
 `LINKS OUT` as `[[wikilink]]` pills on `--sf` + hairline. `PROVENANCE` list with icons.
 
 **Sidebar.**
+
 - A `GRAPH` SVG (258x132): 7px accent center node, `#0d5480` and `#314454` neighbors, hairline edges,
   8px caption, plus "Pages are nodes, wikilinks are edges — the canvas renderer, repointed."
 - A `CONTRADICTIONS` card (accent ring) with two conflicting mono values, their sources, and
