@@ -19,6 +19,7 @@ pub mod mail;
 pub mod materialize;
 pub mod memory;
 pub mod models;
+pub mod planning;
 pub mod provider;
 pub mod registry;
 pub mod restore;
