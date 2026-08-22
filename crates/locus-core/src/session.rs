@@ -125,6 +125,7 @@ pub enum RunStatus {
     Queued,
     Running,
     Paused,
+    Stopped,
     Completed,
     Aborted,
     Cancelled,
