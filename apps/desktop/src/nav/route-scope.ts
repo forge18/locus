@@ -1,4 +1,5 @@
 import { createSignal, type Accessor } from 'solid-js'
+import type { V2RouteKind } from './v2-route-kinds'
 
 export type RouteScope =
   | { kind: 'global' }
@@ -11,6 +12,14 @@ export interface RouteScopeStore {
   scope: Accessor<RouteScope>
   showGlobal: () => void
   showProject: (project: string) => void
+}
+
+export function resolveRouteScope(route: V2RouteKind, selectedProject: string | null): RouteScope {
+  if (route.scope === 'global') return { kind: 'global' }
+
+  const project = selectedProject?.trim()
+  if (!project) throw new Error(`${route.label} requires a selected project`)
+  return { kind: 'project', project }
 }
 
 /** Scope is explicit: global routes never carry a hidden selected project. */
