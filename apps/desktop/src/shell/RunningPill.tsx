@@ -32,8 +32,8 @@ export function RunningPill(props: RunningPillProps) {
         type="button"
       >
         <span class="live-dot pulse" data-testid="running-pill-dot" />
-        <span>{props.running} running</span>
-        <span>{props.needsYou} needs you</span>
+        <span data-testid="running-count" aria-live="polite">{props.running} running</span>
+        <span data-testid="needs-you-count" aria-live="assertive">{props.needsYou} needs you</span>
       </button>
       <Show when={open()}>
         <div aria-label="Active sessions" class="running-popover" role="dialog">
