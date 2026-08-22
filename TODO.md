@@ -25,7 +25,7 @@ of those blocks the shell or the other twelve screens. It can run alongside M0.
 | --- | --- | ---: | ---: | ---: |
 | **M0** | Spikes — these gate M1 · **closed** | 3 | 39 | 39 |
 | **M0.5** | Desktop UI on fixtures · **closed** | 12 | 268 | 268 |
-| **M0.6** | v2 desktop reconciliation | 6 | 195 | 6 |
+| **M0.6** | v2 desktop reconciliation | 6 | 195 | 7 |
 | **M1** | Core runtime · **closed** | 14 | 270 | 270 |
 | **M1.5** | ACP agent panel and controls | 4 | 44 | 0 |
 | **M2** | Workspace | 3 | 57 | 0 |
@@ -36,7 +36,7 @@ of those blocks the shell or the other twelve screens. It can run alongside M0.
 | **M6** | Automation and discoverability | 3 | 46 | 0 |
 | **M7** | GitHub | 3 | 42 | 0 |
 | **M8** | Marketplace installer | 1 | 11 | 0 |
-| | | **65** | **1339** | **583** |
+| | | **65** | **1339** | **584** |
 
 ---
 
@@ -128,7 +128,7 @@ below; it is short and it is load-bearing.
   Ship v2 Dark and cool-neutral Light through semantic tokens and a root-theme contract; later themes
   add values and fixtures without component forks.
   *Depends on:* `design-v2`
-- [ ] **[v2-application-shell](.specs/v2-application-shell/spec.md)** · 28 tasks · **2/28 complete** · [tasks](.specs/v2-application-shell/tasks.md)
+- [ ] **[v2-application-shell](.specs/v2-application-shell/spec.md)** · 28 tasks · **3/28 complete** · [tasks](.specs/v2-application-shell/tasks.md)
   Replace the v1 shell with the project-scoped rail, running popover, locator, and accessible shared
   navigation.
   *Depends on:* `design-v2`, `theme-system`

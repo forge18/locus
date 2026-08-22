@@ -1,3 +1,5 @@
+export { createRouteScope } from './route-scope'
+export type { RouteScope, RouteScopeStore } from './route-scope'
 export { V2_GLOBAL_ROUTE_KINDS, V2_PROJECT_ROUTE_KINDS, V2_ROUTE_KINDS } from './v2-route-kinds'
 export type { V2RouteKind } from './v2-route-kinds'
 export { CATEGORIES, CATEGORY_LABELS, RAIL_ITEMS, VIEWS, categoryOf } from './views'
