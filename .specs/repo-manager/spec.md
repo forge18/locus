@@ -35,9 +35,9 @@ container: /workspace  (container-local, not a mount)
 **Board, wiki and memory are project-wide** and span every repo. That is what makes four repos that
 are one system share one memory instead of four that never learn from each other.
 
-**Locus never works in `main`/`master`.** Every agent run branches. The bare remote holds `main` and
-nothing Locus does writes to it. **This is an invariant, not a default, and the merge-back path
-enforces it.**
+The bare remote holds the project's history. An agent container clones it, works, commits, and pushes a
+branch back. Which branch an agent works on, and how its work reaches `main`, follow the project's own
+convention — Locus does not impose one.
 
 **Why this beats shared worktrees, kept here on purpose:**
 - **Locus stays out of your editor, your merge tool, and your shell.** Reviewing an agent's work is
