@@ -12,6 +12,7 @@ pub mod backup;
 pub mod board;
 pub mod bus;
 pub mod daemon;
+pub mod dispatch;
 pub mod invoke;
 pub mod ipc;
 pub mod lint;

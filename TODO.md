@@ -25,7 +25,7 @@ of those blocks the shell or the other twelve screens. It can run alongside M0.
 | --- | --- | ---: | ---: | ---: |
 | **M0** | Spikes — these gate M1 · **closed** | 3 | 39 | 39 |
 | **M0.5** | Desktop UI on fixtures · **closed** | 12 | 268 | 268 |
-| **M0.6** | v2 desktop reconciliation | 6 | 195 | 17 |
+| **M0.6** | v2 desktop reconciliation | 6 | 195 | 18 |
 | **M1** | Core runtime · **closed** | 14 | 270 | 270 |
 | **M1.5** | ACP agent panel and controls | 4 | 44 | 0 |
 | **M2** | Workspace | 3 | 57 | 0 |
@@ -119,7 +119,7 @@ below; it is short and it is load-bearing.
 
 6 features · 195 tasks
 
-- [ ] **[design-v2](.specs/design-v2/spec.md)** · 24 tasks · **5/24 complete** · [tasks](.specs/design-v2/tasks.md)
+- [ ] **[design-v2](.specs/design-v2/spec.md)** · 24 tasks · **6/24 complete** · [tasks](.specs/design-v2/tasks.md)
   Adopt the v2 handoff without porting its HTML or JavaScript. Replace the v1 fixture contract and
   settle provider references, adapter-gated routing, project scope, plan decomposition, dispatch
   policy, and workflow Governance before implementation depends on them.
