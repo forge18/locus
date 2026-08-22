@@ -7,6 +7,8 @@ use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
 
+use crate::routing::RoutingDefaults;
+
 /// The identity of a Locus-side adapter that can launch a harness.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct HarnessAdapter {
@@ -19,6 +21,7 @@ pub struct HarnessDescriptor {
     pub identifier: String,
     pub adapter: Option<HarnessAdapter>,
     pub compatible_providers: BTreeSet<String>,
+    pub defaults: RoutingDefaults,
 }
 
 /// The project-specific set of harnesses and providers available for selection.
@@ -34,6 +37,7 @@ pub struct SelectedHarness {
     pub harness: String,
     pub adapter: HarnessAdapter,
     pub provider: String,
+    pub defaults: RoutingDefaults,
 }
 
 /// Why a project cannot select a requested harness/provider pair.
@@ -82,6 +86,7 @@ impl ProjectHarnessPolicy {
             harness: harness.identifier.clone(),
             adapter,
             provider: provider.into(),
+            defaults: harness.defaults.clone(),
         })
     }
 }
@@ -105,11 +110,19 @@ fn project_selection_gate() {
             .into_iter()
             .map(str::to_owned)
             .collect(),
+        defaults: RoutingDefaults {
+            model_id: "claude-sonnet-4-6".into(),
+            effort: "medium".into(),
+        },
     };
     let aider = HarnessDescriptor {
         identifier: "aider".into(),
         adapter: None,
         compatible_providers: ["anthropic"].into_iter().map(str::to_owned).collect(),
+        defaults: RoutingDefaults {
+            model_id: "claude-sonnet-4-6".into(),
+            effort: "medium".into(),
+        },
     };
 
     assert_eq!(
@@ -120,6 +133,10 @@ fn project_selection_gate() {
                 identity: "claude-acp-v3".into(),
             },
             provider: "anthropic".into(),
+            defaults: RoutingDefaults {
+                model_id: "claude-sonnet-4-6".into(),
+                effort: "medium".into(),
+            },
         })
     );
     assert_eq!(
@@ -146,6 +163,10 @@ fn project_selection_gate() {
             identity: "codex-acp-v3".into(),
         }),
         compatible_providers: ["openai"].into_iter().map(str::to_owned).collect(),
+        defaults: RoutingDefaults {
+            model_id: "gpt-5.2".into(),
+            effort: "medium".into(),
+        },
     };
     assert_eq!(
         policy.select(&unpermitted, "openai"),
