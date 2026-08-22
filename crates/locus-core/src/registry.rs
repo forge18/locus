@@ -866,8 +866,17 @@ fn queries() {
             .map(|harness| harness.name.as_str())
             .collect::<Vec<_>>(),
         [
-            "aider", "antigravity", "claude", "codex", "copilot", "cursor", "dsh",
-            "gemini", "omp", "opencode", "pi",
+            "aider",
+            "antigravity",
+            "claude",
+            "codex",
+            "copilot",
+            "cursor",
+            "dsh",
+            "gemini",
+            "omp",
+            "opencode",
+            "pi",
         ]
     );
     assert_eq!(

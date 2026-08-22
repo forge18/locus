@@ -5,7 +5,7 @@
 
 use std::collections::BTreeMap;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sqlx::{query, Row};
@@ -1064,15 +1064,13 @@ mod stop_all_restores {
             "stopped"
         );
         assert!(!store.project_autorun(project).await.expect("read autorun"));
-        assert!(
-            query_scalar::<_, bool>(
-                "SELECT paused_at IS NOT NULL FROM workflows.schedules WHERE id = $1",
-            )
-            .bind(schedule)
-            .fetch_one(store.pool())
-            .await
-            .expect("read paused schedule")
-        );
+        assert!(query_scalar::<_, bool>(
+            "SELECT paused_at IS NOT NULL FROM workflows.schedules WHERE id = $1",
+        )
+        .bind(schedule)
+        .fetch_one(store.pool())
+        .await
+        .expect("read paused schedule"));
 
         store
             .restore_stop_all(snapshot.id)
@@ -1094,21 +1092,17 @@ mod stop_all_restores {
                 .expect("read requeued running run"),
             "queued"
         );
-        assert!(
-            store
-                .project_autorun(project)
-                .await
-                .expect("read restored autorun")
-        );
-        assert!(
-            !query_scalar::<_, bool>(
-                "SELECT paused_at IS NOT NULL FROM workflows.schedules WHERE id = $1",
-            )
-            .bind(schedule)
-            .fetch_one(store.pool())
+        assert!(store
+            .project_autorun(project)
             .await
-            .expect("read restored schedule")
-        );
+            .expect("read restored autorun"));
+        assert!(!query_scalar::<_, bool>(
+            "SELECT paused_at IS NOT NULL FROM workflows.schedules WHERE id = $1",
+        )
+        .bind(schedule)
+        .fetch_one(store.pool())
+        .await
+        .expect("read restored schedule"));
     }
 
     #[tokio::test]
