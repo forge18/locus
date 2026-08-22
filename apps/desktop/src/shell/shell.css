@@ -44,6 +44,9 @@
   color: var(--mu);
 }
 
+.title-context { display: flex; gap: var(--g-3); font-size: var(--t-body); color: var(--mu); }
+.title-context span + span { color: var(--mu2); }
+
 .locator-bar {
   width: clamp(240px, 40vw, 520px);
   height: 26px;

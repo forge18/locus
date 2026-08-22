@@ -1,4 +1,5 @@
 export { AppTitleBar } from './AppTitleBar'
+export type { AppTitleBarProps } from './AppTitleBar'
 export { LocatorBar } from './LocatorBar'
 export type { LocatorBarProps } from './LocatorBar'
 export { ProjectFilter } from './ProjectFilter'

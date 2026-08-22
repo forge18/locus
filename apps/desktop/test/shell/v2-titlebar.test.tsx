@@ -7,7 +7,7 @@ const rule = (selector: string) => rules(read('shell/shell.css')).find((candidat
 
 describe('shell/v2-titlebar', () => {
   it('renders the fixed-height desktop title-bar foundation', () => {
-    const { getByTestId } = render(() => <AppTitleBar />)
+    const { getByTestId } = render(() => <AppTitleBar categoryLabel="Plan" viewLabel="Spec" />)
 
     expect(getByTestId('app-titlebar').className).toContain('titlebar')
     expect(getByTestId('traffic-lights').querySelectorAll('span')).toHaveLength(3)

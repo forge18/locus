@@ -1,4 +1,9 @@
-export function AppTitleBar() {
+export interface AppTitleBarProps {
+  categoryLabel: string
+  viewLabel: string
+}
+
+export function AppTitleBar(props: AppTitleBarProps) {
   return (
     <div class="titlebar" data-testid="app-titlebar">
       <div class="traffic" data-testid="traffic-lights">
@@ -8,6 +13,10 @@ export function AppTitleBar() {
       </div>
       <div class="wordmark" data-testid="wordmark">
         Locus
+      </div>
+      <div class="title-context">
+        <span data-testid="title-category">{props.categoryLabel}</span>
+        <span data-testid="title-view">{props.viewLabel}</span>
       </div>
     </div>
   )
