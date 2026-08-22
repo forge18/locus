@@ -1,0 +1,170 @@
+import { For, Show, createSignal } from 'solid-js'
+
+type ProjectTab = 'settings' | 'analytics'
+
+const projects = [
+  { name: 'tapestry', detail: '2 repos · core, desktop', activity: '3 running' },
+  { name: 'loom-db', detail: '1 repo · loom', activity: '2 running' },
+  { name: 'weaver', detail: '3 repos · keymap, term, ui', activity: '2 running' },
+  { name: 'texere', detail: '1 repo · media', activity: '1 waiting' },
+  { name: 'amq', detail: '1 repo · amq · archived 6d', activity: 'idle' },
+]
+
+const harnesses = [
+  { id: 'claude', adapter: 'ACP', detail: 'Anthropic · opus-4.6' },
+  { id: 'codex', adapter: 'ACP', detail: 'OpenAI · gpt-5.2-pro' },
+  { id: 'gemini', adapter: 'ACP', detail: 'Google · gemini-3-ultra' },
+  { id: 'cursor', adapter: 'ACP', detail: 'Cursor · composer-2' },
+]
+
+const extensions = [
+  ['Agents', '4 enabled'],
+  ['Commands', '6 enabled'],
+  ['Hooks', '3 enabled'],
+  ['Linters', '8 enabled'],
+  ['Output styles', '2 enabled'],
+  ['Rules', '12 enabled'],
+  ['Skills', '9 enabled'],
+  ['Base context', '1 enabled'],
+] as const
+
+const tagCounters = [
+  ['3', 'running', 'builder@4 +2'],
+  ['12', 'runs today', '9 passed'],
+  ['4', 'landed', 'merged to main'],
+  ['2', 'plans', '1 in elicitation'],
+  ['18', 'memory facts', '3 decaying'],
+  ['9', 'artifacts', '2 walkthroughs'],
+] as const
+
+const agents = [
+  ['builder@4', 'implements one task at a time on a branch', '41 runs', 'running'],
+  ['reviewer@2', 'reads the diff, never writes', '18 runs', 'waiting'],
+  ['auditor@1', 'fresh context, two-reader test', '12 runs', '2h'],
+  ['interviewer@3', 'elicits the plan, asks until it stops learning', '9 runs', '4h'],
+  ['researcher@1', 'prior art across repos and the wiki', '7 runs', '4h'],
+  ['keeper@1', 'contradiction sweep over memory', '3 runs', '1d'],
+] as const
+
+const models = [
+  ['claude opus-4.6', '24.1M', '91%', '$1,106', '100%'],
+  ['gpt-5.2-pro', '9.8M', '84%', '$472', '41%'],
+  ['gemini-3-ultra', '5.2M', '88%', '$188', '22%'],
+  ['composer-2', '2.6M', '79%', '$76', '11%'],
+] as const
+
+export function ProjectsView() {
+  const [tab, setTab] = createSignal<ProjectTab>('settings')
+  const [defaultHarness, setDefaultHarness] = createSignal('claude')
+  const [enabledHarnesses, setEnabledHarnesses] = createSignal(new Set(harnesses.map(({ id }) => id)))
+  const [enabledExtensions, setEnabledExtensions] = createSignal(new Set<string>(extensions.map(([name]) => name)))
+
+  const toggleHarness = (id: string) => {
+    const next = new Set(enabledHarnesses())
+    if (next.has(id) && next.size > 1) next.delete(id)
+    else next.add(id)
+    if (!next.has(defaultHarness())) setDefaultHarness([...next][0])
+    setEnabledHarnesses(next)
+  }
+  const toggleExtension = (name: string) => {
+    const next = new Set(enabledExtensions())
+    if (next.has(name)) next.delete(name)
+    else next.add(name)
+    setEnabledExtensions(next)
+  }
+
+  return (
+    <div class="projects-view" data-testid="projects-view">
+      <aside class="projects-list">
+        <div class="projects-list-head">
+          <div class="section-title">Projects <span>5</span></div>
+          <p>A project is a set of repos, a memory scope, and a tag. Nothing is filtered to one unless you ask.</p>
+          <button class="btn btn-primary btn-block">New project</button>
+        </div>
+        <div class="projects-list-items">
+          <For each={projects}>{(project, index) => (
+            <button class="project-list-item" classList={{ 'project-list-current': index() === 0 }}>
+              <span class="mono">#{project.name}</span>
+              <span>{project.activity}</span>
+              <small>{project.detail}</small>
+            </button>
+          )}</For>
+        </div>
+      </aside>
+      <main class="project-detail">
+        <header class="project-detail-head">
+          <h1>#tapestry</h1>
+          <span class="mono project-locator">locus://tapestry</span>
+          <div class="project-tabs" role="tablist" aria-label="Project view">
+            <button data-testid="project-tab-settings" role="tab" aria-selected={tab() === 'settings'} onClick={() => setTab('settings')}>Settings</button>
+            <button data-testid="project-tab-analytics" role="tab" aria-selected={tab() === 'analytics'} onClick={() => setTab('analytics')}>Analytics</button>
+          </div>
+          <div class="project-detail-actions"><button class="btn btn-ghost">Archive</button><button class="btn btn-secondary">Rename</button></div>
+        </header>
+        <Show when={tab() === 'settings'} fallback={<Analytics /> }>
+          <div class="project-settings" data-testid="project-settings">
+            <section class="project-panel" data-testid="project-harnesses">
+              <PanelTitle title="Harnesses" note="which harnesses may run here, and which one an unattended agent gets by default" />
+              <div class="project-harness-head"><span>Enabled</span><span>Harness</span><span>Adapter</span><span>Provider · model</span><span>Agent default</span></div>
+              <For each={harnesses}>{(harness) => (
+                <div class="project-harness-row">
+                  <button class="project-check" aria-label={`Enable ${harness.id}`} aria-pressed={enabledHarnesses().has(harness.id)} onClick={() => toggleHarness(harness.id)}>{enabledHarnesses().has(harness.id) ? '✓' : ''}</button>
+                  <span class="mono">{harness.id}</span><span class="project-adapter">{harness.adapter}</span><span>{harness.detail}</span>
+                  <button data-testid={`harness-default-${harness.id}`} class="project-default" disabled={!enabledHarnesses().has(harness.id)} aria-pressed={defaultHarness() === harness.id} onClick={() => setDefaultHarness(harness.id)}><i />{defaultHarness() === harness.id ? 'default' : 'make default'}</button>
+                </div>
+              )}</For>
+              <p class="project-panel-note">Enabled harnesses are offered to the router in the order listed; anything the router does not claim runs on the agent default.</p>
+            </section>
+
+            <section class="project-panel" data-testid="project-repos">
+              <PanelTitle title="Repos" note="a repo belongs to exactly one project — this is where that is decided" action="Add repo" />
+              <Repo name="core" url="git@github.com:forge18/tapestry-core.git" status="main + 3 agent branches" activity="3 running" />
+              <Repo name="desktop" url="git@github.com:forge18/tapestry-desktop.git" status="main + 1 agent branch" activity="clean" />
+              <p class="project-panel-note">Moving a repo re-tags every run, artifact and memory fact that came from it. The old tag stays on the record so history does not silently change project.</p>
+            </section>
+
+            <section class="project-panel" data-testid="project-base-context">
+              <div class="project-panel-title"><div><span>Base context</span><small>always loaded, every run in this project — exactly one, and there is no second</small></div><div class="project-budget"><b>1,240 / 1,500 tokens</b><i><em /></i></div></div>
+              <div class="base-context"><header><strong class="mono">base.md</strong><small>v9 · edited 5h ago · loaded by 1,204 runs</small><button class="btn btn-secondary">History</button><button class="btn btn-primary">Save</button></header><div class="base-prose"><strong># Working in tapestry</strong><p>You are working in a clone of a bare local remote. Your branch is never main and you cannot reach the host filesystem. Push the branch; a human decides what lands.</p><p>Record what you learn with <b>locus memory write</b> at project scope, and recall before you explore — the answer is usually already a fact.</p><p>Verify with <b>cargo nextest run</b>. A claim without the command and its exit code is not a claim.<i /></p></div></div>
+              <p class="project-panel-note">Kept short on purpose: it is the one file every run pays for. Over budget usually means something belongs in a skill or a rule instead.</p>
+            </section>
+
+            <section class="project-panel" data-testid="project-extensions">
+              <PanelTitle title="Extensions" note="pulled from the defaults in Workshop — switch one off and this project materializes without it" />
+              <div class="extension-grid"><For each={extensions}>{([name, count]) => <div class="extension-card"><div><strong>{name}</strong><small>{count}</small><button class="toggle" aria-label={`Enable ${name}`} data-on={enabledExtensions().has(name)} onClick={() => toggleExtension(name)}><i /></button></div><p>{enabledExtensions().has(name) ? 'Included on the next run' : 'Excluded from the materialized tree'}</p></div>}</For></div>
+              <p class="project-panel-note">Definitions are global; what is per-project is which of them this project gets. Switching one off here removes it from the materialized tree on the next run — it does not delete it.</p>
+            </section>
+
+            <section class="project-panel" data-testid="project-cli-tools">
+              <PanelTitle title="CLI tools" note="installed in this project’s container image — agents get exactly these, nothing else" />
+              <div class="project-tools"><div><div class="project-search"><span>⌕</span><b class="mono">sqlx</b><small>3 of 214 match</small></div><Tool name="sqlx-cli" version="0.8.2" meta="cargo · on PATH here" action="Add" /><Tool name="sqlx-prepare-check" version="0.3.1" meta="store · unsigned" action="Add" /><Tool name="sqlfluff" version="3.2.0" meta="pipx" action="Add" /></div><div><div class="section-title">In this project · 5</div><Tool name="ripgrep" version="14.1.1" meta="all agents" action="×" /><Tool name="cargo-nextest" version="0.9.88" meta="impl, maintain" action="×" /><Tool name="psql" version="17.2" meta="all agents" action="×" /><Tool name="jq" version="1.7.1" meta="all agents" action="×" /><Tool name="gh" version="2.63.0" meta="needs a token" action="×" /></div></div>
+              <p class="project-panel-note">Adding a tool rebuilds the image once, not per run. A tool an agent cannot find is the second most common reason a run stalls, so the plan’s tool list lands here on approval.</p>
+            </section>
+          </div>
+        </Show>
+      </main>
+    </div>
+  )
+}
+
+function PanelTitle(props: { title: string; note: string; action?: string }) {
+  return <div class="project-panel-title"><div><span>{props.title}</span><small>{props.note}</small></div><Show when={props.action}><button class="btn btn-secondary">{props.action}</button></Show></div>
+}
+
+function Repo(props: { name: string; url: string; status: string; activity: string }) {
+  return <div class="project-repo"><div><strong class="mono">{props.name}</strong><small class="mono">{props.url}</small></div><span class="mono">{props.status}</span><span>{props.activity}</span><b>#tapestry</b></div>
+}
+
+function Tool(props: { name: string; version: string; meta: string; action: string }) {
+  return <div class="project-tool"><strong class="mono">{props.name}</strong><small class="mono">{props.version}</small><span>{props.meta}</span><button>{props.action}</button></div>
+}
+
+function Analytics() {
+  return <div class="project-analytics" data-testid="project-analytics">
+    <section><div class="section-title">Carrying this tag</div><div class="project-counter-grid"><For each={tagCounters}>{([value, label, note]) => <div data-testid="project-tag-counter"><strong>{value}</strong><span>{label}</span><small>{note}</small></div>}</For></div></section>
+    <section class="project-panel"><PanelTitle title="Agents" note="6 have run here" /><div class="project-agents"><For each={agents}>{([name, description, runs, state], index) => <div data-testid="project-agent"><i classList={{ 'agent-active': index() === 0, 'agent-waiting': index() === 1 }} /><strong class="mono">{name}</strong><span>{description}</span><small class="mono">{runs}</small><b>{state}</b></div>}</For></div><p class="project-panel-note">Agent definitions are global. What is per-project is which ones have run here, and what they learned.</p></section>
+    <section class="project-panel" data-testid="project-statistics"><PanelTitle title="Statistics" note="since 14 Mar 2026 · 160 days" /><div class="project-stat-grid"><Stat value="160" label="days since first run" /><Stat value="312" label="tasks reached the board" /><Stat value="287" label="tasks landed" /><Stat value="6" label="agents have run here" /><Stat value="1,204" label="runs, 78% verified" /><Stat value="$1,842" label="spend, all time" /></div><div class="project-models"><header><span>Model</span><span>Tokens</span><span>Cache</span><span>Spend</span></header><For each={models}>{([model, tokens, cache, spend, width]) => <div data-testid="project-model-row"><strong class="mono">{model}</strong><span class="model-token"><i><em style={{ width }} /></i><b>{tokens}</b></span><span>{cache}</span><span>{spend}</span></div>}</For><footer><span>4 models</span><span>41.7M</span><span>88%</span><span>$1,842</span></footer></div><p class="project-panel-note">Cache read is the number worth watching — the materialized tree is the prompt prefix, so a drop means something upstream stopped being byte-deterministic.</p></section>
+  </div>
+}
+
+function Stat(props: { value: string; label: string }) { return <div><strong>{props.value}</strong><small>{props.label}</small></div> }

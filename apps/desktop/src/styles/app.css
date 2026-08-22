@@ -8,6 +8,7 @@
 @import '../ui/ui.css';
 @import '../shell/shell.css';
 @import '../screens/screens.css';
+@import '../screens/projects/projects.css';
 
 *, *::before, *::after { box-sizing: border-box; }
 
