@@ -59,6 +59,26 @@ impl ProviderReference {
     }
 }
 
+/// Secret-free connection configuration stored beside a provider reference.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct ProviderConnectionConfig {
+    authentication_method: String,
+    base_url: Option<String>,
+}
+
+impl ProviderConnectionConfig {
+    pub fn new(authentication_method: impl Into<String>, base_url: Option<String>) -> Result<Self> {
+        let authentication_method = authentication_method.into();
+        if authentication_method.trim().is_empty() || base_url.as_deref().is_some_and(|url| url.trim().is_empty()) {
+            bail!("provider connection configuration must not contain empty values")
+        }
+        Ok(Self { authentication_method, base_url })
+    }
+
+    pub fn authentication_method(&self) -> &str { &self.authentication_method }
+    pub fn base_url(&self) -> Option<&str> { self.base_url.as_deref() }
+}
+
 /// A curated model entry owned by one provider.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct ProviderModel {
