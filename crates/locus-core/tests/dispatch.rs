@@ -2,6 +2,12 @@ mod dispatch {
     use locus_core::dispatch::DispatchPolicy;
 
     #[test]
+    fn stop_all_snapshot() {
+        let snapshot = locus_core::dispatch::StopAllSnapshot { id: uuid::Uuid::nil(), run_ids: vec![] };
+        assert!(snapshot.is_empty());
+    }
+
+    #[test]
     fn autorun_state() {
         let state = locus_core::dispatch::AutorunState::enabled();
         assert!(state.is_enabled());
