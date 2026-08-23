@@ -193,6 +193,11 @@ pub struct Decomposition {
 }
 
 impl Decomposition {
+    /// Calculate the one-card mapping used by spec-only approval.
+    pub fn for_spec_only(plan: ApprovedPlan) -> Self {
+        Self::spec_only(plan)
+    }
+
     /// Keep the approved spec as one prospective card.
     pub fn spec_only(plan: ApprovedPlan) -> Self {
         let mut decomposition = Self {
