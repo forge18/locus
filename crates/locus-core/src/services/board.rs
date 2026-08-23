@@ -1,1 +1,1 @@
-//! Tasks, columns, dependency edges with auto-unblock, and evidence links.
+//! Stub: board operations are not implemented or registered on the agent socket yet.

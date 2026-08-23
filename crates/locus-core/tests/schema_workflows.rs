@@ -37,7 +37,7 @@ async fn schema_workflows() {
             )",
         )
         .bind(table)
-        .fetch_one(store.pool())
+        .fetch_one(store.test_pool())
         .await
         .expect("query the workflows schema");
         assert!(exists, "workflows.{table} exists");
@@ -61,7 +61,7 @@ async fn schema_workflows() {
             )",
         )
         .bind(column)
-        .fetch_one(store.pool())
+        .fetch_one(store.test_pool())
         .await
         .expect("query workflow definition columns");
         assert!(exists, "workflows.workflow_defs.{column} exists");
@@ -89,7 +89,7 @@ async fn schema_workflows() {
         )
         .bind(table)
         .bind(column)
-        .fetch_one(store.pool())
+        .fetch_one(store.test_pool())
         .await
         .expect("query workflow lifecycle columns");
         assert!(exists, "workflows.{table}.{column} exists");
@@ -112,7 +112,7 @@ async fn schema_workflows() {
             )",
         )
         .bind(index)
-        .fetch_one(store.pool())
+        .fetch_one(store.test_pool())
         .await
         .expect("query workflow indexes");
         assert!(exists, "workflow index {index} exists");
@@ -120,7 +120,7 @@ async fn schema_workflows() {
 
     query("INSERT INTO core.projects (id, name) VALUES ($1::uuid, 'workflow test project')")
         .bind("00000000-0000-0000-0000-000000000001")
-        .execute(store.pool())
+        .execute(store.test_pool())
         .await
         .expect("insert workflow test project");
     query(
@@ -131,13 +131,13 @@ async fn schema_workflows() {
     )
     .bind("00000000-0000-0000-0000-000000000002")
     .bind("00000000-0000-0000-0000-000000000001")
-    .execute(store.pool())
+    .execute(store.test_pool())
     .await
     .expect("insert immutable workflow definition");
     let update =
         query("UPDATE workflows.workflow_defs SET name = 'changed workflow' WHERE id = $1::uuid")
             .bind("00000000-0000-0000-0000-000000000002")
-            .execute(store.pool())
+            .execute(store.test_pool())
             .await;
     assert!(update.is_err(), "workflow definitions are immutable");
 }

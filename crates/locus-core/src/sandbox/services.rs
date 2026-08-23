@@ -58,13 +58,16 @@ impl ToolCallRateLimit {
 
     pub fn allow(&self, run_id: &str, now: Instant) -> bool {
         let mut calls = self.calls.lock().expect("rate limit lock");
+        calls.retain(|_, calls| {
+            while calls
+                .front()
+                .is_some_and(|call| now.duration_since(*call) >= self.window)
+            {
+                calls.pop_front();
+            }
+            !calls.is_empty()
+        });
         let calls = calls.entry(run_id.into()).or_default();
-        while calls
-            .front()
-            .is_some_and(|call| now.duration_since(*call) >= self.window)
-        {
-            calls.pop_front();
-        }
         if calls.len() >= self.limit {
             return false;
         }
@@ -125,6 +128,15 @@ mod canary {
 #[cfg(test)]
 mod limits {
     use super::*;
+
+    #[test]
+    fn expired_runs_are_removed_before_the_next_request() {
+        let limit = ToolCallRateLimit::new(1, Duration::from_secs(1));
+        let start = Instant::now();
+        assert!(limit.allow("old-run", start));
+        assert!(limit.allow("new-run", start + Duration::from_secs(1)));
+        assert_eq!(limit.calls.lock().unwrap().len(), 1);
+    }
 
     #[test]
     fn tool_call_rate() {

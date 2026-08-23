@@ -25,6 +25,170 @@ use crate::{
 
 const MAX_AGENT_SOCKET_FRAME_BYTES: u32 = 1_048_576;
 
+/// Every agent-facing daemon operation. Unknown verbs are rejected while decoding the socket frame.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum AgentSocketVerb {
+    #[serde(rename = "memory.note.add")]
+    MemoryNoteAdd,
+    #[serde(rename = "memory.note.replace")]
+    MemoryNoteReplace,
+    #[serde(rename = "memory.note.remove")]
+    MemoryNoteRemove,
+    #[serde(rename = "memory.recall")]
+    MemoryRecall,
+    #[serde(rename = "memory.write")]
+    MemoryWrite,
+    #[serde(rename = "memory.forget")]
+    MemoryForget,
+    #[serde(rename = "mail.send")]
+    MailSend,
+    #[serde(rename = "mail.list")]
+    MailList,
+    #[serde(rename = "mail.read")]
+    MailRead,
+    #[serde(rename = "mail.reply")]
+    MailReply,
+    #[serde(rename = "mail.drain")]
+    MailDrain,
+    #[serde(rename = "mail.wait")]
+    MailWait,
+    #[serde(rename = "task.list")]
+    TaskList,
+    #[serde(rename = "task.show")]
+    TaskShow,
+    #[serde(rename = "task.move")]
+    TaskMove,
+    #[serde(rename = "task.assign")]
+    TaskAssign,
+    #[serde(rename = "task.comment")]
+    TaskComment,
+    #[serde(rename = "wiki.search")]
+    WikiSearch,
+    #[serde(rename = "wiki.read")]
+    WikiRead,
+    #[serde(rename = "wiki.write")]
+    WikiWrite,
+    #[serde(rename = "wiki.history")]
+    WikiHistory,
+    #[serde(rename = "wiki.ingest")]
+    WikiIngest,
+    #[serde(rename = "wiki.query")]
+    WikiQuery,
+    #[serde(rename = "wiki.lint")]
+    WikiLint,
+    #[serde(rename = "lsp.def")]
+    LspDef,
+    #[serde(rename = "lsp.refs")]
+    LspRefs,
+    #[serde(rename = "lsp.hover")]
+    LspHover,
+    #[serde(rename = "lsp.symbols")]
+    LspSymbols,
+    #[serde(rename = "lsp.rename")]
+    LspRename,
+    #[serde(rename = "debug.start")]
+    DebugStart,
+    #[serde(rename = "debug.break")]
+    DebugBreak,
+    #[serde(rename = "debug.step")]
+    DebugStep,
+    #[serde(rename = "debug.stack")]
+    DebugStack,
+    #[serde(rename = "debug.vars")]
+    DebugVars,
+    #[serde(rename = "debug.eval")]
+    DebugEval,
+    #[serde(rename = "browse.open")]
+    BrowseOpen,
+    #[serde(rename = "browse.click")]
+    BrowseClick,
+    #[serde(rename = "browse.fill")]
+    BrowseFill,
+    #[serde(rename = "browse.assert")]
+    BrowseAssert,
+    #[serde(rename = "browse.screenshot")]
+    BrowseScreenshot,
+    #[serde(rename = "browse.record")]
+    BrowseRecord,
+    #[serde(rename = "browse.console")]
+    BrowseConsole,
+    #[serde(rename = "browse.network")]
+    BrowseNetwork,
+    #[serde(rename = "agent.invoke")]
+    AgentInvoke,
+    #[serde(rename = "svc.up")]
+    SvcUp,
+    #[serde(rename = "svc.down")]
+    SvcDown,
+    #[serde(rename = "ask")]
+    Ask,
+    #[serde(rename = "run.status")]
+    RunStatus,
+    #[serde(rename = "run.artifacts")]
+    RunArtifacts,
+    #[serde(rename = "handoff")]
+    Handoff,
+    #[serde(rename = "artifact.put")]
+    ArtifactPut,
+    #[serde(rename = "artifact.get")]
+    ArtifactGet,
+    #[serde(rename = "artifact.comments")]
+    ArtifactComments,
+    #[serde(rename = "tools.list")]
+    ToolsList,
+    #[serde(rename = "tools.docs")]
+    ToolsDocs,
+    #[serde(rename = "lint")]
+    Lint,
+}
+
+impl std::fmt::Display for AgentSocketVerb {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let encoded = serde_json::to_string(self).map_err(|_| std::fmt::Error)?;
+        formatter.write_str(&encoded[1..encoded.len() - 1])
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentSocketErrorKind {
+    InvalidRequest,
+    PermissionDenied,
+    Unavailable,
+    Internal,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentSocketError {
+    pub kind: AgentSocketErrorKind,
+    pub message: String,
+}
+
+impl AgentSocketError {
+    fn permission_denied(message: impl Into<String>) -> Self {
+        Self {
+            kind: AgentSocketErrorKind::PermissionDenied,
+            message: message.into(),
+        }
+    }
+
+    pub fn unavailable(message: impl Into<String>) -> Self {
+        Self {
+            kind: AgentSocketErrorKind::Unavailable,
+            message: message.into(),
+        }
+    }
+}
+
+impl std::fmt::Display for AgentSocketError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "{:?}: {}", self.kind, self.message)
+    }
+}
+
+impl std::error::Error for AgentSocketError {}
+
 /// `locusd` owns active runs. Desktop windows attach and detach without owning them.
 #[derive(Default)]
 pub struct Daemon {
@@ -71,19 +235,25 @@ impl Daemon {
 #[derive(Debug, Deserialize)]
 pub struct AgentSocketRequest {
     pub nonce: String,
-    pub verb: String,
+    pub verb: AgentSocketVerb,
     pub args: Vec<String>,
 }
 
-#[derive(Debug, Serialize)]
-struct AgentSocketResponse {
-    result: Option<Value>,
-    error: Option<String>,
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentSocketResponse {
+    pub result: Option<Value>,
+    pub error: Option<AgentSocketError>,
 }
 
 /// Domain routing remains in the core, never in the container CLI.
 pub trait AgentSocketRouter: Send + Sync {
-    fn route(&self, run_id: RunId, verb: &str, args: &[String]) -> Result<Value>;
+    fn route(
+        &self,
+        run_id: RunId,
+        verb: AgentSocketVerb,
+        args: &[String],
+    ) -> std::result::Result<Value, AgentSocketError>;
 }
 
 /// Bind a daemon-owned socket. Its parent must be host-owned and inaccessible to agents.
@@ -109,19 +279,21 @@ pub async fn serve_agent_socket_once(
         .context("accept agent socket client")?;
     let request: AgentSocketRequest = read_frame(&mut stream).await?;
     let response = match capabilities.get(&request.nonce) {
-        Some(run_id) => match router.route(*run_id, &request.verb, &request.args) {
+        Some(run_id) => match router.route(*run_id, request.verb, &request.args) {
             Ok(result) => AgentSocketResponse {
                 result: Some(result),
                 error: None,
             },
             Err(error) => AgentSocketResponse {
                 result: None,
-                error: Some(error.to_string()),
+                error: Some(error),
             },
         },
         None => AgentSocketResponse {
             result: None,
-            error: Some("agent socket capability refused".into()),
+            error: Some(AgentSocketError::permission_denied(
+                "agent socket capability refused",
+            )),
         },
     };
     write_frame(&mut stream, &response).await
@@ -198,7 +370,6 @@ mod agent_socket {
         MAX_AGENT_SOCKET_FRAME_BYTES,
     };
     use crate::ids::RunId;
-    use anyhow::Result;
     use serde_json::json;
     use std::{collections::BTreeMap, path::PathBuf};
     use tokio::{
@@ -209,7 +380,12 @@ mod agent_socket {
 
     struct Router;
     impl AgentSocketRouter for Router {
-        fn route(&self, run_id: RunId, verb: &str, _: &[String]) -> Result<serde_json::Value> {
+        fn route(
+            &self,
+            run_id: RunId,
+            verb: super::AgentSocketVerb,
+            _: &[String],
+        ) -> std::result::Result<serde_json::Value, super::AgentSocketError> {
             Ok(json!({"run_id": run_id, "verb": verb}))
         }
     }
@@ -269,6 +445,17 @@ mod agent_socket {
         assert_eq!(response["result"]["run_id"], run_id.to_string());
         let _ = std::fs::remove_file(path);
     }
+    #[test]
+    fn rejects_unknown_verbs_at_the_socket_boundary() {
+        let error = serde_json::from_value::<super::AgentSocketRequest>(json!({
+            "nonce": "nonce",
+            "verb": "run.typo",
+            "args": []
+        }))
+        .expect_err("unknown verb is rejected");
+        assert!(error.to_string().contains("run.typo"));
+    }
+
     #[tokio::test]
     async fn refuses_a_missing_or_wrong_capability_before_routing() {
         let path = path();
@@ -284,7 +471,11 @@ mod agent_socket {
         )
         .await;
         server.await.unwrap();
-        assert_eq!(response["error"], "agent socket capability refused");
+        assert_eq!(response["error"]["kind"], "permission_denied");
+        assert_eq!(
+            response["error"]["message"],
+            "agent socket capability refused"
+        );
         let _ = std::fs::remove_file(path);
     }
 }

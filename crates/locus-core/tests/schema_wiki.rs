@@ -37,7 +37,7 @@ async fn schema_wiki() {
             )",
         )
         .bind(table)
-        .fetch_one(store.pool())
+        .fetch_one(store.test_pool())
         .await
         .expect("query the wiki schema");
         assert!(exists, "wiki.{table} exists");
@@ -45,7 +45,7 @@ async fn schema_wiki() {
 
     let vector_available: bool =
         query_scalar("SELECT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector')")
-            .fetch_one(store.pool())
+            .fetch_one(store.test_pool())
             .await
             .expect("query the vector extension");
     assert!(vector_available, "pgvector is enabled for wiki embeddings");

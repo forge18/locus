@@ -4,6 +4,11 @@ use super::*;
 use crate::sandbox::egress::{AuditSink, EgressTarget, EgressTier, OutboundAudit};
 
 const CREDENTIAL_SENTINEL: &str = "sk-locus-sentinel";
+const CREDENTIAL_PROXY_PORT: u16 = 44_000;
+const MAX_AUDIT_ROWS: usize = 1_024;
+const MAX_PROXY_BODY_BYTES: usize = 1_048_576;
+const PROXY_CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
+const PROXY_REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[derive(Clone)]
 struct CredentialProxyRun {
@@ -15,7 +20,7 @@ struct CredentialProxyState {
     secret: String,
     credential_class: &'static str,
     runs: Mutex<HashMap<String, CredentialProxyRun>>,
-    audit: Mutex<Vec<OutboundAudit>>,
+    audit: Mutex<VecDeque<OutboundAudit>>,
     audit_sink: Mutex<Option<Arc<dyn AuditSink>>>,
 }
 
@@ -55,7 +60,7 @@ impl CredentialProxy {
                 secret: secret.into(),
                 credential_class,
                 runs: Mutex::new(HashMap::new()),
-                audit: Mutex::new(Vec::new()),
+                audit: Mutex::new(VecDeque::with_capacity(MAX_AUDIT_ROWS)),
                 audit_sink: Mutex::new(None),
             }),
             upstream: upstream.into().trim_end_matches('/').into(),
@@ -68,7 +73,7 @@ impl CredentialProxy {
             ("ANTHROPIC_API_KEY".into(), CREDENTIAL_SENTINEL.into()),
             (
                 "ANTHROPIC_BASE_URL".into(),
-                "http://host.docker.internal:43800".into(),
+                format!("http://host.docker.internal:{CREDENTIAL_PROXY_PORT}"),
             ),
             ("LOCUS_RUN_NONCE".into(), run_nonce.into()),
         ])
@@ -113,6 +118,15 @@ impl CredentialProxy {
         Ok(())
     }
 
+    /// Revoke a completed run's capability so its nonce cannot authorize later requests.
+    pub fn release_run(&self, run_id: &str) {
+        self.state
+            .runs
+            .lock()
+            .expect("credential proxy runs lock")
+            .remove(run_id);
+    }
+
     /// Start the host listener once. Each inbound request reaches `request` before forwarding.
     pub fn listen(&self, bind: SocketAddr) -> Result<SocketAddr> {
         let mut listener = self
@@ -155,7 +169,7 @@ impl CredentialProxy {
     /// Start the configured host gateway used by agent containers.
     pub fn listen_configured(&self) -> Result<SocketAddr> {
         self.listen(
-            "0.0.0.0:43800"
+            format!("0.0.0.0:{CREDENTIAL_PROXY_PORT}")
                 .parse()
                 .expect("valid configured proxy address"),
         )
@@ -190,7 +204,13 @@ impl CredentialProxy {
     }
 
     pub fn audit_rows(&self) -> Vec<OutboundAudit> {
-        self.state.audit.lock().expect("audit lock").clone()
+        self.state
+            .audit
+            .lock()
+            .expect("audit lock")
+            .iter()
+            .cloned()
+            .collect()
     }
 
     pub fn contains_secret(&self, value: &str) -> bool {
@@ -227,7 +247,12 @@ fn request_with_state<T>(
         allowed,
         credential_class: state.credential_class,
     };
-    state.audit.lock().expect("audit lock").push(audit.clone());
+    let mut rows = state.audit.lock().expect("audit lock");
+    if rows.len() == MAX_AUDIT_ROWS {
+        rows.pop_front();
+    }
+    rows.push_back(audit.clone());
+    drop(rows);
     let sink = state
         .audit_sink
         .lock()
@@ -308,7 +333,11 @@ fn proxy_http_request(request: &[u8], state: &CredentialProxyState, upstream: &s
         sentinel,
         EgressTarget::Model,
         |secret| {
-            let client = reqwest::blocking::Client::new();
+            let client = reqwest::blocking::Client::builder()
+                .connect_timeout(PROXY_CONNECT_TIMEOUT)
+                .timeout(PROXY_REQUEST_TIMEOUT)
+                .build()
+                .context("build host credential proxy client")?;
             let mut outbound = client
                 .request(
                     method.parse().context("parse proxied method")?,
@@ -324,13 +353,16 @@ fn proxy_http_request(request: &[u8], state: &CredentialProxyState, upstream: &s
                 .body(body.as_bytes().to_vec())
                 .send()
                 .context("send host credential proxy request")?;
-            Ok((
-                response.status().as_u16(),
-                response
-                    .bytes()
-                    .context("read host proxy response")?
-                    .to_vec(),
-            ))
+            let status = response.status().as_u16();
+            let mut body = Vec::new();
+            response
+                .take((MAX_PROXY_BODY_BYTES + 1) as u64)
+                .read_to_end(&mut body)
+                .context("read host proxy response")?;
+            if body.len() > MAX_PROXY_BODY_BYTES {
+                bail!("host credential proxy response exceeds {MAX_PROXY_BODY_BYTES} bytes")
+            }
+            Ok((status, body))
         },
     ) {
         Ok((status, body)) => http_response(status, &body),
@@ -410,6 +442,46 @@ mod creds {
         assert_eq!(audit.len(), 1);
         assert!(audit[0].allowed);
         assert!(!format!("{:?}", audit).contains("real-secret"));
+    }
+
+    #[test]
+    fn released_runs_cannot_reuse_their_nonce() {
+        let proxy = CredentialProxy::new("real-secret", "api_key");
+        proxy
+            .configure_run("run", "nonce", EgressTier::Model)
+            .unwrap();
+        proxy.release_run("run");
+
+        assert!(proxy
+            .request(
+                "run",
+                "nonce",
+                CREDENTIAL_SENTINEL,
+                EgressTarget::Model,
+                |_| Ok(())
+            )
+            .is_err());
+    }
+
+    #[test]
+    fn audit_journal_discards_the_oldest_rows_at_capacity() {
+        let proxy = CredentialProxy::new("real-secret", "api_key");
+        proxy
+            .configure_run("run", "nonce", EgressTier::Model)
+            .unwrap();
+        for _ in 0..=MAX_AUDIT_ROWS {
+            proxy
+                .request(
+                    "run",
+                    "wrong",
+                    CREDENTIAL_SENTINEL,
+                    EgressTarget::Model,
+                    |_| Ok(()),
+                )
+                .expect_err("wrong nonce is refused");
+        }
+
+        assert_eq!(proxy.audit_rows().len(), MAX_AUDIT_ROWS);
     }
 
     #[test]

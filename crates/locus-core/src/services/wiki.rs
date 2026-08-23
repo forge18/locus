@@ -1,1 +1,1 @@
-//! Typed pages, ingest, contradiction flagging, and the wikilink graph.
+//! Stub: wiki operations are not implemented or registered on the agent socket yet.

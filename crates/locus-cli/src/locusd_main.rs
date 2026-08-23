@@ -13,7 +13,9 @@ use std::{collections::BTreeMap, env, path::PathBuf};
 use anyhow::{Context, Result};
 use locus_core::{
     core::Core,
-    runtime::daemon::{bind_agent_socket, serve_agent_socket, AgentSocketRouter},
+    runtime::daemon::{
+        bind_agent_socket, serve_agent_socket, AgentSocketError, AgentSocketRouter, AgentSocketVerb,
+    },
 };
 
 const DEFAULT_HARNESS_REGISTRY: &str = "harnesses";
@@ -29,10 +31,12 @@ impl AgentSocketRouter for UnroutedVerbs {
     fn route(
         &self,
         _run_id: locus_core::ids::RunId,
-        verb: &str,
+        verb: AgentSocketVerb,
         _args: &[String],
-    ) -> Result<serde_json::Value> {
-        anyhow::bail!("`{verb}` has no route yet: locusd is running, the verb is not wired")
+    ) -> std::result::Result<serde_json::Value, AgentSocketError> {
+        Err(AgentSocketError::unavailable(format!(
+            "`{verb}` has no route yet: locusd is running, the verb is not wired"
+        )))
     }
 }
 

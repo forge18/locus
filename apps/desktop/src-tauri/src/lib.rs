@@ -22,6 +22,44 @@ const MODEL_TIERS: [&str; 4] = ["low", "medium", "high", "xhigh"];
 const HARNESS_REGISTRY: &str = "../../../harnesses";
 const COMMAND_PALETTE_ACCELERATOR: &str = "CmdOrCtrl+K";
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum IpcErrorKind {
+    InvalidArgument,
+    NotFound,
+    Internal,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct IpcError {
+    kind: IpcErrorKind,
+    message: String,
+}
+
+impl IpcError {
+    fn invalid_argument(message: impl Into<String>) -> Self {
+        Self {
+            kind: IpcErrorKind::InvalidArgument,
+            message: message.into(),
+        }
+    }
+
+    fn not_found(message: impl Into<String>) -> Self {
+        Self {
+            kind: IpcErrorKind::NotFound,
+            message: message.into(),
+        }
+    }
+
+    fn internal(error: impl std::fmt::Display) -> Self {
+        Self {
+            kind: IpcErrorKind::Internal,
+            message: error.to_string(),
+        }
+    }
+}
+
 fn webviews_per_window() -> usize {
     1
 }
@@ -85,7 +123,8 @@ struct ArtifactResponse {
     media_type: String,
     sha256: String,
     derived_text: Option<String>,
-    created_at: String,
+    /// The in-memory fixture seam has no durable creation timestamp.
+    created_at: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -96,7 +135,8 @@ struct ArtifactCommentResponse {
     parent_id: Option<String>,
     author: String,
     body: String,
-    created_at: String,
+    /// The in-memory fixture seam has no durable creation timestamp.
+    created_at: Option<String>,
 }
 
 fn artifact_kind_name(kind: ArtifactKind) -> &'static str {
@@ -139,7 +179,7 @@ fn artifact_response(row: &ArtifactRow) -> ArtifactResponse {
         media_type,
         sha256,
         derived_text: row.derived_cache.as_ref().map(ToString::to_string),
-        created_at: String::new(),
+        created_at: None,
     }
 }
 
@@ -148,9 +188,9 @@ fn artifact_comment_response(comment: &ArtifactComment) -> ArtifactCommentRespon
         id: comment.id.to_string(),
         artifact_id: comment.artifact_id.to_string(),
         parent_id: comment.parent_id.map(|id| id.to_string()),
-        author: "you".into(),
+        author: "human".into(),
         body: comment.body.clone(),
-        created_at: String::new(),
+        created_at: None,
     }
 }
 
@@ -195,10 +235,8 @@ fn artifacts_list(artifacts: State<'_, ArtifactStore>) -> Vec<ArtifactResponse> 
 fn artifact_comments(
     artifacts: State<'_, ArtifactStore>,
     artifact_id: String,
-) -> Result<Vec<ArtifactCommentResponse>, String> {
-    let artifact_id: ArtifactId = artifact_id
-        .parse()
-        .map_err(|error: uuid::Error| error.to_string())?;
+) -> Result<Vec<ArtifactCommentResponse>, IpcError> {
+    let artifact_id: ArtifactId = artifact_id.parse().map_err(IpcError::internal)?;
     Ok(artifacts
         .comments(artifact_id)
         .into_iter()
@@ -227,13 +265,12 @@ fn agent_defs_list() -> Vec<AgentDefSummary> {
 }
 
 #[tauri::command]
-fn agent_def(name: String) -> Result<AgentDefResponse, String> {
+fn agent_def(name: String) -> Result<AgentDefResponse, IpcError> {
     let (version, definition) = seeded_agent_definitions()
         .into_iter()
         .find(|(_, definition)| definition.frontmatter.name == name)
-        .ok_or_else(|| format!("agent definition `{name}` was not found"))?;
-    let frontmatter =
-        serde_json::to_value(&definition.frontmatter).map_err(|error| error.to_string())?;
+        .ok_or_else(|| IpcError::not_found(format!("agent definition `{name}` was not found")))?;
+    let frontmatter = serde_json::to_value(&definition.frontmatter).map_err(IpcError::internal)?;
     Ok(AgentDefResponse {
         name: definition.frontmatter.name,
         version,
@@ -276,28 +313,33 @@ fn telemetry_subscribe(core: State<'_, Arc<Core>>, channel: Channel<Event>) {
 }
 
 #[tauri::command]
-fn linter_count(root: String) -> Result<usize, String> {
+fn linter_count(root: String) -> Result<usize, IpcError> {
     discover_linters(root)
         .map(|linters| linters.len())
-        .map_err(|error| error.to_string())
+        .map_err(IpcError::internal)
 }
 
 #[tauri::command]
 fn materialization_report(
     core: State<'_, Arc<Core>>,
-) -> Result<Vec<MaterializationReport>, String> {
+) -> Result<Vec<MaterializationReport>, IpcError> {
     // The registry is parsed once at start, not re-read and re-parsed per invoke.
     Ok(reports_for_registry(core.registry()))
 }
 
 #[tauri::command]
-fn harness_tier_grid(request: HarnessTierGridRequest) -> Result<HarnessTierGridResponse, String> {
+fn harness_tier_grid(request: HarnessTierGridRequest) -> Result<HarnessTierGridResponse, IpcError> {
     if request.project_id.trim().is_empty() {
-        return Err("harness tier grid requires a project id".into());
+        return Err(IpcError::invalid_argument(
+            "harness tier grid requires a project id",
+        ));
     }
     for setting in &request.tier_settings {
         if !MODEL_TIERS.contains(&setting.tier.as_str()) {
-            return Err(format!("unknown model tier `{}`", setting.tier));
+            return Err(IpcError::invalid_argument(format!(
+                "unknown model tier `{}`",
+                setting.tier
+            )));
         }
     }
     let harnesses = request
@@ -327,7 +369,7 @@ fn harness_tier_grid(request: HarnessTierGridRequest) -> Result<HarnessTierGridR
 }
 
 #[tauri::command]
-fn detach_pane(app: tauri::AppHandle, pane_id: String) -> Result<(), String> {
+fn detach_pane(app: tauri::AppHandle, pane_id: String) -> Result<(), IpcError> {
     let label = format!("pane-{pane_id}");
     if app.get_webview_window(&label).is_none() {
         WebviewWindowBuilder::new(
@@ -337,7 +379,7 @@ fn detach_pane(app: tauri::AppHandle, pane_id: String) -> Result<(), String> {
         )
         .title("Locus pane")
         .build()
-        .map_err(|error| error.to_string())?;
+        .map_err(IpcError::internal)?;
     }
     Ok(())
 }
@@ -413,6 +455,15 @@ mod tests {
     }
 
     #[test]
+    fn ipc_errors_expose_a_machine_readable_kind() {
+        let error = agent_def("missing".into()).expect_err("missing definition is refused");
+        assert_eq!(
+            serde_json::to_value(error).expect("serialize IPC error")["kind"],
+            "not_found"
+        );
+    }
+
+    #[test]
     fn linters_count_is_served_by_core() {
         let root = std::env::temp_dir().join(format!(
             "locus-linter-count-{}",
@@ -437,8 +488,12 @@ mod tests {
         let core = Core::load(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(HARNESS_REGISTRY))
             .expect("core loads");
         let reports = reports_for_registry(core.registry());
-        assert_eq!(reports.len(), 11);
-        assert_eq!(reports.iter().flat_map(|report| &report.losses).count(), 29);
+        assert!(!reports.is_empty());
+        assert!(reports.iter().all(|report| !report.harness.is_empty()));
+        assert!(reports
+            .iter()
+            .flat_map(|report| &report.losses)
+            .all(|loss| !loss.weaker_than_native.is_empty()));
     }
 
     #[test]

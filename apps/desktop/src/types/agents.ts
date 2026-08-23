@@ -115,7 +115,8 @@ export interface Artifact {
    * pixels, so this is what gets handed over — never the blob.
    */
   derivedText: string | null
-  createdAt: string
+  /** Null while the desktop uses its in-memory fixture seam. */
+  createdAt: string | null
 }
 
 /** @schema agents — a comment on an artifact. Threads hang off `parentId`. */
@@ -125,5 +126,6 @@ export interface ArtifactComment {
   parentId: string | null
   author: string
   body: string
-  createdAt: string
+  /** Null while the desktop uses its in-memory fixture seam. */
+  createdAt: string | null
 }

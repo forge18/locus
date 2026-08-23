@@ -30,7 +30,7 @@ async fn schema_memory() {
             )",
         )
         .bind(table)
-        .fetch_one(store.pool())
+        .fetch_one(store.test_pool())
         .await
         .expect("query the memory schema");
         assert!(exists, "memory.{table} exists");
@@ -56,7 +56,7 @@ async fn schema_memory() {
             )",
         )
         .bind(column)
-        .fetch_one(store.pool())
+        .fetch_one(store.test_pool())
         .await
         .expect("query durable memory columns");
         assert!(exists, "memory.store.{column} exists");
@@ -67,7 +67,7 @@ async fn schema_memory() {
             FROM information_schema.columns
             WHERE table_schema = 'memory' AND table_name = 'store' AND column_name = 'embedding'",
     )
-    .fetch_one(store.pool())
+    .fetch_one(store.test_pool())
     .await
     .expect("query the durable memory embedding type");
     assert_eq!(
@@ -88,7 +88,7 @@ async fn schema_memory() {
             )",
         )
         .bind(index)
-        .fetch_one(store.pool())
+        .fetch_one(store.test_pool())
         .await
         .expect("query memory indexes");
         assert!(exists, "memory index {index} exists");

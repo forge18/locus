@@ -30,7 +30,7 @@ async fn schema_core() {
             )",
         )
         .bind(table)
-        .fetch_one(store.pool())
+        .fetch_one(store.test_pool())
         .await
         .expect("query the core schema");
         assert!(exists, "core.{table} exists");

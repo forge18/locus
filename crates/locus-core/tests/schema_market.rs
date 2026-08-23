@@ -36,7 +36,7 @@ async fn schema_market() {
             )",
         )
         .bind(table)
-        .fetch_one(store.pool())
+        .fetch_one(store.test_pool())
         .await
         .expect("query the market schema");
         assert!(exists, "market.{table} exists");
@@ -65,7 +65,7 @@ async fn schema_market() {
         )
         .bind(table)
         .bind(column)
-        .fetch_one(store.pool())
+        .fetch_one(store.test_pool())
         .await
         .expect("query market schema columns");
         assert!(exists, "market.{table}.{column} exists");
@@ -76,7 +76,7 @@ async fn schema_market() {
          VALUES ($1::uuid, 'market test agent', 1, '{}'::jsonb, 'test agent')",
     )
     .bind("00000000-0000-0000-0000-000000000201")
-    .execute(store.pool())
+    .execute(store.test_pool())
     .await
     .expect("insert market test agent");
     query(
@@ -86,7 +86,7 @@ async fn schema_market() {
                  'a3f7b1')",
     )
     .bind("00000000-0000-0000-0000-000000000202")
-    .execute(store.pool())
+    .execute(store.test_pool())
     .await
     .expect("cache a manifest snapshot");
     query(
@@ -94,7 +94,7 @@ async fn schema_market() {
          VALUES ($1::uuid, 'sha256:base-image', 'sha256:agent-image')",
     )
     .bind("00000000-0000-0000-0000-000000000203")
-    .execute(store.pool())
+    .execute(store.test_pool())
     .await
     .expect("create deterministic image tool set");
     query(
@@ -103,7 +103,7 @@ async fn schema_market() {
     )
     .bind("00000000-0000-0000-0000-000000000203")
     .bind("00000000-0000-0000-0000-000000000202")
-    .execute(store.pool())
+    .execute(store.test_pool())
     .await
     .expect("pin manifest snapshot in tool set");
     query(
@@ -113,7 +113,7 @@ async fn schema_market() {
     .bind("00000000-0000-0000-0000-000000000204")
     .bind("00000000-0000-0000-0000-000000000203")
     .bind("00000000-0000-0000-0000-000000000202")
-    .execute(store.pool())
+    .execute(store.test_pool())
     .await
     .expect("record an install for a pinned manifest");
     query(
@@ -122,7 +122,7 @@ async fn schema_market() {
     )
     .bind("00000000-0000-0000-0000-000000000201")
     .bind("00000000-0000-0000-0000-000000000203")
-    .execute(store.pool())
+    .execute(store.test_pool())
     .await
     .expect("resolve the agent definition to its tool set");
 
@@ -131,7 +131,7 @@ async fn schema_market() {
          VALUES ($1::uuid, 'sha256:base-image', 'sha256:agent-image')",
     )
     .bind("00000000-0000-0000-0000-000000000205")
-    .execute(store.pool())
+    .execute(store.test_pool())
     .await;
     assert!(
         duplicate_cache_key.is_err(),
@@ -144,7 +144,7 @@ async fn schema_market() {
     )
     .bind("00000000-0000-0000-0000-000000000201")
     .bind("00000000-0000-0000-0000-000000000203")
-    .execute(store.pool())
+    .execute(store.test_pool())
     .await;
     assert!(
         duplicate_resolution.is_err(),
@@ -157,7 +157,7 @@ async fn schema_market() {
     )
     .bind("00000000-0000-0000-0000-000000000203")
     .bind("00000000-0000-0000-0000-000000000202")
-    .execute(store.pool())
+    .execute(store.test_pool())
     .await;
     assert!(
         mismatched_pin.is_err(),

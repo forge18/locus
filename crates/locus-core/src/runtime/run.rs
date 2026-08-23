@@ -157,7 +157,7 @@ pub struct CredentialProxyConfig {
     endpoint: String,
 }
 
-const CREDENTIAL_PROXY_ENDPOINT: &str = "http://host.docker.internal:43800/";
+const CREDENTIAL_PROXY_ENDPOINT: &str = "http://host.docker.internal:44000/";
 
 impl CredentialProxyConfig {
     pub fn new(endpoint: impl Into<String>) -> Result<Self> {
@@ -165,7 +165,7 @@ impl CredentialProxyConfig {
         let parsed = Url::parse(&endpoint).context("credential proxy endpoint must be a URL")?;
         if parsed.scheme() != "http"
             || parsed.host_str() != Some("host.docker.internal")
-            || parsed.port() != Some(43800)
+            || parsed.port() != Some(44000)
             || !parsed.username().is_empty()
             || parsed.password().is_some()
             || parsed.path() != "/"
@@ -205,9 +205,12 @@ pub fn spawn(
     runtime: &mut impl ContainerRuntime,
 ) -> Result<SpawnedRun> {
     let port = ports.allocate()?;
+    let run_id = run.id.to_string();
+    let proxy = request.credential_proxy_authorizer;
     match spawn_at_port(run, request, port, runtime) {
         Ok(spawned) => Ok(spawned),
         Err(error) => {
+            proxy.release_run(&run_id);
             ports.release(port);
             Err(error)
         }
@@ -333,9 +336,12 @@ pub async fn spawn_persisted(
     runtime: &mut impl ContainerRuntime,
 ) -> Result<SpawnedRun> {
     let port = store.allocate_run_port(run.id).await?;
+    let run_id = run.id.to_string();
+    let proxy = request.credential_proxy_authorizer;
     match spawn_at_port(run, request, port, runtime) {
         Ok(spawned) => Ok(spawned),
         Err(error) => {
+            proxy.release_run(&run_id);
             store.release_run_port(run.id).await?;
             Err(error)
         }
@@ -345,22 +351,29 @@ pub async fn spawn_persisted(
 /// Cancel the container and release its durable port reservation after it reaches a terminal state.
 pub async fn cancel_persisted(
     store: &Store,
+    proxy: &CredentialProxy,
     run: &mut Run,
     reason: impl AsRef<str>,
     runtime: &mut impl ContainerRuntime,
 ) -> Result<()> {
     cancel(run, reason, runtime)?;
+    proxy.release_run(&run.id.to_string());
     store.release_run_port(run.id).await
 }
 
-/// Release a durable port after any terminal outcome that did not use cancellation.
-pub async fn release_terminal_port(store: &Store, run: &Run) -> Result<()> {
+/// Release a run's resources after any terminal outcome that did not use cancellation.
+pub async fn release_terminal_port(
+    store: &Store,
+    proxy: &CredentialProxy,
+    run: &Run,
+) -> Result<()> {
     if matches!(
         run.status,
         RunStatus::Queued | RunStatus::Running | RunStatus::Paused
     ) {
         bail!("only terminal runs release durable ports")
     }
+    proxy.release_run(&run.id.to_string());
     store.release_run_port(run.id).await
 }
 
@@ -795,7 +808,7 @@ mod spawns {
                 .listener_address()
                 .unwrap()
                 .port(),
-            43_800
+            44_000
         );
         assert!(spawned
             .container
@@ -806,7 +819,7 @@ mod spawns {
             .container
             .environment
             .iter()
-            .any(|value| value == "LOCUS_CREDENTIAL_PROXY=http://host.docker.internal:43800/"));
+            .any(|value| value == "LOCUS_CREDENTIAL_PROXY=http://host.docker.internal:44000/"));
         assert!(!spawned
             .container
             .environment

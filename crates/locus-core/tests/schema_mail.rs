@@ -30,7 +30,7 @@ async fn schema_mail() {
             )",
         )
         .bind(table)
-        .fetch_one(store.pool())
+        .fetch_one(store.test_pool())
         .await
         .expect("query the mail schema");
         assert!(exists, "mail.{table} exists");
@@ -61,7 +61,7 @@ async fn schema_mail() {
         )
         .bind(table)
         .bind(column)
-        .fetch_one(store.pool())
+        .fetch_one(store.test_pool())
         .await
         .expect("query mail schema columns");
         assert!(exists, "mail.{table}.{column} exists");
@@ -81,7 +81,7 @@ async fn schema_mail() {
             )",
         )
         .bind(index)
-        .fetch_one(store.pool())
+        .fetch_one(store.test_pool())
         .await
         .expect("query mail indexes");
         assert!(exists, "mail index {index} exists");
@@ -89,7 +89,7 @@ async fn schema_mail() {
 
     query("INSERT INTO core.projects (id, name) VALUES ($1::uuid, 'mail test project')")
         .bind("00000000-0000-0000-0000-000000000101")
-        .execute(store.pool())
+        .execute(store.test_pool())
         .await
         .expect("insert mail test project");
     query(
@@ -97,7 +97,7 @@ async fn schema_mail() {
          VALUES ($1::uuid, 'mail test agent', 1, '{}'::jsonb, 'test agent')",
     )
     .bind("00000000-0000-0000-0000-000000000102")
-    .execute(store.pool())
+    .execute(store.test_pool())
     .await
     .expect("insert mail test agent");
     query(
@@ -107,7 +107,7 @@ async fn schema_mail() {
     .bind("00000000-0000-0000-0000-000000000103")
     .bind("00000000-0000-0000-0000-000000000101")
     .bind("00000000-0000-0000-0000-000000000102")
-    .execute(store.pool())
+    .execute(store.test_pool())
     .await
     .expect("insert mail test session");
     query(
@@ -116,7 +116,7 @@ async fn schema_mail() {
     )
     .bind("00000000-0000-0000-0000-000000000104")
     .bind("00000000-0000-0000-0000-000000000103")
-    .execute(store.pool())
+    .execute(store.test_pool())
     .await
     .expect("insert mail test run");
 
@@ -126,7 +126,7 @@ async fn schema_mail() {
     )
     .bind("00000000-0000-0000-0000-000000000105")
     .bind("00000000-0000-0000-0000-000000000101")
-    .execute(store.pool())
+    .execute(store.test_pool())
     .await
     .expect("insert project-scoped mail thread");
     query(
@@ -136,7 +136,7 @@ async fn schema_mail() {
     .bind("00000000-0000-0000-0000-000000000106")
     .bind("00000000-0000-0000-0000-000000000105")
     .bind("00000000-0000-0000-0000-000000000104")
-    .execute(store.pool())
+    .execute(store.test_pool())
     .await
     .expect("insert threaded mail message");
     query(
@@ -146,7 +146,7 @@ async fn schema_mail() {
     .bind("00000000-0000-0000-0000-000000000107")
     .bind("00000000-0000-0000-0000-000000000106")
     .bind("00000000-0000-0000-0000-000000000103")
-    .execute(store.pool())
+    .execute(store.test_pool())
     .await
     .expect("insert agent delivery state");
     query(
@@ -155,7 +155,7 @@ async fn schema_mail() {
     )
     .bind("00000000-0000-0000-0000-000000000108")
     .bind("00000000-0000-0000-0000-000000000104")
-    .execute(store.pool())
+    .execute(store.test_pool())
     .await
     .expect("record mail wait reason");
 
@@ -165,7 +165,7 @@ async fn schema_mail() {
     )
     .bind("00000000-0000-0000-0000-000000000109")
     .bind("00000000-0000-0000-0000-000000000104")
-    .execute(store.pool())
+    .execute(store.test_pool())
     .await;
     assert!(
         second_active_wait.is_err(),
@@ -174,7 +174,7 @@ async fn schema_mail() {
 
     let waiting_status = query("UPDATE agents.runs SET status = 'waiting' WHERE id = $1::uuid")
         .bind("00000000-0000-0000-0000-000000000104")
-        .execute(store.pool())
+        .execute(store.test_pool())
         .await;
     assert!(
         waiting_status.is_err(),
@@ -183,13 +183,13 @@ async fn schema_mail() {
 
     query("DELETE FROM agents.runs WHERE id = $1::uuid")
         .bind("00000000-0000-0000-0000-000000000104")
-        .execute(store.pool())
+        .execute(store.test_pool())
         .await
         .expect("delete a finished sender run");
     let sender_run_id: Option<String> =
         query_scalar("SELECT sender_run_id::text FROM mail.messages WHERE id = $1::uuid")
             .bind("00000000-0000-0000-0000-000000000106")
-            .fetch_one(store.pool())
+            .fetch_one(store.test_pool())
             .await
             .expect("read preserved mail message");
     assert_eq!(

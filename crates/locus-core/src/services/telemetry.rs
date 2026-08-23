@@ -10,7 +10,7 @@
 use crate::bus::InProcessBus;
 use crate::ids::RunId;
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{BTreeSet, HashMap, VecDeque},
     sync::{Arc, Mutex},
 };
 
@@ -182,10 +182,14 @@ pub struct PermissionAlarm {
 }
 
 /// Owns per-run sequence assignment and publishes normalized events to local consumers.
+///
+/// The journal is a bounded debugging aid; the durable event store remains the source of truth.
+const EVENT_JOURNAL_CAPACITY: usize = 1_024;
+
 #[derive(Clone)]
 pub struct EventCollector {
     next_seq: Arc<Mutex<HashMap<RunId, u64>>>,
-    events: Arc<Mutex<Vec<Event>>>,
+    events: Arc<Mutex<HashMap<RunId, VecDeque<Event>>>>,
     events_out: InProcessBus<Event>,
     alarms: InProcessBus<PermissionAlarm>,
 }
@@ -194,7 +198,7 @@ impl EventCollector {
     pub fn new(capacity: usize) -> Self {
         Self {
             next_seq: Arc::new(Mutex::new(HashMap::new())),
-            events: Arc::new(Mutex::new(Vec::new())),
+            events: Arc::new(Mutex::new(HashMap::new())),
             events_out: InProcessBus::new(capacity),
             alarms: InProcessBus::new(capacity),
         }
@@ -209,10 +213,13 @@ impl EventCollector {
             assigned
         };
         let event = Event::from_captured(run_id, seq, captured);
-        self.events
-            .lock()
-            .expect("event store lock")
-            .push(event.clone());
+        let mut journals = self.events.lock().expect("event store lock");
+        let journal = journals.entry(run_id).or_default();
+        if journal.len() == EVENT_JOURNAL_CAPACITY {
+            journal.pop_front();
+        }
+        journal.push_back(event.clone());
+        drop(journals);
         self.events_out.publish(event.clone());
         if event.verb == EventVerb::PermissionRequest {
             self.alarms.publish(PermissionAlarm {
@@ -227,10 +234,9 @@ impl EventCollector {
         self.events
             .lock()
             .expect("event store lock")
-            .iter()
-            .filter(|event| event.run_id == run_id)
-            .cloned()
-            .collect()
+            .get(&run_id)
+            .map(|journal| journal.iter().cloned().collect())
+            .unwrap_or_default()
     }
 
     pub fn subscribe(&self) -> broadcast::Receiver<Event> {

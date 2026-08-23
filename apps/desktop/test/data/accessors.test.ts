@@ -79,7 +79,7 @@ describe("data/accessors", () => {
     for (const file of modules) {
       const source = readFileSync(resolve(dataDir, file), "utf8");
       expect(source, `${file} reads no fixture`).toMatch(
-        /from '\.\.\/(fixtures|types)\//,
+        /from ["']\.\.\/(fixtures|types)\//,
       );
     }
   });

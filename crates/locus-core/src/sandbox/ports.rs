@@ -4,17 +4,23 @@ use super::*;
 
 #[derive(Default)]
 pub struct PortAllocator {
-    allocated: Mutex<BTreeSet<u16>>,
+    /// Binding keeps the host port reserved until the run releases it.
+    allocated: Mutex<BTreeMap<u16, TcpListener>>,
 }
 
 impl PortAllocator {
     pub fn allocate(&self) -> Result<u16> {
         let mut allocated = self.allocated.lock().expect("port allocator lock");
-        let port = (PORT_START..=PORT_END)
-            .find(|port| !allocated.contains(port))
-            .context("no Locus ports remain")?;
-        allocated.insert(port);
-        Ok(port)
+        for port in PORT_START..=PORT_END {
+            if allocated.contains_key(&port) {
+                continue;
+            }
+            if let Ok(listener) = TcpListener::bind(("127.0.0.1", port)) {
+                allocated.insert(port, listener);
+                return Ok(port);
+            }
+        }
+        bail!("no Locus ports remain")
     }
 
     pub fn release(&self, port: u16) {
@@ -44,6 +50,9 @@ mod allocation {
         let second = ports.allocate().unwrap();
         assert_ne!(first, second);
         assert!((PORT_START..=PORT_END).contains(&first));
+        assert!(TcpListener::bind(("127.0.0.1", first)).is_err());
+        ports.release(first);
+        assert!(TcpListener::bind(("127.0.0.1", first)).is_ok());
     }
 }
 

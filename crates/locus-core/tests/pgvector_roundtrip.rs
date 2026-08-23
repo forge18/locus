@@ -25,7 +25,7 @@ async fn pgvector_roundtrip() {
         "INSERT INTO core.projects (id, name)
          VALUES ('00000000-0000-0000-0000-000000000001', 'pgvector roundtrip')",
     )
-    .execute(store.pool())
+    .execute(store.test_pool())
     .await
     .expect("insert project for embeddings");
     query(
@@ -64,7 +64,7 @@ async fn pgvector_roundtrip() {
                  1.0
              )",
     )
-    .execute(store.pool())
+    .execute(store.test_pool())
     .await
     .expect("insert pgvector embeddings");
 
@@ -74,7 +74,7 @@ async fn pgvector_roundtrip() {
          ORDER BY embedding <-> '[0.9,0.1,0.0]'::vector
          LIMIT 1",
     )
-    .fetch_one(store.pool())
+    .fetch_one(store.test_pool())
     .await
     .expect("query nearest embedding");
     assert_eq!(nearest, "expected nearest embedding");

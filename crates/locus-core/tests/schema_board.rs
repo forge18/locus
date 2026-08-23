@@ -38,7 +38,7 @@ async fn schema_board() {
             )",
         )
         .bind(table)
-        .fetch_one(store.pool())
+        .fetch_one(store.test_pool())
         .await
         .expect("query the board schema");
         assert!(exists, "board.{table} exists");

@@ -146,6 +146,7 @@ fn env_path(variable: &str, default: &str) -> PathBuf {
 #[cfg(test)]
 mod artifact {
     use super::sock;
+    use locus_core::runtime::daemon::AgentSocketVerb;
 
     #[test]
     fn put() {
@@ -155,24 +156,27 @@ mod artifact {
             "plan".into(),
             "plan.md".into(),
         ];
-        let (dispatch, args) = sock::allowed_verb(&command).expect("artifact put dispatches");
-        assert_eq!(dispatch.verb, "artifact.put");
+        let (dispatch, args) = sock::allowed_verb(&command)
+            .unwrap_or_else(|error| panic!("artifact put dispatches: {error}"));
+        assert_eq!(dispatch.verb, AgentSocketVerb::ArtifactPut);
         assert_eq!(args, ["plan", "plan.md"]);
     }
 
     #[test]
     fn get_roundtrip() {
         let command = ["artifact".into(), "get".into(), "artifact-id".into()];
-        let (dispatch, args) = sock::allowed_verb(&command).expect("artifact get dispatches");
-        assert_eq!(dispatch.verb, "artifact.get");
+        let (dispatch, args) = sock::allowed_verb(&command)
+            .unwrap_or_else(|error| panic!("artifact get dispatches: {error}"));
+        assert_eq!(dispatch.verb, AgentSocketVerb::ArtifactGet);
         assert_eq!(args, ["artifact-id"]);
     }
 
     #[test]
     fn comments() {
         let command = ["artifact".into(), "comments".into()];
-        let (dispatch, args) = sock::allowed_verb(&command).expect("artifact comments dispatches");
-        assert_eq!(dispatch.verb, "artifact.comments");
+        let (dispatch, args) = sock::allowed_verb(&command)
+            .unwrap_or_else(|error| panic!("artifact comments dispatches: {error}"));
+        assert_eq!(dispatch.verb, AgentSocketVerb::ArtifactComments);
         assert!(args.is_empty());
     }
 }
@@ -180,6 +184,7 @@ mod artifact {
 #[cfg(test)]
 mod lint {
     use super::*;
+    use locus_core::runtime::daemon::AgentSocketVerb;
 
     #[test]
     fn runs_all() {
@@ -189,7 +194,7 @@ mod lint {
                 .expect("lint is allowlisted")
                 .0
                 .verb,
-            "lint"
+            AgentSocketVerb::Lint
         );
     }
 

@@ -7,11 +7,7 @@
 //!
 //! Production, not test scaffolding — `register_from_directory` gates on it.
 
-use std::{
-    env, fs,
-    path::PathBuf,
-    sync::atomic::{AtomicU64, Ordering},
-};
+use std::{env, fs, path::PathBuf};
 
 use anyhow::{bail, Context, Result};
 use serde_json::json;
@@ -32,7 +28,6 @@ const CANARY_SKILL: &str = include_str!("../../../../tests/canary/skill.md");
 const CANARY_RULE: &str = include_str!("../../../../tests/canary/rule.md");
 const CANARY_SKILL_MARKER: &str = "LOCUS_CI_CANARY_SKILL";
 const CANARY_RULE_MARKER: &str = "LOCUS_CI_CANARY_RULE";
-static NEXT_ROOT: AtomicU64 = AtomicU64::new(0);
 
 /// Returns the fixture extensions that every harness smoke test must expose.
 pub fn canary_extensions() -> ExtensionSet {
@@ -144,9 +139,5 @@ fn canary_run_id(harness: &str) -> RunId {
 }
 
 fn smoke_root(harness: &str) -> PathBuf {
-    env::temp_dir().join(format!(
-        "locus-ci-smoke-{harness}-{}-{}",
-        std::process::id(),
-        NEXT_ROOT.fetch_add(1, Ordering::Relaxed),
-    ))
+    env::temp_dir().join(format!("locus-ci-smoke-{harness}-{}", uuid::Uuid::new_v4(),))
 }

@@ -38,7 +38,7 @@ async fn schema_agents() {
             )",
         )
         .bind(table)
-        .fetch_one(store.pool())
+        .fetch_one(store.test_pool())
         .await
         .expect("query the agents schema");
         assert!(exists, "agents.{table} exists");

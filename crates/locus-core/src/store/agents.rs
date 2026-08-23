@@ -44,6 +44,12 @@ impl Store {
         let frontmatter =
             serde_json::to_value(&definition.frontmatter).context("serialize agent definition")?;
         let name = &definition.frontmatter.name;
+        let mut transaction = self.pool().begin().await?;
+        sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
+            .bind(name)
+            .execute(&mut *transaction)
+            .await
+            .context("lock agent definition version")?;
         let row = query_as::<_, AgentDefinitionRow>(
             "WITH next_version AS (
                 SELECT COALESCE(MAX(version), 0) + 1 AS version
@@ -57,8 +63,9 @@ impl Store {
         .bind(Uuid::new_v4())
         .bind(frontmatter)
         .bind(&definition.body)
-        .fetch_one(self.pool())
+        .fetch_one(&mut *transaction)
         .await?;
+        transaction.commit().await?;
         Ok(row.into())
     }
 

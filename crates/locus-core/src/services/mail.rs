@@ -1,1 +1,1 @@
-//! Agent-to-agent messages: threads, delivery, `wait` and `drain` semantics.
+//! Stub: mail operations are not implemented or registered on the agent socket yet.

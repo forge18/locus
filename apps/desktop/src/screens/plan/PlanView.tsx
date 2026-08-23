@@ -5,6 +5,7 @@ import {
       Switch,
       createMemo,
       createSignal,
+      onCleanup,
       onMount,
 } from "solid-js";
 import { Breadcrumb } from "./Breadcrumb";
@@ -51,15 +52,34 @@ export function PlanView() {
       const outputs = usePlanOutputs();
 
       onMount(() => {
+            let stopped = false;
+            let detach = () => undefined;
+            onCleanup(() => {
+                  stopped = true;
+                  detach();
+            });
             void subscribePlanConversationFromCore((message) => {
-                  setMessages((current) =>
-                        current.some((item) => item.id === message.id)
-                              ? current
-                              : [...current, message],
-                  );
-            }).catch((e) =>
-                  setStreamError(e instanceof Error ? e.message : String(e)),
-            );
+                  if (!stopped) {
+                        setMessages((current) =>
+                              current.some((item) => item.id === message.id)
+                                    ? current
+                                    : [...current, message],
+                        );
+                  }
+            })
+                  .then((channel) => {
+                        if (!channel) return;
+                        detach = () => {
+                              channel.onmessage = () => undefined;
+                        };
+                        if (stopped) detach();
+                  })
+                  .catch((e) => {
+                        if (!stopped)
+                              setStreamError(
+                                    e instanceof Error ? e.message : String(e),
+                              );
+                  });
       });
 
       return (

@@ -174,6 +174,9 @@ pub enum CommentDelivery {
     Deferred,
 }
 
+/// In-memory fixture seam for desktop previews and unit tests.
+///
+/// This store is deliberately non-durable; production artifact bodies belong in `Store`.
 #[derive(Default)]
 pub struct ArtifactStore {
     rows: BTreeMap<ArtifactId, ArtifactRow>,

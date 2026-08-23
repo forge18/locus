@@ -8,8 +8,8 @@ const tauriSource = readFileSync(resolve('src-tauri/src/lib.rs'), 'utf8')
 describe('artifacts/from-core', () => {
   it('loads review artifacts and their comments through Tauri IPC', () => {
     const source = read('data/artifacts.ts')
-    expect(source).toContain("invoke<Artifact[]>('artifacts_list')")
-    expect(source).toContain("invoke<ArtifactComment[]>('artifact_comments', { artifactId })")
+    expect(source).toContain('invoke<Artifact[]>("artifacts_list")')
+    expect(source).toContain('invoke<ArtifactComment[]>("artifact_comments", { artifactId })')
   })
 
   it('registers artifact IPC commands backed by the core ArtifactStore', () => {

@@ -4,15 +4,6 @@ use super::*;
 use crate::harness::materialize::extensions::ExtensionEntry;
 use crate::harness::materialize::tree::{GeneratedFile, MaterializedTree};
 
-/// A generic strategy can turn one extension's entries into generated files.
-pub trait Strategy {
-    fn materialize(
-        &self,
-        entries: &[&ExtensionEntry],
-        tree: &mut MaterializedTree,
-    ) -> Result<(), MaterializeError>;
-}
-
 /// Copy files into a declared directory, optionally flattening and renaming them.
 pub struct DirStrategy {
     pub dir: PathBuf,
@@ -20,8 +11,8 @@ pub struct DirStrategy {
     pub flat: bool,
 }
 
-impl Strategy for DirStrategy {
-    fn materialize(
+impl DirStrategy {
+    pub(crate) fn materialize(
         &self,
         entries: &[&ExtensionEntry],
         tree: &mut MaterializedTree,
@@ -44,8 +35,8 @@ pub struct MergedIntoStrategy {
     pub strip_frontmatter: bool,
 }
 
-impl Strategy for MergedIntoStrategy {
-    fn materialize(
+impl MergedIntoStrategy {
+    pub(crate) fn materialize(
         &self,
         entries: &[&ExtensionEntry],
         tree: &mut MaterializedTree,
@@ -72,8 +63,8 @@ pub struct ListedInStrategy {
     pub paths: Vec<String>,
 }
 
-impl Strategy for ListedInStrategy {
-    fn materialize(
+impl ListedInStrategy {
+    pub(crate) fn materialize(
         &self,
         _entries: &[&ExtensionEntry],
         tree: &mut MaterializedTree,
@@ -89,8 +80,8 @@ pub struct EntriesInStrategy {
     pub paths: Vec<String>,
 }
 
-impl Strategy for EntriesInStrategy {
-    fn materialize(
+impl EntriesInStrategy {
+    pub(crate) fn materialize(
         &self,
         entries: &[&ExtensionEntry],
         tree: &mut MaterializedTree,

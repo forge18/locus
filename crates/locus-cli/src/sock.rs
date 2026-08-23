@@ -1,6 +1,9 @@
 use std::path::Path;
 
 use anyhow::{Context, Result};
+use locus_core::runtime::daemon::{
+    AgentSocketError, AgentSocketErrorKind, AgentSocketResponse, AgentSocketVerb,
+};
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::{Map, Value};
 use tokio::{
@@ -15,240 +18,240 @@ const MAX_SOCKET_FRAME_BYTES: u32 = 1_048_576;
 #[derive(Debug, Serialize)]
 pub struct SocketRequest<'a> {
     pub nonce: &'a str,
-    pub verb: &'a str,
+    pub verb: AgentSocketVerb,
     pub args: &'a [String],
 }
 
 #[derive(Debug)]
 pub struct VerbDispatch {
     pub command: &'static [&'static str],
-    pub verb: &'static str,
+    pub verb: AgentSocketVerb,
 }
 
 pub const VERB_DISPATCHES: &[VerbDispatch] = &[
     VerbDispatch {
         command: &["memory", "note", "add"],
-        verb: "memory.note.add",
+        verb: AgentSocketVerb::MemoryNoteAdd,
     },
     VerbDispatch {
         command: &["memory", "note", "replace"],
-        verb: "memory.note.replace",
+        verb: AgentSocketVerb::MemoryNoteReplace,
     },
     VerbDispatch {
         command: &["memory", "note", "remove"],
-        verb: "memory.note.remove",
+        verb: AgentSocketVerb::MemoryNoteRemove,
     },
     VerbDispatch {
         command: &["memory", "recall"],
-        verb: "memory.recall",
+        verb: AgentSocketVerb::MemoryRecall,
     },
     VerbDispatch {
         command: &["memory", "write"],
-        verb: "memory.write",
+        verb: AgentSocketVerb::MemoryWrite,
     },
     VerbDispatch {
         command: &["memory", "forget"],
-        verb: "memory.forget",
+        verb: AgentSocketVerb::MemoryForget,
     },
     VerbDispatch {
         command: &["mail", "send"],
-        verb: "mail.send",
+        verb: AgentSocketVerb::MailSend,
     },
     VerbDispatch {
         command: &["mail", "list"],
-        verb: "mail.list",
+        verb: AgentSocketVerb::MailList,
     },
     VerbDispatch {
         command: &["mail", "read"],
-        verb: "mail.read",
+        verb: AgentSocketVerb::MailRead,
     },
     VerbDispatch {
         command: &["mail", "reply"],
-        verb: "mail.reply",
+        verb: AgentSocketVerb::MailReply,
     },
     VerbDispatch {
         command: &["mail", "drain"],
-        verb: "mail.drain",
+        verb: AgentSocketVerb::MailDrain,
     },
     VerbDispatch {
         command: &["mail", "wait"],
-        verb: "mail.wait",
+        verb: AgentSocketVerb::MailWait,
     },
     VerbDispatch {
         command: &["task", "list"],
-        verb: "task.list",
+        verb: AgentSocketVerb::TaskList,
     },
     VerbDispatch {
         command: &["task", "show"],
-        verb: "task.show",
+        verb: AgentSocketVerb::TaskShow,
     },
     VerbDispatch {
         command: &["task", "move"],
-        verb: "task.move",
+        verb: AgentSocketVerb::TaskMove,
     },
     VerbDispatch {
         command: &["task", "assign"],
-        verb: "task.assign",
+        verb: AgentSocketVerb::TaskAssign,
     },
     VerbDispatch {
         command: &["task", "comment"],
-        verb: "task.comment",
+        verb: AgentSocketVerb::TaskComment,
     },
     VerbDispatch {
         command: &["wiki", "search"],
-        verb: "wiki.search",
+        verb: AgentSocketVerb::WikiSearch,
     },
     VerbDispatch {
         command: &["wiki", "read"],
-        verb: "wiki.read",
+        verb: AgentSocketVerb::WikiRead,
     },
     VerbDispatch {
         command: &["wiki", "write"],
-        verb: "wiki.write",
+        verb: AgentSocketVerb::WikiWrite,
     },
     VerbDispatch {
         command: &["wiki", "history"],
-        verb: "wiki.history",
+        verb: AgentSocketVerb::WikiHistory,
     },
     VerbDispatch {
         command: &["wiki", "ingest"],
-        verb: "wiki.ingest",
+        verb: AgentSocketVerb::WikiIngest,
     },
     VerbDispatch {
         command: &["wiki", "query"],
-        verb: "wiki.query",
+        verb: AgentSocketVerb::WikiQuery,
     },
     VerbDispatch {
         command: &["wiki", "lint"],
-        verb: "wiki.lint",
+        verb: AgentSocketVerb::WikiLint,
     },
     VerbDispatch {
         command: &["lsp", "def"],
-        verb: "lsp.def",
+        verb: AgentSocketVerb::LspDef,
     },
     VerbDispatch {
         command: &["lsp", "refs"],
-        verb: "lsp.refs",
+        verb: AgentSocketVerb::LspRefs,
     },
     VerbDispatch {
         command: &["lsp", "hover"],
-        verb: "lsp.hover",
+        verb: AgentSocketVerb::LspHover,
     },
     VerbDispatch {
         command: &["lsp", "symbols"],
-        verb: "lsp.symbols",
+        verb: AgentSocketVerb::LspSymbols,
     },
     VerbDispatch {
         command: &["lsp", "rename"],
-        verb: "lsp.rename",
+        verb: AgentSocketVerb::LspRename,
     },
     VerbDispatch {
         command: &["debug", "start"],
-        verb: "debug.start",
+        verb: AgentSocketVerb::DebugStart,
     },
     VerbDispatch {
         command: &["debug", "break"],
-        verb: "debug.break",
+        verb: AgentSocketVerb::DebugBreak,
     },
     VerbDispatch {
         command: &["debug", "step"],
-        verb: "debug.step",
+        verb: AgentSocketVerb::DebugStep,
     },
     VerbDispatch {
         command: &["debug", "stack"],
-        verb: "debug.stack",
+        verb: AgentSocketVerb::DebugStack,
     },
     VerbDispatch {
         command: &["debug", "vars"],
-        verb: "debug.vars",
+        verb: AgentSocketVerb::DebugVars,
     },
     VerbDispatch {
         command: &["debug", "eval"],
-        verb: "debug.eval",
+        verb: AgentSocketVerb::DebugEval,
     },
     VerbDispatch {
         command: &["browse", "open"],
-        verb: "browse.open",
+        verb: AgentSocketVerb::BrowseOpen,
     },
     VerbDispatch {
         command: &["browse", "click"],
-        verb: "browse.click",
+        verb: AgentSocketVerb::BrowseClick,
     },
     VerbDispatch {
         command: &["browse", "fill"],
-        verb: "browse.fill",
+        verb: AgentSocketVerb::BrowseFill,
     },
     VerbDispatch {
         command: &["browse", "assert"],
-        verb: "browse.assert",
+        verb: AgentSocketVerb::BrowseAssert,
     },
     VerbDispatch {
         command: &["browse", "screenshot"],
-        verb: "browse.screenshot",
+        verb: AgentSocketVerb::BrowseScreenshot,
     },
     VerbDispatch {
         command: &["browse", "record"],
-        verb: "browse.record",
+        verb: AgentSocketVerb::BrowseRecord,
     },
     VerbDispatch {
         command: &["browse", "console"],
-        verb: "browse.console",
+        verb: AgentSocketVerb::BrowseConsole,
     },
     VerbDispatch {
         command: &["browse", "network"],
-        verb: "browse.network",
+        verb: AgentSocketVerb::BrowseNetwork,
     },
     VerbDispatch {
         command: &["agent", "invoke"],
-        verb: "agent.invoke",
+        verb: AgentSocketVerb::AgentInvoke,
     },
     VerbDispatch {
         command: &["svc", "up"],
-        verb: "svc.up",
+        verb: AgentSocketVerb::SvcUp,
     },
     VerbDispatch {
         command: &["svc", "down"],
-        verb: "svc.down",
+        verb: AgentSocketVerb::SvcDown,
     },
     VerbDispatch {
         command: &["ask"],
-        verb: "ask",
+        verb: AgentSocketVerb::Ask,
     },
     VerbDispatch {
         command: &["run", "status"],
-        verb: "run.status",
+        verb: AgentSocketVerb::RunStatus,
     },
     VerbDispatch {
         command: &["run", "artifacts"],
-        verb: "run.artifacts",
+        verb: AgentSocketVerb::RunArtifacts,
     },
     VerbDispatch {
         command: &["handoff"],
-        verb: "handoff",
+        verb: AgentSocketVerb::Handoff,
     },
     VerbDispatch {
         command: &["artifact", "put"],
-        verb: "artifact.put",
+        verb: AgentSocketVerb::ArtifactPut,
     },
     VerbDispatch {
         command: &["artifact", "get"],
-        verb: "artifact.get",
+        verb: AgentSocketVerb::ArtifactGet,
     },
     VerbDispatch {
         command: &["artifact", "comments"],
-        verb: "artifact.comments",
+        verb: AgentSocketVerb::ArtifactComments,
     },
     VerbDispatch {
         command: &["tools", "list"],
-        verb: "tools.list",
+        verb: AgentSocketVerb::ToolsList,
     },
     VerbDispatch {
         command: &["tools", "docs"],
-        verb: "tools.docs",
+        verb: AgentSocketVerb::ToolsDocs,
     },
     VerbDispatch {
         command: &["lint"],
-        verb: "lint",
+        verb: AgentSocketVerb::Lint,
     },
 ];
 
@@ -327,16 +330,53 @@ pub fn allowed_verb(arguments: &[String]) -> Result<(&'static VerbDispatch, &[St
         .ok_or_else(|| anyhow::anyhow!("command is not allowlisted: {}", arguments.join(" ")))
 }
 
+#[derive(Debug)]
+pub enum DispatchError {
+    Daemon {
+        kind: AgentSocketErrorKind,
+        message: String,
+    },
+    Transport(anyhow::Error),
+}
+
+impl std::fmt::Display for DispatchError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Daemon { kind, message } => {
+                write!(formatter, "daemon request refused ({kind:?}): {message}")
+            }
+            Self::Transport(error) => error.fmt(formatter),
+        }
+    }
+}
+
+impl std::error::Error for DispatchError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Daemon { .. } => None,
+            Self::Transport(error) => Some(error.as_ref()),
+        }
+    }
+}
+
+impl From<anyhow::Error> for DispatchError {
+    fn from(error: anyhow::Error) -> Self {
+        Self::Transport(error)
+    }
+}
+
 pub async fn dispatch(
     socket_path: impl AsRef<Path>,
     nonce: &str,
     dispatch: &VerbDispatch,
     args: &[String],
-) -> Result<Value> {
+) -> std::result::Result<Value, DispatchError> {
     if nonce.trim().is_empty() {
-        anyhow::bail!("LOCUS_RUN_NONCE is required for daemon requests")
+        return Err(DispatchError::Transport(anyhow::anyhow!(
+            "LOCUS_RUN_NONCE is required for daemon requests"
+        )));
     }
-    SocketClient::round_trip(
+    let response: AgentSocketResponse = SocketClient::round_trip(
         socket_path,
         &SocketRequest {
             nonce,
@@ -344,7 +384,20 @@ pub async fn dispatch(
             args,
         },
     )
-    .await
+    .await?;
+    response.result.ok_or_else(|| match response.error {
+        Some(error) => socket_error(error),
+        None => {
+            DispatchError::Transport(anyhow::anyhow!("daemon returned neither result nor error"))
+        }
+    })
+}
+
+fn socket_error(error: AgentSocketError) -> DispatchError {
+    DispatchError::Daemon {
+        kind: error.kind,
+        message: error.message,
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -451,6 +504,45 @@ async fn roundtrip() {
 }
 
 #[tokio::test]
+async fn preserves_daemon_error_kind_for_callers() {
+    let path = test_socket_path();
+    let listener = UnixListener::bind(&path).expect("bind test socket");
+    let server = tokio::spawn(async move {
+        let (mut stream, _) = listener.accept().await.expect("accept client");
+        let _: Value = read_frame(&mut stream).await.expect("read request");
+        write_frame(
+            &mut stream,
+            &AgentSocketResponse {
+                result: None,
+                error: Some(AgentSocketError {
+                    kind: AgentSocketErrorKind::Unavailable,
+                    message: "run status is not wired".into(),
+                }),
+            },
+        )
+        .await
+        .expect("write response");
+    });
+    let verb_dispatch = VerbDispatch {
+        command: &["run", "status"],
+        verb: AgentSocketVerb::RunStatus,
+    };
+
+    let error = dispatch(&path, "nonce", &verb_dispatch, &[])
+        .await
+        .expect_err("daemon refusal is returned");
+    assert!(matches!(
+        error,
+        DispatchError::Daemon {
+            kind: AgentSocketErrorKind::Unavailable,
+            ..
+        }
+    ));
+    server.await.expect("server task completes");
+    std::fs::remove_file(path).expect("remove test socket");
+}
+
+#[tokio::test]
 async fn rejects_an_oversized_response_frame_before_allocating() {
     let (mut writer, mut reader) = tokio::io::duplex(8);
     assert!(writer.write_u32(1_048_577).await.is_ok());
@@ -478,9 +570,15 @@ async fn all_verbs_are_round_trips() {
             let (mut stream, _) = listener.accept().await.expect("accept client");
             let request: Value = read_frame(&mut stream).await.expect("read request");
             assert_eq!(request["args"], json!(["argument"]));
-            write_frame(&mut stream, &json!({"verb": request["verb"]}))
-                .await
-                .expect("write response");
+            write_frame(
+                &mut stream,
+                &AgentSocketResponse {
+                    result: Some(json!({"verb": request["verb"]})),
+                    error: None,
+                },
+            )
+            .await
+            .expect("write response");
         }
     });
 
@@ -579,13 +677,13 @@ mod json {
 
 #[cfg(test)]
 mod run {
-    use super::{resolve_verb, VERB_DISPATCHES};
+    use super::{resolve_verb, AgentSocketVerb, VERB_DISPATCHES};
 
     #[test]
     fn status() {
         let command = ["run".into(), "status".into()];
         let (dispatch, args) = resolve_verb(&command).expect("run status is dispatched");
-        assert_eq!(dispatch.verb, "run.status");
+        assert_eq!(dispatch.verb, AgentSocketVerb::RunStatus);
         assert!(args.is_empty());
         assert!(VERB_DISPATCHES
             .iter()
@@ -596,7 +694,7 @@ mod run {
     fn artifacts() {
         let command = ["run".into(), "artifacts".into()];
         let (dispatch, args) = resolve_verb(&command).expect("run artifacts is dispatched");
-        assert_eq!(dispatch.verb, "run.artifacts");
+        assert_eq!(dispatch.verb, AgentSocketVerb::RunArtifacts);
         assert!(args.is_empty());
         assert!(VERB_DISPATCHES
             .iter()
@@ -606,13 +704,13 @@ mod run {
 
 #[cfg(test)]
 mod svc {
-    use super::resolve_verb;
+    use super::{resolve_verb, AgentSocketVerb};
 
     #[test]
     fn up_down() {
         for (command, verb) in [
-            (["svc".into(), "up".into()], "svc.up"),
-            (["svc".into(), "down".into()], "svc.down"),
+            (["svc".into(), "up".into()], AgentSocketVerb::SvcUp),
+            (["svc".into(), "down".into()], AgentSocketVerb::SvcDown),
         ] {
             let (dispatch, args) = resolve_verb(&command).expect("service command dispatches");
             assert_eq!(dispatch.verb, verb);
@@ -651,14 +749,20 @@ async fn no_local_logic() {
             request,
             json!({"nonce": "nonce", "verb": "ask", "args": ["question"]})
         );
-        write_frame(&mut stream, &server_answer)
-            .await
-            .expect("write response");
+        write_frame(
+            &mut stream,
+            &AgentSocketResponse {
+                result: Some(server_answer),
+                error: None,
+            },
+        )
+        .await
+        .expect("write response");
     });
 
     let ask = VERB_DISPATCHES
         .iter()
-        .find(|dispatch| dispatch.verb == "ask")
+        .find(|dispatch| dispatch.verb == AgentSocketVerb::Ask)
         .expect("ask dispatch is registered");
     let response = dispatch(&path, "nonce", ask, &["question".to_owned()])
         .await

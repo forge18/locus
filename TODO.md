@@ -52,74 +52,62 @@ marked code. Severity and `path:line` live in the review doc; these are the acti
 
 - [x] **[code]** · unbounded socket frame — `crates/locus-cli/src/sock.rs` rejects frames above 1 MiB before
   allocation (verified by `cargo test -p locus-cli sock::`).
-- [ ] **[code]** · per-row commit, no transaction — `crates/locus-core/src/runtime/normalize.rs:42-44`
-  persists each `CapturedEvent` with its own commit; a mid-loop failure leaves a partial event stream on a
-  run downstream assumes is ordered and complete. One tx, committed once; `Err` before commit aborts.
-- [ ] **[code]** · spawn rollback gap — `crates/locus-core/src/runtime/run.rs:303,307` leaves a started
-  container **running** with `run.status` `Queued` if `attach_pty` fails after `start_container`. On any
-  post-start failure, stop the container and roll back status/port.
-- [ ] **[code]** · non-atomic next-version — `crates/locus-core/src/store/agents.rs:48-66` computes
-  `MAX(version)+1` in a CTE under no lock; concurrent same-name saves race `UNIQUE(name,version)`.
-  `SELECT … FOR UPDATE`, a per-name advisory lock, or recompute once on the unique violation.
-- [ ] **[code]** · `pool()` leaks the driver — `crates/locus-core/src/store/mod.rs:4,302` is `pub fn`, so the
-  "only sqlx-aware layer" invariant is not held (services/runtime run raw sqlx through it). Make it
-  `pub(crate)`; add `Store` methods.
-- [ ] **[code]** · panic on config data — `crates/locus-core/src/harness/materialize/mod.rs:494`
-  `as_object_mut().expect(...)` panics if a harness-TOML key path traverses a non-object. Return
-  `MaterializeError` instead.
-- [ ] **[code]** · credential proxy: three unbounded/ungated paths — `sandbox/credential_proxy.rs:106`
-  (`runs` map never pruned, revoked nonces stay accepted), `:230` (audit Vec never trimmed),
-  `:325` (upstream `.send()` has no timeout — a hung upstream stalls the single proxy thread). Prune on
-  teardown; bounded audit ring; connect/read timeouts + body cap.
-- [ ] **[code]** · unbounded event journal — `crates/locus-core/src/services/telemetry.rs:188` `events: Arc<Mutex<Vec<Event>>>`
-  grows for process lifetime (retains full `raw: Value`), and `events_for` is an O(n) scan. Bound/prune, or
-  back it with a capped per-run store.
-- [ ] **[code]** · non-atomic two-stage ask — `crates/locus-core/src/services/ask.rs:36-37` commits
-  `deliver_question` before `mark_waiting` can fail, leaving an orphaned filed question. One atomic inbox
-  method, or roll back.
-- [ ] **[code]** · IPC flattens typed errors to `String` — every Tauri handler (`lib.rs:201,233,282,289,297,333`)
-  and CLI dispatch returns `Result<_, String>`/`anyhow`, so the frontend cannot branch on recovery (not-found vs
-  permission vs replay). A small serde `{ kind, message }` at each process boundary.
-- [ ] **[code]** · stub-services advertised, allowlist runs ahead — `services/mod.rs` declares `pub mod board/mail/memory/wiki`
-  (doc-comment-only bodies) while `sock.rs:27-105` allowlists `memory.*`, `mail.*`, `wiki.*`, so an agent call
-  passes the gate then fails at the daemon. Keep verbs only where a handler exists; mark stubs explicitly.
-- [ ] **[code]** · socket verb dispatch on raw `String` — `locus-cli/src/sock.rs` `route(verb: &str)` with no
-  closed enum; a typo is a silent capability mismatch and callers cannot branch on failure kind. A serde
-  `Verb` enum validated at the edge.
+- [x] **[code]** · normalized event persistence is one transaction; a conflicting later event aborts the
+  batch (verified by `cargo test -p locus-core persists_each_normalized_event_with_its_run_identity_and_source_record`).
+- [x] **[code]** · a failed PTY attachment stops the partially started container and retains `Queued` status
+  (verified by `cargo test -p locus-core stops_the_container_when_pty_attachment_fails`).
+- [x] **[code]** · agent-definition version allocation holds a transaction-scoped per-name advisory lock
+  before calculating the next version (verified by `cargo test -p locus-core --no-run`).
+- [x] **[code]** · `pool()` is crate-private; integration migrations use the explicit `test_pool()` hook
+  (verified by `cargo test -p locus-core --no-run`).
+- [x] **[code]** · materialization returns `MaterializeError::InvalidJsonKeyPath` when a JSON key path
+  traverses a scalar (verified by `cargo test -p locus-core materialize --no-fail-fast`).
+- [x] **[code]** · credential proxy revokes completed runs, keeps a 1,024-entry audit ring, and bounds
+  upstream connection, request, and response bodies (verified by `cargo test -p locus-core --lib credential_proxy::`).
+- [x] **[code]** · telemetry keeps a capped per-run journal, so `events_for` is keyed lookup rather than a
+  process-lifetime O(n) scan (verified by `cargo test -p locus-core --lib services::telemetry::`).
+- [x] **[code]** · `ask` delegates filing and waiting-state persistence to one atomic inbox operation
+  (verified by `cargo test -p locus-core files_the_question_in_the_human_inbox_with_its_session_then_blocks`).
+- [x] **[code]** · Tauri and agent-socket boundaries serialize `{ kind, message }`; CLI callers retain
+  `DispatchError::Daemon` with its typed kind (verified by `cargo test -p locus-cli sock::` and
+  `cargo test -p locus-tauri --lib`).
+- [x] **[code]** · board, mail, memory, and wiki stubs explicitly say they are unregistered; daemon routing
+  reports unavailable verbs with a typed error (verified by `cargo test -p locus-cli sock::`).
+- [x] **[code]** · the socket uses the closed serde `AgentSocketVerb` enum; unknown verbs are rejected at
+  frame decoding (verified by `cargo test -p locus-core --lib runtime::daemon::agent_socket`).
 - [x] **[code]** · fabricated metrics — `apps/desktop/src/screens/review/RunsView.tsx` renders unavailable
   cache and spend as `unknown`; it does not derive measurements from token count (verified by
   `pnpm -C apps/desktop test -- test/runs/table.test.tsx`).
-- [ ] **[code]** · subscription leak — `apps/desktop/src/screens/plan/PlanView.tsx:53-61` opens a Tauri
-  telemetry channel in `onMount` with no `onCleanup`; re-entering Plan accumulates subscribers. Give
-  `streamFromCore` a teardown path. Same seam in `AgentPane`/`ShellPane`.
+- [x] **[code]** · Plan, Agent, and Shell panes register cleanup before stream setup and detach their channel
+  handlers on unmount (verified by `pnpm -C apps/desktop test -- test/plan/conversation-from-core.test.ts`).
 - [x] **[code]** · dual nav resolver — `Shell.tsx` exports the canonical desktop locator mapping, and a test
   round-trips every shared view through it (verified by `pnpm -C apps/desktop test --
   test/shell/desktop-route-navigation.test.ts`).
 
 ### Suggestions
 
-- [ ] **[code]** · duplicate `InProcessBus` — `store/bus.rs:68-84` copies the crate-root bus, reachable only by
-  its tests. Delete; use `crate::bus`.
-- [ ] **[code]** · `Strategy` trait never dispatched polymorphically — `harness/materialize/strategy.rs:9-13`
-  exists only for a shape test; each impl is called directly. Keep the structs, drop the trait.
+- [x] **[code]** · `store/bus.rs` contains only the Postgres transport; in-process delivery uses `crate::bus`
+  (verified by `cargo test -p locus-core --lib bus::`).
+- [x] **[code]** · materialization strategies expose inherent methods; the unused trait and shape test are removed
+  (verified by `cargo test -p locus-core --lib materialize::`).
 - [x] **[code]** · `planning.rs` retains one decomposition/approval name for each operation; forwarding
   aliases are removed (verified by `cargo test -p locus-core planning`).
 - [x] **[code]** · `planning.rs` keeps `Requirement` fields private and rejects blank ids or bodies in its
   constructor (verified by `cargo test -p locus-core planning`).
-- [ ] **[code]** · proxy port collision — `credential_proxy.rs:71,158` fixed port `43800` sits inside the
-  allocator range `[43000,43999]`; `PortAllocator.allocate()` can hand it out. Move it out of range or mark
-  reserved.
-- [ ] **[code]** · `ports.rs` TOCTOU — `allocate` reserves a number but not the socket; the bind can be
-  squatted. Have `allocate` hold the socket.
-- [ ] **[code]** · rate-limit map growth — `services` `calls: Mutex<HashMap<...>>` drops expired deque fronts
-  but never removes empty/stale run keys.
-- [ ] **[code]** · `artifact.rs` in-memory shim — `ArtifactStore` is a `BTreeMap` (M1 seam); "durable" bodies
-  vanish on restart. Acceptable while understood as non-durable.
-- [ ] **[code]** · `lib.rs:151-156` placeholder DTOs — `author: "you"`, `created_at: String::new()`, fabricated
-  `derived_text`. Fine seeded; must not linger.
-- [ ] **[code]** · `lib.rs` test hard-codes `reports.len()==11`, `losses==29` — adding a harness breaks
-  cardinality, not behavior. Assert structure, not counts.
-- [ ] **[code]** · `canary.rs:33` `AtomicU64` global temp-name counter — module-level state dodging ownership.
+- [x] **[code]** · the credential proxy uses port `44000`, outside the agent allocator range
+  (verified by `cargo test -p locus-core --lib runtime::run::spawns::persisted_spawn_uses_the_reserved_port`).
+- [x] **[code]** · `PortAllocator` holds a loopback `TcpListener` until release, closing the allocation/bind
+  race (verified by `cargo test -p locus-core --lib sandbox::ports::`).
+- [x] **[code]** · rate limiting prunes expired run keys before admitting each call
+  (verified by `cargo test -p locus-core --lib sandbox::services::limits::`).
+- [x] **[code]** · `ArtifactStore` is documented as a non-durable fixture seam; production bodies belong in `Store`
+  (verified by `cargo test -p locus-core --lib services::artifact::`).
+- [x] **[code]** · the seeded artifact adapter reports `human` and nullable timestamps instead of fabricated
+  identity or empty timestamps (verified by `cargo test -p locus-tauri --lib ipc_errors_expose_a_machine_readable_kind`).
+- [x] **[code]** · materialization-report tests assert report structure, not harness cardinality
+  (verified by `cargo test -p locus-tauri --lib materialization_report_is_derived_from_the_core_registry`).
+- [x] **[code]** · canary temporary roots use per-call UUIDs rather than a module-global counter
+  (verified by `cargo test -p locus-core --lib harness::`).
 - [x] **[code]** · `data/agent-defs.ts` defaults a missing generated agents extension count to zero
   (verified by `pnpm -C apps/desktop test -- test/agentdefs/materialize-footer.test.tsx`).
 - [x] **[code]** · `AgentDefsView.tsx` validates unknown `frontmatter.memory` before reading `scope`

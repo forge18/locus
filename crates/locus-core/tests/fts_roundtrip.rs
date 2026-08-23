@@ -20,11 +20,11 @@ async fn fts_roundtrip() {
             search tsvector GENERATED ALWAYS AS (to_tsvector('english', body)) STORED
         )",
     )
-    .execute(store.pool())
+    .execute(store.test_pool())
     .await
     .expect("create a document table with a tsvector column");
     query("CREATE INDEX fts_documents_search_idx ON fts_documents USING GIN (search)")
-        .execute(store.pool())
+        .execute(store.test_pool())
         .await
         .expect("create the tsvector index");
     query(
@@ -32,7 +32,7 @@ async fn fts_roundtrip() {
             (1, 'The PostgreSQL full text index returns this matching document.'),
             (2, 'A different document does not contain the search term.')",
     )
-    .execute(store.pool())
+    .execute(store.test_pool())
     .await
     .expect("insert full-text documents");
 
@@ -41,7 +41,7 @@ async fn fts_roundtrip() {
          FROM fts_documents
          WHERE search @@ websearch_to_tsquery('english', 'PostgreSQL full text index')",
     )
-    .fetch_one(store.pool())
+    .fetch_one(store.test_pool())
     .await
     .expect("query the matching full-text document");
     assert_eq!(matching_id, 1);

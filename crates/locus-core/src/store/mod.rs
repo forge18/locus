@@ -294,7 +294,13 @@ impl Store {
         gate_migration(backup, backup_config, &migration, directory.as_ref()).await
     }
 
-    pub fn pool(&self) -> &PgPool {
+    pub(crate) fn pool(&self) -> &PgPool {
+        &self.pool
+    }
+
+    /// Exposes the driver only to black-box integration tests that assert migrations.
+    #[doc(hidden)]
+    pub fn test_pool(&self) -> &PgPool {
         &self.pool
     }
 
