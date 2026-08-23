@@ -23,6 +23,7 @@ pub mod memory;
 pub mod models;
 pub mod planning;
 pub mod provider;
+pub mod project;
 pub mod registry;
 pub mod restore;
 pub mod routing;
