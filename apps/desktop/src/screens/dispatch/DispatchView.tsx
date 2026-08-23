@@ -113,7 +113,7 @@ function AutorunView() {
         <div class="dispatch-grid">
           <section class="dispatch-card">
             <h2>What holds it back when it is on</h2>
-            <strong class="dispatch-metric">3 <span>of 4 review slots in use · 1 free</span></strong>
+            <strong class="dispatch-metric" data-testid="autorun-review-debt">3 <span>of 4 review slots in use · 1 free</span></strong>
             <div class="dispatch-slots" aria-label="3 of 4 review slots"><i /><i /><i /><i /></div>
             <p>A slot is one change you have not reviewed yet, not one agent. Autorun drains at the rate you absorb, or it is just a way of generating a backlog faster.</p>
           </section>
