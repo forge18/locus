@@ -20,6 +20,14 @@ mod provider {
     }
 
     #[test]
+    fn model_catalog() {
+        let provider_id = Uuid::nil();
+        let model = locus_core::provider::ProviderModel::new(provider_id, "gpt-5").expect("model");
+        assert_eq!(model.provider_id, provider_id);
+        assert_eq!(model.model_id, "gpt-5");
+    }
+
+    #[test]
     fn verification_metadata() {
         let metadata = locus_core::provider::ProviderVerificationMetadata::new(
             "2026-08-23T00:00:00Z", 3, locus_core::provider::VerificationStatus::Failed,
