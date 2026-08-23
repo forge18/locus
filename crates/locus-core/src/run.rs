@@ -1,6 +1,6 @@
 //! Spawn one configured agent container for a queued run.
 
-use std::{collections::BTreeMap, path::PathBuf};
+use std::path::PathBuf;
 
 use anyhow::{bail, Context, Result};
 #[allow(deprecated)]
