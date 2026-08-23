@@ -5,6 +5,7 @@
 //! Nothing here names a harness. `scripts/check-no-harness-names-in-core.sh` enforces it.
 
 pub mod adapter;
+pub mod canary;
 pub mod materialize;
 pub mod models;
 pub mod registry;

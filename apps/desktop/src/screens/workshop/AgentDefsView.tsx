@@ -1,7 +1,8 @@
-import { For, createSignal, onMount } from 'solid-js'
-import { Button } from '../../ui/Button'
-import { Icon } from '../../ui/Icon'
-import { Resizable } from '../../panes/Resizable'
+import { For, Show, createSignal, onMount } from "solid-js";
+import { Button } from "../../ui/Button";
+import { Icon } from "../../ui/Icon";
+import { InlineError } from "../../ui/InlineError";
+import { Resizable } from "../../panes/Resizable";
 import {
   DIFF_LABEL,
   MATERIALIZE_TARGET,
@@ -15,24 +16,37 @@ import {
   useDefaultAgentDef,
   useFrontmatter,
   useProse,
-} from '../../data/agent-defs'
-import type { View } from '../../nav'
+} from "../../data/agent-defs";
+import type { View } from "../../nav";
 
 export interface AgentDefsViewProps {
-  onNavigate: (view: View) => void
+  onNavigate: (view: View) => void;
+}
+
+function memoryScope(value: unknown): string | undefined {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    Array.isArray(value) ||
+    !("scope" in value) ||
+    typeof value.scope !== "string"
+  ) {
+    return undefined;
+  }
+  return value.scope;
 }
 
 function frontmatterLines(frontmatter: Record<string, unknown>) {
-  const value = (entry: unknown) => Array.isArray(entry) ? `[${entry.join(', ')}]` : String(entry)
-  const memory = frontmatter.memory as { scope?: string } | undefined
-  return [
-    'harness',
-    'model_tier',
-    'tools',
-    'skills',
-    'rules',
-  ].flatMap((key) => frontmatter[key] === undefined ? [] : [{ key, value: value(frontmatter[key]) }])
-    .concat(memory?.scope ? [{ key: 'memory_scope', value: memory.scope }] : [])
+  const value = (entry: unknown) =>
+    Array.isArray(entry) ? `[${entry.join(", ")}]` : String(entry);
+  const scope = memoryScope(frontmatter.memory);
+  return ["harness", "model_tier", "tools", "skills", "rules"]
+    .flatMap((key) =>
+      frontmatter[key] === undefined
+        ? []
+        : [{ key, value: value(frontmatter[key]) }],
+    )
+    .concat(scope ? [{ key: "memory_scope", value: scope }] : []);
 }
 
 /**
@@ -41,43 +55,63 @@ function frontmatterLines(frontmatter: Record<string, unknown>) {
  * reads rather than a program something runs.
  */
 export function AgentDefsView(props: AgentDefsViewProps) {
-  const [selected, setSelected] = createSignal(useDefaultAgentDef())
-  const [definitions, setDefinitions] = createSignal(useAgentDefs())
-  const [frontmatter, setFrontmatter] = createSignal(useFrontmatter())
-  const [prose, setProse] = createSignal(useProse())
-  const materialization = useAgentMaterialization()
+  const [selected, setSelected] = createSignal(useDefaultAgentDef());
+  const [definitions, setDefinitions] = createSignal(useAgentDefs());
+  const [frontmatter, setFrontmatter] = createSignal(useFrontmatter());
+  const [prose, setProse] = createSignal(useProse());
+  const [loadError, setLoadError] = createSignal<string | null>(null);
+  const materialization = useAgentMaterialization();
 
   const loadDefinition = async (name: string) => {
     try {
-      const definition = await fetchAgentDefFromCore(name)
-      setFrontmatter(frontmatterLines(definition.frontmatter))
-      setProse(definition.body.split(/\n\s*\n/).filter(Boolean))
-    } catch {
-      // Browser tests and the static preview have no Tauri IPC; retain the fixture.
+      const definition = await fetchAgentDefFromCore(name);
+      setFrontmatter(frontmatterLines(definition.frontmatter));
+      setProse(definition.body.split(/\n\s*\n/).filter(Boolean));
+      setLoadError(null);
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : String(e));
     }
-  }
+  };
 
   onMount(() => {
-    void fetchAgentDefsFromCore().then((defs) => {
-      setDefinitions(defs)
-      if (defs.some((definition) => definition.name === selected())) void loadDefinition(selected())
-    }).catch(() => {})
-  })
+    void fetchAgentDefsFromCore()
+      .then((defs) => {
+        setDefinitions(defs);
+        if (defs.some((definition) => definition.name === selected()))
+          void loadDefinition(selected());
+      })
+      .catch((e) => setLoadError(e instanceof Error ? e.message : String(e)));
+  });
 
   const select = (name: string) => {
-    setSelected(name)
-    void loadDefinition(name)
-  }
+    setSelected(name);
+    void loadDefinition(name);
+  };
 
   return (
     <div class="agentdefs" data-testid="agentdefs">
-      <Resizable width={196} min={160} max={320} side="right" class="agentdefs-side" testId="agentdefs-side">
+      <Show when={loadError()}>
+        <div data-testid="agentdefs-error">
+          <InlineError
+            cause={loadError()!}
+            next="Retry the connection to core, or check the core daemon."
+          />
+        </div>
+      </Show>
+      <Resizable
+        width={196}
+        min={160}
+        max={320}
+        side="right"
+        class="agentdefs-side"
+        testId="agentdefs-side"
+      >
         <div class="agentdefs-side-body">
           <button
             type="button"
             class="agentdefs-back"
             data-testid="agentdefs-back"
-            onClick={() => props.onNavigate('extensions')}
+            onClick={() => props.onNavigate("extensions")}
           >
             <Icon name="arrow-left" size={11} />
             Extensions
@@ -92,11 +126,14 @@ export function AgentDefsView(props: AgentDefsViewProps) {
                 type="button"
                 class="agentdefs-row"
                 data-testid={`agentdef-${def.name}`}
-                aria-selected={selected() === def.name ? 'true' : 'false'}
+                aria-selected={selected() === def.name ? "true" : "false"}
                 onClick={() => select(def.name)}
               >
                 {def.name}
-                <span class="agentdefs-version" data-testid={`agentdef-version-${def.name}`}>
+                <span
+                  class="agentdefs-version"
+                  data-testid={`agentdef-version-${def.name}`}
+                >
                   v{def.version}
                 </span>
               </button>
@@ -140,18 +177,21 @@ export function AgentDefsView(props: AgentDefsViewProps) {
           </div>
 
           <div class="agentdefs-prose" data-testid="agentdefs-prose">
-            <For each={prose()}>{(para) => <p style={{ margin: 0 }}>{para}</p>}</For>
+            <For each={prose()}>
+              {(para) => <p style={{ margin: 0 }}>{para}</p>}
+            </For>
           </div>
         </div>
 
         <footer class="agentdefs-foot" data-testid="agentdefs-foot">
-          Materialized to <span class="mono">{MATERIALIZE_TARGET}</span> for{' '}
-          {materialization.harnesses} harnesses, {materialization.downgraded} downgraded.
+          Materialized to <span class="mono">{MATERIALIZE_TARGET}</span> for{" "}
+          {materialization.harnesses} harnesses, {materialization.downgraded}{" "}
+          downgraded.
         </footer>
       </section>
     </div>
-  )
+  );
 }
 
 /** Default export so the view can be code-split at the route boundary. */
-export default AgentDefsView
+export default AgentDefsView;

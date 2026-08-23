@@ -2,6 +2,7 @@
 //!
 //! Moved out of `services/artifact.rs` so every query in the crate lives under `store/`.
 
+use crate::ids::{ArtifactId, ProjectId, RunId};
 use std::path::PathBuf;
 
 use anyhow::{bail, Result};
@@ -69,7 +70,7 @@ impl Store {
     /// Persist human feedback; delivery to a live or future run remains a supervisor concern.
     pub async fn save_artifact_comment(
         &self,
-        artifact_id: Uuid,
+        artifact_id: ArtifactId,
         parent_id: Option<Uuid>,
         body: impl AsRef<str>,
     ) -> Result<ArtifactComment> {
@@ -93,7 +94,7 @@ impl Store {
         .map_err(Into::into)
     }
 
-    pub async fn artifact_comments(&self, artifact_id: Uuid) -> Result<Vec<ArtifactComment>> {
+    pub async fn artifact_comments(&self, artifact_id: ArtifactId) -> Result<Vec<ArtifactComment>> {
         query_as::<_, PersistedArtifactComment>(
             "SELECT id, artifact_id, parent_comment_id, body
              FROM agents.artifact_comments
@@ -111,8 +112,8 @@ impl Store {
 #[derive(FromRow)]
 struct PersistedArtifactRow {
     id: Uuid,
-    project_id: Uuid,
-    run_id: Uuid,
+    project_id: ProjectId,
+    run_id: RunId,
     kind: String,
     body: Option<String>,
     blob_path: Option<String>,
@@ -125,7 +126,7 @@ struct PersistedArtifactRow {
 #[derive(FromRow)]
 struct PersistedArtifactComment {
     id: Uuid,
-    artifact_id: Uuid,
+    artifact_id: ArtifactId,
     parent_comment_id: Option<Uuid>,
     body: String,
 }
@@ -144,7 +145,7 @@ impl TryFrom<PersistedArtifactRow> for ArtifactRow {
             _ => bail!("artifact row {} has invalid content columns", row.id),
         };
         Ok(Self {
-            id: row.id,
+            id: row.id.into(),
             project_id: row.project_id,
             run_id: row.run_id,
             kind: ArtifactKind::from_database_name(&row.kind)?,
@@ -158,9 +159,9 @@ impl TryFrom<PersistedArtifactRow> for ArtifactRow {
 impl From<PersistedArtifactComment> for ArtifactComment {
     fn from(row: PersistedArtifactComment) -> Self {
         Self {
-            id: row.id,
+            id: row.id.into(),
             artifact_id: row.artifact_id,
-            parent_id: row.parent_comment_id,
+            parent_id: row.parent_comment_id.map(Into::into),
             body: row.body,
         }
     }

@@ -2,7 +2,6 @@
 
 use anyhow::{bail, Context, Result};
 use sqlx::{postgres::PgListener, query, PgPool};
-use tokio::sync::broadcast;
 
 const POSTGRES_CHANNEL: &str = "locus_events";
 const POSTGRES_NOTIFY_PAYLOAD_CAP_BYTES: usize = 8_000;
@@ -68,82 +67,18 @@ impl PostgresSubscription {
     }
 }
 
-/// Broadcasts events to all subscribers in this process.
-#[derive(Clone)]
-pub struct InProcessBus<T> {
-    sender: broadcast::Sender<T>,
-}
-
-impl<T: Clone> InProcessBus<T> {
-    pub fn new(capacity: usize) -> Self {
-        let (sender, _) = broadcast::channel(capacity);
-        Self { sender }
-    }
-
-    pub fn subscribe(&self) -> broadcast::Receiver<T> {
-        self.sender.subscribe()
-    }
-
-    /// Sends an event to current subscribers, returning their count.
-    pub fn publish(&self, event: T) -> usize {
-        self.sender.send(event).unwrap_or(0)
-    }
-}
-
 #[cfg(test)]
 mod notify_across_processes {
-    use std::{
-        net::TcpListener,
-        process::{Command, Stdio},
-        time::Duration,
-    };
+    use std::time::Duration;
 
     use tokio::time::timeout;
 
     use super::PostgresBus;
-    use crate::store::{PostgresConfig, PostgresContainer, Store};
-
-    struct DockerCleanup {
-        container_name: String,
-        volume_name: String,
-    }
-
-    impl Drop for DockerCleanup {
-        fn drop(&mut self) {
-            let _ = Command::new("docker")
-                .args(["rm", "--force", &self.container_name])
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status();
-            let _ = Command::new("docker")
-                .args(["volume", "rm", "--force", &self.volume_name])
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status();
-        }
-    }
-
-    fn unused_port() -> u16 {
-        let listener = TcpListener::bind("127.0.0.1:0").expect("bind an unused local port");
-        listener.local_addr().expect("read the local port").port()
-    }
+    use crate::store::Store;
 
     #[tokio::test]
     async fn notify_across_processes() {
-        let port = unused_port();
-        let suffix = format!("{}-{port}", std::process::id());
-        let container_name = format!("locus-postgres-test-{suffix}");
-        let volume_name = format!("locus-postgres-test-data-{suffix}");
-        let _cleanup = DockerCleanup {
-            container_name: container_name.clone(),
-            volume_name: volume_name.clone(),
-        };
-        let container =
-            PostgresContainer::new(PostgresConfig::for_test(container_name, volume_name, port));
-        container
-            .start()
-            .await
-            .expect("start the isolated pgvector container");
+        let (container, _cleanup) = crate::testkit::postgres::start_postgres().await;
 
         let listener_store = Store::connect(&container.database_url())
             .await
@@ -197,21 +132,5 @@ mod notify_payload_cap {
                 .contains("Postgres NOTIFY payload exceeds 8000-byte cap"),
             "unexpected error: {error:#}"
         );
-    }
-}
-
-#[cfg(test)]
-mod in_process {
-    use super::InProcessBus;
-
-    #[tokio::test]
-    async fn broadcasts_to_every_subscriber() {
-        let bus = InProcessBus::new(4);
-        let mut first = bus.subscribe();
-        let mut second = bus.subscribe();
-
-        assert_eq!(bus.publish("run.completed"), 2);
-        assert_eq!(first.recv().await.expect("first event"), "run.completed");
-        assert_eq!(second.recv().await.expect("second event"), "run.completed");
     }
 }

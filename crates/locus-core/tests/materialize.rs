@@ -2,7 +2,10 @@ mod materialize {
     use std::{fs, path::PathBuf};
 
     use locus_core::harness::{
-        materialize::{materialize_project, ExtensionEntry, ExtensionSet, ProjectExtensionScope},
+        materialize::{
+            extensions::ExtensionEntry, extensions::ExtensionSet,
+            extensions::ProjectExtensionScope, materialize_project,
+        },
         registry::load_from_directory,
     };
     use serde_json::json;

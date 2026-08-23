@@ -7,6 +7,8 @@
 //! is the sole place that assigns sequence numbers, so source ordering cannot leak into
 //! downstream consumers.
 
+use crate::bus::InProcessBus;
+use crate::ids::RunId;
 use std::{
     collections::{BTreeSet, HashMap},
     sync::{Arc, Mutex},
@@ -143,7 +145,7 @@ impl CapturedEvent {
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Event {
-    pub run_id: String,
+    pub run_id: RunId,
     pub seq: u64,
     pub ts: String,
     pub verb: EventVerb,
@@ -157,7 +159,7 @@ pub struct Event {
 }
 
 impl Event {
-    fn from_captured(run_id: String, seq: u64, captured: CapturedEvent) -> Self {
+    fn from_captured(run_id: RunId, seq: u64, captured: CapturedEvent) -> Self {
         Self {
             run_id,
             seq,
@@ -175,36 +177,33 @@ impl Event {
 /// A permission prompt is an alarm: a noninteractive run would otherwise hang.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PermissionAlarm {
-    pub run_id: String,
+    pub run_id: RunId,
     pub seq: u64,
 }
 
 /// Owns per-run sequence assignment and publishes normalized events to local consumers.
 #[derive(Clone)]
 pub struct EventCollector {
-    next_seq: Arc<Mutex<HashMap<String, u64>>>,
+    next_seq: Arc<Mutex<HashMap<RunId, u64>>>,
     events: Arc<Mutex<Vec<Event>>>,
-    sender: broadcast::Sender<Event>,
-    alarms: broadcast::Sender<PermissionAlarm>,
+    events_out: InProcessBus<Event>,
+    alarms: InProcessBus<PermissionAlarm>,
 }
 
 impl EventCollector {
     pub fn new(capacity: usize) -> Self {
-        let (sender, _) = broadcast::channel(capacity);
-        let (alarms, _) = broadcast::channel(capacity);
         Self {
             next_seq: Arc::new(Mutex::new(HashMap::new())),
             events: Arc::new(Mutex::new(Vec::new())),
-            sender,
-            alarms,
+            events_out: InProcessBus::new(capacity),
+            alarms: InProcessBus::new(capacity),
         }
     }
 
-    pub fn capture(&self, run_id: impl Into<String>, captured: CapturedEvent) -> Event {
-        let run_id = run_id.into();
+    pub fn capture(&self, run_id: RunId, captured: CapturedEvent) -> Event {
         let seq = {
             let mut sequences = self.next_seq.lock().expect("event sequence lock");
-            let next = sequences.entry(run_id.clone()).or_insert(0);
+            let next = sequences.entry(run_id).or_insert(0);
             let assigned = *next;
             *next += 1;
             assigned
@@ -214,17 +213,17 @@ impl EventCollector {
             .lock()
             .expect("event store lock")
             .push(event.clone());
-        let _ = self.sender.send(event.clone());
+        self.events_out.publish(event.clone());
         if event.verb == EventVerb::PermissionRequest {
-            let _ = self.alarms.send(PermissionAlarm {
-                run_id: event.run_id.clone(),
+            self.alarms.publish(PermissionAlarm {
+                run_id: event.run_id,
                 seq: event.seq,
             });
         }
         event
     }
 
-    pub fn events_for(&self, run_id: &str) -> Vec<Event> {
+    pub fn events_for(&self, run_id: RunId) -> Vec<Event> {
         self.events
             .lock()
             .expect("event store lock")
@@ -235,7 +234,7 @@ impl EventCollector {
     }
 
     pub fn subscribe(&self) -> broadcast::Receiver<Event> {
-        self.sender.subscribe()
+        self.events_out.subscribe()
     }
 
     pub fn subscribe_alarms(&self) -> broadcast::Receiver<PermissionAlarm> {
@@ -437,12 +436,15 @@ mod tests {
     #[test]
     fn seq_is_total() {
         let collector = EventCollector::new(4);
-        let first = collector.capture("run-a", CapturedEvent::from_raw(EventVerb::User, json!({})));
+        // Sequence is per run: two events on one run, then a fresh run restarts at 0.
+        let run_a = RunId::generate();
+        let run_b = RunId::generate();
+        let first = collector.capture(run_a, CapturedEvent::from_raw(EventVerb::User, json!({})));
         let second = collector.capture(
-            "run-a",
+            run_a,
             CapturedEvent::from_raw(EventVerb::Assistant, json!({})),
         );
-        let other = collector.capture("run-b", CapturedEvent::from_raw(EventVerb::User, json!({})));
+        let other = collector.capture(run_b, CapturedEvent::from_raw(EventVerb::User, json!({})));
         assert_eq!([first.seq, second.seq, other.seq], [0, 1, 0]);
     }
 
@@ -537,7 +539,9 @@ mod tests {
             &events
                 .into_iter()
                 .enumerate()
-                .map(|(seq, captured)| Event::from_captured("run".into(), seq as u64, captured))
+                .map(|(seq, captured)| {
+                    Event::from_captured(RunId::generate(), seq as u64, captured)
+                })
                 .collect::<Vec<_>>(),
             &[EventVerb::Assistant],
         )
@@ -558,14 +562,16 @@ mod tests {
     fn permission_request_alarms() {
         let collector = EventCollector::new(4);
         let mut alarms = collector.subscribe_alarms();
+        let run = RunId::generate();
         collector.capture(
-            "run",
+            run,
             CapturedEvent::from_raw(EventVerb::PermissionRequest, json!({})),
         );
+        // The alarm carries the run it came from, not just the fact that one fired.
         assert_eq!(
             alarms.try_recv().unwrap(),
             PermissionAlarm {
-                run_id: "run".into(),
+                run_id: run,
                 seq: 0
             }
         );
@@ -574,16 +580,17 @@ mod tests {
     #[test]
     fn event_assertions() {
         let collector = EventCollector::new(4);
+        let run = RunId::generate();
         collector.capture(
-            "run",
+            run,
             CapturedEvent::from_raw(EventVerb::SessionStart, json!({})),
         );
         collector.capture(
-            "run",
+            run,
             CapturedEvent::from_raw(EventVerb::SessionEnd, json!({})),
         );
         assert_events(
-            &collector.events_for("run"),
+            &collector.events_for(run),
             &[EventVerb::SessionStart, EventVerb::SessionEnd],
         )
         .unwrap();

@@ -2,9 +2,12 @@
 //! session/run/turn model everything above depends on. PLAN.md §Process topology.
 
 pub mod acp;
+pub mod boot;
+pub mod container;
 pub mod daemon;
 pub mod dispatch;
 pub mod invoke;
+pub mod normalize;
 pub mod routing;
 pub mod run;
 pub mod session;

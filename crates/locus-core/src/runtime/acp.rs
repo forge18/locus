@@ -1,7 +1,10 @@
 //! ACP planning-client transport.
 
+use crate::bus::InProcessBus;
 use std::path::PathBuf;
 
+// `SessionId` here is the ACP wire type, not `crate::ids::SessionId`. They are
+// different identifiers: one is the harness's session handle, one is ours.
 use agent_client_protocol::{
     schema::v1::{
         ContentBlock, NewSessionRequest, PromptRequest, SessionId, SessionNotification, TextContent,
@@ -68,22 +71,19 @@ pub fn session_prompt(
 
 /// Broadcasts streamed ACP `session/update` notifications to planning consumers.
 #[derive(Clone)]
-pub struct UpdateStream {
-    sender: broadcast::Sender<SessionNotification>,
-}
+pub struct UpdateStream(InProcessBus<SessionNotification>);
 
 impl UpdateStream {
     pub fn new(capacity: usize) -> Self {
-        let (sender, _) = broadcast::channel(capacity);
-        Self { sender }
+        Self(InProcessBus::new(capacity))
     }
 
     pub fn subscribe(&self) -> broadcast::Receiver<SessionNotification> {
-        self.sender.subscribe()
+        self.0.subscribe()
     }
 
     pub fn publish(&self, update: SessionNotification) {
-        let _ = self.sender.send(update);
+        let _ = self.0.publish(update);
     }
 }
 
@@ -264,6 +264,7 @@ mod tool_status_split {
 
 #[cfg(test)]
 mod permission_request {
+    use crate::ids::RunId;
     use serde_json::json;
 
     use crate::services::telemetry::{
@@ -288,15 +289,17 @@ mod permission_request {
         let collector = EventCollector::new(1);
         let mut alarms = collector.subscribe_alarms();
 
-        let event = collector.capture("planning-run", captured.into_iter().next().expect("event"));
+        let run = RunId::generate();
+        let event = collector.capture(run, captured.into_iter().next().expect("event"));
 
         assert_eq!(event.verb, EventVerb::PermissionRequest);
         assert_eq!(event.raw, raw);
+        // The alarm names the run that raised it.
         assert_eq!(
             alarms.try_recv().expect("permission alarm"),
             PermissionAlarm {
-                run_id: "planning-run".into(),
-                seq: 0,
+                run_id: run,
+                seq: 0
             }
         );
     }

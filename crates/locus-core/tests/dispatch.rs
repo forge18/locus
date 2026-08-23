@@ -1,4 +1,6 @@
 mod dispatch {
+    use locus_core::ids::RunId;
+    use locus_core::ids::SessionId;
     use locus_core::runtime::dispatch::DispatchPolicy;
 
     #[test]
@@ -13,7 +15,7 @@ mod dispatch {
     fn stop_all_preserves_work() {
         let snapshot = locus_core::runtime::dispatch::StopAllSnapshot {
             id: uuid::Uuid::nil(),
-            run_ids: vec![uuid::Uuid::new_v4()],
+            run_ids: vec![RunId::generate()],
         };
         assert!(snapshot.preserves_durable_work());
     }
@@ -36,7 +38,7 @@ mod dispatch {
     #[test]
     fn preemption_handoff() {
         let handoff = locus_core::runtime::dispatch::PreemptionHandoff {
-            session_id: uuid::Uuid::nil(),
+            session_id: SessionId::default(),
             branch: "agent/task".into(),
             board_task_id: None,
             memory_base: serde_json::json!({"decision": "keep"}),

@@ -12,6 +12,10 @@ name = "locus"
 path = "src/main.rs"
 
 [[bin]]
+name = "locusd"
+path = "src/locusd_main.rs"
+
+[[bin]]
 name = "locus-hook"
 path = "src/hook_main.rs"
 

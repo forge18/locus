@@ -3,6 +3,7 @@
 //! The queue never displaces a running run. Task 22 adds boundary-only preemption;
 //! task 23 owns global stopping and restore.
 
+use crate::ids::{ProjectId, RunId, SessionId, TaskId};
 use std::collections::BTreeMap;
 
 use anyhow::{bail, Result};
@@ -11,9 +12,6 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::runtime::session::{Run, RunStatus, Session};
-
-#[cfg(test)]
-use crate::store::Store;
 
 /// Per-project durable autorun posture.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -151,7 +149,7 @@ pub struct DispatchPriority {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StopAllSnapshot {
     pub id: Uuid,
-    pub run_ids: Vec<Uuid>,
+    pub run_ids: Vec<RunId>,
 }
 
 impl StopAllSnapshot {
@@ -172,8 +170,8 @@ impl StopAllSnapshot {
 /// A supervisor-visible run used to apply capacity and priority rules.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct QueuedRun {
-    pub run_id: Uuid,
-    pub project_id: Uuid,
+    pub run_id: RunId,
+    pub project_id: ProjectId,
     pub state: RunState,
     pub priority: DispatchPriority,
     /// Milliseconds since the Unix epoch. Earlier values waited longer.
@@ -184,8 +182,8 @@ impl QueuedRun {
     #[cfg(test)]
     fn running(run_id: u128, project_id: u128) -> Self {
         Self {
-            run_id: Uuid::from_u128(run_id),
-            project_id: Uuid::from_u128(project_id),
+            run_id: RunId::new(uuid::Uuid::from_u128(run_id)),
+            project_id: ProjectId::new(uuid::Uuid::from_u128(project_id)),
             state: RunState::Running,
             priority: DispatchPriority::default(),
             enqueued_at_ms: 0,
@@ -195,8 +193,8 @@ impl QueuedRun {
     #[cfg(test)]
     fn queued(run_id: u128, project_id: u128, plan_order: i64) -> Self {
         Self {
-            run_id: Uuid::from_u128(run_id),
-            project_id: Uuid::from_u128(project_id),
+            run_id: RunId::new(uuid::Uuid::from_u128(run_id)),
+            project_id: ProjectId::new(uuid::Uuid::from_u128(project_id)),
             state: RunState::Queued,
             priority: DispatchPriority {
                 plan_order,
@@ -221,9 +219,9 @@ pub enum RunState {
 /// scope it needs to resume.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PreemptionHandoff {
-    pub session_id: Uuid,
+    pub session_id: SessionId,
     pub branch: String,
-    pub board_task_id: Option<Uuid>,
+    pub board_task_id: Option<TaskId>,
     pub memory_base: Value,
 }
 
@@ -246,7 +244,7 @@ impl PreemptionHandoff {
 /// Holds an explicit supervisor preemption request until the active iteration completes.
 #[derive(Default)]
 pub struct PreemptionController {
-    pending: BTreeMap<Uuid, PreemptionHandoff>,
+    pending: BTreeMap<RunId, PreemptionHandoff>,
 }
 
 impl PreemptionController {
@@ -324,10 +322,10 @@ pub fn queues_at_cap(policy: &DispatchPolicy, running_count: u32) -> bool {
 pub fn select_to_start(
     policy: &DispatchPolicy,
     runs: impl IntoIterator<Item = QueuedRun>,
-) -> Vec<Uuid> {
+) -> Vec<RunId> {
     let mut runs = runs.into_iter().collect::<Vec<_>>();
     let mut global_running = 0_u32;
-    let mut project_running = BTreeMap::<Uuid, u32>::new();
+    let mut project_running = BTreeMap::<ProjectId, u32>::new();
 
     for run in &runs {
         if run.state == RunState::Running {
@@ -360,7 +358,9 @@ pub fn select_to_start(
 
 #[cfg(test)]
 mod enforces_parallel_caps {
+
     use super::*;
+    use uuid::Uuid;
 
     #[test]
     fn test() {
@@ -378,14 +378,18 @@ mod enforces_parallel_caps {
             QueuedRun::queued(4, 20, 1),
         ];
 
-        assert_eq!(select_to_start(&policy, runs), vec![Uuid::from_u128(4)]);
+        assert_eq!(
+            select_to_start(&policy, runs),
+            vec![RunId::new(Uuid::from_u128(4))]
+        );
     }
 }
 
 #[cfg(test)]
 mod preempts_at_boundary {
+    use crate::ids::{AgentDefId, ProjectId, RunId, SessionId, TaskId};
+
     use serde_json::json;
-    use uuid::Uuid;
 
     use super::{PreemptionController, PreemptionHandoff};
     use crate::runtime::session::{Run, RunStatus, Session, SessionStatus};
@@ -393,18 +397,18 @@ mod preempts_at_boundary {
     #[test]
     fn test() {
         let session = Session {
-            id: Uuid::new_v4(),
-            project_id: Uuid::new_v4(),
-            agent_def_id: Uuid::new_v4(),
+            id: SessionId::generate(),
+            project_id: ProjectId::generate(),
+            agent_def_id: AgentDefId::generate(),
             name: "preempted work".into(),
             branch: "agent/preempted-work".into(),
-            board_task_id: Some(Uuid::new_v4()),
+            board_task_id: Some(TaskId::generate()),
             memory_base: json!({"decision": "keep the migration additive"}),
             pane_state: json!({}),
             status: SessionStatus::Active,
         };
         let mut run = Run {
-            id: Uuid::new_v4(),
+            id: RunId::generate(),
             session_id: session.id,
             resolved_model_id: "test-model".into(),
             status: RunStatus::Running,
@@ -441,73 +445,24 @@ mod preempts_at_boundary {
 
 #[cfg(test)]
 mod stop_all_restores {
-
-    use std::{
-        net::TcpListener,
-        process::{Command, Stdio},
-    };
+    use crate::store::Store;
 
     use serde_json::json;
     use sqlx::{query, query_scalar};
 
     use super::*;
-    use crate::store::{
-        backup::{MigrationBackup, RetainedBackupConfig},
-        {PostgresConfig, PostgresContainer},
-    };
+    use crate::store::backup::RetainedBackupConfig;
 
-    struct NoopMigrationBackup;
-
-    impl MigrationBackup for NoopMigrationBackup {
-        fn create_retained(&self, _: &RetainedBackupConfig) -> Result<()> {
-            Ok(())
-        }
-    }
-
-    struct DockerCleanup {
-        container_name: String,
-        volume_name: String,
-    }
-
-    impl Drop for DockerCleanup {
-        fn drop(&mut self) {
-            let _ = Command::new("docker")
-                .args(["rm", "--force", &self.container_name])
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status();
-            let _ = Command::new("docker")
-                .args(["volume", "rm", "--force", &self.volume_name])
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status();
-        }
-    }
-
-    fn unused_port() -> u16 {
-        let listener = TcpListener::bind("127.0.0.1:0").expect("bind unused local port");
-        listener.local_addr().expect("read local port").port()
-    }
-
-    async fn store() -> (Store, DockerCleanup) {
-        let port = unused_port();
-        let suffix = format!("{}-{port}", std::process::id());
-        let container_name = format!("locus-dispatch-test-{suffix}");
-        let volume_name = format!("locus-dispatch-test-data-{suffix}");
-        let cleanup = DockerCleanup {
-            container_name: container_name.clone(),
-            volume_name: volume_name.clone(),
-        };
-        let container =
-            PostgresContainer::new(PostgresConfig::for_test(container_name, volume_name, port));
-        container.start().await.expect("start PostgreSQL");
+    async fn store() -> (Store, crate::testkit::postgres::DockerCleanup) {
+        let (container, cleanup) =
+            crate::testkit::postgres::start_postgres_named("locus-dispatch-test").await;
         let store = Store::connect(&container.database_url())
             .await
             .expect("connect store");
         store
             .run_migrations(
                 std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations"),
-                &NoopMigrationBackup,
+                &crate::testkit::postgres::NoopMigrationBackup,
                 &RetainedBackupConfig::new(
                     "postgres://locus@localhost/locus",
                     "/var/lib/locus/artifacts",
@@ -537,19 +492,19 @@ mod stop_all_restores {
 
         assert_eq!(
             select_to_start(&policy, [newer, older]),
-            vec![Uuid::from_u128(1)]
+            vec![RunId::new(Uuid::from_u128(1))]
         );
     }
 
     #[tokio::test]
     async fn stop_all_restores() {
         let (store, _cleanup) = store().await;
-        let project = Uuid::new_v4();
+        let project = ProjectId::generate();
         let agent = Uuid::new_v4();
-        let queued_session = Uuid::new_v4();
-        let running_session = Uuid::new_v4();
-        let queued_run = Uuid::new_v4();
-        let running_run = Uuid::new_v4();
+        let queued_session = SessionId::generate();
+        let running_session = SessionId::generate();
+        let queued_run = RunId::generate();
+        let running_run = RunId::generate();
         let workflow = Uuid::new_v4();
         let schedule = Uuid::new_v4();
 
@@ -716,9 +671,9 @@ mod stop_all_restores {
         .await
         .expect("insert agent");
 
-        let running_session = Uuid::new_v4();
-        let blocked_session = Uuid::new_v4();
-        let eligible_session = Uuid::new_v4();
+        let running_session = SessionId::generate();
+        let blocked_session = SessionId::generate();
+        let eligible_session = SessionId::generate();
         query(
             "INSERT INTO agents.sessions (id, project_id, agent_def_id, name, branch) VALUES
              ($1, $2, $4, 'running', 'agent/running'),
@@ -735,9 +690,9 @@ mod stop_all_restores {
         .await
         .expect("insert sessions");
 
-        let running_run = Uuid::new_v4();
-        let blocked_run = Uuid::new_v4();
-        let eligible_run = Uuid::new_v4();
+        let running_run = RunId::generate();
+        let blocked_run = RunId::generate();
+        let eligible_run = RunId::generate();
         query(
             "INSERT INTO agents.runs (id, session_id, resolved_model_id, status) VALUES
              ($1, $2, 'test-model', 'running'),
@@ -812,11 +767,11 @@ mod stop_all_restores {
     #[tokio::test]
     async fn preemption_handoff_is_durable_and_boundary_only() {
         let (store, _cleanup) = store().await;
-        let project = Uuid::new_v4();
+        let project = ProjectId::generate();
         let agent = Uuid::new_v4();
-        let session = Uuid::new_v4();
-        let run = Uuid::new_v4();
-        let task = Uuid::new_v4();
+        let session = SessionId::generate();
+        let run = RunId::generate();
+        let task = TaskId::generate();
         let memory_base = json!({"decision": "keep the migration additive"});
         query("INSERT INTO core.projects (id, name) VALUES ($1, 'preemption')")
             .bind(project)

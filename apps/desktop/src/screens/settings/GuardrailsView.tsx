@@ -62,38 +62,14 @@ function Select(props: {
 }
 
 function Control(props: { id: string; control: GuardrailControl }) {
-  return (
-    <Show
-      when={props.control.kind === "stepper"}
-      fallback={
-        <Show
-          when={props.control.kind === "toggle"}
-          fallback={
-            <Select
-              id={props.id}
-              control={
-                props.control as Extract<GuardrailControl, { kind: "select" }>
-              }
-            />
-          }
-        >
-          <Toggle
-            id={props.id}
-            control={
-              props.control as Extract<GuardrailControl, { kind: "toggle" }>
-            }
-          />
-        </Show>
-      }
-    >
-      <Stepper
-        id={props.id}
-        control={
-          props.control as Extract<GuardrailControl, { kind: "stepper" }>
-        }
-      />
-    </Show>
-  );
+  switch (props.control.kind) {
+    case "stepper":
+      return <Stepper id={props.id} control={props.control} />;
+    case "toggle":
+      return <Toggle id={props.id} control={props.control} />;
+    case "select":
+      return <Select id={props.id} control={props.control} />;
+  }
 }
 
 /** Guardrail defaults fixture; persistence arrives with the dispatch settings command. */
@@ -139,7 +115,11 @@ export function GuardrailsView() {
             {(section) => (
               <section
                 class="settings-section"
-                data-testid={section.id === "parallelism" ? "parallelism-controls" : `settings-section-${section.id}`}
+                data-testid={
+                  section.id === "parallelism"
+                    ? "parallelism-controls"
+                    : `settings-section-${section.id}`
+                }
               >
                 <h3>{section.label}</h3>
                 <For each={section.settings}>

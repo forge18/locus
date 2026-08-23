@@ -10,7 +10,7 @@ mod project {
     }
 
     use locus_core::{
-        harness::materialize::ProjectExtensionScope,
+        harness::materialize::extensions::ProjectExtensionScope,
         services::{
             project::{ProjectAnalytics, ProjectRepo, ProjectRunAnalytics, ProjectSettings},
             tools::ProjectToolScope,

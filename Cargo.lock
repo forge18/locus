@@ -2488,6 +2488,7 @@ dependencies = [
  "bollard",
  "futures",
  "keyring",
+ "locus-core",
  "minisign",
  "reqwest 0.12.28",
  "serde",
@@ -4166,6 +4167,7 @@ dependencies = [
  "sqlx-postgres",
  "sqlx-sqlite",
  "syn 2.0.119",
+ "thiserror 2.0.20",
  "tokio",
  "url",
 ]

@@ -1,14 +1,14 @@
 //! Nested agent invocation starts isolated child runs through the core-owned launcher.
 
+use crate::ids::RunId;
 use anyhow::Result;
-use uuid::Uuid;
 
-use crate::sandbox::workspace_clone_command;
+use crate::sandbox::workspace::workspace_clone_command;
 
 /// Request received from a running agent through `locus agent invoke`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct InvocationRequest {
-    pub caller_run_id: Uuid,
+    pub caller_run_id: RunId,
     pub agent: String,
     pub version: i32,
     pub clone_remote: String,
@@ -21,8 +21,8 @@ pub struct InvocationRequest {
 /// The isolated child run handed to the host run supervisor.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NestedRunPlan {
-    pub caller_run_id: Uuid,
-    pub run_id: Uuid,
+    pub caller_run_id: RunId,
+    pub run_id: RunId,
     pub agent: String,
     pub version: i32,
     pub container_name: String,
@@ -32,14 +32,14 @@ pub struct NestedRunPlan {
 /// A completed child result routed back to the run that invoked it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NestedRunReturn {
-    pub run_id: Uuid,
+    pub run_id: RunId,
     pub exit_code: i32,
     pub summary: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CallerDelivery {
-    pub caller_run_id: Uuid,
+    pub caller_run_id: RunId,
     pub result: NestedRunReturn,
 }
 
@@ -144,7 +144,7 @@ where
             request.limits,
         )?;
 
-        let run_id = Uuid::new_v4();
+        let run_id = RunId::generate();
         let plan = NestedRunPlan {
             caller_run_id: request.caller_run_id,
             run_id,
@@ -316,6 +316,7 @@ mod workflow_lowers_only {
 #[cfg(test)]
 mod nested_run {
     use super::*;
+    use crate::ids::RunId;
 
     #[derive(Default)]
     struct RecordingLauncher {
@@ -333,7 +334,7 @@ mod nested_run {
     fn starts_in_its_own_container_and_clone() {
         let launcher = RecordingLauncher::default();
         let supervisor = InvocationSupervisor::new(&launcher);
-        let caller_run_id = uuid::Uuid::new_v4();
+        let caller_run_id = RunId::generate();
 
         let nested = supervisor
             .invoke(InvocationRequest {
@@ -377,7 +378,7 @@ mod nested_run {
         let launcher = RecordingLauncher::default();
         let supervisor = InvocationSupervisor::new(&launcher);
         let result = supervisor.invoke(InvocationRequest {
-            caller_run_id: Uuid::new_v4(),
+            caller_run_id: RunId::generate(),
             agent: "fourth-child".into(),
             version: 1,
             clone_remote: "file:///var/lib/locus/repos/project.git".into(),
@@ -412,8 +413,8 @@ mod returns {
 
     #[test]
     fn routes_a_child_completion_back_to_its_caller() {
-        let caller_run_id = Uuid::new_v4();
-        let child_run_id = Uuid::new_v4();
+        let caller_run_id = RunId::generate();
+        let child_run_id = RunId::generate();
         let plan = NestedRunPlan {
             caller_run_id,
             run_id: child_run_id,

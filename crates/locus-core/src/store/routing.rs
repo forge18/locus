@@ -2,9 +2,9 @@
 //!
 //! Moved out of `runtime/routing.rs` so every query in the crate lives under `store/`.
 
+use crate::ids::RunId;
 use anyhow::{bail, Result};
 use sqlx::query;
-use uuid::Uuid;
 
 use crate::{
     runtime::routing::{ComplexityBand, RoutingDecision},
@@ -15,7 +15,7 @@ impl Store {
     /// Store the routing selection alongside the actual model that answers a run.
     pub async fn record_routing_decision(
         &self,
-        run_id: Uuid,
+        run_id: RunId,
         decision: &RoutingDecision,
     ) -> Result<()> {
         let updated = query(

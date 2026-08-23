@@ -54,13 +54,10 @@ describe('telemetry/facets', () => {
     }
   })
 
-  it('counts the capture sources over the four PLAN.md names', () => {
+  it('counts the capture source over the one PLAN.md name', () => {
+    // ACP is the only harness interface, so there is one source. `hooks`,
+    // `stream-json`, and `session-log` are retired — PLAN.md §ACP.
     const capture = groups.find((g) => g.key === 'capture_source')!
-    expect(capture.facets.map((f) => f.value).sort()).toEqual([
-      'acp',
-      'hooks',
-      'session-log',
-      'stream-json',
-    ])
+    expect(capture.facets.map((f) => f.value)).toEqual(['acp'])
   })
 })

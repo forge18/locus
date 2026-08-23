@@ -233,7 +233,7 @@ pub fn register_from_directory(
 ) -> Result<HarnessRegistry, RegistryRegistrationError> {
     let registry = load_from_directory(directory)?;
     for harness in registry.iter() {
-        crate::testkit::run_canary_smoke(harness).map_err(|error| {
+        crate::harness::canary::run_canary_smoke(harness).map_err(|error| {
             RegistryRegistrationError::SmokeFailed {
                 harness: harness.name.clone(),
                 reason: error.to_string(),
@@ -254,16 +254,72 @@ const REQUIRED_LAYOUT_EXTENSIONS: &[&str] = &[
     "context",
 ];
 
-const MATERIALIZATION_STRATEGIES: &[&str] = &[
-    "dir",
-    "merged-into",
-    "listed-in",
-    "entries-in",
-    "plugin",
-    "core-driven",
-];
+/// How one extension reaches a harness.
+///
+/// An enum rather than a string, so adding a seventh strategy is one variant plus one
+/// `Strategy` implementation and the compiler names every place that must handle it.
+/// Previously this was a `const &[&str]`, a validator, and two `match` arms in two passes
+/// — four places nothing linked together.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case", try_from = "String")]
+pub enum Via {
+    Dir,
+    MergedInto,
+    ListedIn,
+    EntriesIn,
+    Plugin,
+    CoreDriven,
+}
 
-const DOWNGRADED_MATERIALIZATION_STRATEGIES: &[&str] = &["merged-into", "listed-in", "core-driven"];
+impl Via {
+    /// Whether this strategy is weaker than a native mechanism, so the entry has to say
+    /// what was lost. The registry counts these to produce the downgrade figure.
+    pub fn is_downgrade(self) -> bool {
+        matches!(self, Self::MergedInto | Self::ListedIn | Self::CoreDriven)
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Dir => "dir",
+            Self::MergedInto => "merged-into",
+            Self::ListedIn => "listed-in",
+            Self::EntriesIn => "entries-in",
+            Self::Plugin => "plugin",
+            Self::CoreDriven => "core-driven",
+        }
+    }
+}
+
+impl std::str::FromStr for Via {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        Ok(match value {
+            // `file` is a compatibility alias: one target file is a directory of one.
+            "dir" | "file" => Self::Dir,
+            "merged-into" => Self::MergedInto,
+            "listed-in" => Self::ListedIn,
+            "entries-in" => Self::EntriesIn,
+            "plugin" => Self::Plugin,
+            "core-driven" => Self::CoreDriven,
+            other => return Err(other.into()),
+        })
+    }
+}
+
+impl TryFrom<String> for Via {
+    type Error = String;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        value.parse()
+    }
+}
+
+impl std::fmt::Display for Via {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
 
 fn validate_layout_extensions(
     document: &mut toml::Value,
@@ -289,22 +345,24 @@ fn validate_layout_extensions(
                 extension,
             });
         };
-        let Some(via) = entry.get("via").and_then(toml::Value::as_str) else {
+        let Some(via) = entry
+            .get("via")
+            .and_then(toml::Value::as_str)
+            .map(str::to_owned)
+        else {
             continue;
         };
 
-        if via == "file" {
-            entry.insert("via".into(), toml::Value::String("dir".into()));
-            continue;
-        }
-        if !MATERIALIZATION_STRATEGIES.contains(&via) {
+        let Ok(strategy) = via.parse::<Via>() else {
             return Err(RegistryLoadError::UnknownMaterializationStrategy {
                 path: path.to_path_buf(),
                 extension,
-                via: via.into(),
+                via,
             });
-        }
-        if DOWNGRADED_MATERIALIZATION_STRATEGIES.contains(&via)
+        };
+        // Normalize the `file` alias in the document so the parsed entry has one spelling.
+        entry.insert("via".into(), toml::Value::String(strategy.as_str().into()));
+        if strategy.is_downgrade()
             && !entry
                 .get("weaker_than_native")
                 .and_then(toml::Value::as_str)
@@ -313,7 +371,7 @@ fn validate_layout_extensions(
             return Err(RegistryLoadError::MissingWeakerThanNative {
                 path: path.to_path_buf(),
                 extension,
-                via: via.into(),
+                via,
             });
         }
     }
@@ -542,7 +600,7 @@ impl HarnessDefinition {
 /// One extension's materialization declaration.
 #[derive(Debug, Deserialize)]
 pub struct LayoutEntry {
-    pub via: String,
+    pub via: Via,
     pub dir: Option<String>,
     pub format: Option<String>,
     pub target: Option<String>,
@@ -878,7 +936,7 @@ fn loads_all_registered_harnesses() {
     assert!(
         harnesses
             .iter()
-            .all(|harness| harness.layout.context.via == "dir"),
+            .all(|harness| harness.layout.context.via == Via::Dir),
         "the `file` compatibility alias is normalized to `dir`"
     );
     assert_eq!(

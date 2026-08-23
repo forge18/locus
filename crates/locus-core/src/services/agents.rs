@@ -13,8 +13,8 @@ use uuid::Uuid;
 
 use crate::harness::{
     materialize::{
-        materialize, ExtensionEntry, ExtensionSet, MaterializationReport, MaterializedTree,
-        PluginHost,
+        extensions::ExtensionEntry, extensions::ExtensionSet, materialize, plugin::PluginHost,
+        report::MaterializationReport, tree::MaterializedTree,
     },
     registry::HarnessRegistry,
 };
@@ -255,51 +255,14 @@ pub fn seeded_definitions() -> Vec<AgentDefinition> {
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        net::TcpListener,
-        process::{Command, Stdio},
-    };
+    use crate::ids::{ProjectId, RunId, SessionId};
 
     use super::*;
     use crate::{
-        harness::{materialize::PluginHost, registry::load_from_directory},
-        store::{
-            backup::{MigrationBackup, RetainedBackupConfig},
-            {PostgresConfig, PostgresContainer},
-        },
+        harness::{materialize::plugin::PluginHost, registry::load_from_directory},
+        store::backup::RetainedBackupConfig,
     };
     use sqlx::query;
-
-    struct NoopMigrationBackup;
-    impl MigrationBackup for NoopMigrationBackup {
-        fn create_retained(&self, _: &RetainedBackupConfig) -> Result<()> {
-            Ok(())
-        }
-    }
-
-    struct DockerCleanup {
-        container_name: String,
-        volume_name: String,
-    }
-    impl Drop for DockerCleanup {
-        fn drop(&mut self) {
-            let _ = Command::new("docker")
-                .args(["rm", "--force", &self.container_name])
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status();
-            let _ = Command::new("docker")
-                .args(["volume", "rm", "--force", &self.volume_name])
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status();
-        }
-    }
-
-    fn unused_port() -> u16 {
-        let listener = TcpListener::bind("127.0.0.1:0").expect("bind port");
-        listener.local_addr().expect("read port").port()
-    }
 
     fn backup_config() -> RetainedBackupConfig {
         RetainedBackupConfig::new(
@@ -344,24 +307,15 @@ mod tests {
 
     #[tokio::test]
     async fn persists() {
-        let port = unused_port();
-        let suffix = format!("{}-{port}", std::process::id());
-        let container_name = format!("locus-agent-definitions-{suffix}");
-        let volume_name = format!("locus-agent-definitions-data-{suffix}");
-        let _cleanup = DockerCleanup {
-            container_name: container_name.clone(),
-            volume_name: volume_name.clone(),
-        };
-        let container =
-            PostgresContainer::new(PostgresConfig::for_test(container_name, volume_name, port));
-        container.start().await.expect("start Postgres");
+        let (container, _cleanup) =
+            crate::testkit::postgres::start_postgres_named("locus-agent-definitions").await;
         let store = Store::connect(&container.database_url())
             .await
             .expect("connect store");
         store
             .run_migrations(
                 &Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations"),
-                &NoopMigrationBackup,
+                &crate::testkit::postgres::NoopMigrationBackup,
                 &backup_config(),
             )
             .await
@@ -393,9 +347,9 @@ mod tests {
             .await
             .is_err());
 
-        let project_id = Uuid::new_v4();
-        let session_id = Uuid::new_v4();
-        let run_id = Uuid::new_v4();
+        let project_id = ProjectId::generate();
+        let session_id = SessionId::generate();
+        let run_id = RunId::generate();
         query("INSERT INTO core.projects (id, name) VALUES ($1, 'agent definitions test')")
             .bind(project_id)
             .execute(store.pool())

@@ -1,44 +1,39 @@
 //! Frequency-appropriate core-to-webview transports.
 
+use crate::bus::InProcessBus;
 use tokio::sync::broadcast;
 
 use crate::services::telemetry::Event;
 
 /// High-frequency terminal bytes. Tauri forwards each item through a `Channel`, never an event.
 #[derive(Clone, Debug)]
-pub struct PtyChannel {
-    sender: broadcast::Sender<Vec<u8>>,
-}
+pub struct PtyChannel(InProcessBus<Vec<u8>>);
 
 impl PtyChannel {
     pub fn new(capacity: usize) -> Self {
-        let (sender, _) = broadcast::channel(capacity);
-        Self { sender }
+        Self(InProcessBus::new(capacity))
     }
     pub fn subscribe(&self) -> broadcast::Receiver<Vec<u8>> {
-        self.sender.subscribe()
+        self.0.subscribe()
     }
     pub fn send(&self, bytes: &[u8]) {
-        let _ = self.sender.send(bytes.to_vec());
+        let _ = self.0.publish(bytes.to_vec());
     }
 }
 
 /// High-frequency normalized records. Tauri forwards each item through a `Channel`, never an event.
 #[derive(Clone, Debug)]
-pub struct EventChannel {
-    sender: broadcast::Sender<Event>,
-}
+pub struct EventChannel(InProcessBus<Event>);
 
 impl EventChannel {
     pub fn new(capacity: usize) -> Self {
-        let (sender, _) = broadcast::channel(capacity);
-        Self { sender }
+        Self(InProcessBus::new(capacity))
     }
     pub fn subscribe(&self) -> broadcast::Receiver<Event> {
-        self.sender.subscribe()
+        self.0.subscribe()
     }
     pub fn send(&self, event: Event) {
-        let _ = self.sender.send(event);
+        let _ = self.0.publish(event);
     }
 }
 
@@ -72,13 +67,14 @@ mod pty_channel {
 #[cfg(test)]
 mod event_channel {
     use super::EventChannel;
+    use crate::ids::RunId;
     use crate::services::telemetry::{Event, EventVerb};
     #[tokio::test]
     async fn delivers_normalized_events_without_an_event_transport() {
         let stream = EventChannel::new(1);
         let mut rx = stream.subscribe();
         let event = Event {
-            run_id: "run".into(),
+            run_id: RunId::generate(),
             seq: 1,
             ts: "2026-01-01T00:00:00Z".into(),
             verb: EventVerb::Assistant,

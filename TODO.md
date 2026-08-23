@@ -40,6 +40,113 @@ of those blocks the shell or the other twelve screens. It can run alongside M0.
 
 ---
 
+## Architectural review follow-on — 2026-08-23
+
+Cross-cutting findings from [`docs/ARCHITECTURAL_REVIEW.md`](docs/ARCHITECTURAL_REVIEW.md) — a full-pass
+review of `crates/locus-core`, `crates/locus-cli`, `apps/desktop/src`, and `apps/desktop/src-tauri` against
+the `tech-arch-review` skill references. Verdict: no blockers. Gaps cluster in three places — **resource
+unboundedness**, **atomicity**, and **boundary leak**. Each is a design decision (control never built) unless
+marked code. Severity and `path:line` live in the review doc; these are the actionable rows.
+
+### Warnings
+
+- [x] **[code]** · unbounded socket frame — `crates/locus-cli/src/sock.rs` rejects frames above 1 MiB before
+  allocation (verified by `cargo test -p locus-cli sock::`).
+- [ ] **[code]** · per-row commit, no transaction — `crates/locus-core/src/runtime/normalize.rs:42-44`
+  persists each `CapturedEvent` with its own commit; a mid-loop failure leaves a partial event stream on a
+  run downstream assumes is ordered and complete. One tx, committed once; `Err` before commit aborts.
+- [ ] **[code]** · spawn rollback gap — `crates/locus-core/src/runtime/run.rs:303,307` leaves a started
+  container **running** with `run.status` `Queued` if `attach_pty` fails after `start_container`. On any
+  post-start failure, stop the container and roll back status/port.
+- [ ] **[code]** · non-atomic next-version — `crates/locus-core/src/store/agents.rs:48-66` computes
+  `MAX(version)+1` in a CTE under no lock; concurrent same-name saves race `UNIQUE(name,version)`.
+  `SELECT … FOR UPDATE`, a per-name advisory lock, or recompute once on the unique violation.
+- [ ] **[code]** · `pool()` leaks the driver — `crates/locus-core/src/store/mod.rs:4,302` is `pub fn`, so the
+  "only sqlx-aware layer" invariant is not held (services/runtime run raw sqlx through it). Make it
+  `pub(crate)`; add `Store` methods.
+- [ ] **[code]** · panic on config data — `crates/locus-core/src/harness/materialize/mod.rs:494`
+  `as_object_mut().expect(...)` panics if a harness-TOML key path traverses a non-object. Return
+  `MaterializeError` instead.
+- [ ] **[code]** · credential proxy: three unbounded/ungated paths — `sandbox/credential_proxy.rs:106`
+  (`runs` map never pruned, revoked nonces stay accepted), `:230` (audit Vec never trimmed),
+  `:325` (upstream `.send()` has no timeout — a hung upstream stalls the single proxy thread). Prune on
+  teardown; bounded audit ring; connect/read timeouts + body cap.
+- [ ] **[code]** · unbounded event journal — `crates/locus-core/src/services/telemetry.rs:188` `events: Arc<Mutex<Vec<Event>>>`
+  grows for process lifetime (retains full `raw: Value`), and `events_for` is an O(n) scan. Bound/prune, or
+  back it with a capped per-run store.
+- [ ] **[code]** · non-atomic two-stage ask — `crates/locus-core/src/services/ask.rs:36-37` commits
+  `deliver_question` before `mark_waiting` can fail, leaving an orphaned filed question. One atomic inbox
+  method, or roll back.
+- [ ] **[code]** · IPC flattens typed errors to `String` — every Tauri handler (`lib.rs:201,233,282,289,297,333`)
+  and CLI dispatch returns `Result<_, String>`/`anyhow`, so the frontend cannot branch on recovery (not-found vs
+  permission vs replay). A small serde `{ kind, message }` at each process boundary.
+- [ ] **[code]** · stub-services advertised, allowlist runs ahead — `services/mod.rs` declares `pub mod board/mail/memory/wiki`
+  (doc-comment-only bodies) while `sock.rs:27-105` allowlists `memory.*`, `mail.*`, `wiki.*`, so an agent call
+  passes the gate then fails at the daemon. Keep verbs only where a handler exists; mark stubs explicitly.
+- [ ] **[code]** · socket verb dispatch on raw `String` — `locus-cli/src/sock.rs` `route(verb: &str)` with no
+  closed enum; a typo is a silent capability mismatch and callers cannot branch on failure kind. A serde
+  `Verb` enum validated at the edge.
+- [x] **[code]** · fabricated metrics — `apps/desktop/src/screens/review/RunsView.tsx` renders unavailable
+  cache and spend as `unknown`; it does not derive measurements from token count (verified by
+  `pnpm -C apps/desktop test -- test/runs/table.test.tsx`).
+- [ ] **[code]** · subscription leak — `apps/desktop/src/screens/plan/PlanView.tsx:53-61` opens a Tauri
+  telemetry channel in `onMount` with no `onCleanup`; re-entering Plan accumulates subscribers. Give
+  `streamFromCore` a teardown path. Same seam in `AgentPane`/`ShellPane`.
+- [x] **[code]** · dual nav resolver — `Shell.tsx` exports the canonical desktop locator mapping, and a test
+  round-trips every shared view through it (verified by `pnpm -C apps/desktop test --
+  test/shell/desktop-route-navigation.test.ts`).
+
+### Suggestions
+
+- [ ] **[code]** · duplicate `InProcessBus` — `store/bus.rs:68-84` copies the crate-root bus, reachable only by
+  its tests. Delete; use `crate::bus`.
+- [ ] **[code]** · `Strategy` trait never dispatched polymorphically — `harness/materialize/strategy.rs:9-13`
+  exists only for a shape test; each impl is called directly. Keep the structs, drop the trait.
+- [x] **[code]** · `planning.rs` retains one decomposition/approval name for each operation; forwarding
+  aliases are removed (verified by `cargo test -p locus-core planning`).
+- [x] **[code]** · `planning.rs` keeps `Requirement` fields private and rejects blank ids or bodies in its
+  constructor (verified by `cargo test -p locus-core planning`).
+- [ ] **[code]** · proxy port collision — `credential_proxy.rs:71,158` fixed port `43800` sits inside the
+  allocator range `[43000,43999]`; `PortAllocator.allocate()` can hand it out. Move it out of range or mark
+  reserved.
+- [ ] **[code]** · `ports.rs` TOCTOU — `allocate` reserves a number but not the socket; the bind can be
+  squatted. Have `allocate` hold the socket.
+- [ ] **[code]** · rate-limit map growth — `services` `calls: Mutex<HashMap<...>>` drops expired deque fronts
+  but never removes empty/stale run keys.
+- [ ] **[code]** · `artifact.rs` in-memory shim — `ArtifactStore` is a `BTreeMap` (M1 seam); "durable" bodies
+  vanish on restart. Acceptable while understood as non-durable.
+- [ ] **[code]** · `lib.rs:151-156` placeholder DTOs — `author: "you"`, `created_at: String::new()`, fabricated
+  `derived_text`. Fine seeded; must not linger.
+- [ ] **[code]** · `lib.rs` test hard-codes `reports.len()==11`, `losses==29` — adding a harness breaks
+  cardinality, not behavior. Assert structure, not counts.
+- [ ] **[code]** · `canary.rs:33` `AtomicU64` global temp-name counter — module-level state dodging ownership.
+- [x] **[code]** · `data/agent-defs.ts` defaults a missing generated agents extension count to zero
+  (verified by `pnpm -C apps/desktop test -- test/agentdefs/materialize-footer.test.tsx`).
+- [x] **[code]** · `AgentDefsView.tsx` validates unknown `frontmatter.memory` before reading `scope`
+  (verified by `pnpm -C apps/desktop test -- test/agentdefs/frontmatter.test.tsx`).
+- [x] **[code]** · `GuardrailsView.tsx` narrows `control.kind` through an exhaustive `switch`, without
+  unchecked casts (verified by `pnpm -C apps/desktop test -- test/settings/guardrails-desktop.test.tsx`).
+- [x] **[code]** · `AgentPane.tsx` / `ShellPane.tsx` register stream cleanup before subscription and render
+  setup failures with `InlineError` (verified by `pnpm -C apps/desktop test --
+  test/panes/agent-pane-stream-error.test.tsx`).
+- [x] **[code]** · `ProjectRail.tsx` safely ignores malformed persisted expansion state during render
+  (verified by `pnpm -C apps/desktop test -- test/shell/rail-expansion-persists.test.tsx`).
+- [x] **[code]** · `ArtifactsView.tsx` applies comment responses only when their request token remains current
+  (verified by `pnpm -C apps/desktop test -- test/artifacts/comments.test.tsx`).
+
+Two highest-leverage fixes — the `sock.rs` frame cap (memory-exhaustion) and the credential-proxy upstream
+timeout (availability) — are ordered now, before the proxy coexists with the allocator under load.
+
+## Security review follow-on — 2026-08-23
+
+Cross-cutting hardening from `.specs/security/REVIEW-2026-08-23.md`; decisions locked, builds pending. Each is a **design decision** (control never built) unless marked code.
+
+- [ ] **[security](.specs/security/spec.md)** · 11 tasks · **pending** · [tasks](.specs/security/tasks.md)
+  - F1 (design): per-project forwarding proxy for packet-level egress; microVM rejected (not cross-platform)
+  - F2 (design): trusted-by-channel context + one standing rule + override ladder (once / session / global); non-blocking
+  - F3 (code, LOW): boundary redaction — raw error to host log, secret-free gist upstream, keep exact-match `redact()`
+  - F4 (design): socket-boundary ownership check in `runtime/daemon.rs` before any ID-bearing verb routes
+
 ## M0 — Spikes
 
 3 features · 39 tasks · **closed**
@@ -372,7 +479,7 @@ is a decision that will disagree with itself.
 | M1 | `materializers` | Nothing outstanding. The five-vs-six strategy discrepancy in PLAN.md §Materializers was a stale sentence and has been corrected to six. |
 | M1 | `pane-manager` | Whether pane layout persists per project or globally. PLAN.md puts pane state on the session, which suggests per session, but says nothing about the arrangement itself. |
 | M1 | `run-supervisor` | Whether a session can be reassigned to a different agent without a handoff. PLAN.md says a session belongs to exactly one agent and that handoff opens a *new* session — so the answer is probably no, but it is not stated as an invariant. |
-| M1 | `sandbox` | Egress policy tiers. PLAN.md puts them at the same chokepoint as credential injection; whether that holds depends on Spike 1's mechanism, so the tier names and their defaults are settled with it. |
+| M1 | `sandbox` | Egress policy tiers. PLAN.md puts them at the same chokepoint as credential injection; whether that holds depends on Spike 1's mechanism, so the tier names and their defaults are settled with it. **Security decision 2026-08-23: per-project forwarding proxy for packet-level egress** (F1), microVM rejected as not cross-platform. See `.specs/security/`. |
 | M1 | `store` | PLAN.md defers detailed table definitions for six of the eight schemas, keeping full tables only for `memory` and `board`. The rest get written properly with their migration — this spec does not pre-empt that, and each consuming feature'… |
 | M1 | `telemetry` | `dx-telemetry` in `local-dx` has absorbed four harness dialects already and PLAN.md names its normalization pass as the reference. Whether to port its per-harness tables or rewrite them is an implementation call for task 4. |
 | M2 | `editor` | Which languages get Lezer grammars at M2. The spike exercised **Rust only** — LSP is one protocol and the client is language-agnostic, so that answers the protocol question and not per-language coverage. A language is an internal descriptor: grammar, server, and root-detection are declared per entry, with no core language branch. |

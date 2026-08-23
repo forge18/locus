@@ -2,6 +2,7 @@
 //!
 //! Moved out of `runtime/dispatch.rs` so every query in the crate lives under `store/`.
 
+use crate::ids::{ProjectId, RunId};
 use anyhow::{bail, Context, Result};
 use sqlx::{query, Row};
 use uuid::Uuid;
@@ -59,7 +60,7 @@ impl Store {
     }
 
     /// Set whether a project may automatically start dispatchable work.
-    pub async fn set_project_autorun(&self, project_id: Uuid, enabled: bool) -> Result<()> {
+    pub async fn set_project_autorun(&self, project_id: ProjectId, enabled: bool) -> Result<()> {
         query(
             "INSERT INTO core.project_autorun (project_id, enabled)
              VALUES ($1, $2)
@@ -76,7 +77,7 @@ impl Store {
     }
 
     /// Read a project's autorun state; projects without a setting default to disabled.
-    pub async fn project_autorun(&self, project_id: Uuid) -> Result<bool> {
+    pub async fn project_autorun(&self, project_id: ProjectId) -> Result<bool> {
         let row = query(
             "SELECT COALESCE(
                  (SELECT enabled FROM core.project_autorun WHERE project_id = $1),
@@ -135,7 +136,7 @@ impl Store {
         .context("snapshot active runs")?;
         let run_ids = rows
             .iter()
-            .map(|row| row.try_get::<Uuid, _>("run_id").map_err(Into::into))
+            .map(|row| row.try_get::<RunId, _>("run_id").map_err(Into::into))
             .collect::<Result<Vec<_>>>()
             .context("decode stopped run ids")?;
         query(
@@ -278,7 +279,7 @@ impl Store {
     }
 
     /// Add a queued run to the durable dispatch queue. Its project is derived from the run session.
-    pub async fn enqueue_dispatch(&self, run_id: Uuid, priority: DispatchPriority) -> Result<()> {
+    pub async fn enqueue_dispatch(&self, run_id: RunId, priority: DispatchPriority) -> Result<()> {
         let inserted = query(
             "INSERT INTO agents.dispatch_queue (
                  run_id, plan_order, manual_order, unblocks_count, estimate_minutes
@@ -310,7 +311,7 @@ impl Store {
     ///
     /// Locking the single policy row serializes claims across supervisor processes. This task only
     /// queues and starts work; it intentionally does not preempt active runs.
-    pub async fn claim_dispatchable_runs(&self) -> Result<Vec<Uuid>> {
+    pub async fn claim_dispatchable_runs(&self) -> Result<Vec<RunId>> {
         let mut transaction = self.pool().begin().await.context("begin dispatch claim")?;
         let policy_row = query(
             "SELECT global_parallelism, per_project_parallelism, priority_method, tie_break,
@@ -378,7 +379,7 @@ impl Store {
     ///
     /// The snapshot is derived from the run's own session so a caller cannot substitute context
     /// from another task. The request is refused while boundary preemption is disabled.
-    pub async fn request_dispatch_preemption(&self, run_id: Uuid) -> Result<()> {
+    pub async fn request_dispatch_preemption(&self, run_id: RunId) -> Result<()> {
         let requested = query(
             "INSERT INTO agents.dispatch_preemptions (run_id, handoff_context)
              SELECT $1, jsonb_build_object(
@@ -413,7 +414,7 @@ impl Store {
     /// restart cannot turn a mid-iteration request into an interruption.
     pub async fn preempt_dispatch_at_iteration_boundary(
         &self,
-        run_id: Uuid,
+        run_id: RunId,
     ) -> Result<Option<PreemptionHandoff>> {
         let mut transaction = self
             .pool()

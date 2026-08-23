@@ -2,9 +2,9 @@
 //!
 //! Moved out of `services/project.rs` so every query in the crate lives under `store/`.
 
+use crate::ids::ProjectId;
 use anyhow::{Context, Result};
 use sqlx::{query, Row};
-use uuid::Uuid;
 
 use crate::{services::project::ProjectSettings, store::Store};
 
@@ -14,7 +14,7 @@ impl Store {
     /// Replace one project's typed settings aggregate.
     pub async fn set_project_settings(
         &self,
-        project_id: Uuid,
+        project_id: ProjectId,
         settings: &ProjectSettings,
     ) -> Result<()> {
         let value = settings.to_stored_value()?;
@@ -33,7 +33,7 @@ impl Store {
     }
 
     /// Read one project's typed settings aggregate, creating no row for untouched projects.
-    pub async fn project_settings(&self, project_id: Uuid) -> Result<ProjectSettings> {
+    pub async fn project_settings(&self, project_id: ProjectId) -> Result<ProjectSettings> {
         let row = query("SELECT value FROM core.settings WHERE project_id = $1 AND key = $2")
             .bind(project_id)
             .bind(SETTINGS_KEY)

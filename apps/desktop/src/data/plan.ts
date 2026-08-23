@@ -6,67 +6,107 @@ import {
   RECOMMENDATION,
   SCOPE_DECISION,
   SELECTED_PLAN_ID,
-} from '../fixtures/plan'
-import { streamFromCore } from '../transcript/from-core'
-import type { DraftOutputs, PlanMessage, PlanSummary, Recommendation, ScopeDecision } from '../fixtures/plan'
-import type { AgentEvent } from '../types/event'
+} from "../fixtures/plan";
+import { isTauri } from "@tauri-apps/api/core";
+import { streamFromCore } from "../transcript/from-core";
+import type {
+  DraftOutputs,
+  PlanMessage,
+  PlanSummary,
+  Recommendation,
+  ScopeDecision,
+} from "../fixtures/plan";
+import type { AgentEvent } from "../types/event";
 
-export { ACP_LABEL, NEW_PLAN_NOTE, ONE_APPROVAL_RULE, PLAN_GRANULARITY_OPTIONS, PLAN_STEPS, PLAN_TASKS, SPEC_REQUIREMENTS } from '../fixtures/plan'
-export type { DraftOutputs, PlanGranularity, PlanGranularityOption, PlanMessage, PlanState, PlanStep, PlanSummary, PlanTask, Recommendation, ScopeDecision, SpecOutput, SpecRequirement, Speaker } from '../fixtures/plan'
+export {
+  ACP_LABEL,
+  NEW_PLAN_NOTE,
+  ONE_APPROVAL_RULE,
+  PLAN_GRANULARITY_OPTIONS,
+  PLAN_STEPS,
+  PLAN_TASKS,
+  SPEC_REQUIREMENTS,
+} from "../fixtures/plan";
+export type {
+  DraftOutputs,
+  PlanGranularity,
+  PlanGranularityOption,
+  PlanMessage,
+  PlanState,
+  PlanStep,
+  PlanSummary,
+  PlanTask,
+  Recommendation,
+  ScopeDecision,
+  SpecOutput,
+  SpecRequirement,
+  Speaker,
+} from "../fixtures/plan";
 
 /** Becomes: invoke("plans_list") */
 export function usePlans(): PlanSummary[] {
-  return PLANS
+  return PLANS;
 }
 
 /** Becomes: IPC-backed planning conversation. */
 export function usePlanConversation(): PlanMessage[] {
-  return CONVERSATION
+  return CONVERSATION;
 }
 
 function planMessageFromEvent(event: AgentEvent): PlanMessage | null {
-  if (!event.text || !['assistant', 'thinking', 'user'].includes(event.verb)) return null
-  const speaker = event.verb === 'user' ? 'you' : event.verb === 'thinking' ? 'researcher' : 'interviewer'
+  if (!event.text || !["assistant", "thinking", "user"].includes(event.verb))
+    return null;
+  const speaker =
+    event.verb === "user"
+      ? "you"
+      : event.verb === "thinking"
+        ? "researcher"
+        : "interviewer";
   return {
     id: `acp-${event.runId}-${event.seq}`,
     speaker,
-    initials: speaker === 'you' ? 'YOU' : speaker === 'researcher' ? 'RE' : 'IN',
-    caption: speaker === 'you' ? 'you' : `${speaker} · ACP`,
+    initials:
+      speaker === "you" ? "YOU" : speaker === "researcher" ? "RE" : "IN",
+    caption: speaker === "you" ? "you" : `${speaker} · ACP`,
     body: event.text,
     facts: [],
     finding: null,
-  }
+  };
 }
 
 /** Subscribe the Plan conversation to the source-neutral IPC event channel. */
-export async function subscribePlanConversationFromCore(onMessage: (message: PlanMessage) => void) {
+export async function subscribePlanConversationFromCore(
+  onMessage: (message: PlanMessage) => void,
+) {
+  // No host (browser preview, tests) → resolve with nothing; the fixture stays on screen.
+  if (!isTauri()) return;
   return streamFromCore((event) => {
-    const message = planMessageFromEvent(event)
-    if (message) onMessage(message)
-  })
+    const message = planMessageFromEvent(event);
+    if (message) onMessage(message);
+  });
 }
 
 /** Becomes: invoke("plan_scope_decision", { planId }) */
 export function usePlanScopeDecision(): ScopeDecision {
-  return SCOPE_DECISION
+  return SCOPE_DECISION;
 }
 
 /** Becomes: invoke("plan_outputs", { planId }) */
 export function usePlanOutputs(): DraftOutputs {
-  return DRAFT_OUTPUTS
+  return DRAFT_OUTPUTS;
 }
 
 /** Becomes: invoke("plan_recommendation", { planId }) */
 export function usePlanRecommendation(): Recommendation {
-  return RECOMMENDATION
+  return RECOMMENDATION;
 }
 
 /** Becomes: the live line on the ACP stream. */
 export function usePlanLiveLine(): string {
-  return LIVE_LINE
+  return LIVE_LINE;
 }
 
 /** Becomes: pane state, once the pane manager owns it. */
 export function useDefaultPlanId(): string {
-  return SELECTED_PLAN_ID
+  return SELECTED_PLAN_ID;
 }

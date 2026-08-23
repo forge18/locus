@@ -12,6 +12,9 @@ use uuid::Uuid;
 #[cfg(test)]
 use crate::store::Store;
 
+#[cfg(test)]
+use crate::testkit::postgres::{unused_port, DockerCleanup};
+
 /// The stable locator for a credential held by the operating system's keychain.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(transparent)]
@@ -367,57 +370,6 @@ impl OsKeychain for LeakyKeychain {
 }
 
 #[cfg(test)]
-struct DockerCleanup {
-    container_name: String,
-    volume_name: String,
-}
-
-#[cfg(test)]
-impl Drop for DockerCleanup {
-    fn drop(&mut self) {
-        use std::process::{Command, Stdio};
-
-        let _ = Command::new("docker")
-            .args(["rm", "--force", &self.container_name])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status();
-        let _ = Command::new("docker")
-            .args(["volume", "rm", "--force", &self.volume_name])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status();
-    }
-}
-
-#[cfg(test)]
-fn unused_port() -> u16 {
-    use std::net::TcpListener;
-
-    let listener = TcpListener::bind("127.0.0.1:0").expect("bind an unused local port");
-    listener.local_addr().expect("read the local port").port()
-}
-
-#[cfg(test)]
-struct NoopMigrationBackup;
-
-#[cfg(test)]
-impl crate::store::backup::MigrationBackup for NoopMigrationBackup {
-    fn create_retained(&self, _: &crate::store::backup::RetainedBackupConfig) -> Result<()> {
-        Ok(())
-    }
-}
-
-#[cfg(test)]
-fn test_backup_config() -> crate::store::backup::RetainedBackupConfig {
-    crate::store::backup::RetainedBackupConfig::new(
-        "postgres://locus@localhost/locus",
-        "/var/lib/locus/artifacts",
-        "/var/lib/locus/backups",
-    )
-}
-
-#[cfg(test)]
 #[test]
 fn reference_schema() {
     let migration = include_str!("../../../../migrations/0012_provider_references.up.sql");
@@ -435,10 +387,7 @@ async fn never_persists_secret() {
     let suffix = format!("{}-{port}", std::process::id());
     let container_name = format!("locus-provider-test-{suffix}");
     let volume_name = format!("locus-provider-test-data-{suffix}");
-    let _cleanup = DockerCleanup {
-        container_name: container_name.clone(),
-        volume_name: volume_name.clone(),
-    };
+    let _cleanup = DockerCleanup::new(container_name.clone(), volume_name.clone());
     let container = crate::store::PostgresContainer::new(crate::store::PostgresConfig::for_test(
         container_name,
         volume_name,
@@ -454,8 +403,8 @@ async fn never_persists_secret() {
     store
         .run_migrations(
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations"),
-            &NoopMigrationBackup,
-            &test_backup_config(),
+            &crate::testkit::postgres::NoopMigrationBackup,
+            &crate::testkit::postgres::test_backup_config(),
         )
         .await
         .expect("migrate provider test database");
@@ -498,10 +447,7 @@ async fn catalog_and_verification_metadata_persist() {
     let suffix = format!("{}-{port}", std::process::id());
     let container_name = format!("locus-provider-catalog-test-{suffix}");
     let volume_name = format!("locus-provider-catalog-test-data-{suffix}");
-    let _cleanup = DockerCleanup {
-        container_name: container_name.clone(),
-        volume_name: volume_name.clone(),
-    };
+    let _cleanup = DockerCleanup::new(container_name.clone(), volume_name.clone());
     let container = crate::store::PostgresContainer::new(crate::store::PostgresConfig::for_test(
         container_name,
         volume_name,
@@ -517,13 +463,13 @@ async fn catalog_and_verification_metadata_persist() {
     store
         .run_migrations(
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations"),
-            &NoopMigrationBackup,
-            &test_backup_config(),
+            &crate::testkit::postgres::NoopMigrationBackup,
+            &crate::testkit::postgres::test_backup_config(),
         )
         .await
         .expect("migrate provider catalog test database");
 
-    let provider_id = Uuid::new_v4();
+    let provider_id = uuid::Uuid::new_v4();
     let provider = ProviderReference::new(
         provider_id,
         "anthropic",

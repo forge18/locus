@@ -1,16 +1,14 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 use locus_core::{
-    harness::{
-        materialize::{reports_for_registry, MaterializationReport},
-        registry::load_from_directory,
-    },
-    ipc::PtyChannel,
+    core::Core,
+    harness::materialize::report::{reports_for_registry, MaterializationReport},
+    ids::{ArtifactId, ProjectId, RunId},
     services::{
         agents::{seeded_definitions, AgentDefinition},
         artifact::{ArtifactComment, ArtifactContent, ArtifactKind, ArtifactRow, ArtifactStore},
         lint::discover as discover_linters,
-        telemetry::{Event, EventCollector},
+        telemetry::Event,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -19,7 +17,6 @@ use tauri::{
     menu::{Menu, MenuItem},
     Manager, State, WebviewUrl, WebviewWindowBuilder,
 };
-use uuid::Uuid;
 
 const MODEL_TIERS: [&str; 4] = ["low", "medium", "high", "xhigh"];
 const HARNESS_REGISTRY: &str = "../../../harnesses";
@@ -158,8 +155,8 @@ fn artifact_comment_response(comment: &ArtifactComment) -> ArtifactCommentRespon
 }
 
 fn seeded_artifact_store() -> ArtifactStore {
-    let project_id = Uuid::new_v4();
-    let run_id = Uuid::new_v4();
+    let project_id = ProjectId::generate();
+    let run_id = RunId::generate();
     let mut store = ArtifactStore::default();
     let diff = ArtifactRow::text(
         project_id,
@@ -199,7 +196,9 @@ fn artifact_comments(
     artifacts: State<'_, ArtifactStore>,
     artifact_id: String,
 ) -> Result<Vec<ArtifactCommentResponse>, String> {
-    let artifact_id = Uuid::parse_str(&artifact_id).map_err(|error| error.to_string())?;
+    let artifact_id: ArtifactId = artifact_id
+        .parse()
+        .map_err(|error: uuid::Error| error.to_string())?;
     Ok(artifacts
         .comments(artifact_id)
         .into_iter()
@@ -253,8 +252,8 @@ pub struct HarnessTierGridHarness {
 }
 
 #[tauri::command]
-fn pty_subscribe(pty: State<'_, PtyChannel>, channel: Channel<Vec<u8>>) {
-    let mut bytes = pty.subscribe();
+fn pty_subscribe(core: State<'_, Arc<Core>>, channel: Channel<Vec<u8>>) {
+    let mut bytes = core.pty().subscribe();
     tauri::async_runtime::spawn(async move {
         while let Ok(bytes) = bytes.recv().await {
             if channel.send(bytes).is_err() {
@@ -265,8 +264,8 @@ fn pty_subscribe(pty: State<'_, PtyChannel>, channel: Channel<Vec<u8>>) {
 }
 
 #[tauri::command]
-fn telemetry_subscribe(collector: State<'_, EventCollector>, channel: Channel<Event>) {
-    let mut events = collector.subscribe();
+fn telemetry_subscribe(core: State<'_, Arc<Core>>, channel: Channel<Event>) {
+    let mut events = core.collector().subscribe();
     tauri::async_runtime::spawn(async move {
         while let Ok(event) = events.recv().await {
             if channel.send(event).is_err() {
@@ -284,11 +283,11 @@ fn linter_count(root: String) -> Result<usize, String> {
 }
 
 #[tauri::command]
-fn materialization_report() -> Result<Vec<MaterializationReport>, String> {
-    let registry = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(HARNESS_REGISTRY);
-    load_from_directory(registry)
-        .map(|registry| reports_for_registry(&registry))
-        .map_err(|error| error.to_string())
+fn materialization_report(
+    core: State<'_, Arc<Core>>,
+) -> Result<Vec<MaterializationReport>, String> {
+    // The registry is parsed once at start, not re-read and re-parsed per invoke.
+    Ok(reports_for_registry(core.registry()))
 }
 
 #[tauri::command]
@@ -345,9 +344,12 @@ fn detach_pane(app: tauri::AppHandle, pane_id: String) -> Result<(), String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // The composition root: one graph, built once. PLAN.md §Process topology.
+    let core = Core::load(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(HARNESS_REGISTRY))
+        .expect("load the harness registry at start");
+
     tauri::Builder::default()
-        .manage(EventCollector::new(1_024))
-        .manage(PtyChannel::new(1_024))
+        .manage(core)
         .manage(seeded_artifact_store())
         .setup(|app| {
             let command_palette = MenuItem::with_id(
@@ -431,7 +433,10 @@ mod tests {
 
     #[test]
     fn materialization_report_is_derived_from_the_core_registry() {
-        let reports = materialization_report().expect("registry report");
+        // Reads the registry the composition root parsed at start, not the disk.
+        let core = Core::load(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(HARNESS_REGISTRY))
+            .expect("core loads");
+        let reports = reports_for_registry(core.registry());
         assert_eq!(reports.len(), 11);
         assert_eq!(reports.iter().flat_map(|report| &report.losses).count(), 29);
     }

@@ -39,7 +39,7 @@ export interface HarnessEntry {
   badge: MechanismBadge
   /** What Locus has to do to get hooks into this harness. */
   injection: string
-  /** Telemetry source: hooks | acp | stream-json | session-log. */
+  /** Telemetry source. ACP is the only one; the other three are retired. */
   mechanism: string
   emits: string[]
   modelFlag: string | null

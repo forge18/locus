@@ -76,10 +76,7 @@ export const FACET_GROUPS: FacetGroup[] = [
     key: 'capture_source',
     label: 'capture source',
     facets: [
-      { value: 'hooks', count: 505, active: false },
-      { value: 'acp', count: 41, active: false },
-      { value: 'stream-json', count: 53, active: false },
-      { value: 'session-log', count: 72, active: false },
+      { value: 'acp', count: 671, active: false },
     ],
   },
   {
@@ -179,7 +176,7 @@ export const ACTION_ROWS: ActionRow[] = [
 ]
 
 export const MISSING_VERB_NOTE =
-  'A missing verb is recorded as missing, never synthesized: thinking is absent for the 9 session-log runs.'
+  'A missing verb is recorded as missing, never synthesized: thinking is absent for the 9 runs whose harness never reported it.'
 
 export interface ToolRow {
   tool: string

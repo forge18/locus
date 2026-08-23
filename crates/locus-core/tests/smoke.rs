@@ -4,25 +4,22 @@
 //! paths. They verify the materialized configuration and its normalized event stream, not a live
 //! model response.
 
-#[cfg(test)]
 use std::{fs, path::PathBuf};
 
-#[cfg(test)]
-use crate::{
+use locus_core::{
+    harness::canary::{run_canary_smoke, smoke_registry},
     harness::registry::{load_from_directory, register_from_directory},
     services::telemetry::EventVerb,
-    testkit::{assert_event, assert_event_text, run_canary_smoke, smoke_registry},
+    testkit::{assert_event, assert_event_text},
 };
 
-#[cfg(test)]
-fn registry() -> crate::harness::registry::HarnessRegistry {
+fn registry() -> locus_core::harness::registry::HarnessRegistry {
     load_from_directory(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../harnesses"))
         .expect("registry loads")
 }
 
 /// Kept as an explicit ignored target so CI distinguishes this preflight from the future live
 /// Docker test it replaces. The workflow invokes it with `--ignored`.
-#[cfg(test)]
 #[test]
 #[ignore = "requires Docker for the future live-harness smoke; deterministic preflight runs now"]
 fn canary_visible() {
@@ -36,7 +33,6 @@ fn canary_visible() {
     assert_event(&events, EventVerb::SessionEnd).expect("run ends");
 }
 
-#[cfg(test)]
 #[test]
 #[ignore = "requires Docker for the future live-harness smoke; deterministic preflight runs now"]
 fn all_registered_harnesses() {
@@ -51,7 +47,6 @@ fn all_registered_harnesses() {
     }
 }
 
-#[cfg(test)]
 #[test]
 #[ignore = "requires Docker for the future live-harness smoke; deterministic preflight runs now"]
 fn isolates_failure() {
@@ -71,7 +66,6 @@ fn isolates_failure() {
     assert_eq!(failures, ["claude"]);
 }
 
-#[cfg(test)]
 #[test]
 fn gates_registration() {
     let source = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../harnesses");
@@ -88,7 +82,6 @@ fn gates_registration() {
         .contains("harness `claude` failed its canary smoke test"));
 }
 
-#[cfg(test)]
 fn break_claude_rules(path: &std::path::Path) {
     let mut definition: toml::Value = fs::read_to_string(path)
         .expect("claude definition reads")
@@ -110,7 +103,6 @@ fn break_claude_rules(path: &std::path::Path) {
     .expect("broken definition writes");
 }
 
-#[cfg(test)]
 fn copy_registry() -> PathBuf {
     let source = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../harnesses");
     let root = std::env::temp_dir().join(format!(

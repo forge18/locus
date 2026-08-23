@@ -15,7 +15,7 @@ package=$1
 test_path=$2
 shift 2
 
-if ! output=$(cargo test -p "$package" --lib "$test_path" -- --exact "$@" 2>&1); then
+if ! output=$(cargo test -p "$package" "$test_path" -- --exact "$@" 2>&1); then
     printf '%s\n' "$output" >&2
     exit 1
 fi

@@ -36,92 +36,21 @@ impl Store {
 }
 
 #[cfg(test)]
-use std::{net::TcpListener, process::Stdio};
-
-#[cfg(test)]
 use sqlx::query;
-
-#[cfg(test)]
-use crate::store::{
-    backup::{MigrationBackup, RetainedBackupConfig},
-    {PostgresConfig, PostgresContainer},
-};
-
-#[cfg(test)]
-use std::process::Command;
-
-#[cfg(test)]
-struct NoopMigrationBackup;
-
-#[cfg(test)]
-impl MigrationBackup for NoopMigrationBackup {
-    fn create_retained(&self, _: &RetainedBackupConfig) -> Result<()> {
-        Ok(())
-    }
-}
-
-#[cfg(test)]
-fn test_backup_config() -> RetainedBackupConfig {
-    RetainedBackupConfig::new(
-        "postgres://locus@localhost/locus",
-        "/var/lib/locus/artifacts",
-        "/var/lib/locus/backups",
-    )
-}
-
-#[cfg(test)]
-struct DockerCleanup {
-    container_name: String,
-    volume_name: String,
-}
-
-#[cfg(test)]
-impl Drop for DockerCleanup {
-    fn drop(&mut self) {
-        let _ = Command::new("docker")
-            .args(["rm", "--force", &self.container_name])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status();
-        let _ = Command::new("docker")
-            .args(["volume", "rm", "--force", &self.volume_name])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status();
-    }
-}
-
-#[cfg(test)]
-fn unused_port() -> u16 {
-    let listener = TcpListener::bind("127.0.0.1:0").expect("bind an unused local port");
-    listener.local_addr().expect("read the local port").port()
-}
 
 #[cfg(test)]
 #[tokio::test]
 async fn falls_back_up() {
-    let port = unused_port();
-    let suffix = format!("{}-{port}", std::process::id());
-    let container_name = format!("locus-model-resolution-test-{suffix}");
-    let volume_name = format!("locus-model-resolution-test-data-{suffix}");
-    let _cleanup = DockerCleanup {
-        container_name: container_name.clone(),
-        volume_name: volume_name.clone(),
-    };
-    let container =
-        PostgresContainer::new(PostgresConfig::for_test(container_name, volume_name, port));
-    container
-        .start()
-        .await
-        .expect("start the model resolution test container");
+    let (container, _cleanup) =
+        crate::testkit::postgres::start_postgres_named("locus-model-resolution-test").await;
     let store = Store::connect(&container.database_url())
         .await
         .expect("connect the store pool");
     store
         .run_migrations(
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations"),
-            &NoopMigrationBackup,
-            &test_backup_config(),
+            &crate::testkit::postgres::NoopMigrationBackup,
+            &crate::testkit::postgres::test_backup_config(),
         )
         .await
         .expect("run migrations");
@@ -158,28 +87,16 @@ async fn falls_back_up() {
 #[cfg(test)]
 #[tokio::test]
 async fn resolved_id_on_run() {
-    let port = unused_port();
-    let suffix = format!("{}-{port}", std::process::id());
-    let container_name = format!("locus-model-run-test-{suffix}");
-    let volume_name = format!("locus-model-run-test-data-{suffix}");
-    let _cleanup = DockerCleanup {
-        container_name: container_name.clone(),
-        volume_name: volume_name.clone(),
-    };
-    let container =
-        PostgresContainer::new(PostgresConfig::for_test(container_name, volume_name, port));
-    container
-        .start()
-        .await
-        .expect("start the resolved model run test container");
+    let (container, _cleanup) =
+        crate::testkit::postgres::start_postgres_named("locus-model-run-test").await;
     let store = Store::connect(&container.database_url())
         .await
         .expect("connect the store pool");
     store
         .run_migrations(
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations"),
-            &NoopMigrationBackup,
-            &test_backup_config(),
+            &crate::testkit::postgres::NoopMigrationBackup,
+            &crate::testkit::postgres::test_backup_config(),
         )
         .await
         .expect("run migrations");
@@ -249,28 +166,16 @@ async fn resolved_id_on_run() {
 #[cfg(test)]
 #[tokio::test]
 async fn never_falls_down() {
-    let port = unused_port();
-    let suffix = format!("{}-{port}", std::process::id());
-    let container_name = format!("locus-model-no-downward-test-{suffix}");
-    let volume_name = format!("locus-model-no-downward-test-data-{suffix}");
-    let _cleanup = DockerCleanup {
-        container_name: container_name.clone(),
-        volume_name: volume_name.clone(),
-    };
-    let container =
-        PostgresContainer::new(PostgresConfig::for_test(container_name, volume_name, port));
-    container
-        .start()
-        .await
-        .expect("start the model no-downward test container");
+    let (container, _cleanup) =
+        crate::testkit::postgres::start_postgres_named("locus-model-no-downward-test").await;
     let store = Store::connect(&container.database_url())
         .await
         .expect("connect the store pool");
     store
         .run_migrations(
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations"),
-            &NoopMigrationBackup,
-            &test_backup_config(),
+            &crate::testkit::postgres::NoopMigrationBackup,
+            &crate::testkit::postgres::test_backup_config(),
         )
         .await
         .expect("run migrations");
@@ -310,28 +215,16 @@ async fn never_falls_down() {
 #[cfg(test)]
 #[tokio::test]
 async fn settings_table() {
-    let port = unused_port();
-    let suffix = format!("{}-{port}", std::process::id());
-    let container_name = format!("locus-model-settings-test-{suffix}");
-    let volume_name = format!("locus-model-settings-test-data-{suffix}");
-    let _cleanup = DockerCleanup {
-        container_name: container_name.clone(),
-        volume_name: volume_name.clone(),
-    };
-    let container =
-        PostgresContainer::new(PostgresConfig::for_test(container_name, volume_name, port));
-    container
-        .start()
-        .await
-        .expect("start the model settings test container");
+    let (container, _cleanup) =
+        crate::testkit::postgres::start_postgres_named("locus-model-settings-test").await;
     let store = Store::connect(&container.database_url())
         .await
         .expect("connect the store pool");
     store
         .run_migrations(
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations"),
-            &NoopMigrationBackup,
-            &test_backup_config(),
+            &crate::testkit::postgres::NoopMigrationBackup,
+            &crate::testkit::postgres::test_backup_config(),
         )
         .await
         .expect("run migrations");

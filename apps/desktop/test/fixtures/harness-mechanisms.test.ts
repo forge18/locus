@@ -7,16 +7,27 @@ import { EVENT_VERBS } from "../../src/types/event";
 import { SRC } from "../css";
 
 const harnessDir = resolve(SRC, "../../../harnesses");
+
+/** Mirror the core registry: harnesses/*.toml plus one level of plugin subdirectories. */
+function tomlFiles(): string[] {
+  const direct = readdirSync(harnessDir).filter((f) => f.endsWith(".toml"));
+  const nested = readdirSync(harnessDir, { withFileTypes: true })
+    .filter((e) => e.isDirectory())
+    .flatMap((e) =>
+      readdirSync(resolve(harnessDir, e.name))
+        .filter((f) => f.endsWith(".toml"))
+        .map((f) => `${e.name}/${f}`),
+    );
+  return [...direct, ...nested];
+}
 const raw = Object.fromEntries(
-  readdirSync(harnessDir)
-    .filter((f) => f.endsWith(".toml"))
-    .map((f) => {
-      const t = parse(readFileSync(resolve(harnessDir, f), "utf8")) as Record<
-        string,
-        any
-      >;
-      return [t.name as string, t];
-    }),
+  tomlFiles().map((f) => {
+    const t = parse(readFileSync(resolve(harnessDir, f), "utf8")) as Record<
+      string,
+      any
+    >;
+    return [t.name as string, t];
+  }),
 );
 
 /** ACP is the single agent-session transport; terminals are human-only. */

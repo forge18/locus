@@ -9,7 +9,9 @@ use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::{harness::materialize::ProjectExtensionScope, services::tools::ProjectToolScope};
+use crate::{
+    harness::materialize::extensions::ProjectExtensionScope, services::tools::ProjectToolScope,
+};
 
 const SETTINGS_VERSION: u16 = 1;
 

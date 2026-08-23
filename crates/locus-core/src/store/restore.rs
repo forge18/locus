@@ -9,7 +9,7 @@ use std::{
 
 use anyhow::{bail, Context, Result};
 
-use crate::store::backup::BACKUP_SCHEMAS;
+use crate::store::backup::{ProcessRunner, BACKUP_SCHEMAS};
 
 /// Parameters for restoring one backup archive into a scratch database.
 pub struct RestoreConfig {
@@ -26,16 +26,11 @@ impl RestoreConfig {
     }
 }
 
-/// Runs a restore command without coupling restore tests to a host binary.
-pub trait RestoreProcessRunner: Send + Sync {
-    fn run(&self, program: &str, arguments: &[String], standard_input: &[u8]) -> Result<()>;
-}
-
 /// Production process runner for `psql`.
 pub struct SystemRestoreProcessRunner;
 
-impl RestoreProcessRunner for SystemRestoreProcessRunner {
-    fn run(&self, program: &str, arguments: &[String], standard_input: &[u8]) -> Result<()> {
+impl ProcessRunner for SystemRestoreProcessRunner {
+    fn run(&self, program: &str, arguments: &[String], standard_input: &[u8]) -> Result<Vec<u8>> {
         let mut child = Command::new(program)
             .args(arguments)
             .stdin(Stdio::piped())
@@ -53,7 +48,7 @@ impl RestoreProcessRunner for SystemRestoreProcessRunner {
         if !status.success() {
             bail!("{program} exited with status {status}");
         }
-        Ok(())
+        Ok(Vec::new())
     }
 }
 
@@ -140,7 +135,7 @@ impl RestoreFilesystem for SystemRestoreFilesystem {
 
 /// Coordinates archive reads and restoring into the supplied scratch database only.
 pub struct Restore<'a> {
-    process: &'a dyn RestoreProcessRunner,
+    process: &'a dyn ProcessRunner,
     filesystem: &'a dyn RestoreFilesystem,
     row_count_query: &'a dyn RestoreRowCountQuery,
 }
@@ -148,16 +143,13 @@ pub struct Restore<'a> {
 static SYSTEM_RESTORE_ROW_COUNT_QUERY: SystemRestoreRowCountQuery = SystemRestoreRowCountQuery;
 
 impl<'a> Restore<'a> {
-    pub fn new(
-        process: &'a dyn RestoreProcessRunner,
-        filesystem: &'a dyn RestoreFilesystem,
-    ) -> Self {
+    pub fn new(process: &'a dyn ProcessRunner, filesystem: &'a dyn RestoreFilesystem) -> Self {
         Self::with_row_count_query(process, filesystem, &SYSTEM_RESTORE_ROW_COUNT_QUERY)
     }
 
     /// Injects the row-count query so restore drills can be tested without a database.
     pub fn with_row_count_query(
-        process: &'a dyn RestoreProcessRunner,
+        process: &'a dyn ProcessRunner,
         filesystem: &'a dyn RestoreFilesystem,
         row_count_query: &'a dyn RestoreRowCountQuery,
     ) -> Self {
@@ -180,7 +172,9 @@ impl<'a> Restore<'a> {
                 "--file=-".to_owned(),
             ],
             &sql_dump,
-        )
+        )?;
+        // `psql` writes nothing this caller needs; the exit status is the result.
+        Ok(())
     }
 
     /// Restores into scratch and verifies its rows match the source database.
@@ -210,7 +204,7 @@ mod into_scratch {
 
     use anyhow::Result;
 
-    use super::{Restore, RestoreConfig, RestoreFilesystem, RestoreProcessRunner};
+    use super::{ProcessRunner, Restore, RestoreConfig, RestoreFilesystem};
 
     type Invocation = (String, Vec<String>, Vec<u8>);
 
@@ -218,8 +212,13 @@ mod into_scratch {
         invocations: Mutex<Vec<Invocation>>,
     }
 
-    impl RestoreProcessRunner for CapturingProcess {
-        fn run(&self, program: &str, arguments: &[String], standard_input: &[u8]) -> Result<()> {
+    impl ProcessRunner for CapturingProcess {
+        fn run(
+            &self,
+            program: &str,
+            arguments: &[String],
+            standard_input: &[u8],
+        ) -> Result<Vec<u8>> {
             self.invocations
                 .lock()
                 .expect("record restore invocation")
@@ -228,7 +227,7 @@ mod into_scratch {
                     arguments.to_vec(),
                     standard_input.to_vec(),
                 ));
-            Ok(())
+            Ok(Vec::new())
         }
     }
 
@@ -315,15 +314,13 @@ mod drill_asserts_counts {
 
     use anyhow::Result;
 
-    use super::{
-        Restore, RestoreConfig, RestoreFilesystem, RestoreProcessRunner, RestoreRowCountQuery,
-    };
+    use super::{ProcessRunner, Restore, RestoreConfig, RestoreFilesystem, RestoreRowCountQuery};
 
     struct NoopProcess;
 
-    impl RestoreProcessRunner for NoopProcess {
-        fn run(&self, _: &str, _: &[String], _: &[u8]) -> Result<()> {
-            Ok(())
+    impl ProcessRunner for NoopProcess {
+        fn run(&self, _: &str, _: &[String], _: &[u8]) -> Result<Vec<u8>> {
+            Ok(Vec::new())
         }
     }
 
@@ -434,9 +431,7 @@ mod drill_detects_corruption {
 
     use anyhow::Result;
 
-    use super::{
-        Restore, RestoreConfig, RestoreFilesystem, RestoreProcessRunner, RestoreRowCountQuery,
-    };
+    use super::{ProcessRunner, Restore, RestoreConfig, RestoreFilesystem, RestoreRowCountQuery};
 
     const SOURCE_DATABASE_URL: &str = "postgres://locus@localhost/locus";
     const SCRATCH_DATABASE_URL: &str = "postgres://locus@localhost/locus_restore_drill";
@@ -458,13 +453,13 @@ mod drill_detects_corruption {
 
     struct CountingProcess(Arc<Mutex<u64>>);
 
-    impl RestoreProcessRunner for CountingProcess {
-        fn run(&self, _: &str, _: &[String], standard_input: &[u8]) -> Result<()> {
+    impl ProcessRunner for CountingProcess {
+        fn run(&self, _: &str, _: &[String], standard_input: &[u8]) -> Result<Vec<u8>> {
             *self.0.lock().expect("record restored row count") = standard_input
                 .windows(b"INSERT INTO ".len())
                 .filter(|window| *window == b"INSERT INTO ")
                 .count() as u64;
-            Ok(())
+            Ok(Vec::new())
         }
     }
 

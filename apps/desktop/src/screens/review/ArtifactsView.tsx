@@ -1,8 +1,16 @@
-import { For, Show, createEffect, createMemo, createSignal, onMount } from 'solid-js'
-import { Button } from '../../ui/Button'
-import { Icon } from '../../ui/Icon'
-import { Textarea } from '../../ui/Input'
-import { Resizable } from '../../panes/Resizable'
+import {
+  For,
+  Show,
+  createEffect,
+  createMemo,
+  createSignal,
+  onMount,
+} from "solid-js";
+import { Button } from "../../ui/Button";
+import { Icon } from "../../ui/Icon";
+import { Textarea } from "../../ui/Input";
+import { InlineError } from "../../ui/InlineError";
+import { Resizable } from "../../panes/Resizable";
 import {
   ARTIFACT_LOCATOR,
   COMMENTS_TITLE,
@@ -18,11 +26,11 @@ import {
   useArtifacts,
   useDefaultArtifactId,
   useUnifiedDiff,
-} from '../../data/artifacts'
+} from "../../data/artifacts";
 
 export interface ArtifactsViewProps {
   /** Which artifact to open. The same viewer whichever entry point set it. */
-  artifactId?: string
+  artifactId?: string;
 }
 
 /**
@@ -31,49 +39,83 @@ export interface ArtifactsViewProps {
  * depending on how you got to it is two components that will disagree.
  */
 export function ArtifactsView(props: ArtifactsViewProps) {
-  const kinds = useArtifactKinds()
-  const [selectedId, setSelectedId] = createSignal(props.artifactId ?? useDefaultArtifactId())
-  const [artifacts, setArtifacts] = createSignal(useArtifacts())
-  const [comments, setComments] = createSignal(useArtifactComments(selectedId()))
+  const kinds = useArtifactKinds();
+  const [selectedId, setSelectedId] = createSignal(
+    props.artifactId ?? useDefaultArtifactId(),
+  );
+  const [artifacts, setArtifacts] = createSignal(useArtifacts());
+  const [comments, setComments] = createSignal(
+    useArtifactComments(selectedId()),
+  );
+  const [loadError, setLoadError] = createSignal<string | null>(null);
+  let nextCommentRequest = 0;
   const artifact = createMemo(
     () => artifacts().find((a) => a.id === selectedId()) ?? artifacts()[0],
-  )
+  );
 
   onMount(() => {
-    void fetchArtifactsFromCore().then(setArtifacts).catch(() => undefined)
-  })
+    void fetchArtifactsFromCore()
+      .then(setArtifacts)
+      .catch((e) => setLoadError(e instanceof Error ? e.message : String(e)));
+  });
 
   createEffect(() => {
-    const artifactId = artifact()?.id
+    const artifactId = artifact()?.id;
+    const request = ++nextCommentRequest;
     if (artifactId) {
-      void fetchArtifactCommentsFromCore(artifactId).then(setComments).catch(() => undefined)
+      void fetchArtifactCommentsFromCore(artifactId)
+        .then((nextComments) => {
+          if (request === nextCommentRequest) setComments(nextComments);
+        })
+        .catch((e) => {
+          if (request === nextCommentRequest)
+            setLoadError(e instanceof Error ? e.message : String(e));
+        });
     }
-  })
+  });
 
   return (
     <div class="artifacts" data-testid="artifacts">
-      <Resizable width={222} min={180} max={360} side="right" class="artifact-list" testId="artifact-list">
+      <Show when={loadError()}>
+        <div data-testid="artifacts-error">
+          <InlineError
+            cause={loadError()!}
+            next="Retry the connection to core, or check the core daemon."
+          />
+        </div>
+      </Show>
+      <Resizable
+        width={222}
+        min={180}
+        max={360}
+        side="right"
+        class="artifact-list"
+        testId="artifact-list"
+      >
         <div class="artifact-list-body">
           <div class="artifact-group" data-testid="artifact-group-review">
             Review artifacts
           </div>
           <For each={kinds.review}>
             {(kind, i) => {
-              const entry = () => artifacts().find((artifact) => artifact.kind === kind.label)
+              const entry = () =>
+                artifacts().find((artifact) => artifact.kind === kind.label);
               return (
                 <button
                   type="button"
                   class="artifact-entry"
                   data-testid={`artifact-entry-${kind.label}`}
                   data-group="review"
-                  aria-selected={i() === 0 && selectedId() === entry()?.id ? 'true' : 'false'}
+                  aria-selected={
+                    i() === 0 && selectedId() === entry()?.id ? "true" : "false"
+                  }
                   onClick={() => entry() && setSelectedId(entry()!.id)}
                 >
                   <Icon name={kind.icon} size={11} />
                   {kind.label}
                   <span class="artifact-entry-note">{kind.note}</span>
                 </button>
-              )
+              );
             }}
           </For>
 
@@ -120,19 +162,23 @@ export function ArtifactsView(props: ArtifactsViewProps) {
             {(row) => (
               <div
                 class={[
-                  'udiff-row',
-                  row.kind === 'hunk' ? 'udiff-hunk' : '',
-                  row.kind === 'added' ? 'udiff-added' : '',
-                  row.kind === 'removed' ? 'udiff-removed' : '',
-                  row.commented ? 'udiff-commented' : '',
+                  "udiff-row",
+                  row.kind === "hunk" ? "udiff-hunk" : "",
+                  row.kind === "added" ? "udiff-added" : "",
+                  row.kind === "removed" ? "udiff-removed" : "",
+                  row.commented ? "udiff-commented" : "",
                 ]
                   .filter(Boolean)
-                  .join(' ')}
+                  .join(" ")}
                 data-kind={row.kind}
-                data-commented={row.commented ? 'true' : undefined}
-                data-testid={row.kind === 'hunk' ? `udiff-hunk-${row.text.split(' ')[1]}` : undefined}
+                data-commented={row.commented ? "true" : undefined}
+                data-testid={
+                  row.kind === "hunk"
+                    ? `udiff-hunk-${row.text.split(" ")[1]}`
+                    : undefined
+                }
               >
-                <span class="udiff-gutter">{row.no ?? ''}</span>
+                <span class="udiff-gutter">{row.no ?? ""}</span>
                 <span class="udiff-text">{row.text}</span>
               </div>
             )}
@@ -140,22 +186,38 @@ export function ArtifactsView(props: ArtifactsViewProps) {
         </div>
       </section>
 
-      <Resizable width={306} min={240} max={420} side="left" class="comment-rail" testId="comment-rail">
-        <div class="artifact-group" style={{ padding: '11px 11px 0' }} data-testid="comments-title">
+      <Resizable
+        width={306}
+        min={240}
+        max={420}
+        side="left"
+        class="comment-rail"
+        testId="comment-rail"
+      >
+        <div
+          class="artifact-group"
+          style={{ padding: "11px 11px 0" }}
+          data-testid="comments-title"
+        >
           {COMMENTS_TITLE}
         </div>
         <div class="comment-rail-body">
           <For each={comments()}>
             {(comment) => (
               <div
-                class={['comment', comment.author !== 'you' ? 'comment-agent' : '']
+                class={[
+                  "comment",
+                  comment.author !== "you" ? "comment-agent" : "",
+                ]
                   .filter(Boolean)
-                  .join(' ')}
+                  .join(" ")}
                 data-testid={`comment-${comment.id}`}
                 data-author={comment.author}
               >
                 <span class="comment-avatar">
-                  {comment.author === 'you' ? 'YOU' : comment.author.slice(0, 2).toUpperCase()}
+                  {comment.author === "you"
+                    ? "YOU"
+                    : comment.author.slice(0, 2).toUpperCase()}
                 </span>
                 <span class="comment-body">{comment.body}</span>
               </div>
@@ -167,7 +229,10 @@ export function ArtifactsView(props: ArtifactsViewProps) {
           </div>
         </div>
         <footer class="comment-foot" data-testid="comment-foot">
-          <Textarea data-testid="comment-input" placeholder="Comment on the marked line" />
+          <Textarea
+            data-testid="comment-input"
+            placeholder="Comment on the marked line"
+          />
           <div class="comment-foot-actions">
             <Button variant="primary" data-testid="comment-send">
               {SEND_TO_SESSION}
@@ -183,8 +248,8 @@ export function ArtifactsView(props: ArtifactsViewProps) {
         <span />
       </Show>
     </div>
-  )
+  );
 }
 
 /** Default export so the view can be code-split at the route boundary. */
-export default ArtifactsView
+export default ArtifactsView;

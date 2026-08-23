@@ -2,6 +2,7 @@
 //!
 //! Moved out of `services/agents.rs` so every query in the crate lives under `store/`.
 
+use crate::ids::RunId;
 use anyhow::{bail, Context, Result};
 use serde_json::Value;
 use sqlx::query_as;
@@ -81,7 +82,7 @@ impl Store {
     /// is pinned even if a newer definition version is saved later.
     pub async fn run_pinned_definition(
         &self,
-        run_id: Uuid,
+        run_id: RunId,
     ) -> Result<Option<PersistedAgentDefinition>> {
         query_as::<_, AgentDefinitionRow>(
             "SELECT d.id, d.name, d.version, d.frontmatter, d.body

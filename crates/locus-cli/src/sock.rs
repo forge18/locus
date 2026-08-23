@@ -10,6 +10,7 @@ use tokio::{
 
 pub const DEFAULT_SOCKET_PATH: &str = "/run/locus.sock";
 const KEY_PACK_ROW_THRESHOLD: usize = 2;
+const MAX_SOCKET_FRAME_BYTES: u32 = 1_048_576;
 
 #[derive(Debug, Serialize)]
 pub struct SocketRequest<'a> {
@@ -394,6 +395,9 @@ where
         .read_u32()
         .await
         .context("read socket frame length")?;
+    if length > MAX_SOCKET_FRAME_BYTES {
+        anyhow::bail!("socket frame exceeds {MAX_SOCKET_FRAME_BYTES} bytes");
+    }
     let mut payload = vec![0; length as usize];
     reader
         .read_exact(&mut payload)
@@ -444,6 +448,20 @@ async fn roundtrip() {
     assert_eq!(response, json!({"status":"running"}));
     server.await.expect("server task completes");
     std::fs::remove_file(path).expect("remove test socket");
+}
+
+#[tokio::test]
+async fn rejects_an_oversized_response_frame_before_allocating() {
+    let (mut writer, mut reader) = tokio::io::duplex(8);
+    assert!(writer.write_u32(1_048_577).await.is_ok());
+    drop(writer);
+
+    let error = match read_frame::<_, Value>(&mut reader).await {
+        Ok(_) => panic!("oversized frame is rejected"),
+        Err(error) => error,
+    };
+
+    assert!(error.to_string().contains("exceeds"));
 }
 
 #[test]

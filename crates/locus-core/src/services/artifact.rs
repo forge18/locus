@@ -1,5 +1,6 @@
 //! Reviewable run deliverables and their durable blob representation.
 
+use crate::ids::{ArtifactId, CommentId, ProjectId, RunId};
 use std::{
     collections::BTreeMap,
     fs,
@@ -10,7 +11,6 @@ use std::{
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use uuid::Uuid;
 
 pub const DEFAULT_COMPACTION_THRESHOLD: usize = 16 * 1024;
 pub const ARTIFACT_ROOT: &str = "/var/lib/locus/artifacts";
@@ -76,9 +76,9 @@ pub enum ArtifactContent {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ArtifactRow {
-    pub id: Uuid,
-    pub project_id: Uuid,
-    pub run_id: Uuid,
+    pub id: ArtifactId,
+    pub project_id: ProjectId,
+    pub run_id: RunId,
     pub kind: ArtifactKind,
     pub content: ArtifactContent,
     pub derived_cache: Option<serde_json::Value>,
@@ -87,13 +87,13 @@ pub struct ArtifactRow {
 
 impl ArtifactRow {
     pub fn text(
-        project_id: Uuid,
-        run_id: Uuid,
+        project_id: ProjectId,
+        run_id: RunId,
         kind: ArtifactKind,
         body: impl Into<String>,
     ) -> Self {
         Self {
-            id: Uuid::new_v4(),
+            id: ArtifactId::generate(),
             project_id,
             run_id,
             kind,
@@ -106,8 +106,8 @@ impl ArtifactRow {
 
 pub fn blob_path(
     root: impl AsRef<Path>,
-    project_id: Uuid,
-    run_id: Uuid,
+    project_id: ProjectId,
+    run_id: RunId,
     name: impl AsRef<Path>,
 ) -> PathBuf {
     root.as_ref()
@@ -130,8 +130,8 @@ fn validate_blob_name(name: &Path) -> Result<()> {
 
 pub fn write_blob(
     root: impl AsRef<Path>,
-    project_id: Uuid,
-    run_id: Uuid,
+    project_id: ProjectId,
+    run_id: RunId,
     kind: ArtifactKind,
     name: impl AsRef<Path>,
     media_type: impl Into<String>,
@@ -146,7 +146,7 @@ pub fn write_blob(
     fs::write(&path, bytes).with_context(|| format!("write artifact blob {}", path.display()))?;
     let sha256 = format!("{:x}", Sha256::digest(bytes));
     Ok(ArtifactRow {
-        id: Uuid::new_v4(),
+        id: ArtifactId::generate(),
         project_id,
         run_id,
         kind,
@@ -162,9 +162,9 @@ pub fn write_blob(
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ArtifactComment {
-    pub id: Uuid,
-    pub artifact_id: Uuid,
-    pub parent_id: Option<Uuid>,
+    pub id: CommentId,
+    pub artifact_id: ArtifactId,
+    pub parent_id: Option<CommentId>,
     pub body: String,
 }
 
@@ -176,16 +176,16 @@ pub enum CommentDelivery {
 
 #[derive(Default)]
 pub struct ArtifactStore {
-    rows: BTreeMap<Uuid, ArtifactRow>,
+    rows: BTreeMap<ArtifactId, ArtifactRow>,
     comments: Vec<ArtifactComment>,
-    live_sessions: Vec<Uuid>,
+    live_sessions: Vec<RunId>,
 }
 
 impl ArtifactStore {
     pub fn put(&mut self, row: ArtifactRow) {
         self.rows.insert(row.id, row);
     }
-    pub fn get(&self, id: Uuid) -> Option<&ArtifactRow> {
+    pub fn get(&self, id: ArtifactId) -> Option<&ArtifactRow> {
         self.rows.get(&id)
     }
     pub fn review_inbox(&self) -> Vec<&ArtifactRow> {
@@ -196,15 +196,15 @@ impl ArtifactStore {
     }
     pub fn comment(
         &mut self,
-        artifact_id: Uuid,
-        parent_id: Option<Uuid>,
+        artifact_id: ArtifactId,
+        parent_id: Option<CommentId>,
         body: impl Into<String>,
     ) -> Result<CommentDelivery> {
         if !self.rows.contains_key(&artifact_id) {
             bail!("artifact {artifact_id} was not found")
         }
         let comment = ArtifactComment {
-            id: Uuid::new_v4(),
+            id: CommentId::generate(),
             artifact_id,
             parent_id,
             body: body.into(),
@@ -217,13 +217,13 @@ impl ArtifactStore {
             CommentDelivery::Deferred
         })
     }
-    pub fn comments(&self, artifact_id: Uuid) -> Vec<&ArtifactComment> {
+    pub fn comments(&self, artifact_id: ArtifactId) -> Vec<&ArtifactComment> {
         self.comments
             .iter()
             .filter(|comment| comment.artifact_id == artifact_id)
             .collect()
     }
-    pub fn start_run(&mut self, run_id: Uuid) -> Vec<&ArtifactComment> {
+    pub fn start_run(&mut self, run_id: RunId) -> Vec<&ArtifactComment> {
         self.live_sessions.push(run_id);
         self.comments
             .iter()
@@ -246,8 +246,8 @@ impl Default for CompactionSettings {
 
 pub fn compact_tool_result(
     store: &mut ArtifactStore,
-    project_id: Uuid,
-    run_id: Uuid,
+    project_id: ProjectId,
+    run_id: RunId,
     body: String,
     settings: &CompactionSettings,
 ) -> String {
@@ -261,7 +261,7 @@ pub fn compact_tool_result(
     summary
 }
 
-pub fn walkthrough(store: &ArtifactStore, project_id: Uuid, run_id: Uuid) -> ArtifactRow {
+pub fn walkthrough(store: &ArtifactStore, project_id: ProjectId, run_id: RunId) -> ArtifactRow {
     let details = store
         .rows
         .values()
@@ -297,8 +297,11 @@ pub fn read_artifact(row: &ArtifactRow) -> Result<Vec<u8>> {
 #[allow(clippy::module_inception)]
 mod artifact {
     use super::*;
-    fn ids() -> (Uuid, Uuid) {
-        (Uuid::new_v4(), Uuid::new_v4())
+    use crate::ids::{ProjectId, RunId};
+    use uuid::Uuid;
+
+    fn ids() -> (ProjectId, RunId) {
+        (ProjectId::generate(), RunId::generate())
     }
     fn root() -> PathBuf {
         std::env::temp_dir().join(format!("locus-artifact-{}", Uuid::new_v4()))

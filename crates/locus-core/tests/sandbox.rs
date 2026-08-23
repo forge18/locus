@@ -1,6 +1,6 @@
 mod sandbox {
     use locus_core::{
-        sandbox::agent_image_tag_for_scopes,
+        sandbox::image::agent_image_tag_for_scopes,
         services::tools::{
             ImageTool, ProjectToolScope, RoleToolScope, ToolCatalog, TrustedKeyStore,
         },
@@ -9,7 +9,7 @@ mod sandbox {
     #[test]
     fn tool_set_rebuild() {
         let current = vec![ImageTool::new("git", "2")];
-        assert!(!locus_core::sandbox::tool_set_requires_rebuild(
+        assert!(!locus_core::sandbox::image::tool_set_requires_rebuild(
             &current, &current
         ));
     }

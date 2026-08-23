@@ -18,4 +18,13 @@ describe("shell/rail-expansion-persists", () => {
     expect(restored.getByTestId("memory-rail-links").hidden).toBe(false);
     expect(restored.getByTestId("workshop-rail-links").hidden).toBe(false);
   });
+
+  it("ignores malformed persisted expansion state", () => {
+    localStorage.setItem(RAIL_EXPANSION_STORAGE_KEY, "not json");
+
+    const rail = render(() => <ProjectRail selectedProject="locus" />);
+
+    expect(rail.getByTestId("memory-rail-links").hidden).toBe(true);
+    expect(rail.getByTestId("workshop-rail-links").hidden).toBe(true);
+  });
 });

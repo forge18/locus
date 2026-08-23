@@ -12,9 +12,9 @@ mod planning {
                 PlanTask::new("T-02", "Two").with_dependencies(["T-01"]),
             ],
         );
-        let cards = Decomposition::for_every_task(plan)
+        let cards = Decomposition::every_task(plan)
             .expect("mapping")
-            .approved_cards()
+            .approve()
             .expect("approve");
 
         assert_eq!(cards[1].dependencies, ["task:T-01"]);
@@ -23,9 +23,9 @@ mod planning {
     #[test]
     fn approval_commits_mapping() {
         let plan = ApprovedPlan::new("Spec", vec![PlanTask::new("T-01", "One")]);
-        let cards = Decomposition::for_every_task(plan)
+        let cards = Decomposition::every_task(plan)
             .expect("mapping")
-            .final_approval()
+            .approve()
             .expect("approve");
 
         assert_eq!(cards.len(), 1);
@@ -37,7 +37,7 @@ mod planning {
             "Spec",
             vec![PlanTask::new("T-01", "One"), PlanTask::new("T-02", "Two")],
         );
-        let cards = Decomposition::for_selected_carve_outs(plan, ["T-02"]).expect("cards");
+        let cards = Decomposition::spec_plus_selected(plan, ["T-02"]).expect("cards");
 
         assert_eq!(cards.cards().len(), 2);
     }
@@ -48,7 +48,7 @@ mod planning {
             "Spec",
             vec![PlanTask::new("T-01", "One"), PlanTask::new("T-02", "Two")],
         );
-        let cards = Decomposition::for_every_task(plan).expect("cards");
+        let cards = Decomposition::every_task(plan).expect("cards");
 
         assert_eq!(cards.cards().len(), 2);
     }
@@ -56,7 +56,7 @@ mod planning {
     #[test]
     fn spec_only_cards() {
         let plan = ApprovedPlan::new("Spec", vec![PlanTask::new("T-01", "One")]);
-        let cards = Decomposition::for_spec_only(plan);
+        let cards = Decomposition::spec_only(plan);
 
         assert_eq!(cards.cards().len(), 1);
     }
@@ -76,15 +76,15 @@ mod planning {
     #[test]
     fn reaudits_changed_requirements() {
         let mut spec = EditableSpec::new([
-            Requirement::new("R-01", "one"),
-            Requirement::new("R-02", "two"),
+            Requirement::new("R-01", "one").expect("valid requirement"),
+            Requirement::new("R-02", "two").expect("valid requirement"),
         ])
         .expect("spec");
         spec.edit("R-02", "changed").expect("edit");
 
         assert_eq!(
             spec.changed_requirements()
-                .map(|requirement| requirement.id.as_str())
+                .map(Requirement::id)
                 .collect::<Vec<_>>(),
             ["R-02"]
         );
@@ -94,14 +94,22 @@ mod planning {
 
     #[test]
     fn editable_requirements() {
-        let mut spec =
-            EditableSpec::new([Requirement::new("R-01", "Keep branches")]).expect("spec");
+        let mut spec = EditableSpec::new([
+            Requirement::new("R-01", "Keep branches").expect("valid requirement")
+        ])
+        .expect("spec");
         spec.edit("R-01", "Keep every branch").expect("edit");
 
         assert_eq!(
-            spec.requirement("R-01").expect("requirement").body,
+            spec.requirement("R-01").expect("requirement").body(),
             "Keep every branch"
         );
+    }
+
+    #[test]
+    fn requirements_cannot_bypass_nonempty_validation() {
+        assert!(Requirement::new("", "body").is_err());
+        assert!(Requirement::new("R-01", " ").is_err());
     }
 
     #[test]

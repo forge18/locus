@@ -665,7 +665,7 @@ eight extensions is the denominator, and the numerator is a count of `weaker_tha
 surface that shows them reads the files, so registering a harness moves the number without an edit.
 
 The first four are parameterized data — `format`, `suffix`, `flat`, `strip_frontmatter`, the target
-key — and live in `crates/locus-core/src/materialize/` as generic implementations that name no
+key — and live in `crates/locus-core/src/harness/materialize/` as generic implementations that name no
 harness. `core-driven` is generic too: it fires the extension from the container's own lifetime rather
 than writing a file at all, which is what the two harnesses with no hook mechanism get.
 
@@ -720,7 +720,7 @@ visible human-action request that blocks until resolved. The run's stored postur
 determines its meaning — see Permissions below.
 
 **How each source normalizes.** `[telemetry].source` is `acp` for every supported harness; the module
-under `crates/locus-core/src/telemetry/` is one ACP path, and nothing downstream knows which one:
+under `crates/locus-core/src/services/telemetry.rs` is one ACP path, and nothing downstream knows which one:
 
 | Source | How it arrives | Mapped by |
 | --- | --- | --- |
@@ -2623,7 +2623,7 @@ Nothing exists yet, so all of these are new:
 
 - `.specs/<feature>/{spec.md,tasks.md}` — one directory per feature, every milestone; M0's whole output
 - `harnesses/*` — one entry per harness, file or directory; what keeps harness names out of core
-- `crates/locus-core/src/materialize/` — the generic strategies and the plugin host, naming no harness
+- `crates/locus-core/src/harness/materialize/` — the generic strategies and the plugin host, naming no harness
 - `crates/locus-core/` — registry, adapters, supervisors, store, **and every shared service:
   `memory/`, `mail/`, `board/`, `wiki/`, `telemetry/`, `tools/`**
 - `crates/locus-cli/` — the in-container agent CLI; a thin socket client with no logic of its own

@@ -20,7 +20,7 @@ describe('telemetry/missing-verb-note', () => {
 
   it('names which verb is absent and for which runs', () => {
     expect(MISSING_VERB_NOTE).toContain('thinking')
-    expect(MISSING_VERB_NOTE).toContain('session-log')
+    expect(MISSING_VERB_NOTE).toContain('never reported it')
   })
 
   it('sits after the rows, not among them', () => {

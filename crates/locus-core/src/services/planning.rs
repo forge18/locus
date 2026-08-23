@@ -40,16 +40,26 @@ impl PlanningStage {
 /// A stable requirement id and editable specification block.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Requirement {
-    pub id: String,
-    pub body: String,
+    id: String,
+    body: String,
 }
 
 impl Requirement {
-    pub fn new(id: impl Into<String>, body: impl Into<String>) -> Self {
-        Self {
-            id: id.into(),
-            body: body.into(),
+    pub fn new(id: impl Into<String>, body: impl Into<String>) -> Result<Self> {
+        let id = id.into();
+        let body = body.into();
+        if id.trim().is_empty() || body.trim().is_empty() {
+            bail!("requirement id and body must not be empty");
         }
+        Ok(Self { id, body })
+    }
+
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+
+    pub fn body(&self) -> &str {
+        &self.body
     }
 }
 
@@ -224,11 +234,6 @@ pub struct Decomposition {
 }
 
 impl Decomposition {
-    /// Calculate the one-card mapping used by spec-only approval.
-    pub fn for_spec_only(plan: ApprovedPlan) -> Self {
-        Self::spec_only(plan)
-    }
-
     /// Keep the approved spec as one prospective card.
     pub fn spec_only(plan: ApprovedPlan) -> Self {
         let mut decomposition = Self {
@@ -237,11 +242,6 @@ impl Decomposition {
         };
         decomposition.add_spec();
         decomposition
-    }
-
-    /// Calculate the one-card-per-approved-task mapping.
-    pub fn for_every_task(plan: ApprovedPlan) -> Result<Self> {
-        Self::every_task(plan)
     }
 
     /// Make each approved task a prospective card.
@@ -260,15 +260,6 @@ impl Decomposition {
             decomposition.include_task(&task_id)?;
         }
         Ok(decomposition)
-    }
-
-    /// Calculate the spec card plus selected task carve-outs.
-    pub fn for_selected_carve_outs<I, S>(plan: ApprovedPlan, task_ids: I) -> Result<Self>
-    where
-        I: IntoIterator<Item = S>,
-        S: AsRef<str>,
-    {
-        Self::spec_plus_selected(plan, task_ids)
     }
 
     /// Keep the spec as a prospective card and carve out selected approved tasks.
@@ -333,16 +324,6 @@ impl Decomposition {
             .iter()
             .map(|card| (card.id.as_str(), card.source.clone(), card.title.as_str()))
             .collect()
-    }
-
-    /// Produce approved board cards with the dependency edges from their source tasks.
-    pub fn approved_cards(&self) -> Result<Vec<BoardCard>> {
-        self.approve()
-    }
-
-    /// The final approval boundary that commits a draft mapping into board cards.
-    pub fn final_approval(&self) -> Result<Vec<BoardCard>> {
-        self.approve()
     }
 
     /// Final approval creates cards only when every selected task dependency is also mapped.

@@ -5,7 +5,7 @@ use std::{
     future::Future,
     path::{Path, PathBuf},
     pin::Pin,
-    process::Command,
+    process::{Command, Stdio},
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -83,18 +83,33 @@ static SYSTEM_CLOCK: SystemClock = SystemClock;
 
 /// Runs an external command without coupling backup tests to a host binary.
 pub trait ProcessRunner: Send + Sync {
-    fn run(&self, program: &str, arguments: &[String]) -> Result<Vec<u8>>;
+    /// Run a program, optionally feeding it stdin, and return what it wrote to stdout.
+    /// `pg_dump` supplies no stdin; `psql` ignores the output. One seam covers both.
+    fn run(&self, program: &str, arguments: &[String], standard_input: &[u8]) -> Result<Vec<u8>>;
 }
 
-/// Production process runner for `pg_dump`.
+/// Production process runner for the Postgres command-line tools.
 pub struct SystemProcessRunner;
 
 impl ProcessRunner for SystemProcessRunner {
-    fn run(&self, program: &str, arguments: &[String]) -> Result<Vec<u8>> {
-        let output = Command::new(program)
+    fn run(&self, program: &str, arguments: &[String], standard_input: &[u8]) -> Result<Vec<u8>> {
+        use std::io::Write;
+
+        let mut child = Command::new(program)
             .args(arguments)
-            .output()
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
             .with_context(|| format!("run {program}"))?;
+        child
+            .stdin
+            .as_mut()
+            .with_context(|| format!("open {program} standard input"))?
+            .write_all(standard_input)
+            .with_context(|| format!("write to {program} standard input"))?;
+        let output = child
+            .wait_with_output()
+            .with_context(|| format!("wait for {program}"))?;
         if !output.status.success() {
             bail!("{program} exited with status {}", output.status);
         }
@@ -272,7 +287,7 @@ impl<'a> Backup<'a> {
         ];
         arguments.extend(BACKUP_SCHEMAS.map(|schema| format!("--schema={schema}")));
         arguments.push(format!("--dbname={database_url}"));
-        self.process.run("pg_dump", &arguments)
+        self.process.run("pg_dump", &arguments, &[])
     }
 }
 
@@ -350,7 +365,7 @@ mod covers_both_trees {
     }
 
     impl ProcessRunner for FakeProcess {
-        fn run(&self, program: &str, arguments: &[String]) -> Result<Vec<u8>> {
+        fn run(&self, program: &str, arguments: &[String], _stdin: &[u8]) -> Result<Vec<u8>> {
             self.invocations
                 .lock()
                 .expect("record pg_dump invocation")
@@ -494,7 +509,7 @@ mod retention {
     struct FakeProcess;
 
     impl ProcessRunner for FakeProcess {
-        fn run(&self, _: &str, _: &[String]) -> Result<Vec<u8>> {
+        fn run(&self, _: &str, _: &[String], _: &[u8]) -> Result<Vec<u8>> {
             Ok(b"-- PostgreSQL database dump\n".to_vec())
         }
     }

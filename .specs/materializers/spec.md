@@ -54,7 +54,7 @@ from copying a directory, so it proves the contract at its hardest point.
 
 ## Acceptance
 
-1. All six strategies are implemented in `crates/locus-core/src/materialize/` and name no harness.
+1. All six strategies are implemented in `crates/locus-core/src/harness/materialize/` and name no harness.
 2. Materializing the same agent twice produces byte-identical trees — `diff -r` is empty.
 3. A materializer that emits a timestamp fails a determinism test.
 4. Generated file order and in-file list order are both sorted, asserted independently.

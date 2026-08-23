@@ -1,14 +1,15 @@
 //! Human escalation owned by the core rather than the in-container CLI.
 
+use crate::ids::{ProjectId, RunId, SessionId};
 use anyhow::{bail, Result};
 use uuid::Uuid;
 
 /// The durable context required to deliver an agent's question to a human.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AskRequest {
-    pub project_id: Uuid,
-    pub session_id: Uuid,
-    pub run_id: Uuid,
+    pub project_id: ProjectId,
+    pub session_id: SessionId,
+    pub run_id: RunId,
     pub question: String,
 }
 
@@ -16,24 +17,25 @@ pub struct AskRequest {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AskReceipt {
     pub delivery_id: Uuid,
-    pub session_id: Uuid,
+    pub session_id: SessionId,
     pub waiting: bool,
 }
 
 /// Storage boundary for the human inbox and the run's active wait.
+///
+/// Implementations persist both changes in one transaction, so a failed wait-state update cannot
+/// leave an unanswered question filed for a run that is still active.
 pub trait HumanInbox {
-    fn deliver_question(&self, request: &AskRequest) -> Result<Uuid>;
-    fn mark_waiting(&self, run_id: Uuid, reason: &str) -> Result<()>;
+    fn deliver_and_mark_waiting(&self, request: &AskRequest) -> Result<Uuid>;
 }
 
-/// Files an inbox item attached to the originating session, then blocks its run.
+/// Atomically files an inbox item attached to the originating session and blocks its run.
 pub fn ask(inbox: &impl HumanInbox, request: AskRequest) -> Result<AskReceipt> {
     if request.question.trim().is_empty() {
         bail!("ask question must not be empty")
     }
 
-    let delivery_id = inbox.deliver_question(&request)?;
-    inbox.mark_waiting(request.run_id, "ask")?;
+    let delivery_id = inbox.deliver_and_mark_waiting(&request)?;
     Ok(AskReceipt {
         delivery_id,
         session_id: request.session_id,
@@ -43,6 +45,7 @@ pub fn ask(inbox: &impl HumanInbox, request: AskRequest) -> Result<AskReceipt> {
 
 #[cfg(test)]
 mod reaches_inbox {
+    use crate::ids::{ProjectId, RunId, SessionId};
     use std::sync::Mutex;
 
     use super::*;
@@ -50,18 +53,17 @@ mod reaches_inbox {
     #[derive(Default)]
     struct RecordingInbox {
         delivered: Mutex<Vec<AskRequest>>,
-        waits: Mutex<Vec<(Uuid, String)>>,
+        waits: Mutex<Vec<(RunId, String)>>,
     }
 
     impl HumanInbox for RecordingInbox {
-        fn deliver_question(&self, request: &AskRequest) -> Result<Uuid> {
+        fn deliver_and_mark_waiting(&self, request: &AskRequest) -> Result<Uuid> {
             self.delivered.lock().unwrap().push(request.clone());
+            self.waits
+                .lock()
+                .unwrap()
+                .push((request.run_id, "ask".into()));
             Ok(Uuid::nil())
-        }
-
-        fn mark_waiting(&self, run_id: Uuid, reason: &str) -> Result<()> {
-            self.waits.lock().unwrap().push((run_id, reason.into()));
-            Ok(())
         }
     }
 
@@ -69,9 +71,9 @@ mod reaches_inbox {
     fn files_the_question_in_the_human_inbox_with_its_session_then_blocks() {
         let inbox = RecordingInbox::default();
         let request = AskRequest {
-            project_id: Uuid::new_v4(),
-            session_id: Uuid::new_v4(),
-            run_id: Uuid::new_v4(),
+            project_id: ProjectId::generate(),
+            session_id: SessionId::generate(),
+            run_id: RunId::generate(),
             question: "Which deployment window should I use?".into(),
         };
 

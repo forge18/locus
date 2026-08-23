@@ -3,6 +3,22 @@
 //! The registry describes where a harness consumes an extension. This module applies those
 //! declarations to an authored extension set without naming any individual harness.
 
+pub mod extensions;
+pub mod plugin;
+pub mod report;
+pub mod strategy;
+pub mod tree;
+
+#[cfg(test)]
+use crate::harness::materialize::{extensions::EXTENSIONS, report::reports_for_registry};
+use crate::harness::materialize::{
+    extensions::{ExtensionEntry, ExtensionSet, ProjectExtensionScope},
+    plugin::PluginHost,
+    report::{MaterializationLoss, MaterializationReport},
+    strategy::{DirStrategy, EntriesInStrategy, ListedInStrategy, MergedIntoStrategy, Strategy},
+    tree::{CoreDrivenEvent, GeneratedFile, MaterializedTree},
+};
+use crate::harness::registry::Via;
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
@@ -19,368 +35,6 @@ use crate::{
     services::lint::validate_filenames,
 };
 
-pub const EXTENSIONS: [&str; 8] = [
-    "agents",
-    "commands",
-    "hooks",
-    "linters",
-    "output-styles",
-    "rules",
-    "skills",
-    "context",
-];
-
-/// One authored extension file. `frontmatter` and `body` are the plugin-facing representation;
-/// `raw` preserves an authored file for the `dir` strategy.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct ExtensionEntry {
-    pub name: String,
-    #[serde(default)]
-    pub frontmatter: Value,
-    #[serde(default)]
-    pub body: String,
-    #[serde(skip)]
-    pub raw: Option<String>,
-}
-
-impl ExtensionEntry {
-    pub fn new(name: impl Into<String>, frontmatter: Value, body: impl Into<String>) -> Self {
-        Self {
-            name: name.into(),
-            frontmatter,
-            body: body.into(),
-            raw: None,
-        }
-    }
-
-    pub fn with_raw(mut self, raw: impl Into<String>) -> Self {
-        self.raw = Some(raw.into());
-        self
-    }
-
-    fn content(&self, strip_frontmatter: bool) -> String {
-        if strip_frontmatter || self.frontmatter.is_null() || self.frontmatter == json!({}) {
-            return self.body.clone();
-        }
-        if let Some(raw) = &self.raw {
-            return raw.clone();
-        }
-        format!(
-            "---\n{}\n---\n{}",
-            serde_json::to_string(&self.frontmatter).expect("JSON frontmatter serializes"),
-            self.body
-        )
-    }
-}
-
-/// Authored files grouped by the extension type that owns them.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct ExtensionSet {
-    entries: BTreeMap<String, Vec<ExtensionEntry>>,
-}
-
-/// Project toggles can remove extension groups or individual entries, but cannot add authored
-/// extensions to a run.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ProjectExtensionScope {
-    #[serde(default)]
-    disabled_extensions: BTreeSet<String>,
-    #[serde(default)]
-    disabled_entries: BTreeMap<String, BTreeSet<String>>,
-}
-
-impl ProjectExtensionScope {
-    pub fn disable_extension(&mut self, extension: impl Into<String>) {
-        self.disabled_extensions.insert(extension.into());
-    }
-
-    pub fn disable_entry(&mut self, extension: impl Into<String>, entry: impl Into<String>) {
-        self.disabled_entries
-            .entry(extension.into())
-            .or_default()
-            .insert(entry.into());
-    }
-
-    fn includes(&self, extension: &str, entry: &str) -> bool {
-        !self.disabled_extensions.contains(extension)
-            && !self
-                .disabled_entries
-                .get(extension)
-                .is_some_and(|entries| entries.contains(entry))
-    }
-}
-
-impl ExtensionSet {
-    pub fn insert(&mut self, extension: impl Into<String>, entries: Vec<ExtensionEntry>) {
-        self.entries.insert(extension.into(), entries);
-    }
-
-    /// Return the authored extensions after applying project-only subtraction.
-    pub fn project_scoped(&self, scope: &ProjectExtensionScope) -> Self {
-        Self {
-            entries: self
-                .entries
-                .iter()
-                .filter(|(extension, _)| !scope.disabled_extensions.contains(*extension))
-                .map(|(extension, entries)| {
-                    (
-                        extension.clone(),
-                        entries
-                            .iter()
-                            .filter(|entry| scope.includes(extension, &entry.name))
-                            .cloned()
-                            .collect(),
-                    )
-                })
-                .collect(),
-        }
-    }
-
-    pub fn entries(&self, extension: &str) -> &[ExtensionEntry] {
-        self.entries
-            .get(extension)
-            .map(Vec::as_slice)
-            .unwrap_or_default()
-    }
-
-    pub fn sorted_entries(&self, extension: &str) -> Vec<&ExtensionEntry> {
-        let mut entries = self.entries(extension).iter().collect::<Vec<_>>();
-        entries.sort_by(|left, right| left.name.cmp(&right.name));
-        entries
-    }
-}
-
-/// A generated file held in memory until core writes it to the run tree.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct GeneratedFile {
-    pub path: PathBuf,
-    pub mode: u32,
-    pub content: String,
-}
-
-/// Events that core, rather than a harness, must fire at a run boundary.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct CoreDrivenEvent {
-    pub extension: String,
-    pub events: Vec<String>,
-}
-
-/// A complete materialization result.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct MaterializedTree {
-    files: BTreeMap<PathBuf, GeneratedFile>,
-    pub core_driven: Vec<CoreDrivenEvent>,
-}
-
-impl MaterializedTree {
-    pub fn files(&self) -> impl Iterator<Item = &GeneratedFile> {
-        self.files.values()
-    }
-
-    pub fn file(&self, path: impl AsRef<Path>) -> Option<&GeneratedFile> {
-        self.files.get(path.as_ref())
-    }
-
-    fn put(&mut self, file: GeneratedFile) -> Result<(), MaterializeError> {
-        let path = relative_path(&file.path)?;
-        self.files
-            .insert(path.clone(), GeneratedFile { path, ..file });
-        Ok(())
-    }
-
-    fn append(&mut self, path: PathBuf, content: String) -> Result<(), MaterializeError> {
-        let path = relative_path(&path)?;
-        if let Some(file) = self.files.get_mut(&path) {
-            if !file.content.is_empty() && !content.is_empty() {
-                file.content.push_str("\n\n");
-            }
-            file.content.push_str(&content);
-        } else {
-            self.put(GeneratedFile {
-                path,
-                mode: 0o644,
-                content,
-            })?;
-        }
-        Ok(())
-    }
-
-    /// Core is the sole writer. Once written, freeze the tree for the run lifetime.
-    pub fn write_to(&self, root: impl AsRef<Path>) -> Result<(), MaterializeError> {
-        let root = root.as_ref();
-        fs::create_dir_all(root).map_err(|source| MaterializeError::Write {
-            path: root.to_path_buf(),
-            source,
-        })?;
-        for file in self.files.values() {
-            let path = root.join(&file.path);
-            if let Some(parent) = path.parent() {
-                fs::create_dir_all(parent).map_err(|source| MaterializeError::Write {
-                    path: parent.to_path_buf(),
-                    source,
-                })?;
-            }
-            fs::write(&path, &file.content).map_err(|source| MaterializeError::Write {
-                path: path.clone(),
-                source,
-            })?;
-            set_mode(&path, file.mode)?;
-        }
-        freeze(root)
-    }
-}
-
-/// A loss in native behavior that the Extensions screen must show.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct MaterializationLoss {
-    pub extension: String,
-    pub weaker_than_native: String,
-}
-
-/// The registry-derived report displayed by the Extensions screen.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct MaterializationReport {
-    pub harness: String,
-    pub losses: Vec<MaterializationLoss>,
-}
-
-pub fn reports_for_registry(registry: &HarnessRegistry) -> Vec<MaterializationReport> {
-    registry
-        .iter()
-        .map(|harness| MaterializationReport {
-            harness: harness.name.clone(),
-            losses: harness
-                .layout
-                .named_entries()
-                .into_iter()
-                .filter_map(|(extension, entry)| {
-                    entry
-                        .weaker_than_native
-                        .as_ref()
-                        .map(|loss| MaterializationLoss {
-                            extension: extension.into(),
-                            weaker_than_native: loss.clone(),
-                        })
-                })
-                .collect(),
-        })
-        .collect()
-}
-
-/// A generic strategy can turn one extension's entries into generated files.
-pub trait Strategy {
-    fn materialize(
-        &self,
-        entries: &[&ExtensionEntry],
-        tree: &mut MaterializedTree,
-    ) -> Result<(), MaterializeError>;
-}
-
-/// Copy files into a declared directory, optionally flattening and renaming them.
-pub struct DirStrategy {
-    pub dir: PathBuf,
-    pub suffix: Option<String>,
-    pub flat: bool,
-}
-
-impl Strategy for DirStrategy {
-    fn materialize(
-        &self,
-        entries: &[&ExtensionEntry],
-        tree: &mut MaterializedTree,
-    ) -> Result<(), MaterializeError> {
-        for entry in entries {
-            let name = output_name(&entry.name, self.suffix.as_deref(), self.flat)?;
-            tree.put(GeneratedFile {
-                path: self.dir.join(name),
-                mode: 0o644,
-                content: entry.content(false),
-            })?;
-        }
-        Ok(())
-    }
-}
-
-/// Render entries as deterministic prose in one target file.
-pub struct MergedIntoStrategy {
-    pub target: PathBuf,
-    pub strip_frontmatter: bool,
-}
-
-impl Strategy for MergedIntoStrategy {
-    fn materialize(
-        &self,
-        entries: &[&ExtensionEntry],
-        tree: &mut MaterializedTree,
-    ) -> Result<(), MaterializeError> {
-        let content = entries
-            .iter()
-            .map(|entry| {
-                format!(
-                    "# {}\n{}",
-                    entry.name,
-                    entry.content(self.strip_frontmatter)
-                )
-            })
-            .collect::<Vec<_>>()
-            .join("\n\n");
-        tree.append(self.target.clone(), content)
-    }
-}
-
-/// Write deterministic paths into a JSON config key.
-pub struct ListedInStrategy {
-    pub target: PathBuf,
-    pub key: String,
-    pub paths: Vec<String>,
-}
-
-impl Strategy for ListedInStrategy {
-    fn materialize(
-        &self,
-        _entries: &[&ExtensionEntry],
-        tree: &mut MaterializedTree,
-    ) -> Result<(), MaterializeError> {
-        update_json_list(tree, &self.target, &self.key, self.paths.clone())
-    }
-}
-
-/// Convert each entry into a structured config entry.
-pub struct EntriesInStrategy {
-    pub target: PathBuf,
-    pub key: Option<String>,
-    pub paths: Vec<String>,
-}
-
-impl Strategy for EntriesInStrategy {
-    fn materialize(
-        &self,
-        entries: &[&ExtensionEntry],
-        tree: &mut MaterializedTree,
-    ) -> Result<(), MaterializeError> {
-        let values = entries
-            .iter()
-            .zip(&self.paths)
-            .map(|(entry, path)| {
-                json!({
-                    "name": entry.name,
-                    "path": path,
-                    "frontmatter": entry.frontmatter,
-                    "body": entry.body,
-                })
-            })
-            .collect::<Vec<_>>();
-        update_json_value(
-            tree,
-            &self.target,
-            self.key.as_deref().unwrap_or("entries"),
-            Value::Array(values),
-        )
-    }
-}
-
 /// Errors that preserve why a run configuration could not be created.
 #[derive(Debug, thiserror::Error)]
 pub enum MaterializeError {
@@ -391,8 +45,6 @@ pub enum MaterializeError {
         extension: String,
         field: &'static str,
     },
-    #[error("unsupported materialization strategy `{0}`")]
-    UnsupportedStrategy(String),
     #[error("generated path `{0}` escapes the materialization root")]
     PathEscape(PathBuf),
     #[error("plugin wrote directly to the materialization root")]
@@ -413,139 +65,6 @@ pub enum MaterializeError {
     NonDeterministic,
     #[error("invalid linter definition: {0}")]
     InvalidLinter(String),
-}
-
-/// Plugin invocation settings. The plugin returns data; it never owns the config tree.
-#[derive(Clone, Debug)]
-pub struct PluginHost {
-    pub program: PathBuf,
-    pub args: Vec<String>,
-}
-
-#[derive(Debug, Serialize)]
-struct PluginRequest<'a> {
-    jsonrpc: &'static str,
-    id: u8,
-    method: &'static str,
-    params: PluginParams<'a>,
-}
-
-#[derive(Debug, Serialize)]
-struct PluginParams<'a> {
-    harness: &'a str,
-    extension: &'a str,
-    root: String,
-    entries: Vec<&'a ExtensionEntry>,
-    extensions: BTreeMap<&'a str, Vec<&'a ExtensionEntry>>,
-}
-
-#[derive(Debug, Deserialize)]
-struct PluginResponse {
-    #[serde(default)]
-    result: Option<PluginResult>,
-    #[serde(default)]
-    files: Vec<PluginFile>,
-}
-
-#[derive(Debug, Deserialize)]
-struct PluginResult {
-    #[serde(default)]
-    files: Vec<PluginFile>,
-}
-
-#[derive(Debug, Deserialize)]
-struct PluginFile {
-    path: PathBuf,
-    #[serde(default = "default_mode")]
-    mode: u32,
-    content: String,
-}
-
-const fn default_mode() -> u32 {
-    0o644
-}
-
-impl PluginHost {
-    /// Invoke one plugin once for the complete plugin extension set of a run.
-    fn materialize(
-        &self,
-        harness: &str,
-        root: &Path,
-        extensions: BTreeMap<&str, Vec<&ExtensionEntry>>,
-    ) -> Result<Vec<GeneratedFile>, MaterializeError> {
-        let before = snapshot(root)?;
-        let entries = extensions.values().flatten().copied().collect();
-        let request = PluginRequest {
-            jsonrpc: "2.0",
-            id: 1,
-            method: "materialize",
-            params: PluginParams {
-                harness,
-                extension: "all",
-                root: root.display().to_string(),
-                entries,
-                extensions,
-            },
-        };
-        let mut child = Command::new(&self.program)
-            .args(&self.args)
-            .env("ROOT", root)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|source| MaterializeError::PluginFailed {
-                program: self.program.clone(),
-                message: source.to_string(),
-            })?;
-        child
-            .stdin
-            .take()
-            .expect("piped stdin exists")
-            .write_all(
-                format!(
-                    "{}\n",
-                    serde_json::to_string(&request).expect("request serializes")
-                )
-                .as_bytes(),
-            )
-            .map_err(|source| MaterializeError::PluginFailed {
-                program: self.program.clone(),
-                message: source.to_string(),
-            })?;
-        let output = child
-            .wait_with_output()
-            .map_err(|source| MaterializeError::PluginFailed {
-                program: self.program.clone(),
-                message: source.to_string(),
-            })?;
-        if snapshot(root)? != before {
-            restore_snapshot(root, &before)?;
-            return Err(MaterializeError::PluginWroteDirectly);
-        }
-        if !output.status.success() {
-            return Err(MaterializeError::PluginFailed {
-                program: self.program.clone(),
-                message: String::from_utf8_lossy(&output.stderr).trim().into(),
-            });
-        }
-        let response: PluginResponse = serde_json::from_slice(&output.stdout)?;
-        let files = response
-            .result
-            .map(|result| result.files)
-            .unwrap_or(response.files);
-        files
-            .into_iter()
-            .map(|file| {
-                let path = path_under_root(root, &file.path)?;
-                Ok(GeneratedFile {
-                    path,
-                    mode: file.mode,
-                    content: file.content,
-                })
-            })
-            .collect()
-    }
 }
 
 /// Materialize all eight extensions according to one registry declaration.
@@ -586,31 +105,32 @@ pub fn materialize(
             validate_filenames(entries.iter().map(|entry| &entry.name))
                 .map_err(|error| MaterializeError::InvalidLinter(error.to_string()))?;
         }
-        match entry.via.as_str() {
-            "dir" => materialize_dir(extension, entry, &entries, root, &mut tree)?,
-            "listed-in" => {
-                materialize_dir(extension, entry, &entries, root, &mut tree)?;
+        // Pass one writes the files. `merged-into` and `listed-in` need them to exist
+        // already, so their work happens in pass two below.
+        match entry.via {
+            Via::Dir | Via::ListedIn => {
+                materialize_dir(extension, entry, &entries, root, &mut tree)?
             }
-            "entries-in" => materialize_entry_files(extension, entry, &entries, root, &mut tree)?,
-            "plugin" => {
+            Via::EntriesIn => materialize_entry_files(extension, entry, &entries, root, &mut tree)?,
+            Via::Plugin => {
                 plugin_entries.insert(extension, entries);
             }
-            "core-driven" => tree.core_driven.push(CoreDrivenEvent {
+            Via::CoreDriven => tree.core_driven.push(CoreDrivenEvent {
                 extension: extension.into(),
                 events: entry
                     .events
                     .clone()
                     .unwrap_or_else(|| vec!["session_start".into(), "session_end".into()]),
             }),
-            "merged-into" => {}
-            strategy => return Err(MaterializeError::UnsupportedStrategy(strategy.into())),
+            Via::MergedInto => {}
         }
     }
 
     for (extension, entry) in harness.layout.named_entries() {
         let entries = extensions.sorted_entries(extension);
-        match entry.via.as_str() {
-            "merged-into" => {
+        // Pass two appends into files pass one created.
+        match entry.via {
+            Via::MergedInto => {
                 let target = merge_target(harness, entry, root, extension)?;
                 MergedIntoStrategy {
                     target,
@@ -618,7 +138,7 @@ pub fn materialize(
                 }
                 .materialize(&entries, &mut tree)?;
             }
-            "listed-in" => {
+            Via::ListedIn => {
                 let target = layout_target(entry, root, extension)?;
                 let logical_dir =
                     entry
@@ -646,7 +166,7 @@ pub fn materialize(
                 }
                 .materialize(&entries, &mut tree)?;
             }
-            "dir" => {
+            Via::Dir => {
                 if let (Some(target), Some(key), Some(active)) =
                     (&entry.target, &entry.key, &entry.active)
                 {
@@ -658,7 +178,7 @@ pub fn materialize(
                     )?;
                 }
             }
-            _ => {}
+            Via::EntriesIn | Via::Plugin | Via::CoreDriven => {}
         }
     }
 
@@ -1054,19 +574,23 @@ fn restore_snapshot(
     Ok(())
 }
 
+/// Make the materialized tree read-only.
+///
+/// The tree is the model's prompt prefix. Freezing it is why a buggy agent cannot rewrite
+/// its own configuration mid-run and quietly cost every later run its cache.
+///
+/// Windows is weaker than Unix here and the difference is real: `set_readonly` protects
+/// files, but a read-only directory on Windows still accepts new entries, so a file can
+/// be *added* to a frozen tree there. Nothing in Locus does that; the guarantee is
+/// narrower, not absent. Tauri targets Windows, so this must not be a silent no-op.
 fn freeze(root: &Path) -> Result<(), MaterializeError> {
-    #[cfg(unix)]
-    set_tree_modes(root, 0o555, 0o444)?;
-    Ok(())
+    set_tree_modes(root, 0o555, 0o444)
 }
 
 fn make_writable(root: &Path) -> Result<(), MaterializeError> {
-    #[cfg(unix)]
-    set_tree_modes(root, 0o755, 0o644)?;
-    Ok(())
+    set_tree_modes(root, 0o755, 0o644)
 }
 
-#[cfg(unix)]
 fn set_tree_modes(
     root: &Path,
     directory_mode: u32,
@@ -1094,18 +618,28 @@ fn set_tree_modes(
     set_mode(root, directory_mode)
 }
 
+/// Apply one POSIX mode, or its nearest Windows equivalent.
 fn set_mode(path: &Path, mode: u32) -> Result<(), MaterializeError> {
+    let write = |source| MaterializeError::Write {
+        path: path.into(),
+        source,
+    };
+
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(path, fs::Permissions::from_mode(mode)).map_err(|source| {
-            MaterializeError::Write {
-                path: path.into(),
-                source,
-            }
-        })?;
+        fs::set_permissions(path, fs::Permissions::from_mode(mode)).map_err(write)?;
     }
-    let _ = mode;
+
+    #[cfg(not(unix))]
+    {
+        // Windows has no mode bits, only a read-only attribute. The owner-write bit is
+        // what the callers vary, so that is what maps.
+        let mut permissions = fs::metadata(path).map_err(write)?.permissions();
+        permissions.set_readonly(mode & 0o200 == 0);
+        fs::set_permissions(path, permissions).map_err(write)?;
+    }
+
     Ok(())
 }
 
@@ -1452,7 +986,6 @@ fn ci_detects_timestamp() {
 }
 
 #[test]
-#[cfg(unix)]
 fn tree_is_frozen() {
     let root = root("frozen");
     let mut tree = MaterializedTree::default();
@@ -1463,17 +996,26 @@ fn tree_is_frozen() {
     })
     .expect("file");
     tree.write_to(&root).expect("write and freeze");
-    let mode = {
-        use std::os::unix::fs::PermissionsExt;
-        fs::metadata(root.join("rules/fixed.md"))
-            .expect("file")
-            .permissions()
-            .mode()
-            & 0o777
-    };
-    assert_eq!(mode, 0o444);
-    assert!(fs::write(root.join("rules/mid-run.md"), "blocked").is_err());
+
+    // The property that matters on every platform: a materialized file cannot be
+    // rewritten mid-run. Asserted by trying, not by reading mode bits, so this covers
+    // Windows — where `freeze` maps to the read-only attribute — as well as Unix.
+    let fixed = root.join("rules/fixed.md");
+    assert!(
+        fs::write(&fixed, "rewritten").is_err(),
+        "a frozen file accepted a write"
+    );
+    assert_eq!(fs::read_to_string(&fixed).expect("read back"), "fixed");
+    assert!(
+        fs::metadata(&fixed).expect("file").permissions().readonly(),
+        "a frozen file is not marked read-only"
+    );
+
     make_writable(&root).expect("cleanup");
+    assert!(
+        fs::write(&fixed, "rewritten").is_ok(),
+        "thaw did not restore writes"
+    );
     let _ = fs::remove_dir_all(root);
 }
 
@@ -1605,7 +1147,7 @@ fn all_registered_harnesses_all_eight() {
             .layout
             .named_entries()
             .iter()
-            .any(|(_, entry)| entry.via == "plugin")
+            .any(|(_, entry)| entry.via == Via::Plugin)
             .then(|| PluginHost {
                 program: PathBuf::from(env!("CARGO_MANIFEST_DIR"))
                     .join("../../harnesses/pi/materialize"),
@@ -1662,7 +1204,7 @@ mod lint {
                 .layout
                 .named_entries()
                 .iter()
-                .any(|(_, entry)| entry.via == "plugin")
+                .any(|(_, entry)| entry.via == Via::Plugin)
                 .then(|| PluginHost {
                     program: PathBuf::from(env!("CARGO_MANIFEST_DIR"))
                         .join("../../harnesses/pi/materialize"),

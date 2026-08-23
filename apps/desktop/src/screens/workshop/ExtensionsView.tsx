@@ -1,6 +1,7 @@
 import { createSignal, For, onMount, Show } from "solid-js";
 import { Button } from "../../ui/Button";
 import { Icon } from "../../ui/Icon";
+import { InlineError } from "../../ui/InlineError";
 import { Input } from "../../ui/Input";
 import { Tag } from "../../ui/Tag";
 import {
@@ -30,11 +31,12 @@ export function ExtensionsView(props: ExtensionsViewProps) {
   const counts = useExtensionCounts();
   const summary = useHarnessSummary();
   const [linterCount, setLinterCount] = createSignal<number>();
+  const [loadError, setLoadError] = createSignal<string | null>(null);
 
   onMount(() => {
     void fetchLinterCountFromCore()
-      .then(setLinterCount)
-      .catch(() => {});
+      .then((count) => setLinterCount(count))
+      .catch((e) => setLoadError(e instanceof Error ? e.message : String(e)));
   });
 
   const countFor = (type: string) => counts.find((c) => c.type === type)!;
@@ -43,6 +45,14 @@ export function ExtensionsView(props: ExtensionsViewProps) {
 
   return (
     <div class="workshop" data-testid="extensions">
+      <Show when={loadError()}>
+        <div data-testid="extensions-error">
+          <InlineError
+            cause={loadError()!}
+            next="Retry the connection to core, or check the core daemon."
+          />
+        </div>
+      </Show>
       <header class="ws-head" data-testid="extensions-head">
         <span class="ws-title" data-testid="extensions-title">
           {HEADER_TITLE}

@@ -96,9 +96,12 @@ mod provider {
 
     #[test]
     fn container_has_no_secret() {
-        let proxy = locus_core::sandbox::CredentialProxy::new("provider-secret", "api_key");
+        let proxy = locus_core::sandbox::credential_proxy::CredentialProxy::new(
+            "provider-secret",
+            "api_key",
+        );
         let environment = proxy.container_environment("run-nonce");
-        assert!(locus_core::sandbox::no_long_lived_secret(
+        assert!(locus_core::sandbox::credential_proxy::no_long_lived_secret(
             "provider-secret",
             &environment,
             &[]

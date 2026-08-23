@@ -43,6 +43,17 @@ jobs:
       - name: Desktop build
         run: pnpm -C apps/desktop build
 
+      - name: locusd starts and serves its socket
+        run: |
+          LOCUS_HARNESS_REGISTRY=harnesses LOCUS_SOCKET_PATH=/tmp/locusd-ci.sock \
+            cargo run -p locus-cli --bin locusd &
+          for _ in $(seq 1 30); do
+            [ -S /tmp/locusd-ci.sock ] && break
+            sleep 1
+          done
+          test -S /tmp/locusd-ci.sock || { echo 'locusd never bound its socket' >&2; exit 1; }
+          kill %1
+
       - name: Harness registry lint
         run: cargo run -p locus-cli -- harness lint
 
@@ -51,11 +62,12 @@ jobs:
 
       - name: Per-harness canary smoke
         run: |
-          bash scripts/run-named-test.sh locus-core smoke::all_registered_harnesses --ignored
-          bash scripts/run-named-test.sh locus-core smoke::isolates_failure --ignored
+          bash scripts/run-named-test.sh locus-core all_registered_harnesses --ignored
+          bash scripts/run-named-test.sh locus-core isolates_failure --ignored
 
       - name: Architecture invariants
         run: |
           bash scripts/check-no-harness-names-in-core.sh
+          bash scripts/check-layering.sh
           bash scripts/check-lint-not-in-hooks.sh
           bash scripts/check-no-silent-skips.sh

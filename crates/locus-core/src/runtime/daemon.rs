@@ -1,5 +1,6 @@
 //! Headless daemon lifetime and the authenticated agent socket.
 
+use crate::ids::RunId;
 use std::{
     collections::{BTreeMap, BTreeSet},
     path::Path,
@@ -12,11 +13,11 @@ use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{UnixListener, UnixStream},
 };
-use uuid::Uuid;
 
 use crate::{
     runtime::{
-        run::{self, ContainerRuntime, SpawnRequest, SpawnedRun},
+        container::ContainerRuntime,
+        run::{self, SpawnRequest, SpawnedRun},
         session::Run,
     },
     store::Store,
@@ -27,7 +28,7 @@ const MAX_AGENT_SOCKET_FRAME_BYTES: u32 = 1_048_576;
 /// `locusd` owns active runs. Desktop windows attach and detach without owning them.
 #[derive(Default)]
 pub struct Daemon {
-    active_runs: BTreeSet<Uuid>,
+    active_runs: BTreeSet<RunId>,
     attached_windows: usize,
 }
 
@@ -38,13 +39,13 @@ impl Daemon {
     pub fn detach_window(&mut self) {
         self.attached_windows = self.attached_windows.saturating_sub(1);
     }
-    pub fn begin_run(&mut self, run_id: Uuid) {
+    pub fn begin_run(&mut self, run_id: RunId) {
         self.active_runs.insert(run_id);
     }
-    pub fn finish_run(&mut self, run_id: Uuid) {
+    pub fn finish_run(&mut self, run_id: RunId) {
         self.active_runs.remove(&run_id);
     }
-    pub fn tracks(&self, run_id: Uuid) -> bool {
+    pub fn tracks(&self, run_id: RunId) -> bool {
         self.active_runs.contains(&run_id)
     }
     pub fn attached_windows(&self) -> usize {
@@ -82,7 +83,7 @@ struct AgentSocketResponse {
 
 /// Domain routing remains in the core, never in the container CLI.
 pub trait AgentSocketRouter: Send + Sync {
-    fn route(&self, run_id: Uuid, verb: &str, args: &[String]) -> Result<Value>;
+    fn route(&self, run_id: RunId, verb: &str, args: &[String]) -> Result<Value>;
 }
 
 /// Bind a daemon-owned socket. Its parent must be host-owned and inaccessible to agents.
@@ -99,7 +100,7 @@ pub fn bind_agent_socket(path: impl AsRef<Path>) -> Result<UnixListener> {
 /// this in its accept loop and retains the capability map for the run's lifetime.
 pub async fn serve_agent_socket_once(
     listener: &UnixListener,
-    capabilities: &BTreeMap<String, Uuid>,
+    capabilities: &BTreeMap<String, RunId>,
     router: &impl AgentSocketRouter,
 ) -> Result<()> {
     let (mut stream, _) = listener
@@ -124,6 +125,24 @@ pub async fn serve_agent_socket_once(
         },
     };
     write_frame(&mut stream, &response).await
+}
+
+/// The accept loop `serve_agent_socket_once` was always meant to sit inside.
+///
+/// One connection at a time: the agent CLI is request/response and a run makes one call
+/// at a time, so concurrency here would buy nothing and would let one agent's slow verb
+/// hide another's. A connection that fails is logged and dropped — a malformed frame from
+/// one container must not take the daemon down for every other run.
+pub async fn serve_agent_socket(
+    listener: &UnixListener,
+    capabilities: &BTreeMap<String, RunId>,
+    router: &impl AgentSocketRouter,
+) -> Result<()> {
+    loop {
+        if let Err(error) = serve_agent_socket_once(listener, capabilities, router).await {
+            tracing::warn!(%error, "agent socket request failed");
+        }
+    }
 }
 
 async fn read_frame<T: serde::de::DeserializeOwned>(stream: &mut UnixStream) -> Result<T> {
@@ -159,10 +178,10 @@ async fn write_frame<T: Serialize>(stream: &mut UnixStream, value: &T) -> Result
 #[cfg(test)]
 mod outlives_window {
     use super::Daemon;
-    use uuid::Uuid;
+    use crate::ids::RunId;
     #[test]
     fn background_daemon_keeps_runs_when_the_last_window_closes() {
-        let run_id = Uuid::new_v4();
+        let run_id = RunId::generate();
         let mut daemon = Daemon::default();
         daemon.attach_window();
         daemon.begin_run(run_id);
@@ -178,6 +197,7 @@ mod agent_socket {
         bind_agent_socket, read_frame, serve_agent_socket_once, AgentSocketRouter,
         MAX_AGENT_SOCKET_FRAME_BYTES,
     };
+    use crate::ids::RunId;
     use anyhow::Result;
     use serde_json::json;
     use std::{collections::BTreeMap, path::PathBuf};
@@ -189,7 +209,7 @@ mod agent_socket {
 
     struct Router;
     impl AgentSocketRouter for Router {
-        fn route(&self, run_id: Uuid, verb: &str, _: &[String]) -> Result<serde_json::Value> {
+        fn route(&self, run_id: RunId, verb: &str, _: &[String]) -> Result<serde_json::Value> {
             Ok(json!({"run_id": run_id, "verb": verb}))
         }
     }
@@ -233,7 +253,7 @@ mod agent_socket {
     async fn routes_only_the_run_bound_to_its_capability() {
         let path = path();
         let listener = bind_agent_socket(&path).unwrap();
-        let run_id = Uuid::new_v4();
+        let run_id = RunId::generate();
         let capabilities = BTreeMap::from([("nonce".into(), run_id)]);
         let server = tokio::spawn(async move {
             serve_agent_socket_once(&listener, &capabilities, &Router)

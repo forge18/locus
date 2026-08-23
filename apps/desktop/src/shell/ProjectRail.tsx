@@ -17,6 +17,23 @@ const WORKSHOP_ROUTES = Desktop_GLOBAL_ROUTE_KINDS.filter((route) =>
   route.id.startsWith("workshop-"),
 );
 
+const isExpansionMap = (value: unknown): value is Record<string, boolean> =>
+  typeof value === "object" &&
+  value !== null &&
+  !Array.isArray(value) &&
+  Object.values(value).every((entry) => typeof entry === "boolean");
+
+const readExpansion = (): Record<string, boolean> => {
+  try {
+    const parsed: unknown = JSON.parse(
+      localStorage.getItem(RAIL_EXPANSION_STORAGE_KEY) ?? "{}",
+    );
+    return isExpansionMap(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
 export interface ProjectRailProps {
   selectedProject: string;
   inboxCount?: number;
@@ -26,10 +43,7 @@ export interface ProjectRailProps {
 }
 
 export function ProjectRail(props: ProjectRailProps) {
-  const savedExpansion = () =>
-    JSON.parse(
-      localStorage.getItem(RAIL_EXPANSION_STORAGE_KEY) ?? "{}",
-    ) as Record<string, boolean>;
+  const savedExpansion = readExpansion;
   const persistExpansion = (name: "memory" | "workshop", value: boolean) => {
     localStorage.setItem(
       RAIL_EXPANSION_STORAGE_KEY,
@@ -115,7 +129,10 @@ export function ProjectRail(props: ProjectRailProps) {
         <div data-testid="memory-rail-links" hidden={!memoryExpanded()}>
           <For each={MEMORY_ROUTES}>
             {(route) => (
-              <button type="button" onClick={() => props.onNavigate?.(destinationDesktop(route.id))}>
+              <button
+                type="button"
+                onClick={() => props.onNavigate?.(destinationDesktop(route.id))}
+              >
                 {route.label.replace("Memory ", "")}
               </button>
             )}
@@ -140,7 +157,10 @@ export function ProjectRail(props: ProjectRailProps) {
         <div data-testid="workshop-rail-links" hidden={!workshopExpanded()}>
           <For each={WORKSHOP_ROUTES}>
             {(route) => (
-              <button type="button" onClick={() => props.onNavigate?.(destinationDesktop(route.id))}>
+              <button
+                type="button"
+                onClick={() => props.onNavigate?.(destinationDesktop(route.id))}
+              >
                 {route.label.replace("Workshop ", "")}
               </button>
             )}
@@ -177,7 +197,9 @@ export function ProjectRail(props: ProjectRailProps) {
                 data-testid={`project-switcher-option-${project}`}
                 aria-selected={activeProject() === index()}
                 onClick={() =>
-                  props.onNavigate?.(destinationDesktop("plan-conversation", project))
+                  props.onNavigate?.(
+                    destinationDesktop("plan-conversation", project),
+                  )
                 }
               >
                 {project}
@@ -191,7 +213,9 @@ export function ProjectRail(props: ProjectRailProps) {
               <button
                 type="button"
                 onClick={() =>
-                  props.onNavigate?.(destinationDesktop(route, props.selectedProject))
+                  props.onNavigate?.(
+                    destinationDesktop(route, props.selectedProject),
+                  )
                 }
               >
                 {label}
