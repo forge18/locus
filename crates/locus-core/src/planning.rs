@@ -101,11 +101,31 @@ impl ApprovedPlan {
     }
 }
 
+/// The approved mapping mode used to calculate prospective board cards.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CardMode {
+    SpecOnly,
+    EveryTask,
+    SelectedCarveOuts,
+}
+
+impl CardMode {
+    pub fn card_count(self, selected_tasks: usize) -> usize {
+        match self {
+            Self::SpecOnly => 1,
+            Self::EveryTask => selected_tasks,
+            Self::SelectedCarveOuts => selected_tasks + 1,
+        }
+    }
+}
+
 /// A task in an approved plan that can become its own board-card draft.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlanTask {
     pub id: String,
     pub title: String,
+    pub role: String,
+    pub estimate_minutes: u32,
     pub dependencies: Vec<String>,
 }
 
@@ -114,8 +134,20 @@ impl PlanTask {
         Self {
             id: id.into(),
             title: title.into(),
+            role: String::new(),
+            estimate_minutes: 0,
             dependencies: Vec::new(),
         }
+    }
+
+    pub fn with_role(mut self, role: impl Into<String>) -> Self {
+        self.role = role.into();
+        self
+    }
+
+    pub fn with_estimate_minutes(mut self, estimate_minutes: u32) -> Self {
+        self.estimate_minutes = estimate_minutes;
+        self
     }
 
     /// Declare approved tasks that must complete before this task can start.
