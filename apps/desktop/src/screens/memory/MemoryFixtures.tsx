@@ -1,6 +1,7 @@
 import { For, type JSX } from 'solid-js'
 import { Button } from '../../ui/Button'
 import { Tag } from '../../ui/Tag'
+import { ARTIFACT_LOCATOR } from '../../data/artifacts'
 
 const resident = [
   ['base-context', '14%', '1.2k', 'cached'],
@@ -231,7 +232,7 @@ export function MemoryArtifactsFixture() {
         <div class="v2-memory-list"><div class="v2-memory-list-item">finding · ACP prior art</div><div class="v2-memory-list-item">payload · 62.4kB fetch</div></div>
       </aside>
       <section class="v2-memory-main">
-        <header class="v2-memory-title-row"><Tag>diff</Tag><h2>store/notify.rs</h2><code>locus://tapestry/artifact/a-7830</code><small>one viewer per kind · three entry points</small></header>
+        <header class="v2-memory-title-row"><Tag>diff</Tag><h2>store/notify.rs</h2><code>{ARTIFACT_LOCATOR}</code><small>one viewer per kind · three entry points</small></header>
         <pre class="v2-memory-diff">@@ -19,6 +19,7 @@ impl Store{`\n`}  pub async fn notify(&self, ch: &str, id: Uuid){`\n`}<ins>+ // NOTIFY carries an id only — cap is 8000 bytes</ins>{`\n`}<del>- .bind(serde_json::to_string(&row)?)</del>{`\n`}<ins>+ .bind(id.to_string())</ins>{`\n`}  .execute(&self.pool).await?;</pre>
       </section>
       <aside class="v2-memory-right">

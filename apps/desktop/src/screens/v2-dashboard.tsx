@@ -1,4 +1,5 @@
 import { For } from 'solid-js'
+import { ARTIFACT_LOCATOR } from '../data/artifacts'
 import {
   V2_DASHBOARD_COUNTERS,
   V2_INBOX_ITEMS,
@@ -46,7 +47,7 @@ export function V2InboxView() {
       <section class="v2-inbox-detail">
         <header>
           <div><span class="v2-inbox-kind">plan</span><h1>Keyframe extraction for recordings</h1></div>
-          <p data-inbox-detail="evidence">locus://texere/artifact/a-7741 · builder@3 · role impl · Gate: human</p>
+          <p data-inbox-detail="evidence">{ARTIFACT_LOCATOR} · builder@3 · role impl · Gate: human</p>
         </header>
         <div class="v2-inbox-detail-body">
           <section>
