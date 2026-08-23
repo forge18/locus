@@ -16,6 +16,26 @@ use crate::store::Store;
 const SETTINGS_KEY: &str = "project_settings";
 const SETTINGS_VERSION: u16 = 1;
 
+/// A repository belongs to one project through `core.repos.project_id`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ProjectRepo {
+    pub name: String,
+    pub working_copy_path: String,
+}
+
+impl ProjectRepo {
+    pub fn new(name: impl Into<String>, working_copy_path: impl Into<String>) -> Result<Self> {
+        let repo = Self {
+            name: name.into(),
+            working_copy_path: working_copy_path.into(),
+        };
+        if repo.name.trim().is_empty() || repo.working_copy_path.trim().is_empty() {
+            bail!("project repo name and working-copy path must not be empty");
+        }
+        Ok(repo)
+    }
+}
+
 /// The persisted root for all project-local policy.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
