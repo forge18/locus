@@ -1,5 +1,7 @@
 //! Editable plan decomposition drafts, before final approval creates board cards.
 
+use std::collections::BTreeSet;
+
 use anyhow::{bail, Result};
 
 /// The ordered durable states of a planning conversation.
@@ -45,11 +47,12 @@ impl Requirement {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EditableSpec {
     requirements: Vec<Requirement>,
+    changed_ids: BTreeSet<String>,
 }
 
 impl EditableSpec {
     pub fn new(requirements: impl IntoIterator<Item = Requirement>) -> Result<Self> {
-        let spec = Self { requirements: requirements.into_iter().collect() };
+        let spec = Self { requirements: requirements.into_iter().collect(), changed_ids: BTreeSet::new() };
         if spec.requirements.iter().any(|requirement| requirement.id.trim().is_empty() || requirement.body.trim().is_empty())
             || spec.requirements.iter().enumerate().any(|(index, requirement)| spec.requirements[..index].iter().any(|other| other.id == requirement.id))
         {
@@ -64,7 +67,17 @@ impl EditableSpec {
         let body = body.into();
         if body.trim().is_empty() { bail!("requirement body must not be empty"); }
         requirement.body = body;
+        self.changed_ids.insert(id.into());
         Ok(())
+    }
+
+    /// Requirements that changed since the last targeted audit, in stable id order.
+    pub fn changed_requirements(&self) -> impl Iterator<Item = &Requirement> {
+        self.requirements.iter().filter(|requirement| self.changed_ids.contains(&requirement.id))
+    }
+
+    pub fn mark_reaudited(&mut self) {
+        self.changed_ids.clear();
     }
 
     pub fn requirement(&self, id: &str) -> Option<&Requirement> {
