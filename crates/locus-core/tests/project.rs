@@ -1,5 +1,5 @@
 mod project {
-    use locus_core::{materialize::ProjectExtensionScope, project::{ProjectRepo, ProjectSettings}};
+    use locus_core::{materialize::ProjectExtensionScope, project::{ProjectRepo, ProjectSettings}, tools::ProjectToolScope};
 
     #[test]
     fn settings_roundtrip() {
@@ -18,6 +18,14 @@ mod project {
         assert!(settings.permits_harness("claude"));
         assert!(settings.permits_harness("codex"));
         assert!(!settings.permits_harness("gemini"));
+    }
+
+    #[test]
+    fn tool_scope() {
+        let scope = ProjectToolScope::new(["psql"]);
+        let settings = ProjectSettings::new().with_tool_scope(scope.clone());
+
+        assert_eq!(settings.tool_scope(), &scope);
     }
 
     #[test]
