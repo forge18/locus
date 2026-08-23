@@ -28,6 +28,50 @@ impl PlanningStage {
     }
 }
 
+/// A stable requirement id and editable specification block.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Requirement {
+    pub id: String,
+    pub body: String,
+}
+
+impl Requirement {
+    pub fn new(id: impl Into<String>, body: impl Into<String>) -> Self {
+        Self { id: id.into(), body: body.into() }
+    }
+}
+
+/// A draft specification that retains requirement identities across edits.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EditableSpec {
+    requirements: Vec<Requirement>,
+}
+
+impl EditableSpec {
+    pub fn new(requirements: impl IntoIterator<Item = Requirement>) -> Result<Self> {
+        let spec = Self { requirements: requirements.into_iter().collect() };
+        if spec.requirements.iter().any(|requirement| requirement.id.trim().is_empty() || requirement.body.trim().is_empty())
+            || spec.requirements.iter().enumerate().any(|(index, requirement)| spec.requirements[..index].iter().any(|other| other.id == requirement.id))
+        {
+            bail!("requirements need unique nonempty ids and bodies");
+        }
+        Ok(spec)
+    }
+
+    pub fn edit(&mut self, id: &str, body: impl Into<String>) -> Result<()> {
+        let requirement = self.requirements.iter_mut().find(|requirement| requirement.id == id)
+            .ok_or_else(|| anyhow::anyhow!("requirement `{id}` does not exist"))?;
+        let body = body.into();
+        if body.trim().is_empty() { bail!("requirement body must not be empty"); }
+        requirement.body = body;
+        Ok(())
+    }
+
+    pub fn requirement(&self, id: &str) -> Option<&Requirement> {
+        self.requirements.iter().find(|requirement| requirement.id == id)
+    }
+}
+
 /// The approved planning inputs available for decomposition.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ApprovedPlan {
