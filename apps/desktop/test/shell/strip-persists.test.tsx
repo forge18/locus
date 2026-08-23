@@ -3,60 +3,37 @@ import { render } from "@solidjs/testing-library";
 import { Shell } from "../../src/shell/Shell";
 import { VIEWS, createNavStore } from "../../src/nav";
 
-describe("shell/strip-persists", () => {
-  it("keeps the strip through every category change", () => {
+describe("shell/shared-surfaces", () => {
+  it("keeps the titlebar, project rail, and running summary through every view", () => {
     const nav = createNavStore({ view: "inbox" });
     const { getByTestId } = render(() => (
       <Shell nav={nav}>
         <p>body</p>
       </Shell>
     ));
-    const first = getByTestId("strip");
+    const titlebar = getByTestId("app-titlebar");
+    const rail = getByTestId("project-rail");
+    const running = getByTestId("running-pill");
 
-    for (const v of VIEWS) {
-      nav.go(v);
-      expect(getByTestId("strip"), v).toBeTruthy();
-      expect(
-        getByTestId("strip").querySelectorAll(".strip-card").length,
-        v,
-      ).toBeGreaterThan(0);
-    }
-    // The same element throughout — it is not torn down and rebuilt per category.
-    expect(getByTestId("strip")).toBe(first);
-  });
-
-  it("keeps the other three bands too — none of them is per-screen markup", () => {
-    const nav = createNavStore({ view: "inbox" });
-    const { getByTestId } = render(() => (
-      <Shell nav={nav}>
-        <p>body</p>
-      </Shell>
-    ));
-    for (const v of VIEWS) {
-      nav.go(v);
-      for (const band of ["titlebar", "rail", "tabbar", "strip"]) {
-        expect(getByTestId(band), `${v}: ${band}`).toBeTruthy();
-      }
+    for (const view of VIEWS) {
+      nav.go(view);
+      expect(getByTestId("app-titlebar"), view).toBe(titlebar);
+      expect(getByTestId("project-rail"), view).toBe(rail);
+      expect(getByTestId("running-pill"), view).toBe(running);
+      expect(getByTestId("title-view").textContent, view).toBe(view);
     }
   });
 
-  it("changes only the tab set and the lit category as the view moves", () => {
+  it("updates the visible category while retaining the shared surfaces", () => {
     const nav = createNavStore({ view: "board" });
     const { getByTestId } = render(() => (
       <Shell nav={nav}>
         <p>body</p>
       </Shell>
     ));
-    expect(getByTestId("rail-automate").getAttribute("aria-current")).toBe(
-      "true",
-    );
+    expect(getByTestId("title-category").textContent).toBe("Automate");
     nav.go("telemetry");
-    expect(getByTestId("rail-automate").getAttribute("aria-current")).toBe(
-      null,
-    );
-    expect(getByTestId("rail-review").getAttribute("aria-current")).toBe(
-      "true",
-    );
-    expect(getByTestId("tabbar-category").textContent).toBe("Review");
+    expect(getByTestId("title-category").textContent).toBe("Review");
+    expect(getByTestId("project-rail")).toBeTruthy();
   });
 });

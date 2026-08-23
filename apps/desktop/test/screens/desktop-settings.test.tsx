@@ -21,9 +21,10 @@ describe('screens/desktop-settings', () => {
   it('shows stopping, parallelism, change-size, and permission defaults', () => {
     const { getByTestId } = mount()
 
-    for (const section of ['stopping', 'parallelism', 'change-size', 'permissions']) {
+    for (const section of ['stopping', 'change-size', 'permissions']) {
       expect(getByTestId(`settings-section-${section}`), section).toBeTruthy()
     }
+    expect(getByTestId('parallelism-controls')).toBeTruthy()
     expect(getByTestId('settings-value-max-iterations').textContent).toBe('8')
     expect(getByTestId('settings-value-token-budget').textContent).toBe('120k')
     expect(getByTestId('settings-value-max-parallel-agents').textContent).toBe('6')

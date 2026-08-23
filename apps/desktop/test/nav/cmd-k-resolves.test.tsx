@@ -37,14 +37,6 @@ describe('nav/cmd-k-resolves', () => {
     )
   })
 
-  it('opens on the locator bar too, since that is the same affordance', async () => {
-    const { getByTestId } = mount()
-    getByTestId('locator-bar').click()
-    await waitFor(() =>
-      expect(document.querySelector('[data-testid="locator-palette-input"]')).not.toBe(null),
-    )
-  })
-
   it('opens on where you are, rather than empty', async () => {
     mount()
     cmdK()

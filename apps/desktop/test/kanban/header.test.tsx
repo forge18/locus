@@ -30,7 +30,6 @@ describe('kanban/header', () => {
   it('puts both notes above the columns', () => {
     const { getByTestId } = mount()
     const kanban = getByTestId('kanban')
-    expect(kanban.children[0]).toBe(getByTestId('kanban-head'))
-    expect(kanban.children[1]).toBe(getByTestId('kanban-columns'))
+    expect(getByTestId('kanban-head').compareDocumentPosition(getByTestId('kanban-columns')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 })

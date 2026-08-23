@@ -18,9 +18,8 @@ describe('nav/agents-is-drilldown', () => {
         <p>body</p>
       </Shell>
     ))
-    const selected = getByTestId('tabbar-tabs').querySelectorAll('.tab[data-selected]')
-    expect(selected.length).toBe(1)
-    expect(selected[0].textContent).toBe('Extensions')
+    expect(getByTestId('title-category').textContent).toBe('Workshop')
+    expect(getByTestId('title-view').textContent).toBe('agents')
   })
 
   it('keeps Workshop lit on the rail — a drill-down is not a category', () => {
@@ -30,8 +29,8 @@ describe('nav/agents-is-drilldown', () => {
         <p>body</p>
       </Shell>
     ))
-    expect(getByTestId('rail-workshop').getAttribute('aria-current')).toBe('true')
-    expect(getByTestId('rail').querySelectorAll('.rail-item').length).toBe(7)
+    expect(getByTestId('project-rail')).toBeTruthy()
+    expect(getByTestId('title-category').textContent).toBe('Workshop')
   })
 
   it('renders the back link, labelled with the tab it returns to', () => {

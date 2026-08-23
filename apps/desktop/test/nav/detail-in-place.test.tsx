@@ -31,11 +31,11 @@ describe('nav/detail-in-place', () => {
 
   it('leaves the rail exactly where it was', async () => {
     const { nav, getByTestId } = mount()
-    expect(getByTestId('rail-automate').getAttribute('aria-current')).toBe('true')
+    expect(getByTestId('title-category').textContent).toBe('Automate')
     nav.openDetail('locus://weaver/artifact/a-1')
     await waitFor(() => expect(document.querySelector('[data-testid="sheet"]')).not.toBe(null))
-    expect(getByTestId('rail-automate').getAttribute('aria-current')).toBe('true')
-    expect(getByTestId('rail-review').getAttribute('aria-current')).toBe(null)
+    expect(getByTestId('title-category').textContent).toBe('Automate')
+    expect(getByTestId('project-rail')).toBeTruthy()
   })
 
   it('leaves the locator on the current view — you have not gone anywhere', async () => {

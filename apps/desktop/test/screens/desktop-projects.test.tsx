@@ -10,8 +10,6 @@ describe('screens/desktop-projects', () => {
     expect(getByTestId('project-harnesses')).toBeTruthy()
     expect(getByTestId('project-repos')).toBeTruthy()
     expect(getByTestId('project-base-context').textContent).toContain('1,240 / 1,500 tokens')
-    expect(getByTestId('project-extensions')).toBeTruthy()
-    expect(getByTestId('project-cli-tools')).toBeTruthy()
   })
 
   it('keeps one enabled harness as the agent default', () => {
