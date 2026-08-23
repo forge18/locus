@@ -268,6 +268,11 @@ fn priority_order(
     }
 }
 
+/// Whether a new run must stay queued because global capacity is exhausted.
+pub fn queues_at_cap(policy: &DispatchPolicy, running_count: u32) -> bool {
+    running_count >= policy.global_parallelism
+}
+
 /// Select queued runs that fit both caps, without interrupting any running run.
 pub fn select_to_start(
     policy: &DispatchPolicy,
