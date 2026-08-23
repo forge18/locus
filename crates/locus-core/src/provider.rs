@@ -406,8 +406,12 @@ impl OsKeychain for TestKeychain {
         Ok(SECRET.into())
     }
 
-    fn write_secret(&self, _: &KeychainReference, _: &str) -> Result<()> { Ok(()) }
-    fn delete_secret(&self, _: &KeychainReference) -> Result<()> { Ok(()) }
+    fn write_secret(&self, _: &KeychainReference, _: &str) -> Result<()> {
+        Ok(())
+    }
+    fn delete_secret(&self, _: &KeychainReference) -> Result<()> {
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -419,8 +423,12 @@ impl OsKeychain for LeakyKeychain {
         anyhow::bail!("keychain failed for {SECRET}")
     }
 
-    fn write_secret(&self, _: &KeychainReference, _: &str) -> Result<()> { Ok(()) }
-    fn delete_secret(&self, _: &KeychainReference) -> Result<()> { Ok(()) }
+    fn write_secret(&self, _: &KeychainReference, _: &str) -> Result<()> {
+        Ok(())
+    }
+    fn delete_secret(&self, _: &KeychainReference) -> Result<()> {
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -536,7 +544,9 @@ async fn never_persists_secret() {
 
     let broker = ProviderBroker::new(TestKeychain);
     let egress_error = broker
-        .with_host_egress(&provider, |secret| anyhow::bail!("upstream rejected {secret}"))
+        .with_host_egress(&provider, |secret| {
+            anyhow::bail!("upstream rejected {secret}")
+        })
         .unwrap_err();
     assert!(!egress_error.to_string().contains(SECRET));
 
