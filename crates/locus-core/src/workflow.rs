@@ -1,7 +1,7 @@
 //! Versioned workflow authoring data.
 //!
-//! Definitions carry Governance alongside their graph, while execution data belongs
-//! to run records. This module deliberately defines no execution or result types.
+//! Definitions carry Governance alongside their graph, while evaluations identify
+//! the run that produced them rather than mutating a definition.
 
 use serde::{Deserialize, Serialize};
 
@@ -24,6 +24,20 @@ pub struct CompiledWorkflow {
 /// Assemble the graph and Governance together so neither can be published alone.
 pub fn compile_governance(graph: serde_json::Value, governance: WorkflowGovernance) -> CompiledWorkflow {
     CompiledWorkflow { graph, governance }
+}
+
+/// The evaluation of one immutable Governance version during one run.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct RunGovernanceEvaluation {
+    pub run_id: String,
+    pub governance_version: u32,
+    pub passed: bool,
+}
+
+impl RunGovernanceEvaluation {
+    pub fn passed(run_id: impl Into<String>, governance_version: u32) -> Self {
+        Self { run_id: run_id.into(), governance_version, passed: true }
+    }
 }
 
 /// A named instruction that constrains every run of a workflow version.
