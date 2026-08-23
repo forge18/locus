@@ -20,6 +20,15 @@ mod provider {
     }
 
     #[test]
+    fn model_aliases() {
+        let model = locus_core::provider::ProviderModel::new(Uuid::nil(), "gpt-5")
+            .expect("model")
+            .with_alias("Fast").expect("alias");
+        let selector = locus_core::provider::selector_projection(&[model]);
+        assert_eq!(selector[0].label, "Fast");
+    }
+
+    #[test]
     fn model_catalog() {
         let provider_id = Uuid::nil();
         let model = locus_core::provider::ProviderModel::new(provider_id, "gpt-5").expect("model");
