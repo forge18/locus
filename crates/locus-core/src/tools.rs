@@ -97,6 +97,29 @@ impl ImageTool {
     }
 }
 
+/// Aggregate enablement for a tool category, including the UI's mixed state.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ToolGroupEnablement {
+    Disabled,
+    Mixed,
+    Enabled,
+}
+
+impl ToolGroupEnablement {
+    pub fn from_tools(enabled: impl IntoIterator<Item = bool>) -> Self {
+        let mut any = false;
+        let mut all = true;
+        let mut seen = false;
+        for value in enabled {
+            seen = true;
+            any |= value;
+            all &= value;
+        }
+        if seen && all { Self::Enabled } else if any { Self::Mixed } else { Self::Disabled }
+    }
+}
+
 /// Project-level tool removals from the enabled catalog baseline.
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct ProjectToolScope {
