@@ -304,6 +304,11 @@ impl Decomposition {
             .collect()
     }
 
+    /// The final approval boundary that commits a draft mapping into board cards.
+    pub fn final_approval(&self) -> Result<Vec<BoardCard>> {
+        self.approve()
+    }
+
     /// Final approval creates cards only when every selected task dependency is also mapped.
     pub fn approve(&self) -> Result<Vec<BoardCard>> {
         for card in &self.cards {
