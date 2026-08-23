@@ -136,7 +136,7 @@ below; it is short and it is load-bearing.
   Make Project Settings, planning decomposition, Automate, queue policy, and safe Dispatch controls
   durable and reviewable.
   *Depends on:* `v2-application-shell`
-- [ ] **[v2-knowledge-review](.specs/v2-knowledge-review/spec.md)** · 30 tasks · [tasks](.specs/v2-knowledge-review/tasks.md)
+- [x] **[v2-knowledge-review](.specs/v2-knowledge-review/spec.md)** · 30 tasks · [tasks](.specs/v2-knowledge-review/tasks.md)
   Replace v1 Inbox, Dashboard, Develop, Review, and Wiki fixtures with the scoped v2 viewers.
   *Depends on:* `v2-application-shell`, `theme-system`
 - [ ] **[v2-workshop-runtime](.specs/v2-workshop-runtime/spec.md)** · 53 tasks · [tasks](.specs/v2-workshop-runtime/tasks.md)
