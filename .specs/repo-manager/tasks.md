@@ -4,7 +4,7 @@
 | --- | --- | --- | --- |
 | 1 | Bare local remote at `/var/lib/locus/repos/<project>.git` | — | `cargo test -p locus-core repo::bare_remote` |
 | 2 | Add a linked repo, leaving the user's checkout untouched | 1 | `cargo test -p locus-core repo::add_linked` |
-| 3 | Add a managed repo, cloned from GitHub | 1 | `cargo test -p locus-core repo::add_managed` |
+| 3 | Add a managed repo, cloned from a configured forge | 1 | `cargo test -p locus-core repo::add_managed` |
 | 4 | Shared object store for `--reference` clones | 1 | `cargo test -p locus-core repo::object_store` |
 | 5 | Per-run clone into `/workspace` with `--reference` | 4 | `cargo test -p locus-core repo::run_clone` |
 | 6 | Measure disk: N clones do not mean N histories | 5 | `cargo test -p locus-core repo::reference_saves_disk` |

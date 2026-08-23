@@ -10,7 +10,7 @@
 | 6 | Self-review findings visible on the PR | 4 | `cargo test -p locus-core pr::findings_visible` |
 | 7 | Slicing threshold, decided and implemented | 1 | `cargo test -p locus-core pr::slice_threshold` |
 | 8 | Slice a large change into independently reviewable PRs | 7 | `cargo test -p locus-core pr::slices` |
-| 9 | Route a GitHub review comment into the authoring session | — | `cargo test -p locus-core pr::comment_routes_to_session` |
+| 9 | Route a signed forge review comment into the authoring session | `forge-providers:17` | `cargo test -p locus-core pr::comment_routes_to_session` |
 | 10 | Assert it is the same code path as artifact comments | 9 | `cargo test -p locus-core pr::one_comment_implementation` |
 | 11 | Agent pushes a follow-up commit and replies | 9 | `cargo test -p locus-core pr::follow_up_commit` |
 | 12 | A comment after the last run exited is delivered at next run start | 9 | `cargo test -p locus-core pr::deferred_comment` |

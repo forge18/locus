@@ -1,10 +1,10 @@
 # agent-prs
 
-**Milestone** M7 · **Depends on** `github`, `artifacts`, `locus-browse`
+**Milestone** M7 · **Depends on** `forge-providers`, `artifacts`, `locus-browse`
 
 ## Purpose
 
-Agent-authored PRs as a **first-class flow** rather than "the agent ran `gh pr create`". This reuses the
+Agent-authored change requests as a **first-class flow** rather than an agent shelling out to a provider CLI. This reuses the
 artifact comment machinery — **a PR review comment and an artifact comment are the same thing arriving
 from two places** — so it is one implementation, not two.
 
@@ -15,17 +15,17 @@ from two places** — so it is one implementation, not two.
 
 ## Contract
 
-**Open.** The agent's branch becomes a PR with a generated description written from the session's goal,
+**Open.** The agent's branch becomes a change request with a generated description written from the session's goal,
 the tasks it closed, and the evidence it collected. **Screenshots from `locus browse` attach here**, so
 a UI change is reviewable without checking anything out.
 
-**Slice.** A large change is split into several reviewable PRs rather than one nobody reads. **PR size
+**Slice.** A large change is split into several reviewable change requests rather than one nobody reads. **Change-request size
 is the strongest predictor of whether a review actually happens.**
 
 **Self-review first.** The agent reviews its own diff and fixes what it finds before asking you. **You
 see the second draft, not the first.**
 
-**Respond to review comments.** A comment on the PR routes back into the session that authored it; the
+**Respond to review comments.** A comment on the change request routes back into the session that authored it; the
 agent pushes updates and replies. **This is the half most tools miss, and it is where the human time
 actually goes.**
 
@@ -39,7 +39,7 @@ as a problem handed to you.
 2. Screenshots from `locus browse` attach to the PR automatically.
 3. A large change is sliced into several PRs, each independently reviewable.
 4. Self-review runs before the PR is offered to a human, and its findings are visible.
-5. A GitHub review comment reaches the authoring session and produces a follow-up commit.
+5. A signed forge review comment reaches the authoring session and produces a follow-up commit.
 6. The comment path is the **same code** as artifact comments — asserted by shared implementation, not
    by similar behavior.
 7. A merge conflict comes back as a proposed resolution with both sides.

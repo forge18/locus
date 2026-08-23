@@ -1,6 +1,6 @@
 # ci-babysitter
 
-**Milestone** M7 · **Depends on** `github`, `guardrails`, `agent-prs`
+**Milestone** M7 · **Depends on** `forge-providers`, `guardrails`, `agent-prs`
 
 ## Purpose
 
@@ -11,6 +11,7 @@ Sculptor and Agent Orchestrator ship it.
 ## Governed by
 
 - PLAN.md §M7 — the CI babysitter
+- `.specs/forge-providers/spec.md` — normalized CI events and signed webhooks
 - PLAN.md §Workflow guardrails — bounded retries, and escalation as an inbox item
 
 ## Contract

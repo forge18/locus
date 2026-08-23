@@ -1,6 +1,6 @@
 # repo-manager
 
-**Milestone** M3 · **Depends on** `sandbox`, `store` · **Blocks** `github`
+**Milestone** M3 · **Depends on** `sandbox`, `store` · **Blocks** `forge-providers`
 
 ## Purpose
 
@@ -30,7 +30,7 @@ container: /workspace  (container-local, not a mount)
 | Mode | Where the code lives | You work through |
 | --- | --- | --- |
 | Linked | `~/Repos/foo` stays yours; Locus syncs with it | your own checkout, and Locus |
-| Managed | cloned from GitHub, lives only inside Locus | Locus only |
+| Managed | cloned from a configured forge, lives only inside Locus | Locus only |
 
 **Board, wiki and memory are project-wide** and span every repo. That is what makes four repos that
 are one system share one memory instead of four that never learn from each other.
@@ -60,7 +60,7 @@ Write scope and read scope are different things.
 ## Acceptance
 
 1. Adding a linked repo leaves the user's checkout untouched and syncs with it.
-2. Adding a managed repo clones from GitHub into Locus's own storage.
+2. Adding a managed repo clones from a configured forge into Locus's own storage.
 3. A run clones from the bare remote with `--reference`; N agents on one repo do not mean N copies of
    its history — asserted by measuring disk.
 4. An agent pushes a branch back and the user can `git fetch locus && git checkout agent/<run-id>`.

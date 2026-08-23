@@ -24,7 +24,7 @@ operational afterthought — and it is the one item PLAN.md's deferral table cal
 | --- | --- |
 | `core` | projects, repos, local remotes, settings |
 | `agents` | agent_defs (versioned), sessions, runs, run edges, events (`seq` per run, `stream_pos` per project), artifacts, comment threads |
-| `board` | tasks, dependency edges, transitions, assignments, task-run links, evidence, GitHub issues |
+| `board` | tasks, dependency edges, transitions, assignments, task-run links, evidence, external forge issues |
 | `wiki` | pages (typed), revisions, links, contradictions, ingest log, embeddings |
 | `memory` | core (bounded) and store (facts, scope, provenance, embeddings, confidence, decay) |
 | `workflows` | workflow_defs (versioned), schedules, executions, iterations, guardrail trips, verify results |

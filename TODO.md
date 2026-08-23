@@ -1,6 +1,6 @@
 # TODO
 
-61 features, 1288 tasks, across twelve milestones. Every task carries a runnable
+61 features, 1355 tasks, across twelve milestones. Every task carries a runnable
 `verify:`; a task with none is not a task.
 
 **How this fits together.** [PLAN.md](PLAN.md) is the architecture and the authority.
@@ -34,9 +34,9 @@ of those blocks the shell or the other twelve screens. It can run alongside M0.
 | **M4** | Workflow canvas | 3 | 69 | 0 |
 | **M5** | Project management | 4 | 109 | 0 |
 | **M6** | Automation and discoverability | 3 | 46 | 0 |
-| **M7** | GitHub | 3 | 42 | 0 |
+| **M7** | Forge providers | 3 | 58 | 0 |
 | **M8** | Marketplace installer | 1 | 11 | 0 |
-| | | **65** | **1339** | **591** |
+| | | **61** | **1355** | **772** |
 
 ---
 
@@ -306,18 +306,19 @@ below; it is short and it is load-bearing.
   cron → workflow, recorded against verify results.
   *Depends on:* `workflow-engine`, `run-supervisor`
 
-## M7 — GitHub
+## M7 — Forge providers
 
-3 features · 42 tasks
+3 features · 58 tasks
 
 - [ ] **[agent-prs](.specs/agent-prs/spec.md)** · 14 tasks · [tasks](.specs/agent-prs/tasks.md)
-  Agent-authored PRs as a **first-class flow** rather than "the agent ran `gh pr create`".
-  *Depends on:* `github`, `artifacts`, `locus-browse`
+  Agent-authored change requests as a **first-class flow**, not an agent shelling out to a provider CLI.
+  *Depends on:* `forge-providers`, `artifacts`, `locus-browse`
 - [ ] **[ci-babysitter](.specs/ci-babysitter/spec.md)** · 14 tasks · [tasks](.specs/ci-babysitter/tasks.md)
   A failing pipeline pulls its logs, feeds them to an agent, retries a bounded number of times, then escalates.
-  *Depends on:* `github`, `guardrails`, `agent-prs`
-- [ ] **[github](.specs/github/spec.md)** · 14 tasks · [tasks](.specs/github/tasks.md)
-  Version control, CI/CD, PRs — **and Issues as an input to the Locus board.
+  *Depends on:* `forge-providers`, `guardrails`, `agent-prs`
+- [ ] **[forge-providers](.specs/forge-providers/spec.md)** · 30 tasks · [tasks](.specs/forge-providers/tasks.md)
+  Provider-neutral hosted change requests, CI, review comments, and explicitly linked issues for GitHub, GitLab,
+  Codeberg, Bitbucket Cloud, and Bitbucket Data Center.
   *Depends on:* `repo-manager`, `board`
 
 ## M8 — Marketplace installer
@@ -391,7 +392,7 @@ is a decision that will disagree with itself.
 | M6 | `schedules` | Timezone and DST handling for cron expressions. PLAN.md says nothing, and it is the standard place scheduled work goes wrong twice a year. |
 | M7 | `agent-prs` | What "large" means for slicing. PLAN.md gives the reason but no threshold, and the wrong one produces either one unreviewable PR or five trivial ones. |
 | M7 | `ci-babysitter` | Whether the babysitter runs as an ordinary workflow or as a supervisor behavior. As a workflow it is authorable and inspectable; as a supervisor behavior it is always on. PLAN.md does not say. |
-| M7 | `github` | Rate limiting and auth for `gh` when several projects are active. PLAN.md routes service credentials through the broker, but does not say whether the GitHub token follows the same path. |
+| M7 | `forge-providers` | Resolved: credentials are provider-host scoped and flow only through the credential broker; all inbound events are signed webhooks, not polling. |
 | M8 | `marketplace-installer` | **Curation versus selection**, still. PLAN.md names the axis and the evidence pointing at selection, but explicitly leaves the decision to this milestone. |
 
 ---

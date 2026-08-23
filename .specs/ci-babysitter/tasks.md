@@ -2,7 +2,7 @@
 
 | # | Task | Deps | verify |
 | --- | --- | --- | --- |
-| 1 | Detect a failing pipeline on a run's branch | — | `cargo test -p locus-core babysit::detects_failure` |
+| 1 | Detect a failing pipeline on a run's branch from a normalized forge event | `forge-providers:19` | `cargo test -p locus-core babysit::detects_failure` |
 | 2 | Fetch and compact the pipeline logs | 1 | `cargo test -p locus-core babysit::fetches_logs` |
 | 3 | Hand the logs to an agent in a container | 2 | `cargo test -p locus-core babysit::dispatches_agent` |
 | 4 | The agent pushes a fix to the branch | 3 | `cargo test -p locus-core babysit::pushes_fix` |

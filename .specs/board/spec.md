@@ -36,7 +36,7 @@ task
   blocked_by[]          generated from the workflow graph, not hand-drawn
   verify                the runnable check
   evidence[]            run + the events that justify a transition
-  github_issue          nullable, linked by explicit action in either direction
+  external_issue        nullable, linked by explicit action in either direction
 ```
 
 **A task is a fold, not a row.** Nothing writes `board.tasks`. A move appends `task.moved`, an
