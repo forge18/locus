@@ -60,7 +60,7 @@ export function V2InboxView() {
           </section>
           <p class="v2-inbox-callout">Retention differs from the text artifacts this task also produces — it is the only irreversible step in the plan.</p>
           <label class="v2-inbox-comment">Comment steers the agent that made it<textarea placeholder="Cap frames at 8, and keep the clip when the run is linked to a PR." /></label>
-          <div class="v2-inbox-actions"><button type="button">Approve &amp; release the loop</button><button type="button">Send back with comment</button><span>Resolves here — the work opens where the work lives.</span></div>
+          <div class="v2-inbox-actions"><button type="button" data-inbox-gate-action="approve">Approve &amp; release the loop</button><button type="button" data-inbox-gate-action="send-back">Send back with comment</button><span>Resolves here — the work opens where the work lives.</span></div>
           <div class="v2-inbox-explanation">
             <p data-inbox-detail="why"><strong>Why this is here</strong>The Gate node in workflow <code>wf-12</code> is human for irreversible steps. The agent has written nothing and is blocked, not idle.</p>
             <p data-inbox-detail="cost"><strong>Cost of waiting</strong>One loop held for 4m.<br />No tokens burn while blocked.</p>
