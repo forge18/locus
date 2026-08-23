@@ -3,6 +3,13 @@ mod harness {
     use locus_core::{harness::{HarnessDescriptor, HarnessSelectionError, ProjectHarnessPolicy}, routing::RoutingDefaults};
 
     #[test]
+    fn project_provider_gate() {
+        let policy = ProjectHarnessPolicy { permitted_harnesses: BTreeSet::from(["claude".into()]), configured_providers: BTreeSet::new() };
+        let harness = HarnessDescriptor { identifier: "claude".into(), adapter: Some(locus_core::harness::HarnessAdapter { identity: "acp".into() }), compatible_providers: BTreeSet::from(["anthropic".into()]), defaults: RoutingDefaults { model_id: "sonnet".into(), effort: "medium".into() } };
+        assert!(matches!(policy.select(&harness, "anthropic"), Err(HarnessSelectionError::ProviderNotConfigured(_))));
+    }
+
+    #[test]
     fn provider_compatibility() {
         let policy = ProjectHarnessPolicy { permitted_harnesses: BTreeSet::from(["claude".into()]), configured_providers: BTreeSet::from(["openai".into()]) };
         let harness = HarnessDescriptor { identifier: "claude".into(), adapter: Some(locus_core::harness::HarnessAdapter { identity: "acp".into() }), compatible_providers: BTreeSet::from(["anthropic".into()]), defaults: RoutingDefaults { model_id: "sonnet".into(), effort: "medium".into() } };
