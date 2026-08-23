@@ -3,6 +3,14 @@ mod routing {
     use locus_core::routing::{AutoroutingPolicy, ComplexityBand, RoutingBand};
 
     #[test]
+    fn approval_band() {
+        let mut bands = BTreeMap::new();
+        bands.insert(ComplexityBand::Max, RoutingBand { model_id: Some("opus".into()), effort: "high".into(), approval_required: true, when_to_use: "irreversible".into() });
+        let decision = AutoroutingPolicy { enabled: true, bands }.route(ComplexityBand::Max, &locus_core::routing::RoutingDefaults { model_id: "sonnet".into(), effort: "medium".into() }).expect("route");
+        assert!(decision.approval_required);
+    }
+
+    #[test]
     fn falls_up() {
         let mut bands = BTreeMap::new();
         bands.insert(ComplexityBand::High, RoutingBand { model_id: Some("opus".into()), effort: "high".into(), approval_required: false, when_to_use: "hard".into() });
