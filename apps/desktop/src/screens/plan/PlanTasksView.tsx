@@ -93,7 +93,7 @@ export function PlanTasksView() {
                 </div>
               )}
             </For>
-            <footer class="plan-task-summary">
+            <footer class="plan-task-summary" data-testid="tasks-cards-summary">
               <span class="plan-card-total" data-testid="task-card-count">{count()} {count() === 1 ? 'card' : 'cards'}</span>
               <span>{cardSummary()}</span>
               <Button variant="primary">Approve — {count()} to the board</Button>
