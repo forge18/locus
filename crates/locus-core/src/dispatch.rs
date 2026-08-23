@@ -146,6 +146,11 @@ impl StopAllSnapshot {
     pub fn is_empty(&self) -> bool {
         self.run_ids.is_empty()
     }
+
+    /// Stop all records affected runs; it never owns branches, artifacts, or memory to delete.
+    pub fn preserves_durable_work(&self) -> bool {
+        true
+    }
 }
 
 /// A supervisor-visible run used to apply capacity and priority rules.
