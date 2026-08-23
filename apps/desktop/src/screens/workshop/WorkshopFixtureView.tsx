@@ -16,6 +16,7 @@ export const WORKSHOP_FIXTURES = [
   'providers',
   'rules',
   'skills',
+  'workflows-list',
   'workflows-visual',
   'workflows-governance',
 ] as const
@@ -149,6 +150,10 @@ function HarnessesFixture() {
   )
 }
 
+function WorkflowsListFixture() {
+  return <div class="ws-fixture" data-testid="workshop-workflows-list"><header class="ws-fixture-head"><div><h1>Workflows</h1><p>Authored definitions are versioned before a run evaluates them.</p></div><Button variant="primary">New workflow</Button></header><section class="ws-settings-card"><article data-testid="workflow-list-published"><strong>Release verification</strong><span>published · revision 4</span><small>author: Avery · edited 2m ago</small></article><article data-testid="workflow-list-draft"><strong>Migration readiness</strong><span>draft · revision 1</span><small>author: Rowan · no runs yet</small></article></section></div>
+}
+
 function WorkflowsFixture(props: { governance: boolean }) {
   const [tab, setTab] = createSignal(props.governance ? 'governance' : 'visual')
   return (
@@ -170,6 +175,7 @@ export function WorkshopFixtureView(props: WorkshopFixtureViewProps) {
   if (props.fixture === 'cli') return <CliFixture />
   if (props.fixture === 'providers') return <ProvidersFixture />
   if (props.fixture === 'harnesses') return <HarnessesFixture />
+  if (props.fixture === 'workflows-list') return <WorkflowsListFixture />
   if (props.fixture === 'workflows-visual') return <WorkflowsFixture governance={false} />
   if (props.fixture === 'workflows-governance') return <WorkflowsFixture governance />
   return <ExtensionFixture fixture={props.fixture} />
