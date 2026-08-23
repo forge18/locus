@@ -400,8 +400,6 @@ pub struct HarnessDefinition {
     pub telemetry: Telemetry,
     pub models: Models,
     pub layout: Layout,
-    /// Verified image recipe. Omitted entries are refused by the image builder with the harness name.
-    pub image: Option<Image>,
     pub config: Option<Config>,
     pub auth: Option<Auth>,
     pub hooks: Option<Hooks>,
@@ -510,14 +508,6 @@ pub struct LayoutEntry {
     pub enable_in: Option<String>,
     pub events: Option<Vec<String>>,
     pub schema: Option<String>,
-}
-
-/// A deterministic, registry-owned base-image installation recipe.
-#[derive(Debug, Deserialize)]
-pub struct Image {
-    pub base: String,
-    pub install: Vec<String>,
-    pub version: String,
 }
 
 /// An environment or home-directory override for a harness configuration tree.
