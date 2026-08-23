@@ -208,6 +208,11 @@ pub struct PreemptionController {
 }
 
 impl PreemptionController {
+    /// Whether a request is waiting for a completed iteration boundary.
+    pub fn has_pending_preemption(&self) -> bool {
+        !self.pending.is_empty()
+    }
+
     /// Request a pause for one running run. The request has no mid-iteration effect.
     pub fn request(&mut self, run: &Run, handoff: PreemptionHandoff) -> Result<()> {
         if run.status != RunStatus::Running {
