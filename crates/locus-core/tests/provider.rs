@@ -20,6 +20,13 @@ mod provider {
     }
 
     #[test]
+    fn connection_config() {
+        let config = locus_core::provider::ProviderConnectionConfig::new("oauth", Some("https://api.example.test".into())).expect("config");
+        assert_eq!(config.authentication_method(), "oauth");
+        assert_eq!(config.base_url(), Some("https://api.example.test"));
+    }
+
+    #[test]
     fn migration_versions_are_unique() {
         let directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations");
         let mut versions = std::collections::BTreeSet::new();
