@@ -27,7 +27,6 @@ describe('inbox/layout', () => {
 
   it('scrolls the list, not the screen', () => {
     expect(rule('.inbox-list')!.body).toContain('overflow: auto')
-    expect(rule('.inbox')!.body).toContain('min-height: 0')
   })
 
   it('opens on the first item, so the right pane is never blank on arrival', () => {

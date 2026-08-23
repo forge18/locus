@@ -16,6 +16,7 @@ const DATA_SETS = [
   "core",
   "develop",
   "extensions",
+  "guardrails",
   "harnesses",
   "inbox",
   "plan",

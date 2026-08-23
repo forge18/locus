@@ -39,8 +39,8 @@ describe('fonts-local', () => {
 
   it('names the vendored families in the font tokens', () => {
     const tokens = read('styles/tokens.css')
-    expect(tokens).toContain("--fm: 'JetBrains Mono'")
-    expect(tokens).toContain("--fs: 'Inter'")
+    expect(tokens).toContain('--fm: "JetBrains Mono"')
+    expect(tokens).toContain('--fs: "Inter"')
   })
 
   it('leaves no @import of a remote stylesheet anywhere', () => {

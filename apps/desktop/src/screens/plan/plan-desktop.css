@@ -76,7 +76,7 @@
 
 .plan-tasks-head { flex: none; padding: 14px 20px; border-bottom: 1px solid var(--border-subtle); background: var(--surface-raised); }
 .plan-tasks-head > div { display: flex; align-items: baseline; gap: var(--g-4); }
-.plan-tasks-head h2 { margin: 0; color: var(--text-primary); font-size: 19px; font-weight: 500; }
+.plan-tasks-head h2 { margin: 0; color: var(--text-primary); font-size: var(--t-title); font-weight: 500; }
 .plan-stage-note { color: var(--text-muted); font-size: var(--t-body); }
 .plan-tasks-head p { max-width: 700px; margin-top: var(--g-3); }
 .plan-tasks-body { display: flex; flex-direction: column; gap: 18px; padding: 16px 20px 22px; }

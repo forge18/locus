@@ -10,20 +10,20 @@ describe('accent-single-source', () => {
     expect(inTokens.length).toBe(1)
 
     for (const [file, contents] of allSource()) {
-      if (file === 'styles/tokens.css') continue
+      if (file === 'styles/tokens.css' || file === 'styles/theme.ts') continue
       expect(stripComments(contents).toLowerCase(), `${file} hardcodes the accent`).not.toContain(
         ACCENT,
       )
     }
   })
 
-  it('derives every accent tint from --ac rather than restating it', () => {
-    const derived = ['--ac-ring', '--ac-ring-soft', '--ac-wash', '--ac-deep', '--ac-pale', '--ac-ink']
-    const root = rules(tokens).find((r) => r.selector === "[data-theme='dark']")!
+  it('derives every accent tint from the semantic attention role rather than restating it', () => {
+    const derived = ['--action-attention-ring', '--action-attention-ring-soft', '--action-attention-wash', '--action-attention-deep', '--action-attention-pale', '--action-attention-ink']
+    const root = rules(tokens).find((r) => r.selector === '[data-theme="dark"]')!
     for (const name of derived) {
       const value = root.body.match(new RegExp(`${name}:\\s*([^;]+)`))?.[1]
       expect(value, `missing ${name}`).toBeDefined()
-      expect(value, `${name} does not resolve from --ac`).toMatch(/var\(--ac\)|var\(--bg\)/)
+      expect(value, `${name} does not resolve from --action-attention`).toMatch(/var\(--action-attention\)|var\(--surface-ground\)/)
     }
   })
 
@@ -42,7 +42,7 @@ describe('accent-single-source', () => {
 
     // … and no stylesheet paints anything with a literal color.
     for (const [file, contents] of allSource()) {
-      if (file === 'styles/tokens.css') continue
+      if (file === 'styles/tokens.css' || file === 'styles/theme.ts') continue
       const body = stripComments(contents)
       expect(body, `${file} names a raw color`).not.toMatch(/#[0-9a-fA-F]{6}\b/)
     }

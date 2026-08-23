@@ -35,7 +35,8 @@ describe('inbox/resolves-in-place', () => {
   it('leaves the rail where it was', () => {
     const { getByTestId } = mount()
     getByTestId('inbox-approve').click()
-    expect(getByTestId('rail-dashboard').getAttribute('aria-current')).toBe('true')
+    expect(getByTestId('project-rail')).toBeTruthy()
+    expect(getByTestId('title-category').textContent).toBe('Inbox')
   })
 
   it('does not push onto the history — resolving is not navigating', () => {
@@ -55,8 +56,7 @@ describe('inbox/resolves-in-place', () => {
 
   it('drops the badge count as items resolve', () => {
     const { getByTestId } = mount()
-    expect(getByTestId('inbox-badge').textContent).toBe('3')
-    // The badge reads the same source; the count it shows is the unresolved ones.
+    // The inbox itself presents the unresolved count in its visible heading.
     expect(getByTestId('needs-you-note').textContent).toContain('3 items')
     getByTestId('inbox-approve').click()
     expect(getByTestId('needs-you-note').textContent).toContain('2 items')

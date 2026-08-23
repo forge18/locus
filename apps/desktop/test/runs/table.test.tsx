@@ -14,7 +14,7 @@ describe('runs/table', () => {
     expect(useRunCount()).toBe(612)
   })
 
-  it('has the ten documented columns, in order', () => {
+  it('has the twelve documented columns, in order', () => {
     expect([...table().querySelectorAll('th')].map((th) => th.textContent)).toEqual([
       'When ↓',
       'Harness',
@@ -24,6 +24,8 @@ describe('runs/table', () => {
       'Events',
       'Errors',
       'Tokens',
+      'Cache',
+      'Spend',
       'Verify',
       'Id',
     ])

@@ -10,7 +10,7 @@ describe('plan/layout', () => {
   it('is three panes', () => {
     const { getByTestId } = mount()
     expect(getByTestId('plan-list')).toBeTruthy()
-    expect(getByTestId('plan-convo')).toBeTruthy()
+    expect(getByTestId('plan-conversation')).toBeTruthy()
     expect(getByTestId('plan-outputs')).toBeTruthy()
   })
 

@@ -8,19 +8,19 @@ const rule = (sel: string) => rules(read('screens/screens.css')).find((r) => r.s
 const mount = () => render(() => <SideBySideDiff hunks={useHunks()} onToggleHunk={() => {}} />)
 
 describe('develop/diff-tints', () => {
-  it('tints added rows at rgba(79,160,127,.16)', () => {
+  it('tints added rows at rgba(79, 160, 127, 0.16)', () => {
     expect(rule('.diff-row-added').body).toContain('background: var(--diff-add)')
-    expect(read('styles/tokens.css')).toContain('--diff-add: rgba(79,160,127,.16)')
+    expect(read('styles/tokens.css')).toContain('--diff-add: rgba(79, 160, 127, 0.16)')
   })
 
-  it('tints removed rows at rgba(212,97,79,.14)', () => {
+  it('tints removed rows at rgba(212, 97, 79, 0.14)', () => {
     expect(rule('.diff-row-removed').body).toContain('background: var(--diff-del)')
-    expect(read('styles/tokens.css')).toContain('--diff-del: rgba(212,97,79,.14)')
+    expect(read('styles/tokens.css')).toContain('--diff-del: rgba(212, 97, 79, 0.14)')
   })
 
-  it('tints folded regions at rgba(238,242,246,.03)', () => {
+  it('tints folded regions at rgba(238, 242, 246, 0.03)', () => {
     expect(rule('.diff-row-fold').body).toContain('background: var(--diff-fold)')
-    expect(read('styles/tokens.css')).toContain('--diff-fold: rgba(238,242,246,.03)')
+    expect(read('styles/tokens.css')).toContain('--diff-fold: rgba(238, 242, 246, 0.03)')
   })
 
   it('tints an added row only on the side it exists', () => {
