@@ -79,7 +79,7 @@ function AutorunView() {
         <div class="dispatch-stopped" data-testid="dispatch-stopped">
           <strong>Everything is stopped.</strong>
           <span>8 agents killed 2s ago — 8 handoffs written, nothing lost. Autorun is off in all five projects and 3 schedules will skip until you arm them.</span>
-          <Button variant="secondary">Restore previous state</Button>
+          <Button variant="secondary" data-testid="stop-all-restore">Restore previous state</Button>
         </div>
       </Show>
 
