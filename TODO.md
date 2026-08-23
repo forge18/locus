@@ -25,7 +25,7 @@ of those blocks the shell or the other twelve screens. It can run alongside M0.
 | --- | --- | ---: | ---: | ---: |
 | **M0** | Spikes — these gate M1 · **closed** | 3 | 39 | 39 |
 | **M0.5** | Desktop UI on fixtures · **closed** | 12 | 268 | 268 |
-| **M0.6** | desktop reconciliation | 6 | 195 | 195 |
+| **M0.6** | desktop reconciliation · **closed** | 6 | 195 | 195 |
 | **M1** | Core runtime · **closed** | 14 | 270 | 270 |
 | **M1.5** | ACP agent panel and controls | 4 | 44 | 0 |
 | **M2** | Workspace | 3 | 57 | 0 |
@@ -117,7 +117,7 @@ below; it is short and it is load-bearing.
 
 ## M0.6 — desktop reconciliation
 
-6 features · 195 tasks
+6 features · 195 tasks · **closed**
 
 - [x] **[design-desktop](.specs/design-desktop/spec.md)** · 24 tasks · **complete** · [tasks](.specs/design-desktop/tasks.md)
   Adopt the desktop handoff without porting its HTML or JavaScript. Replace the v1 fixture contract and
@@ -136,7 +136,7 @@ below; it is short and it is load-bearing.
   Make Project Settings, planning decomposition, Automate, queue policy, and safe Dispatch controls
   durable and reviewable.
   *Depends on:* `desktop-application-shell`
-- [x] **[desktop-knowledge-review](.specs/desktop-knowledge-review/spec.md)** · 30 tasks · [tasks](.specs/desktop-knowledge-review/tasks.md)
+- [x] **[desktop-knowledge-review](.specs/desktop-knowledge-review/spec.md)** · 30 tasks · **complete** · [tasks](.specs/desktop-knowledge-review/tasks.md)
   Replace v1 Inbox, Dashboard, Develop, Review, and Wiki fixtures with the scoped desktop viewers.
   *Depends on:* `desktop-application-shell`, `theme-system`
 - [x] **[desktop-workshop-runtime](.specs/desktop-workshop-runtime/spec.md)** · 53 tasks · **complete** · [tasks](.specs/desktop-workshop-runtime/tasks.md)
