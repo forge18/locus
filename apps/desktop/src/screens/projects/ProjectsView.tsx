@@ -81,7 +81,7 @@ export function ProjectsView() {
           <p>A project is a set of repos, a memory scope, and a tag. Nothing is filtered to one unless you ask.</p>
           <button class="btn btn-primary btn-block">New project</button>
         </div>
-        <div class="projects-list-items">
+        <div class="projects-list-items" data-testid="project-state-list">
           <For each={projects}>{(project, index) => (
             <button class="project-list-item" classList={{ 'project-list-current': index() === 0 }}>
               <span class="mono">#{project.name}</span>
