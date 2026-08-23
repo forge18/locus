@@ -20,7 +20,7 @@ use sha2::{Digest, Sha256};
 
 use crate::{
     registry::{HarnessDefinition, Image},
-    tools::{ProjectToolScope, RoleToolScope, ToolCatalog},
+    tools::{ImageTool, ProjectToolScope, RoleToolScope, ToolCatalog},
 };
 
 pub const PORT_START: u16 = 43_000;
@@ -201,6 +201,11 @@ pub fn agent_image_tag_for_scopes(
         })
         .collect::<Vec<_>>();
     agent_image_tag(base_digest, &tools)
+}
+
+/// An image rebuild is needed only when the resolved, ordered image set changed.
+pub fn tool_set_requires_rebuild(current: &[ImageTool], next: &[ImageTool]) -> bool {
+    current != next
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
