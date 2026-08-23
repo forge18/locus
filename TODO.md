@@ -139,7 +139,7 @@ below; it is short and it is load-bearing.
 - [x] **[desktop-knowledge-review](.specs/desktop-knowledge-review/spec.md)** · 30 tasks · [tasks](.specs/desktop-knowledge-review/tasks.md)
   Replace v1 Inbox, Dashboard, Develop, Review, and Wiki fixtures with the scoped desktop viewers.
   *Depends on:* `desktop-application-shell`, `theme-system`
-- [ ] **[desktop-workshop-runtime](.specs/desktop-workshop-runtime/spec.md)** · 53 tasks · [tasks](.specs/desktop-workshop-runtime/tasks.md)
+- [x] **[desktop-workshop-runtime](.specs/desktop-workshop-runtime/spec.md)** · 53 tasks · **complete** · [tasks](.specs/desktop-workshop-runtime/tasks.md)
   Build Providers, Minisign tool verification, adapter-gated harness routing, and Workflow Governance.
   *Depends on:* `desktop-application-shell`, `theme-system`
 
