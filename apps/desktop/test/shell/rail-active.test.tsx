@@ -1,40 +1,32 @@
+import { fireEvent, render } from "@solidjs/testing-library";
 import { describe, expect, it } from "vitest";
-import { render } from "@solidjs/testing-library";
-import { Rail } from "../../src/shell/Rail";
-import { read, rules } from "../css";
-
-const rule = (sel: string) =>
-  rules(read("shell/shell.css")).find((r) => r.selector === sel);
+import { ProjectRail } from "../../src/shell/ProjectRail";
 
 describe("shell/rail-active", () => {
-  it("marks exactly one item current", () => {
-    const { getByTestId } = render(() => (
-      <Rail view="telemetry" onNavigate={() => {}} inboxCount={0} />
+  it("makes the first global route reachable by keyboard", () => {
+    const { getByTestId, getByText } = render(() => (
+      <ProjectRail selectedProject="tapestry" />
     ));
-    const current = getByTestId("rail").querySelectorAll(
-      '[aria-current="true"]',
-    );
-    expect(current.length).toBe(1);
-    expect(current[0].getAttribute("data-category")).toBe("review");
+    const routes = getByTestId("global-rail-routes");
+    expect(getByText("Inbox").getAttribute("tabindex")).toBe("0");
+    expect(routes.querySelectorAll('button[tabindex="0"]')).toHaveLength(1);
   });
 
-  it("paints it --sf2 with the accent inset ring and accent text", () => {
-    const body = rule(".rail-item[aria-current='true']")!.body;
-    expect(body).toContain("background: var(--surface-selected)");
-    expect(body).toContain("box-shadow: var(--ring-sel-soft)");
-    expect(body).toContain("color: var(--action-attention)");
+  it("moves the roving focus target through global routes", () => {
+    const { getByTestId, getByText } = render(() => (
+      <ProjectRail selectedProject="tapestry" />
+    ));
+    fireEvent.keyDown(getByTestId("global-rail-routes"), { key: "ArrowDown" });
+    expect(getByText("Inbox").getAttribute("tabindex")).toBe("-1");
+    expect(getByText("Dashboard").getAttribute("tabindex")).toBe("0");
   });
 
-  it("resolves the ring from --ac, so retheming moves it", () => {
-    expect(read("styles/tokens.css")).toContain(
-      "--ring-sel-soft: inset 0 0 0 1px var(--action-attention-ring)",
+  it("reports dispatch state without relying on a visual color alias", () => {
+    const { getByTestId } = render(() => (
+      <ProjectRail selectedProject="tapestry" dispatchState="blocked" />
+    ));
+    expect(getByTestId("dispatch-dot").getAttribute("data-state")).toBe(
+      "blocked",
     );
-    expect(read("styles/tokens.css")).toContain(
-      "--ac-ring: color-mix(in srgb, var(--action-attention) 55%, transparent)",
-    );
-  });
-
-  it("leaves the inactive items in --mu", () => {
-    expect(rule(".rail-item")!.body).toContain("color: var(--mu)");
   });
 });

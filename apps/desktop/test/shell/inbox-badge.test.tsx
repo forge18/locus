@@ -36,8 +36,8 @@ describe("shell/inbox-badge", () => {
 
   it("inks the numeral in the app ground and carries the one 700 weight", () => {
     const body = rule(".rail-badge")!.body;
-    expect(body).toContain("color: var(--ac-ink)");
-    expect(read("styles/tokens.css")).toContain("--ac-ink: var(--surface-ground)");
+    expect(body).toContain("color: var(--action-attention-ink)");
+    expect(read("styles/tokens.css")).toContain("--action-attention-ink: var(--surface-ground)");
     expect(body).toContain("font-weight: 700");
   });
 });

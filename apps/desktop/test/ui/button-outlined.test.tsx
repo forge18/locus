@@ -20,13 +20,13 @@ describe('ui/button-outlined', () => {
   it('tints only on hover and press, and only as a wash', () => {
     for (const sel of ['.btn-primary:hover', '.btn-primary:active']) {
       const body = rule(sel)!.body
-      expect(body).toMatch(/background: color-mix\(in srgb, var\(--ac\) \d+%, transparent\)/)
+      expect(body).toMatch(/background: color-mix\(in srgb, var\(--action-attention\) \d+%, transparent\)/)
     }
   })
 
   it('never paints an accent background anywhere in the button rules', () => {
     for (const r of rules(css).filter((x) => x.selector.startsWith('.btn'))) {
-      expect(r.body, `${r.selector}`).not.toMatch(/background:\s*var\(--ac\)/)
+      expect(r.body, `${r.selector}`).not.toMatch(/background:\s*var\(--action-attention\)/)
     }
   })
 })

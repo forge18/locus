@@ -33,7 +33,7 @@ describe('kanban/approval-accent', () => {
   it('leaves the other heads in --mu', () => {
     expect(
       rules(read('screens/screens.css')).find((r) => r.selector === '.kanban-column-head')!.body,
-    ).toContain('color: var(--mu)')
+    ).toContain('color: var(--text-secondary)')
   })
 
   it('is the one column that means "a person is the blocker"', () => {

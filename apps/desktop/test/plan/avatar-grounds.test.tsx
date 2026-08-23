@@ -13,17 +13,17 @@ describe('plan/avatar-grounds', () => {
   it('grounds an agent avatar on --blue', () => {
     const { getByTestId } = render(() => <Message message={agent} />)
     expect(getByTestId(`msg-avatar-${agent.id}`).className).not.toContain('msg-avatar-auditor')
-    expect(rule('.msg-avatar').body).toContain('background: var(--blue)')
+    expect(rule('.msg-avatar').body).toContain('background: var(--avatar-ground)')
   })
 
   it('grounds the auditor on the deep amber, which is its own colour', () => {
     const { getByTestId } = render(() => <Message message={auditor} />)
     expect(getByTestId(`msg-avatar-${auditor.id}`).className).toContain('msg-avatar-auditor')
-    expect(rule('.msg-avatar-auditor').body).toContain('background: var(--ac-deep)')
+    expect(rule('.msg-avatar-auditor').body).toContain('background: var(--action-attention-deep)')
   })
 
   it('derives that amber from --ac, so retheming carries it', () => {
-    expect(read('styles/tokens.css')).toContain('--ac-deep: color-mix(in srgb, var(--action-attention) 36%, #000000)')
+    expect(read('styles/tokens.css')).toContain('--action-attention-deep: color-mix(in srgb, var(--action-attention) 36%, #000000)')
   })
 
   it('tells the three speakers apart without reading them', () => {

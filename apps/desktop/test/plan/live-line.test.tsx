@@ -22,7 +22,7 @@ describe("plan/live-line", () => {
     expect(
       rules(read("shell/shell.css")).find((r) => r.selector === ".live-dot")!
         .body,
-    ).toContain("background: var(--ac2)");
+    ).toContain("background: var(--status-working)");
   });
 
   it("reuses the one pulse keyframe rather than adding another", () => {

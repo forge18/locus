@@ -33,7 +33,7 @@ describe("shell/locator-bar", () => {
 
   it("dims the scheme below the path, so the address reads first", () => {
     expect(rule(".locator-scheme")!.body).toContain("color: var(--text-muted)");
-    expect(rule(".locator-path")!.body).toContain("color: var(--mu)");
+    expect(rule(".locator-path")!.body).toContain("color: var(--text-secondary)");
   });
 
   it("carries the ⌘K affordance in a hairline box on the right", () => {

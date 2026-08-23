@@ -14,7 +14,7 @@ describe('no-default-focus-ring', () => {
     for (const [file, contents] of allSource()) {
       const body = stripComments(contents)
       for (const value of declarations(body, 'outline')) {
-        expect(value, `${file}: outline: ${value}`).toMatch(/2px solid var\(--ac\)/)
+        expect(value, `${file}: outline: ${value}`).toMatch(/2px solid var\(--action-attention\)/)
       }
       for (const value of declarations(body, 'outline-width')) {
         expect(value, `${file}: outline-width: ${value}`).not.toMatch(/^0/)

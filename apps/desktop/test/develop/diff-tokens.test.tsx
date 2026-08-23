@@ -14,7 +14,7 @@ describe('develop/diff-tokens', () => {
   })
 
   it('colours comments --mu', () => {
-    expect(rule('.tok-comment').body).toContain('color: var(--mu)')
+    expect(rule('.tok-comment').body).toContain('color: var(--text-secondary)')
   })
 
   it('marks the keywords in a real diff line', () => {

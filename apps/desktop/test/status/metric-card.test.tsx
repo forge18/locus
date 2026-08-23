@@ -26,7 +26,7 @@ describe('status/metric-card', () => {
     const { getByTestId } = render(() => <MetricCard metric={METRIC} />)
     expect(getByTestId('metric-unit').textContent).toBe('%')
     expect(rule('.metric-unit')!.body).toContain('font-size: var(--t-title)')
-    expect(rule('.metric-unit')!.body).toContain('color: var(--mu)')
+    expect(rule('.metric-unit')!.body).toContain('color: var(--text-secondary)')
   })
 
   it('sets the label at 13px uppercase with .1em tracking', () => {

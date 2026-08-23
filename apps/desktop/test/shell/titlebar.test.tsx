@@ -41,9 +41,9 @@ describe("shell/titlebar", () => {
     const body = rule(".wordmark")!.body;
     expect(body).toContain("font-size: var(--t-row)");
     expect(body).toContain("font-weight: 500");
-    expect(body).toContain("letter-spacing: .14em");
+    expect(body).toContain("letter-spacing: 0.14em");
     expect(body).toContain("text-transform: uppercase");
-    expect(body).toContain("color: var(--mu)");
+    expect(body).toContain("color: var(--text-secondary)");
   });
 
   it("holds the locator bar, the project filter and the running count", () => {

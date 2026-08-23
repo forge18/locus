@@ -53,7 +53,7 @@ describe('telemetry/sessions-table', () => {
     const css = rules(read('screens/screens.css'))
     expect(css.find((r) => r.selector === '.status-running')!.body).toContain('color: var(--action-attention)')
     expect(css.find((r) => r.selector === '.status-closed')!.body).toContain('color: var(--status-success)')
-    expect(css.find((r) => r.selector === '.status-waiting')!.body).toContain('color: var(--mu)')
+    expect(css.find((r) => r.selector === '.status-waiting')!.body).toContain('color: var(--text-secondary)')
   })
 
   it('reads unknown, not zero, where the harness reported no usage', () => {

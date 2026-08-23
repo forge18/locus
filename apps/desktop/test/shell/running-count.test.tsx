@@ -17,7 +17,7 @@ describe("shell/running-count", () => {
     const { getByTestId } = render(() => <RunningCount count={8} />);
     const dot = getByTestId("running-dot");
     expect(dot.className).toContain("pulse");
-    expect(rule(".live-dot")!.body).toContain("background: var(--ac2)");
+    expect(rule(".live-dot")!.body).toContain("background: var(--status-working)");
   });
 
   it("animates with the shared keyframe rather than one of its own", () => {

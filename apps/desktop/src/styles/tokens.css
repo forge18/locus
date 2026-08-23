@@ -33,8 +33,8 @@
  --sh-node-lift: 0 10px 26px rgba(0, 0, 0, 0.5);
  --sh-window:
   0 0 0 1px rgba(238, 242, 246, 0.13), 0 30px 80px rgba(0, 0, 0, 0.6);
- --ring-sel: inset 0 0 0 1px var(--ac);
- --ring-sel-soft: inset 0 0 0 1px var(--ac-ring);
+ --ring-sel: inset 0 0 0 1px var(--action-attention);
+ --ring-sel-soft: inset 0 0 0 1px var(--action-attention-ring);
 }
 
 [data-theme="dark"] {
@@ -81,16 +81,22 @@
  --ok-solid: #4fa07f;
  --bad-solid: #d4614f;
 
- --ac-ring: color-mix(in srgb, var(--ac) 55%, transparent);
- --ac-ring-soft: color-mix(in srgb, var(--ac) 50%, transparent);
- --ac-wash: color-mix(in srgb, var(--ac) 16%, transparent);
- --ac-deep: color-mix(in srgb, var(--ac) 36%, #000000);
- --ac-pale: color-mix(in srgb, var(--ac) 18%, #ffffff);
+ --action-attention-ring: color-mix(in srgb, var(--action-attention) 55%, transparent);
+ --action-attention-ring-soft: color-mix(in srgb, var(--action-attention) 50%, transparent);
+ --action-attention-wash: color-mix(in srgb, var(--action-attention) 16%, transparent);
+ --action-attention-deep: color-mix(in srgb, var(--action-attention) 36%, #000000);
+ --action-attention-pale: color-mix(in srgb, var(--action-attention) 18%, #ffffff);
+ --action-attention-ink: var(--surface-ground);
+ --ac-ring: var(--action-attention-ring);
+ --ac-ring-soft: var(--action-attention-ring-soft);
+ --ac-wash: var(--action-attention-wash);
+ --ac-deep: var(--action-attention-deep);
+ --ac-pale: var(--action-attention-pale);
  --bad-deep: color-mix(in srgb, var(--bad-solid) 34%, #000000);
  --bad-pale: color-mix(in srgb, var(--bad) 22%, #ffffff);
  --kw-deep: color-mix(in srgb, var(--code-keyword) 30%, #000000);
  --kw-pale: color-mix(in srgb, var(--code-keyword) 22%, #ffffff);
- --ac-ink: var(--bg);
+ --ac-ink: var(--action-attention-ink);
 
  --tl-close: #ed6a5e;
  --tl-min: #f4bf50;
@@ -145,16 +151,22 @@
  --ok-solid: #2a7c5a;
  --bad-solid: #b73d33;
 
- --ac-ring: color-mix(in srgb, var(--ac) 55%, transparent);
- --ac-ring-soft: color-mix(in srgb, var(--ac) 50%, transparent);
- --ac-wash: color-mix(in srgb, var(--ac) 16%, transparent);
- --ac-deep: color-mix(in srgb, var(--ac) 38%, #ffffff);
- --ac-pale: color-mix(in srgb, var(--ac) 14%, #ffffff);
+ --action-attention-ring: color-mix(in srgb, var(--action-attention) 55%, transparent);
+ --action-attention-ring-soft: color-mix(in srgb, var(--action-attention) 50%, transparent);
+ --action-attention-wash: color-mix(in srgb, var(--action-attention) 16%, transparent);
+ --action-attention-deep: color-mix(in srgb, var(--action-attention) 38%, #ffffff);
+ --action-attention-pale: color-mix(in srgb, var(--action-attention) 14%, #ffffff);
+ --action-attention-ink: var(--surface-ground);
+ --ac-ring: var(--action-attention-ring);
+ --ac-ring-soft: var(--action-attention-ring-soft);
+ --ac-wash: var(--action-attention-wash);
+ --ac-deep: var(--action-attention-deep);
+ --ac-pale: var(--action-attention-pale);
  --bad-deep: color-mix(in srgb, var(--bad-solid) 28%, #ffffff);
  --bad-pale: color-mix(in srgb, var(--bad) 16%, #ffffff);
  --kw-deep: color-mix(in srgb, var(--code-keyword) 28%, #ffffff);
  --kw-pale: color-mix(in srgb, var(--code-keyword) 16%, #ffffff);
- --ac-ink: var(--bg);
+ --ac-ink: var(--action-attention-ink);
 
  --tl-close: #c3483d;
  --tl-min: #a86c00;

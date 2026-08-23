@@ -29,9 +29,9 @@ describe("shell/tabbar", () => {
     const body = rule(".tabbar-category")!.body;
     expect(body).toContain("font-size: var(--t-row)");
     expect(body).toContain("font-weight: 500");
-    expect(body).toContain("letter-spacing: .1em");
+    expect(body).toContain("letter-spacing: 0.1em");
     expect(body).toContain("text-transform: uppercase");
-    expect(body).toContain("color: var(--mu)");
+    expect(body).toContain("color: var(--text-secondary)");
   });
 
   it('names the dashboard category "Inbox", as the rail does', () => {

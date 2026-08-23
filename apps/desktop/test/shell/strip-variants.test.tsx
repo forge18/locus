@@ -47,7 +47,7 @@ describe("shell/strip-variants", () => {
     expect(getByTestId("strip-card-st-shell").className).toContain(
       "strip-card-shell",
     );
-    expect(rule(".strip-card-shell")!.body).toMatch(/opacity:\s*\.6/);
+    expect(rule(".strip-card-shell")!.body).toMatch(/opacity:\s*0\.6/);
   });
 
   it("marks a shell card with the terminal glyph", () => {

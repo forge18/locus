@@ -31,7 +31,7 @@ describe('ui/tooltip', () => {
   it('is styled from tokens, on the deep ground', () => {
     const rule = rules(read('ui/ui.css')).find((r) => r.selector === '.tooltip')!
     expect(rule.body).toContain('background: var(--surface-chrome)')
-    expect(rule.body).toContain('color: var(--tx)')
+    expect(rule.body).toContain('color: var(--text-primary)')
     expect(rule.body).toContain('border: 1px solid var(--border-strong)')
   })
 
