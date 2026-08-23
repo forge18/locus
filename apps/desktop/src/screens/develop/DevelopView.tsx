@@ -111,6 +111,8 @@ export function DevelopView() {
 
         <SideBySideDiff hunks={hunks()} onToggleHunk={toggleHunk} />
 
+        <section class="dev-terminal" data-testid="develop-terminal"><strong>Terminal · agent/8f21-notify</strong><code>$ cargo test -p locus-core notify::</code><span>This linked repo is your working copy; the agent works in its own clone.</span></section>
+
         <footer class="dev-footer" data-testid="dev-footer">
           <Button variant="secondary" data-testid="dev-revert">
             <Icon name="arrow-counter-clockwise" size={11} />
