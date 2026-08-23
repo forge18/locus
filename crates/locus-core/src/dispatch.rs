@@ -191,6 +191,11 @@ pub struct PreemptionHandoff {
 }
 
 impl PreemptionHandoff {
+    /// A resumable handoff always retains its branch and session context.
+    pub fn retains_context(&self) -> bool {
+        !self.branch.trim().is_empty() && !self.memory_base.is_null()
+    }
+
     pub fn from_session(session: &Session) -> Self {
         Self {
             session_id: session.id,
