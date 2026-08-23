@@ -66,9 +66,9 @@ function FactList() {
   )
 }
 
-function MemoryFrame(props: { testId: string; children: JSX.Element }) {
+function MemoryFrame(props: { testId: string; route: string; children: JSX.Element }) {
   return (
-    <main class="v2-memory" data-testid={props.testId}>
+    <main class="v2-memory" data-testid={props.testId} data-v2-route={props.route}>
       {props.children}
     </main>
   )
@@ -77,7 +77,7 @@ function MemoryFrame(props: { testId: string; children: JSX.Element }) {
 /** The rebuilt, per-iteration context window fixture. */
 export function MemoryShortTermFixture() {
   return (
-    <MemoryFrame testId="v2-memory-short-term">
+    <MemoryFrame testId="v2-memory-short-term" route="memory-short-term">
       <aside class="v2-memory-left">
         <header class="v2-memory-pane-head">
           <h1>Short-term</h1>
@@ -166,7 +166,7 @@ export function MemoryShortTermFixture() {
 /** Project-scoped facts, their provenance, decay, and contradiction state. */
 export function MemoryLongTermFixture() {
   return (
-    <MemoryFrame testId="v2-memory-long-term">
+    <MemoryFrame testId="v2-memory-long-term" route="memory-long-term">
       <aside class="v2-memory-left">
         <header class="v2-memory-pane-head">
           <h1>Long-term <code>318</code></h1>
@@ -221,7 +221,7 @@ export function MemoryLongTermFixture() {
 /** Reviewable artifacts retain their source while comments steer their session. */
 export function MemoryArtifactsFixture() {
   return (
-    <MemoryFrame testId="v2-memory-artifacts">
+    <MemoryFrame testId="v2-memory-artifacts" route="memory-artifacts">
       <aside class="v2-memory-left">
         <Label>Review artifacts</Label>
         <div class="v2-memory-list">
@@ -247,7 +247,7 @@ export function MemoryArtifactsFixture() {
 /** Curated wiki prose remains separate from agent recall. */
 export function MemoryWikiFixture() {
   return (
-    <MemoryFrame testId="v2-memory-wiki">
+    <MemoryFrame testId="v2-memory-wiki" route="memory-wiki">
       <aside class="v2-memory-left">
         <header class="v2-memory-pane-head"><h1>All <code>153</code></h1><p>Curated project knowledge derived from sources, then reviewed by people.</p><Button variant="primary" block>Ingest a document</Button></header>
         <div class="v2-memory-kinds"><span>All 153</span><span>Decisions 14</span><span>Concepts 31</span><span>Entities 42</span></div>
