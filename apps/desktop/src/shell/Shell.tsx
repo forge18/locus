@@ -6,7 +6,8 @@ import { LocatorPalette } from '../nav/LocatorPalette'
 import { Sheet } from '../ui/Sheet'
 import { useRunningCount, useStripCards } from '../data/strip'
 import type { ActiveSession } from './RunningPill'
-import type { NavStore } from '../nav'
+import type { NavStore, View } from '../nav'
+import { navigateDesktop } from '../nav/desktop-navigation'
 
 export interface ShellProps {
   nav: NavStore
@@ -25,6 +26,17 @@ export function Shell(props: ShellProps) {
       lastActivityAt: -card.idleMinutes,
     }))
   const needsYou = activeSessions.filter((session) => session.needsAttention).length
+  const openDesktopLocator = (locator: string) => {
+    const target = navigateDesktop(locator)
+    const views: Record<string, View> = {
+      inbox: 'inbox', dashboard: 'status', 'plan-conversation': 'plan', 'plan-spec': 'plan',
+      'plan-tasks': 'plan', develop: 'develop', 'automate-kanban': 'board',
+      'automate-agents': 'sessions', 'review-telemetry': 'telemetry', 'dispatch-runs': 'runs',
+      'memory-wiki': 'wiki', 'workshop-agents': 'agents', 'workshop-harnesses': 'harnesses',
+      'workflows-visual': 'canvas', 'workflows-governance': 'canvas',
+    }
+    props.nav.go(views[target.route] ?? 'extensions')
+  }
 
   // ⌘K resolves a locator. It is bound here because the palette is shell
   // chrome, and there is one of it per window.
@@ -47,7 +59,7 @@ export function Shell(props: ShellProps) {
         sessions={activeSessions}
       />
       <div class="body">
-        <ProjectRail selectedProject={props.nav.params().project} />
+        <ProjectRail selectedProject={props.nav.params().project} onNavigate={openDesktopLocator} />
         <div class="main">
           <div class="screen" data-testid="screen">
             {props.children}

@@ -1,4 +1,5 @@
 import { createMemo, createSignal, For } from "solid-js";
+import { destinationDesktop } from "../nav/desktop-navigation";
 import { Desktop_GLOBAL_ROUTE_KINDS } from "../nav/desktop-route-kinds";
 
 export const RAIL_EXPANSION_STORAGE_KEY = "locus.rail-expansion";
@@ -16,6 +17,7 @@ export interface ProjectRailProps {
   inboxCount?: number;
   dispatchState?: "ready" | "working" | "blocked";
   projects?: readonly string[];
+  onNavigate?: (locator: string) => void;
 }
 
 export function ProjectRail(props: ProjectRailProps) {
@@ -78,6 +80,7 @@ export function ProjectRail(props: ProjectRailProps) {
             <button
               type="button"
               tabIndex={activeGlobalRoute() === index() ? 0 : -1}
+              onClick={() => props.onNavigate?.(destinationDesktop(route.id))}
             >
               {route.label}
               {route.id === "inbox" && props.inboxCount ? (
@@ -106,7 +109,7 @@ export function ProjectRail(props: ProjectRailProps) {
         <div data-testid="memory-rail-links" hidden={!memoryExpanded()}>
           <For each={MEMORY_ROUTES}>
             {(route) => (
-              <button type="button">
+              <button type="button" onClick={() => props.onNavigate?.(destinationDesktop(route.id))}>
                 {route.label.replace("Memory ", "")}
               </button>
             )}
@@ -130,7 +133,7 @@ export function ProjectRail(props: ProjectRailProps) {
         <div data-testid="workshop-rail-links" hidden={!workshopExpanded()}>
           <For each={WORKSHOP_ROUTES}>
             {(route) => (
-              <button type="button">
+              <button type="button" onClick={() => props.onNavigate?.(destinationDesktop(route.id))}>
                 {route.label.replace("Workshop ", "")}
               </button>
             )}
