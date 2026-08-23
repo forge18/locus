@@ -2,6 +2,12 @@ mod dispatch {
     use locus_core::dispatch::DispatchPolicy;
 
     #[test]
+    fn autorun_state() {
+        let state = locus_core::dispatch::AutorunState::enabled();
+        assert!(state.is_enabled());
+    }
+
+    #[test]
     fn preemption_handoff() {
         let handoff = locus_core::dispatch::PreemptionHandoff {
             session_id: uuid::Uuid::nil(), branch: "agent/task".into(), board_task_id: None,
