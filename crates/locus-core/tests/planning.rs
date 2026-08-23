@@ -1,5 +1,13 @@
 mod planning {
-    use locus_core::planning::{CardMode, EditableSpec, PlanTask, PlanningStage, Requirement};
+    use locus_core::planning::{ApprovedPlan, CardMode, Decomposition, EditableSpec, PlanTask, PlanningStage, Requirement};
+
+    #[test]
+    fn spec_only_cards() {
+        let plan = ApprovedPlan::new("Spec", vec![PlanTask::new("T-01", "One")]);
+        let cards = Decomposition::for_spec_only(plan);
+
+        assert_eq!(cards.cards().len(), 1);
+    }
 
     #[test]
     fn task_decomposition() {
