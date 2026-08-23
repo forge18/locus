@@ -143,6 +143,10 @@ pub struct StopAllSnapshot {
 }
 
 impl StopAllSnapshot {
+    pub const fn restore_window_minutes() -> u8 {
+        10
+    }
+
     pub fn is_empty(&self) -> bool {
         self.run_ids.is_empty()
     }
