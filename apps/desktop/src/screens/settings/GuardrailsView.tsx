@@ -139,7 +139,7 @@ export function GuardrailsView() {
             {(section) => (
               <section
                 class="settings-section"
-                data-testid={`settings-section-${section.id}`}
+                data-testid={section.id === "parallelism" ? "parallelism-controls" : `settings-section-${section.id}`}
               >
                 <h3>{section.label}</h3>
                 <For each={section.settings}>
