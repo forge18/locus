@@ -152,7 +152,7 @@ function PanelTitle(props: { title: string; note: string; action?: string }) {
 }
 
 function Repo(props: { name: string; url: string; status: string; activity: string }) {
-  return <div class="project-repo"><div><strong class="mono">{props.name}</strong><small class="mono">{props.url}</small></div><span class="mono">{props.status}</span><span>{props.activity}</span><b>#tapestry</b></div>
+  return <div class="project-repo"><div><strong class="mono">{props.name}</strong><small class="mono">{props.url}</small></div><span class="mono" data-testid="project-repo-branch-state">{props.status} · {props.activity}</span><b>#tapestry</b></div>
 }
 
 function Tool(props: { name: string; version: string; meta: string; action: string }) {
