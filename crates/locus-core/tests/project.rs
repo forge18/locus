@@ -1,4 +1,13 @@
 mod project {
+    #[test]
+    fn lifecycle_preserves_history() {
+        let project = locus_core::project::ProjectLifecycle::new("alpha").expect("project");
+        let archived = project.rename("beta").archive();
+        assert_eq!(archived.name(), "beta");
+        assert!(archived.is_archived());
+        assert!(archived.preserves_history());
+    }
+
     use locus_core::{materialize::ProjectExtensionScope, project::{ProjectAnalytics, ProjectRepo, ProjectRunAnalytics, ProjectSettings}, tools::ProjectToolScope};
 
     #[test]
