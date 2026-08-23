@@ -304,6 +304,11 @@ impl Decomposition {
             .collect()
     }
 
+    /// Produce approved board cards with the dependency edges from their source tasks.
+    pub fn approved_cards(&self) -> Result<Vec<BoardCard>> {
+        self.approve()
+    }
+
     /// The final approval boundary that commits a draft mapping into board cards.
     pub fn final_approval(&self) -> Result<Vec<BoardCard>> {
         self.approve()
