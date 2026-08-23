@@ -2,6 +2,13 @@ mod workflow {
     use locus_core::workflow::{Guardrail, SuccessCriterion, SuccessCriterionKind, WorkflowGovernance};
 
     #[test]
+    fn success_criteria() {
+        let criterion = SuccessCriterion { kind: SuccessCriterionKind::Command, checker: "cargo test".into() };
+        assert_eq!(criterion.kind, SuccessCriterionKind::Command);
+        assert_eq!(criterion.checker, "cargo test");
+    }
+
+    #[test]
     fn guardrail_prompts() {
         let guardrail = Guardrail { name: "safe".into(), prompt: "preserve data".into() };
         assert_eq!((guardrail.name.as_str(), guardrail.prompt.as_str()), ("safe", "preserve data"));
