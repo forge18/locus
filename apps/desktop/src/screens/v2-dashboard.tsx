@@ -13,7 +13,7 @@ const MODEL_COLORS = ['data-1', 'data-2', 'data-3', 'data-hi']
 /** Global interruption fixture: responses live here; work opens at its own surface. */
 export function V2InboxView() {
   return (
-    <div class="v2-inbox" data-testid="v2-inbox">
+    <div class="v2-inbox" data-testid="v2-inbox" data-v2-route="inbox">
       <aside class="v2-inbox-list">
         <div class="v2-inbox-tabs" data-testid="v2-inbox-tabs">
           <button aria-current="page" type="button">To do <span>3</span></button>
