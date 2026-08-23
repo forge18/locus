@@ -17,6 +17,7 @@ export interface ResizableProps {
   side: 'left' | 'right'
   class?: string
   testId?: string
+  dataChangedFileState?: string
   children: JSX.Element
 }
 
@@ -61,6 +62,7 @@ export function Resizable(props: ResizableProps) {
       data-testid={props.testId ?? 'resizable'}
       data-side={props.side}
       data-dragged={dragged() === null ? undefined : 'true'}
+      data-changed-file-state={props.dataChangedFileState}
       /* The clamp lives in the stylesheet; these are just the three numbers it
          needs. Dragging moves the preferred one, which the clamp still bounds. */
       style={{

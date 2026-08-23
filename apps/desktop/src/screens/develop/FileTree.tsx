@@ -16,7 +16,7 @@ const statusClass = (status: 'M' | 'A' | '?') =>
 
 export function FileTree(props: FileTreeProps) {
   return (
-    <Resizable width={206} min={160} max={400} side="right" class="dev-tree" testId="dev-tree">
+    <Resizable width={206} min={160} max={400} side="right" class="dev-tree" testId="dev-tree" dataChangedFileState="visible">
       <div class="dev-tree-head" data-testid="dev-tree-head" data-changed-file-state="visible">
         <Icon name="git-branch" size={11} />
         <span data-testid="dev-tree-branch">{useBranch()}</span>
