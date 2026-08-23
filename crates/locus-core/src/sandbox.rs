@@ -18,7 +18,10 @@ use bollard::{
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
-use crate::registry::{HarnessDefinition, Image};
+use crate::{
+    registry::{HarnessDefinition, Image},
+    tools::{ProjectToolScope, RoleToolScope, ToolCatalog},
+};
 
 pub const PORT_START: u16 = 43_000;
 pub const PORT_END: u16 = 43_999;
@@ -180,6 +183,24 @@ pub fn agent_image_key(base_digest: &str, tools: &[ToolPin]) -> String {
 
 pub fn agent_image_tag(base_digest: &str, tools: &[ToolPin]) -> String {
     format!("locus/agent-{}", agent_image_key(base_digest, tools))
+}
+
+/// Derive an image tag from the catalog after project and role subtraction.
+pub fn agent_image_tag_for_scopes(
+    base_digest: &str,
+    catalog: &ToolCatalog,
+    project: &ProjectToolScope,
+    role: &RoleToolScope,
+) -> String {
+    let tools = catalog
+        .scoped_image_set(project, role)
+        .into_iter()
+        .map(|tool| ToolPin {
+            name: tool.name,
+            version: tool.version,
+        })
+        .collect::<Vec<_>>();
+    agent_image_tag(base_digest, &tools)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
