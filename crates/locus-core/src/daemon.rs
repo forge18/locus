@@ -14,6 +14,12 @@ use tokio::{
 };
 use uuid::Uuid;
 
+use crate::{
+    run::{self, ContainerRuntime, SpawnRequest, SpawnedRun},
+    session::Run,
+    store::Store,
+};
+
 const MAX_AGENT_SOCKET_FRAME_BYTES: u32 = 1_048_576;
 
 /// `locusd` owns active runs. Desktop windows attach and detach without owning them.
@@ -41,6 +47,19 @@ impl Daemon {
     }
     pub fn attached_windows(&self) -> usize {
         self.attached_windows
+    }
+
+    /// Starts a persisted run through the daemon-owned credential-proxy path.
+    pub async fn spawn_run(
+        &mut self,
+        store: &Store,
+        run: &mut Run,
+        request: SpawnRequest<'_>,
+        runtime: &mut impl ContainerRuntime,
+    ) -> Result<SpawnedRun> {
+        let spawned = run::spawn_persisted(store, run, request, runtime).await?;
+        self.begin_run(run.id);
+        Ok(spawned)
     }
 }
 
