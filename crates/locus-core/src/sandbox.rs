@@ -26,6 +26,7 @@ use sha2::{Digest, Sha256};
 
 use crate::{
     registry::{HarnessDefinition, Image},
+    store::Store,
     tools::{ImageTool, ProjectToolScope, RoleToolScope, ToolCatalog},
 };
 
@@ -263,6 +264,7 @@ struct CredentialProxyState {
     credential_class: &'static str,
     runs: Mutex<HashMap<String, CredentialProxyRun>>,
     audit: Mutex<Vec<OutboundAudit>>,
+    audit_store: Mutex<Option<Store>>,
 }
 
 struct CredentialProxyListener {
@@ -302,6 +304,7 @@ impl CredentialProxy {
                 credential_class,
                 runs: Mutex::new(HashMap::new()),
                 audit: Mutex::new(Vec::new()),
+                audit_store: Mutex::new(None),
             }),
             upstream: upstream.into().trim_end_matches('/').into(),
             listener: Mutex::new(None),
@@ -330,6 +333,15 @@ impl CredentialProxy {
     }
 
     /// Bind a run's nonce and egress capability before its container starts.
+    /// Attach the durable store before accepting agent requests.
+    pub fn attach_audit_store(&self, store: Store) {
+        *self
+            .state
+            .audit_store
+            .lock()
+            .expect("credential proxy audit store lock") = Some(store);
+    }
+
     pub fn configure_run(&self, run_id: &str, nonce: &str, tier: EgressTier) -> Result<()> {
         if run_id.trim().is_empty() || nonce.trim().is_empty() {
             bail!("credential proxy run binding requires a run id and nonce")
@@ -455,13 +467,26 @@ fn request_with_state<T>(
             && supplied_credential == CREDENTIAL_SENTINEL
             && binding.tier.allows(target)
     });
-    state.audit.lock().expect("audit lock").push(OutboundAudit {
+    let audit = OutboundAudit {
         run_id: run_id.into(),
         target,
         tier,
         allowed,
         credential_class: state.credential_class,
-    });
+    };
+    state.audit.lock().expect("audit lock").push(audit.clone());
+    if let Some(store) = state
+        .audit_store
+        .lock()
+        .expect("credential proxy audit store lock")
+        .clone()
+    {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .context("create credential proxy audit runtime")?
+            .block_on(store.persist_credential_proxy_audit(&audit))?;
+    }
     if !allowed {
         bail!("credential proxy refused outbound request")
     }

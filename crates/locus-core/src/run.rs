@@ -517,6 +517,8 @@ pub struct SpawnRequest<'a> {
     pub credential_proxy: CredentialProxyConfig,
     /// Host-only proxy that injects the sentinel and records the egress authorization.
     pub credential_proxy_authorizer: &'a CredentialProxy,
+    /// Durable audit sink for every credential-proxy request made by this run.
+    pub audit_store: Store,
     /// Network capability permitted for this run.
     pub egress_tier: EgressTier,
     /// Per-run capability validated by the daemon socket before it routes any agent request.
@@ -620,6 +622,9 @@ fn spawn_at_port(
     if request.run_nonce.trim().is_empty() {
         bail!("run socket capability nonce is required")
     }
+    request
+        .credential_proxy_authorizer
+        .attach_audit_store(request.audit_store);
     request
         .credential_proxy_authorizer
         .configure_run(&run.id.to_string(), &request.run_nonce, request.egress_tier)
@@ -1323,9 +1328,7 @@ mod spawns {
     use crate::{
         materialize::{ExtensionEntry, ExtensionSet},
         registry::load_from_directory,
-        sandbox::{
-            agent_image_tag, EgressTarget, Mount, PtyAttachment, ToolPin, AGENT_PTY, CONFIG_SOURCE,
-        },
+        sandbox::{agent_image_tag, Mount, PtyAttachment, ToolPin, AGENT_PTY, CONFIG_SOURCE},
         session::{Run, RunStatus},
     };
 
@@ -1371,8 +1374,8 @@ mod spawns {
         std::env::temp_dir().join(format!("locus-run-spawns-{}", Uuid::new_v4()))
     }
 
-    #[test]
-    fn persisted_spawn_uses_the_reserved_port() {
+    #[tokio::test]
+    async fn persisted_spawn_uses_the_reserved_port() {
         let registry =
             load_from_directory(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../harnesses"))
                 .expect("registry loads");
@@ -1413,6 +1416,7 @@ mod spawns {
             workspace_remote: "/var/lib/locus/repos/project.git".into(),
             credential_proxy: CredentialProxyConfig::new(CREDENTIAL_PROXY_ENDPOINT).unwrap(),
             credential_proxy_authorizer: &credential_proxy_authorizer,
+            audit_store: Store::connect_lazy("postgres://locus@127.0.0.1/locus").unwrap(),
             egress_tier: EgressTier::Model,
             run_nonce: "nonce".into(),
             base_image_digest: "sha256:base".into(),
@@ -1524,25 +1528,6 @@ mod spawns {
             .iter()
             .any(|value| value.contains("test-secret")));
         assert!(credential_proxy_authorizer.audit_rows().is_empty());
-        let forwarded = credential_proxy_authorizer
-            .request(
-                &run_id.to_string(),
-                "nonce",
-                "sk-locus-sentinel",
-                EgressTarget::Model,
-                |secret| {
-                    assert_eq!(secret, "test-secret");
-                    Ok("host response")
-                },
-            )
-            .expect("configured proxy forwards a request");
-        assert_eq!(forwarded, "host response");
-        assert_eq!(credential_proxy_authorizer.audit_rows().len(), 1);
-        assert!(credential_proxy_authorizer.audit_rows()[0].allowed);
-        assert_eq!(
-            credential_proxy_authorizer.audit_rows()[0].tier,
-            EgressTier::Model
-        );
         assert_eq!(
             runtime.attached,
             Some((spawned.container.name.clone(), AGENT_PTY))

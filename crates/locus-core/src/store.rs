@@ -16,6 +16,7 @@ use uuid::Uuid;
 
 use crate::{
     backup::{gate_migration, MigrationBackup, MigrationRunner, RetainedBackupConfig},
+    sandbox::{EgressTarget, EgressTier, OutboundAudit},
     telemetry::Event,
 };
 use tokio::{process::Command, time::sleep};
@@ -245,6 +246,7 @@ impl PostgresContainer {
 }
 
 /// The shared Postgres connection pool and migration runner.
+#[derive(Clone)]
 pub struct Store {
     pool: PgPool,
 }
@@ -257,6 +259,15 @@ impl Store {
             .await
             .context("connect to Postgres")?;
 
+        Ok(Self { pool })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn connect_lazy(database_url: &str) -> Result<Self> {
+        let pool = PgPoolOptions::new()
+            .max_connections(10)
+            .connect_lazy(database_url)
+            .context("create lazy Postgres pool")?;
         Ok(Self { pool })
     }
 
@@ -309,6 +320,36 @@ impl Store {
             .execute(&self.pool)
             .await
             .context("release durable run port")?;
+        Ok(())
+    }
+
+    /// Persists one credential-proxy decision without any secret material.
+    pub async fn persist_credential_proxy_audit(&self, audit: &OutboundAudit) -> Result<()> {
+        let target = match audit.target {
+            EgressTarget::Model => "model",
+            EgressTarget::Package => "package",
+            EgressTarget::Other => "other",
+        };
+        let tier = match audit.tier {
+            EgressTier::None => "none",
+            EgressTier::Model => "model",
+            EgressTier::Packages => "packages",
+            EgressTier::Open => "open",
+        };
+        sqlx::query(
+            "INSERT INTO agents.credential_proxy_audits
+             (id, run_id, target, tier, allowed, credential_class)
+             VALUES ($1, $2::uuid, $3, $4, $5, $6)",
+        )
+        .bind(Uuid::new_v4())
+        .bind(&audit.run_id)
+        .bind(target)
+        .bind(tier)
+        .bind(audit.allowed)
+        .bind(audit.credential_class)
+        .execute(&self.pool)
+        .await
+        .context("persist credential proxy audit")?;
         Ok(())
     }
 
@@ -2083,5 +2124,143 @@ mod schema_market {
             mismatched_pin.is_err(),
             "a tool-set pin must use the snapshot's tool name"
         );
+    }
+}
+
+#[cfg(test)]
+mod credential_proxy_audits {
+    use std::{
+        net::TcpListener,
+        process::{Command, Stdio},
+        sync::Arc,
+    };
+
+    use sqlx::{query, query_as, query_scalar};
+    use uuid::Uuid;
+
+    use super::{PostgresConfig, PostgresContainer, Store};
+    use crate::sandbox::{CredentialProxy, EgressTarget, EgressTier};
+
+    struct DockerCleanup {
+        container_name: String,
+        volume_name: String,
+    }
+
+    impl Drop for DockerCleanup {
+        fn drop(&mut self) {
+            let _ = Command::new("docker")
+                .args(["rm", "--force", &self.container_name])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+            let _ = Command::new("docker")
+                .args(["volume", "rm", "--force", &self.volume_name])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+        }
+    }
+
+    fn unused_port() -> u16 {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind unused local port");
+        listener.local_addr().expect("read local port").port()
+    }
+
+    #[tokio::test]
+    async fn credential_proxy_audits_survive_store_reconnect() {
+        let port = unused_port();
+        let suffix = format!("{}-{port}", std::process::id());
+        let container_name = format!("locus-credential-audit-{suffix}");
+        let volume_name = format!("locus-credential-audit-data-{suffix}");
+        let _cleanup = DockerCleanup {
+            container_name: container_name.clone(),
+            volume_name: volume_name.clone(),
+        };
+        let container =
+            PostgresContainer::new(PostgresConfig::for_test(container_name, volume_name, port));
+        container.start().await.expect("start PostgreSQL");
+        let database_url = container.database_url();
+        let store = Store::connect(&database_url).await.expect("connect store");
+        store
+            .run_migrations(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations"),
+                &super::NoopMigrationBackup,
+                &super::test_backup_config(),
+            )
+            .await
+            .expect("run migrations");
+
+        let project_id = Uuid::new_v4();
+        let agent_id = Uuid::new_v4();
+        let session_id = Uuid::new_v4();
+        let run_id = Uuid::new_v4();
+        query("INSERT INTO core.projects (id, name) VALUES ($1, 'audit project')")
+            .bind(project_id)
+            .execute(store.pool())
+            .await
+            .expect("insert project");
+        query("INSERT INTO agents.agent_defs (id, name, version, frontmatter, body) VALUES ($1, 'audit agent', 1, '{}'::jsonb, '')")
+            .bind(agent_id)
+            .execute(store.pool())
+            .await
+            .expect("insert agent");
+        query("INSERT INTO agents.sessions (id, project_id, agent_def_id, name, branch) VALUES ($1, $2, $3, 'audit session', 'agent/audit')")
+            .bind(session_id)
+            .bind(project_id)
+            .bind(agent_id)
+            .execute(store.pool())
+            .await
+            .expect("insert session");
+        query("INSERT INTO agents.runs (id, session_id, resolved_model_id, status) VALUES ($1, $2, 'model', 'running')")
+            .bind(run_id)
+            .bind(session_id)
+            .execute(store.pool())
+            .await
+            .expect("insert run");
+
+        let proxy = Arc::new(CredentialProxy::new("host-secret", "api_key"));
+        proxy.attach_audit_store(store.clone());
+        proxy
+            .configure_run(&run_id.to_string(), "nonce", EgressTier::Model)
+            .unwrap();
+        let proxy_for_request = proxy.clone();
+        tokio::task::spawn_blocking(move || {
+            proxy_for_request
+                .request(
+                    &run_id.to_string(),
+                    "nonce",
+                    "sk-locus-sentinel",
+                    EgressTarget::Model,
+                    |_| Ok(()),
+                )
+                .expect("persist audit through proxy request");
+        })
+        .await
+        .expect("join proxy request");
+        drop(store);
+
+        let recovered = Store::connect(&database_url)
+            .await
+            .expect("reconnect store");
+        let row: (String, String, bool, String) = query_as(
+            "SELECT target, tier, allowed, credential_class
+             FROM agents.credential_proxy_audits WHERE run_id = $1",
+        )
+        .bind(run_id)
+        .fetch_one(recovered.pool())
+        .await
+        .expect("read durable audit");
+        assert_eq!(
+            row,
+            ("model".into(), "model".into(), true, "api_key".into())
+        );
+        let secret_count: i64 = query_scalar(
+            "SELECT count(*) FROM agents.credential_proxy_audits
+             WHERE credential_class = 'host-secret'",
+        )
+        .fetch_one(recovered.pool())
+        .await
+        .expect("inspect audit secrecy");
+        assert_eq!(secret_count, 0);
     }
 }
