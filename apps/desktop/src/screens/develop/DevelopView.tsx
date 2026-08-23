@@ -22,6 +22,7 @@ export function DevelopView() {
   const [selectedPath, setSelectedPath] = createSignal(useSelectedFile())
   const [activeTab, setActiveTab] = createSignal(useSelectedFile())
   const [collapseUnchanged, setCollapseUnchanged] = createSignal(true)
+  const [diffMode, setDiffMode] = createSignal<'split' | 'unified'>('split')
 
   const [hunks, setHunks] = createSignal(useHunks())
   const git = useGitPanel()
@@ -90,6 +91,8 @@ export function DevelopView() {
             )}
           </For>
           <div class="dev-tabs-right">
+            <button type="button" data-testid="diff-mode-split" aria-pressed={diffMode() === 'split'} onClick={() => setDiffMode('split')}>Split</button>
+            <button type="button" data-testid="diff-mode-unified" aria-pressed={diffMode() === 'unified'} onClick={() => setDiffMode('unified')}>Unified</button>
             <button
               type="button"
               class="git-bulk"
