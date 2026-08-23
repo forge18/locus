@@ -12,6 +12,13 @@ mod provider {
     }
 
     #[test]
+    fn container_has_no_secret() {
+        let proxy = locus_core::sandbox::CredentialProxy::new("provider-secret", "api_key");
+        let environment = proxy.container_environment("run-nonce");
+        assert!(locus_core::sandbox::no_long_lived_secret("provider-secret", &environment, &[]));
+    }
+
+    #[test]
     fn broker_only_access() {
         let reference = KeychainReference::new("locus/provider/openai").expect("reference");
         let provider = ProviderReference::new(Uuid::nil(), "openai", reference).expect("provider");
