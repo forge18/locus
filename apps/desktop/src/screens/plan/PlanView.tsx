@@ -74,7 +74,7 @@ export function PlanView() {
           <Match when={tab() === 'conversation'}>
             <section class="plan-convo" data-testid="plan-conversation">
               <header class="plan-convo-head">
-                <span class="plan-stage-label">Stage 5 of 9</span>
+                <span class="plan-stage-label" data-testid="plan-stage-progress">Stage 5 of 9</span>
                 <span class="plan-convo-title">Audit</span>
                 <span class="plan-convo-running"><span class="live-dot pulse" />running</span>
               </header>
