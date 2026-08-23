@@ -1,5 +1,5 @@
 mod project {
-    use locus_core::project::ProjectSettings;
+    use locus_core::project::{ProjectRepo, ProjectSettings};
 
     #[test]
     fn settings_roundtrip() {
@@ -18,6 +18,14 @@ mod project {
         assert!(settings.permits_harness("claude"));
         assert!(settings.permits_harness("codex"));
         assert!(!settings.permits_harness("gemini"));
+    }
+
+    #[test]
+    fn repos() {
+        let repo = ProjectRepo::new("core", "/work/core").expect("valid repo");
+
+        assert_eq!(repo.name, "core");
+        assert_eq!(repo.working_copy_path, "/work/core");
     }
 
     #[test]
