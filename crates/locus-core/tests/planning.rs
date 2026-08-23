@@ -2,6 +2,14 @@ mod planning {
     use locus_core::planning::{ApprovedPlan, CardMode, Decomposition, EditableSpec, PlanTask, PlanningStage, Requirement};
 
     #[test]
+    fn cards_keep_dependencies() {
+        let plan = ApprovedPlan::new("Spec", vec![PlanTask::new("T-01", "One"), PlanTask::new("T-02", "Two").with_dependencies(["T-01"])]);
+        let cards = Decomposition::for_every_task(plan).expect("mapping").approved_cards().expect("approve");
+
+        assert_eq!(cards[1].dependencies, ["task:T-01"]);
+    }
+
+    #[test]
     fn approval_commits_mapping() {
         let plan = ApprovedPlan::new("Spec", vec![PlanTask::new("T-01", "One")]);
         let cards = Decomposition::for_every_task(plan).expect("mapping").final_approval().expect("approve");
