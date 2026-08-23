@@ -95,7 +95,7 @@ the strongest available argument that skipping VSCodium costs less than it would
 | `local-dx` relationship | Inspiration, not dependency. Locus owns its own registry and schema. |
 | Sandbox | One container per agent run. The workspace is a **clone from a local bare remote**, not a mount. Credential handling must be easy and secure; the mechanism is Spike 1's to settle. |
 | Projects | A Locus project holds **one or more repos** and owns the board, wiki, and memory across all of them. **Unrelated to GitHub Projects** — the name collision is unfortunate and means nothing. |
-| Git invariant | **Locus never works in `main`/`master`. It always branches.** Reaching `main` is a human action through a PR. |
+| Git model | An agent container clones from the project's **bare local remote**, commits, and pushes a branch back. Which branch an agent works on, and how work reaches `main`, follow the project's own convention. |
 | Kanban + wiki store | Both in Postgres, including wiki revisions. |
 | GitHub | Version control, CI/CD, PRs, **and Issues as an input to the Locus board**. Never GitHub Projects. |
 | Marketplace | Git-backed manifest index of CLIs. No MCP servers, ever. |
@@ -323,9 +323,9 @@ Board, wiki, and memory are **project-wide** and span every repo in the project.
 repo it is working in. That is what makes four repos that are one system — `tapestry`, `loom-db`,
 `weaver`, `texere` — share one memory instead of four that never learn from each other.
 
-**Locus never works in `main`/`master`.** Every agent run branches. The bare local remote holds `main`
-and nothing Locus does writes to it; reaching `main` is a human action through a PR. This is an
-invariant, not a default, and the merge-back path enforces it.
+The bare local remote holds the project's history. An agent container clones it, works, commits, and
+pushes a branch back. Which branch an agent works on, and how its work reaches `main`, follow the
+project's own convention — Locus does not impose one.
 
 ### The git model — a local remote, not shared worktrees
 

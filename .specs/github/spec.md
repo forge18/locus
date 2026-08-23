@@ -28,8 +28,8 @@ conflict resolution** — the link is established by a person, once:
 **Nothing syncs in the background, and that is the point.** Every tracker integration that tries to keep
 two systems continuously equal ends up owning a conflict-resolution problem nobody asked for.
 
-**Reaching `main` is a human action through a PR.** The git invariant holds here: Locus opens the PR;
-merging it is yours.
+**Locus opens the PR.** How that PR reaches `main` — which branch it comes from, who merges it, and
+under what checks — follows the project's own convention, not a rule Locus imposes.
 
 ## Acceptance
 
