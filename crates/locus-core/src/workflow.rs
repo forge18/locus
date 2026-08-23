@@ -14,6 +14,18 @@ pub struct WorkflowGovernance {
     pub success_criteria: Vec<SuccessCriterion>,
 }
 
+/// A graph and its Governance are one authored, compile-time unit.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct CompiledWorkflow {
+    pub graph: serde_json::Value,
+    pub governance: WorkflowGovernance,
+}
+
+/// Assemble the graph and Governance together so neither can be published alone.
+pub fn compile_governance(graph: serde_json::Value, governance: WorkflowGovernance) -> CompiledWorkflow {
+    CompiledWorkflow { graph, governance }
+}
+
 /// A named instruction that constrains every run of a workflow version.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Guardrail {
