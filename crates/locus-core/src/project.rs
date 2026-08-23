@@ -81,6 +81,37 @@ impl ProjectRepo {
     }
 }
 
+/// A project lifecycle changes the active project name/state without owning historical rows.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ProjectLifecycle {
+    name: String,
+    archived: bool,
+}
+
+impl ProjectLifecycle {
+    pub fn new(name: impl Into<String>) -> Result<Self> {
+        let name = name.into();
+        if name.trim().is_empty() {
+            bail!("project name must not be empty");
+        }
+        Ok(Self { name, archived: false })
+    }
+
+    pub fn rename(mut self, name: impl Into<String>) -> Self {
+        self.name = name.into();
+        self
+    }
+
+    pub fn archive(mut self) -> Self {
+        self.archived = true;
+        self
+    }
+
+    pub fn name(&self) -> &str { &self.name }
+    pub fn is_archived(&self) -> bool { self.archived }
+    pub const fn preserves_history(&self) -> bool { true }
+}
+
 /// The persisted root for all project-local policy.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
