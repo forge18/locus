@@ -114,14 +114,15 @@ export function DevelopView() {
         <section class="dev-terminal" data-testid="develop-terminal"><strong>Terminal · agent/8f21-notify</strong><code>$ cargo test -p locus-core notify::</code><span>This linked repo is your working copy; the agent works in its own clone.</span></section>
 
         <footer class="dev-footer" data-testid="dev-footer">
-          <Button variant="secondary" data-testid="dev-revert">
+          <Button variant="secondary" data-testid="dev-revert" data-develop-review-action="revert">
             <Icon name="arrow-counter-clockwise" size={11} />
             Revert chunk
           </Button>
-          <Button variant="primary" data-testid="dev-open-pr">
+          <Button variant="primary" data-testid="dev-open-pr" data-develop-review-action="open-pr">
             <Icon name="git-pull-request" size={11} />
             Open PR from this branch
           </Button>
+          <Button variant="secondary" data-develop-review-action="merge">Merge branch</Button>
           <span class="dev-lsp" data-testid="dev-lsp">
             {git.lsp}
           </span>
