@@ -46,4 +46,11 @@ describe('nav/store-derives', () => {
     nav.go('wiki')
     expect(nav.params().project).toBe('weaver')
   })
+
+  it('preserves explicit global scope without restoring the last project', () => {
+    const nav = createNavStore({ project: 'weaver' })
+    nav.go('status', { project: undefined })
+    expect(nav.params()).toEqual({})
+    expect(nav.locator()).toBe('locus://global/status')
+  })
 })

@@ -76,14 +76,16 @@ export function Shell(props: ShellProps) {
     }))
   const needsYou = activeSessions.filter((session) => session.needsAttention).length
   const openDesktopTarget = (target: DesktopNavTarget) => {
-    const params = target.scope.kind === 'project' ? { project: target.scope.project } : undefined
+    const params = target.scope.kind === 'project'
+      ? { project: target.scope.project }
+      : { project: undefined }
     props.nav.go(desktopViewFor(target), params)
   }
   const openDesktopLocator = (locator: string) => openDesktopTarget(navigateDesktop(locator))
   const currentDesktopLocator = () => {
     const route = desktopRoutes[props.nav.view()]
     return Desktop_PROJECT_ROUTE_KINDS.some((candidate) => candidate.id === route)
-      ? destinationDesktop(route, props.nav.params().project)
+      ? destinationDesktop(route, props.nav.params().project ?? 'tapestry')
       : destinationDesktop(route)
   }
 
@@ -108,7 +110,7 @@ export function Shell(props: ShellProps) {
         sessions={activeSessions}
       />
       <div class="body">
-        <ProjectRail selectedProject={props.nav.params().project} onNavigate={openDesktopLocator} />
+        <ProjectRail selectedProject={props.nav.params().project ?? 'tapestry'} onNavigate={openDesktopLocator} />
         <div class="main">
           <div class="screen" data-testid="screen">
             {props.children}

@@ -1,11 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { v2PaletteDestinations } from "../../src/nav/LocatorPalette";
+import { Desktop_ROUTE_KINDS } from "../../src/nav/desktop-route-kinds";
 
 describe("nav/palette-results", () => {
-  it("offers recognizable desktop destinations before a locator is typed", () => {
-    expect(v2PaletteDestinations()).toContainEqual({
+  it("offers every registered desktop destination before a locator is typed", () => {
+    const destinations = v2PaletteDestinations("locus");
+    expect(destinations).toHaveLength(Desktop_ROUTE_KINDS.length);
+    expect(destinations).toContainEqual({
       label: "Inbox",
       locator: "locus://global/inbox",
+    });
+    expect(destinations).toContainEqual({
+      label: "Develop",
+      locator: "locus://project/locus/develop",
     });
   });
 });

@@ -77,8 +77,8 @@ function viewFor(kind: LocatorKind, hasSub: boolean): View {
 }
 
 export interface ViewParams {
-  project: string;
-  [key: string]: string;
+  project?: string;
+  [key: string]: string | undefined;
 }
 
 export interface Locator {
@@ -172,6 +172,9 @@ export function parse(locator: string): Locator {
 /** The parser's inverse. */
 export function format(view: View, params: ViewParams): string {
   const form = VIEW_FORM[view];
+  if (!params.project) {
+    throw new LocatorError("project: a legacy locator requires a project scope");
+  }
   const base = `${LOCATOR_SCHEME}${params.project}`;
   if (!form) return `${base}/${view}`;
 

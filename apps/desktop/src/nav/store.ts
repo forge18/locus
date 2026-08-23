@@ -58,7 +58,12 @@ export function createNavStore(options: NavStoreOptions = {}): NavStore {
 
   const view = createMemo(() => target().view)
   const params = createMemo(() => target().params)
-  const locator = createMemo(() => format(target().view, target().params))
+  const locator = createMemo(() => {
+    const current = target()
+    return current.params.project
+      ? format(current.view, current.params)
+      : `locus://global/${current.view}`
+  })
 
   /**
    * Push onto the stack, discarding anything forward of the cursor.
@@ -69,17 +74,22 @@ export function createNavStore(options: NavStoreOptions = {}): NavStore {
    * where that becomes true instead of merely intended.
    */
   const push = (next: NavTarget) => {
-    const at = format(next.view, next.params)
-    setTarget(resolve(at))
+    const at = next.params.project
+      ? format(next.view, next.params)
+      : `locus://global/${next.view}`
+    setTarget(next.params.project ? resolve(at) : next)
     if (at === stack()[cursor()]) return
     setStack([...stack().slice(0, cursor() + 1), at])
     setCursor(cursor() + 1)
   }
 
   const go: NavStore['go'] = (nextView, nextParams) => {
-    // The project is a scope and carries across; nothing else does, because an id
-    // from the view you left means nothing on the view you arrived at.
-    push({ view: nextView, params: { project, ...nextParams } })
+    // A named project scopes a target. `project: undefined` deliberately carries
+    // global scope instead of re-adding the last selected project.
+    const params = nextParams && 'project' in nextParams
+      ? nextParams.project === undefined ? {} : nextParams
+      : { project, ...nextParams }
+    push({ view: nextView, params })
   }
 
   const open: NavStore['open'] = (at) => {
@@ -92,7 +102,10 @@ export function createNavStore(options: NavStoreOptions = {}): NavStore {
     const to = cursor() + delta
     if (to < 0 || to >= stack().length) return
     setCursor(to)
-    setTarget(resolve(stack()[to]))
+    const at = stack()[to]
+    setTarget(at.startsWith('locus://global/')
+      ? { view: at.slice('locus://global/'.length) as View, params: {} }
+      : resolve(at))
   }
 
   return {

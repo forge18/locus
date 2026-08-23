@@ -624,6 +624,10 @@ fn spawn_at_port(
         .credential_proxy_authorizer
         .configure_run(&run.id.to_string(), &request.run_nonce, request.egress_tier)
         .context("configure credential proxy for run")?;
+    request
+        .credential_proxy_authorizer
+        .listen_configured()
+        .context("start credential proxy listener")?;
 
     let tools = request
         .tools
@@ -641,7 +645,7 @@ fn spawn_at_port(
         crate::sandbox::workspace_clone_command(&request.workspace_remote, &run.id.to_string())?;
     let mut environment = request
         .credential_proxy_authorizer
-        .container_environment(&request.run_nonce)
+        .container_environment_for_run(&run.id.to_string(), &request.run_nonce)
         .into_iter()
         .map(|(key, value)| format!("{key}={value}"))
         .collect::<Vec<_>>();
@@ -1492,6 +1496,18 @@ mod spawns {
             .environment
             .iter()
             .any(|value| value == "LOCUS_RUN_NONCE=nonce"));
+        assert!(spawned
+            .container
+            .environment
+            .iter()
+            .any(|value| value == &format!("LOCUS_RUN_ID={run_id}")));
+        assert_eq!(
+            credential_proxy_authorizer
+                .listener_address()
+                .unwrap()
+                .port(),
+            43_800
+        );
         assert!(spawned
             .container
             .environment

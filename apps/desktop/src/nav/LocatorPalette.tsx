@@ -10,12 +10,14 @@ import {
   navigateDesktop,
 } from "./desktop-navigation";
 import type { DesktopNavTarget } from "./desktop-locator";
-import { Desktop_GLOBAL_ROUTE_KINDS } from "./desktop-route-kinds";
+import { Desktop_ROUTE_KINDS } from "./desktop-route-kinds";
 
-export function v2PaletteDestinations() {
-  return Desktop_GLOBAL_ROUTE_KINDS.slice(0, 4).map((route) => ({
+export function v2PaletteDestinations(project = "tapestry") {
+  return Desktop_ROUTE_KINDS.map((route) => ({
     label: route.label,
-    locator: destinationDesktop(route.id),
+    locator: route.scope === "project"
+      ? destinationDesktop(route.id, project)
+      : destinationDesktop(route.id),
   }));
 }
 
