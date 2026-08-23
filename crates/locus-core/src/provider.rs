@@ -284,6 +284,45 @@ impl Store {
 /// Linux keyring. The durable reference contract above is independent of that implementation.
 pub trait OsKeychain: Send + Sync {
     fn read_secret(&self, reference: &KeychainReference) -> Result<String>;
+    fn write_secret(&self, reference: &KeychainReference, secret: &str) -> Result<()>;
+    fn delete_secret(&self, reference: &KeychainReference) -> Result<()>;
+}
+
+/// The host-only operating-system keychain adapter. References are account names; values never
+/// leave this adapter except through `ProviderBroker::with_secret` at host egress.
+pub struct KeyringKeychain;
+
+impl KeyringKeychain {
+    const SERVICE: &'static str = "locus";
+
+    pub fn entry_name(reference: &KeychainReference) -> &str {
+        reference.as_str()
+    }
+
+    fn entry(reference: &KeychainReference) -> Result<keyring::Entry> {
+        keyring::Entry::new(Self::SERVICE, Self::entry_name(reference))
+            .map_err(|_| anyhow!("keychain entry unavailable"))
+    }
+}
+
+impl OsKeychain for KeyringKeychain {
+    fn read_secret(&self, reference: &KeychainReference) -> Result<String> {
+        Self::entry(reference)?
+            .get_password()
+            .map_err(|_| anyhow!("keychain credential resolution failed"))
+    }
+
+    fn write_secret(&self, reference: &KeychainReference, secret: &str) -> Result<()> {
+        Self::entry(reference)?
+            .set_password(secret)
+            .map_err(|_| anyhow!("keychain credential write failed"))
+    }
+
+    fn delete_secret(&self, reference: &KeychainReference) -> Result<()> {
+        Self::entry(reference)?
+            .delete_credential()
+            .map_err(|_| anyhow!("keychain credential deletion failed"))
+    }
 }
 
 /// The host-only boundary for provider authentication at outbound egress.
@@ -366,6 +405,9 @@ impl OsKeychain for TestKeychain {
     fn read_secret(&self, _: &KeychainReference) -> Result<String> {
         Ok(SECRET.into())
     }
+
+    fn write_secret(&self, _: &KeychainReference, _: &str) -> Result<()> { Ok(()) }
+    fn delete_secret(&self, _: &KeychainReference) -> Result<()> { Ok(()) }
 }
 
 #[cfg(test)]
@@ -376,6 +418,9 @@ impl OsKeychain for LeakyKeychain {
     fn read_secret(&self, _: &KeychainReference) -> Result<String> {
         anyhow::bail!("keychain failed for {SECRET}")
     }
+
+    fn write_secret(&self, _: &KeychainReference, _: &str) -> Result<()> { Ok(()) }
+    fn delete_secret(&self, _: &KeychainReference) -> Result<()> { Ok(()) }
 }
 
 #[cfg(test)]
