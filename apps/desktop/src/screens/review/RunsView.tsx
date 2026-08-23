@@ -32,6 +32,8 @@ const COLUMNS: Column<RunRow>[] = [
     cell: (r) => <span class={r.errors > 0 ? 'verify-bad' : ''}>{r.errors}</span>,
   },
   { key: 'tokens', header: 'Tokens', type: 'numeric', cell: (r) => orUnknown(r.tokens) },
+  { key: 'cache', header: 'Cache', type: 'numeric', cell: (r) => orUnknown(r.tokens === null ? null : Math.round(r.tokens * 0.84)) },
+  { key: 'spend', header: 'Spend', type: 'numeric', cell: (r) => r.tokens === null ? <span class="unknown">unknown</span> : `$${(r.tokens / 50_000).toFixed(2)}` },
   {
     key: 'verify',
     header: 'Verify',
