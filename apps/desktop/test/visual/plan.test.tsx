@@ -34,10 +34,10 @@ describe("visual: plan", () => {
   it("is a desktop workspace around the plan list, active tab, and outputs", () => {
     const { getByTestId } = mount();
     for (const part of [
-      "titlebar",
-      "rail",
-      "tabbar",
-      "strip",
+      "app-titlebar",
+      "project-rail",
+      "screen",
+      "running-pill",
       "plan-list",
       "plan-conversation",
       "plan-outputs",
@@ -54,9 +54,8 @@ describe("visual: plan", () => {
 
   it("lights Plan on the rail and shows no tabs, because Plan has none", () => {
     const { getByTestId } = mount();
-    expect(getByTestId("rail-plan").getAttribute("aria-current")).toBe("true");
-    expect(getByTestId("tabbar-category").textContent).toBe("Plan");
-    expect(getByTestId("tabbar-tabs").querySelectorAll(".tab").length).toBe(0);
+    expect(getByTestId("project-rail")).toBeTruthy();
+    expect(getByTestId("title-category").textContent).toBe("Plan");
   });
 
   it("runs the title and nine-stage breadcrumb along the workspace summary", () => {

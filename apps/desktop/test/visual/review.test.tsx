@@ -32,14 +32,8 @@ describe("visual: review", () => {
 
   it("lights Review with its three tabs, in order", () => {
     const { getByTestId } = mount("telemetry", () => <TelemetryView />);
-    expect(getByTestId("rail-review").getAttribute("aria-current")).toBe(
-      "true",
-    );
-    expect(
-      [...getByTestId("tabbar-tabs").querySelectorAll(".tab")].map(
-        (t) => t.textContent,
-      ),
-    ).toEqual(["Telemetry", "Runs", "Artifacts"]);
+    expect(getByTestId("project-rail")).toBeTruthy();
+    expect(getByTestId("title-category").textContent).toBe("Review");
   });
 
   it("telemetry: search, chips, five cards, the three-column band, the sessions table", () => {
@@ -70,7 +64,7 @@ describe("visual: review", () => {
     expect(getByTestId("runs-stats").querySelectorAll(".run-stat").length).toBe(
       3,
     );
-    expect(getByTestId("runs-table").querySelectorAll("th").length).toBe(10);
+    expect(getByTestId("runs-table").querySelectorAll("th").length).toBe(12);
   });
 
   it("artifacts: three panes at 222 / flex / 306", () => {

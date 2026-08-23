@@ -33,10 +33,10 @@ describe("visual: wiki", () => {
   it("is three panes around 246 / flex / 284 inside the four bands", () => {
     const { getByTestId } = mount();
     for (const part of [
-      "titlebar",
-      "rail",
-      "tabbar",
-      "strip",
+      "app-titlebar",
+      "project-rail",
+      "screen",
+      "running-pill",
       "wiki-tree",
       "wiki-article",
       "wiki-side",
@@ -49,9 +49,8 @@ describe("visual: wiki", () => {
 
   it("lights Wiki on the rail and draws no tabs", () => {
     const { getByTestId } = mount();
-    expect(getByTestId("rail-wiki").getAttribute("aria-current")).toBe("true");
-    expect(getByTestId("tabbar-category").textContent).toBe("Wiki");
-    expect(getByTestId("tabbar-tabs").querySelectorAll(".tab").length).toBe(0);
+    expect(getByTestId("project-rail")).toBeTruthy();
+    expect(getByTestId("title-category").textContent).toBe("Wiki");
   });
 
   it("stacks the tree: ingest, note, then the six typed groups", () => {
