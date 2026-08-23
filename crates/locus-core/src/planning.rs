@@ -231,6 +231,15 @@ impl Decomposition {
         Ok(decomposition)
     }
 
+    /// Calculate the spec card plus selected task carve-outs.
+    pub fn for_selected_carve_outs<I, S>(plan: ApprovedPlan, task_ids: I) -> Result<Self>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        Self::spec_plus_selected(plan, task_ids)
+    }
+
     /// Keep the spec as a prospective card and carve out selected approved tasks.
     pub fn spec_plus_selected<I, S>(plan: ApprovedPlan, task_ids: I) -> Result<Self>
     where
