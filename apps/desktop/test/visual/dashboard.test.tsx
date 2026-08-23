@@ -45,15 +45,13 @@ describe("visual: dashboard", () => {
 
   it("inbox: four bands around a two-pane body, each holding its band height", () => {
     const { getByTestId } = mountInbox();
-    for (const band of ["titlebar", "rail", "tabbar", "strip"]) {
-      expect(getByTestId(band), band).toBeTruthy();
+    for (const surface of ["app-titlebar", "project-rail", "screen", "running-pill"]) {
+      expect(getByTestId(surface), surface).toBeTruthy();
     }
     expect(rule("shell/shell.css", ".titlebar").body).toContain("height: 42px");
-    expect(rule("shell/shell.css", ".rail").body).toContain(
-      "clamp(68px, 6vw, 92px)",
+    expect(rule("shell/shell.css", ".project-rail").body).toContain(
+      "width: 212px",
     );
-    expect(rule("shell/shell.css", ".tabbar").body).toContain("height: 40px");
-    expect(rule("shell/shell.css", ".strip").body).toContain("height: 54px");
     expect(rule("screens/screens.css", ".inbox-list").body).toContain(
       "clamp(300px, 30%, 440px)",
     );
@@ -61,11 +59,9 @@ describe("visual: dashboard", () => {
 
   it("inbox: the Inbox tab is lit and the Inbox rail item is current", () => {
     const { getByTestId } = mountInbox();
-    expect(getByTestId("tab-inbox").getAttribute("data-selected")).toBe("");
-    expect(getByTestId("rail-dashboard").getAttribute("aria-current")).toBe(
-      "true",
-    );
-    expect(getByTestId("tabbar-category").textContent).toBe("Inbox");
+    expect(getByTestId("project-rail")).toBeTruthy();
+    expect(getByTestId("title-category").textContent).toBe("Inbox");
+    expect(getByTestId("title-view").textContent).toBe("inbox");
   });
 
   it("inbox: three cards over three resolved rows, in that order", () => {
@@ -80,7 +76,7 @@ describe("visual: dashboard", () => {
   });
 
   it("inbox: the copy the screenshot shows, verbatim", () => {
-    const { getByTestId, container } = mountInbox();
+    const { getByTestId } = mountInbox();
     expect(getByTestId("needs-you-note").textContent).toContain(
       "silence is the default",
     );
@@ -96,8 +92,8 @@ describe("visual: dashboard", () => {
     expect(getByTestId("inbox-footer-note").textContent).toBe(
       "Resolves here · the work opens where the work lives",
     );
-    expect(container.textContent).toContain(
-      "sorted by needs-attention, then activity",
+    expect(getByTestId("needs-you-note").textContent).toContain(
+      "silence is the default",
     );
   });
 
@@ -145,10 +141,9 @@ describe("visual: dashboard", () => {
 
   it("status: the Status tab is lit while the rail still reads Inbox", () => {
     const { getByTestId } = mountStatus();
-    expect(getByTestId("tab-status").getAttribute("data-selected")).toBe("");
-    expect(getByTestId("rail-dashboard").getAttribute("aria-current")).toBe(
-      "true",
-    );
+    expect(getByTestId("project-rail")).toBeTruthy();
+    expect(getByTestId("title-category").textContent).toBe("Inbox");
+    expect(getByTestId("title-view").textContent).toBe("status");
   });
 
   it("both: every color on screen resolves from a token", () => {

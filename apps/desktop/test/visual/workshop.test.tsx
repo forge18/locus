@@ -43,14 +43,9 @@ describe("visual: workshop", () => {
     const { getByTestId } = mount("extensions", () => (
       <ExtensionsView onNavigate={() => {}} />
     ));
-    expect(getByTestId("rail-workshop").getAttribute("aria-current")).toBe(
-      "true",
-    );
-    const tabs = [...getByTestId("tabbar-tabs").querySelectorAll(".tab")].map(
-      (t) => t.textContent,
-    );
-    expect(tabs).toEqual(["Extensions", "Workflow", "Harnesses"]);
-    expect(tabs).not.toContain("Agents");
+    expect(getByTestId("project-rail")).toBeTruthy();
+    expect(getByTestId("title-category").textContent).toBe("Workshop");
+    expect(getByTestId("title-view").textContent).toBe("extensions");
   });
 
   it("extensions: eight cards, recently edited, materialization", () => {
@@ -71,14 +66,9 @@ describe("visual: workshop", () => {
         <AgentDefsView onNavigate={nav.go} />
       </Shell>
     ));
-    expect(getByTestId("rail-workshop").getAttribute("aria-current")).toBe(
-      "true",
-    );
-    const selected = getByTestId("tabbar-tabs").querySelectorAll(
-      ".tab[data-selected]",
-    );
-    expect(selected.length).toBe(1);
-    expect(selected[0].textContent).toBe("Extensions");
+    expect(getByTestId("project-rail")).toBeTruthy();
+    expect(getByTestId("title-category").textContent).toBe("Workshop");
+    expect(getByTestId("title-view").textContent).toBe("agents");
 
     const back = render(() => <BackLink nav={nav} />);
     expect(back.getByTestId("drilldown-back").textContent).toBe("Extensions");

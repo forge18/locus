@@ -33,10 +33,10 @@ describe("visual: develop", () => {
   it("is three columns at 206 / flex / 252 inside the four bands", () => {
     const { getByTestId } = mount();
     for (const part of [
-      "titlebar",
-      "rail",
-      "tabbar",
-      "strip",
+      "app-titlebar",
+      "project-rail",
+      "screen",
+      "running-pill",
       "dev-tree",
       "dev-editor",
       "git-panel",
@@ -57,11 +57,8 @@ describe("visual: develop", () => {
 
   it("lights Develop on the rail and draws no tabs", () => {
     const { getByTestId } = mount();
-    expect(getByTestId("rail-develop").getAttribute("aria-current")).toBe(
-      "true",
-    );
-    expect(getByTestId("tabbar-category").textContent).toBe("Develop");
-    expect(getByTestId("tabbar-tabs").querySelectorAll(".tab").length).toBe(0);
+    expect(getByTestId("project-rail")).toBeTruthy();
+    expect(getByTestId("title-category").textContent).toBe("Develop");
   });
 
   it("stacks the editor: tab strip, diff, footer", () => {
@@ -69,7 +66,7 @@ describe("visual: develop", () => {
     const editor = getByTestId("dev-editor");
     expect(
       [...editor.children].map((c) => c.getAttribute("data-testid")),
-    ).toEqual(["dev-tabs", "diff", "dev-footer"]);
+    ).toEqual(["dev-tabs", "diff", "develop-terminal", "dev-footer"]);
   });
 
   it("shows the diff side by side under two headers", () => {

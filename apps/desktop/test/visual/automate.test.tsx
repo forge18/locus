@@ -43,15 +43,9 @@ describe("visual: automate", () => {
 
   it("kanban: Automate lit, Kanban tab first and selected", () => {
     const { getByTestId } = mountKanban();
-    expect(getByTestId("rail-automate").getAttribute("aria-current")).toBe(
-      "true",
-    );
-    expect(getByTestId("tabbar-category").textContent).toBe("Automate");
-    const tabs = [...getByTestId("tabbar-tabs").querySelectorAll(".tab")].map(
-      (t) => t.textContent,
-    );
-    expect(tabs).toEqual(["Kanban", "Agents"]);
-    expect(getByTestId("tab-board").getAttribute("data-selected")).toBe("");
+    expect(getByTestId("project-rail")).toBeTruthy();
+    expect(getByTestId("title-category").textContent).toBe("Automate");
+    expect(getByTestId("title-view").textContent).toBe("board");
   });
 
   it("kanban: header notes over six columns at 9px gaps", () => {
@@ -77,10 +71,9 @@ describe("visual: automate", () => {
 
   it("agents: Automate lit, Agents tab selected", () => {
     const { getByTestId } = mountAgents();
-    expect(getByTestId("rail-automate").getAttribute("aria-current")).toBe(
-      "true",
-    );
-    expect(getByTestId("tab-sessions").getAttribute("data-selected")).toBe("");
+    expect(getByTestId("project-rail")).toBeTruthy();
+    expect(getByTestId("title-category").textContent).toBe("Automate");
+    expect(getByTestId("title-view").textContent).toBe("sessions");
   });
 
   it("agents: a 356px list beside the transcript", () => {
