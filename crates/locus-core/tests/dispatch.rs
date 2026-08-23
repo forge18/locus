@@ -2,6 +2,12 @@ mod dispatch {
     use locus_core::dispatch::DispatchPolicy;
 
     #[test]
+    fn preempts_at_boundary() {
+        let controller = locus_core::dispatch::PreemptionController::default();
+        assert!(!controller.has_pending_preemption());
+    }
+
+    #[test]
     fn queues_at_cap() {
         let policy = DispatchPolicy::with_parallelism(1, 1).expect("caps");
         assert!(locus_core::dispatch::queues_at_cap(&policy, 1));
