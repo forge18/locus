@@ -2,6 +2,14 @@ mod planning {
     use locus_core::planning::{ApprovedPlan, CardMode, Decomposition, EditableSpec, PlanTask, PlanningStage, Requirement};
 
     #[test]
+    fn carve_out_cards() {
+        let plan = ApprovedPlan::new("Spec", vec![PlanTask::new("T-01", "One"), PlanTask::new("T-02", "Two")]);
+        let cards = Decomposition::for_selected_carve_outs(plan, ["T-02"]).expect("cards");
+
+        assert_eq!(cards.cards().len(), 2);
+    }
+
+    #[test]
     fn every_task_cards() {
         let plan = ApprovedPlan::new("Spec", vec![PlanTask::new("T-01", "One"), PlanTask::new("T-02", "Two")]);
         let cards = Decomposition::for_every_task(plan).expect("cards");
