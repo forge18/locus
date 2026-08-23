@@ -73,7 +73,10 @@ mod net {
 
     #[test]
     fn project_network() {
-        assert_eq!(super::project_network("project-a"), "locus-project-a-internal");
+        assert_eq!(
+            super::project_network("project-a"),
+            "locus-project-a-internal"
+        );
         assert_eq!(
             super::project_egress_network("project-a"),
             "locus-project-a-egress"

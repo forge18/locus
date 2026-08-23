@@ -68,12 +68,19 @@ impl CredentialProxy {
         }
     }
 
+    /// The host gateway is the only model destination required for the credential broker.
+    /// The forwarding sidecar admits it only for model-capable runs; the gateway itself still
+    /// verifies the run nonce and sentinel before it uses the host credential.
+    pub fn gateway_host() -> &'static str {
+        "host.docker.internal"
+    }
+
     pub fn container_environment(&self, run_nonce: &str) -> BTreeMap<String, String> {
         BTreeMap::from([
             ("ANTHROPIC_API_KEY".into(), CREDENTIAL_SENTINEL.into()),
             (
                 "ANTHROPIC_BASE_URL".into(),
-                format!("http://host.docker.internal:{CREDENTIAL_PROXY_PORT}"),
+                format!("http://{}:{CREDENTIAL_PROXY_PORT}", Self::gateway_host()),
             ),
             ("LOCUS_RUN_NONCE".into(), run_nonce.into()),
         ])

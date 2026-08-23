@@ -129,7 +129,7 @@ timeout (availability) — are ordered now, before the proxy coexists with the a
 
 Cross-cutting hardening from `.specs/security/REVIEW-2026-08-23.md`; decisions locked, builds pending. Each is a **design decision** (control never built) unless marked code.
 
-- [ ] **[security](.specs/security/spec.md)** · 11 tasks · **pending** · [tasks](.specs/security/tasks.md)
+- [x] **[security](.specs/security/spec.md)** · 11 tasks · **complete** · [tasks](.specs/security/tasks.md)
   - F1 (design): per-project forwarding proxy for packet-level egress; microVM rejected (not cross-platform)
   - F2 (design): trusted-by-channel context + one standing rule + override ladder (once / session / global); non-blocking
   - F3 (code, LOW): boundary redaction — raw error to host log, secret-free gist upstream, keep exact-match `redact()`

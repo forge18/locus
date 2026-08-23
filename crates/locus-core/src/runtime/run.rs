@@ -18,8 +18,14 @@ use crate::{
     },
     runtime::session::{Run, RunStatus},
     sandbox::{
-        credential_proxy::CredentialProxy, egress::EgressTier, image::agent_image_tag,
-        image::ToolPin, mounts::agent_mounts, mounts::AGENT_PTY, ports::project_network,
+        credential_proxy::CredentialProxy,
+        egress::{DestinationAllowlists, EgressTier},
+        forward_proxy::{ForwardProxyLaunch, ForwardProxyPolicy},
+        image::agent_image_tag,
+        image::ToolPin,
+        mounts::agent_mounts,
+        mounts::AGENT_PTY,
+        ports::project_network,
         ports::PortAllocator,
     },
     services::tools::{ProjectToolScope, RoleToolScope},
@@ -140,6 +146,11 @@ pub struct SpawnRequest<'a> {
     pub audit_store: Store,
     /// Network capability permitted for this run.
     pub egress_tier: EgressTier,
+    /// Provider-derived model hosts and project-declared package registry hosts. Package
+    /// registries intentionally default to empty; no implicit package endpoint is trusted.
+    pub egress_allowlists: DestinationAllowlists,
+    /// Host-only directory mounted into the forwarding sidecar, never into the agent.
+    pub egress_policy_root: PathBuf,
     /// Per-run capability validated by the daemon socket before it routes any agent request.
     pub run_nonce: String,
     pub base_image_digest: String,
@@ -204,6 +215,8 @@ pub fn spawn(
     ports: &PortAllocator,
     runtime: &mut impl ContainerRuntime,
 ) -> Result<SpawnedRun> {
+    let forwarding =
+        ForwardProxyLaunch::for_project(request.project_id, request.egress_policy_root.clone())?;
     let port = ports.allocate()?;
     let run_id = run.id.to_string();
     let proxy = request.credential_proxy_authorizer;
@@ -211,6 +224,8 @@ pub fn spawn(
         Ok(spawned) => Ok(spawned),
         Err(error) => {
             proxy.release_run(&run_id);
+            let _ = ForwardProxyPolicy::remove_from(&forwarding.policy_root, &run_id);
+            let _ = runtime.release_egress_proxy(&forwarding, &run_id);
             ports.release(port);
             Err(error)
         }
@@ -256,6 +271,32 @@ fn spawn_at_port(
         .listen_configured()
         .context("start credential proxy listener")?;
 
+    let forwarding =
+        ForwardProxyLaunch::for_project(request.project_id, request.egress_policy_root.clone())?;
+    let allowlists = request
+        .egress_allowlists
+        .clone()
+        // The host credential gateway is reached only through this sidecar. It performs a
+        // second nonce+sentinel check before it sends to the provider-derived model endpoint.
+        .with_model_host(CredentialProxy::gateway_host());
+    let forwarding_policy = ForwardProxyPolicy::new(
+        run.id.to_string(),
+        request.run_nonce.clone(),
+        request.egress_tier,
+        &allowlists,
+    )?;
+    runtime
+        .ensure_agent_network(&forwarding.internal_network)
+        .context("ensure internal agent network")?;
+    if forwarding_policy.enabled() {
+        forwarding_policy
+            .write_to(&forwarding.policy_root)
+            .context("deliver forwarding proxy policy")?;
+        runtime
+            .ensure_egress_proxy(&forwarding)
+            .context("start forwarding proxy sidecar")?;
+    }
+
     let tools = request
         .tools
         .into_iter()
@@ -282,6 +323,12 @@ fn spawn_at_port(
         "LOCUS_CREDENTIAL_PROXY={}",
         request.credential_proxy.endpoint
     ));
+    environment.extend(
+        forwarding_policy
+            .agent_environment()
+            .into_iter()
+            .map(|(key, value)| format!("{key}={value}")),
+    );
     environment.push(format!("LOCUS_PORT={port}"));
     let container = ContainerLaunch {
         name: format!("locus-agent-{}", run.id),
@@ -335,6 +382,8 @@ pub async fn spawn_persisted(
     request: SpawnRequest<'_>,
     runtime: &mut impl ContainerRuntime,
 ) -> Result<SpawnedRun> {
+    let forwarding =
+        ForwardProxyLaunch::for_project(request.project_id, request.egress_policy_root.clone())?;
     let port = store.allocate_run_port(run.id).await?;
     let run_id = run.id.to_string();
     let proxy = request.credential_proxy_authorizer;
@@ -342,6 +391,8 @@ pub async fn spawn_persisted(
         Ok(spawned) => Ok(spawned),
         Err(error) => {
             proxy.release_run(&run_id);
+            let _ = ForwardProxyPolicy::remove_from(&forwarding.policy_root, &run_id);
+            let _ = runtime.release_egress_proxy(&forwarding, &run_id);
             store.release_run_port(run.id).await?;
             Err(error)
         }
@@ -352,12 +403,14 @@ pub async fn spawn_persisted(
 pub async fn cancel_persisted(
     store: &Store,
     proxy: &CredentialProxy,
+    forwarding: &ForwardProxyLaunch,
     run: &mut Run,
     reason: impl AsRef<str>,
     runtime: &mut impl ContainerRuntime,
 ) -> Result<()> {
     cancel(run, reason, runtime)?;
     proxy.release_run(&run.id.to_string());
+    runtime.release_egress_proxy(forwarding, &run.id.to_string())?;
     store.release_run_port(run.id).await
 }
 
@@ -365,7 +418,9 @@ pub async fn cancel_persisted(
 pub async fn release_terminal_port(
     store: &Store,
     proxy: &CredentialProxy,
+    forwarding: &ForwardProxyLaunch,
     run: &Run,
+    runtime: &mut impl ContainerRuntime,
 ) -> Result<()> {
     if matches!(
         run.status,
@@ -374,6 +429,7 @@ pub async fn release_terminal_port(
         bail!("only terminal runs release durable ports")
     }
     proxy.release_run(&run.id.to_string());
+    runtime.release_egress_proxy(forwarding, &run.id.to_string())?;
     store.release_run_port(run.id).await
 }
 
@@ -650,6 +706,16 @@ mod spawns {
             self.calls.push(format!("stop:{container}"));
             Ok(())
         }
+
+        fn ensure_agent_network(&mut self, network: &str) -> Result<()> {
+            self.calls.push(format!("network:{network}"));
+            Ok(())
+        }
+
+        fn ensure_egress_proxy(&mut self, proxy: &ForwardProxyLaunch) -> Result<()> {
+            self.calls.push(format!("proxy:{}", proxy.name));
+            Ok(())
+        }
     }
 
     fn root() -> PathBuf {
@@ -662,6 +728,7 @@ mod spawns {
         config_root: PathBuf,
         credential_proxy_authorizer: &'a CredentialProxy,
     ) -> SpawnRequest<'a> {
+        let egress_policy_root = config_root.with_file_name("locus-forwarding-proxy-policies");
         SpawnRequest {
             project_id: "project-1",
             harness,
@@ -673,6 +740,11 @@ mod spawns {
             credential_proxy_authorizer,
             audit_store: Store::connect_lazy("postgres://locus@127.0.0.1/locus").unwrap(),
             egress_tier: EgressTier::Model,
+            egress_allowlists: DestinationAllowlists::new(
+                ["api.anthropic.com"],
+                std::iter::empty::<&str>(),
+            ),
+            egress_policy_root,
             run_nonce: "nonce".into(),
             base_image_digest: "sha256:base".into(),
             tools: vec![
@@ -757,13 +829,14 @@ mod spawns {
         assert_eq!(spawned.image, image);
         assert!(spawned.config.file("CLAUDE.md").is_some());
         assert!(spawned.config.file("rules/no-secrets.md").is_none());
-        assert_eq!(
-            fs::read_to_string(config_root.join("CLAUDE.md")).unwrap(),
-            "base context"
-        );
+        assert!(fs::read_to_string(config_root.join("CLAUDE.md"))
+            .unwrap()
+            .starts_with("base context"));
         assert_eq!(
             runtime.calls,
             [
+                "network:locus-project-1-internal".into(),
+                "proxy:locus-egress-proxy-project-1".into(),
                 format!("image:{image}"),
                 format!("start:locus-agent-{run_id}"),
                 format!("pty:locus-agent-{run_id}")
@@ -787,7 +860,7 @@ mod spawns {
                 }
             ]
         );
-        assert_eq!(spawned.container.network, "locus-project-1");
+        assert_eq!(spawned.container.network, "locus-project-1-internal");
         assert!(spawned
             .container
             .environment
@@ -820,6 +893,14 @@ mod spawns {
             .environment
             .iter()
             .any(|value| value == "LOCUS_CREDENTIAL_PROXY=http://host.docker.internal:44000/"));
+        assert!(spawned.container.environment.iter().any(|value| {
+            value == &format!("HTTPS_PROXY=http://{run_id}:nonce@locus-egress-proxy:3128")
+        }));
+        assert!(!spawned
+            .container
+            .environment
+            .iter()
+            .any(|value| value == "HTTPS_PROXY=http://host.docker.internal:44000/"));
         assert!(!spawned
             .container
             .environment
@@ -899,6 +980,8 @@ mod spawns {
         assert_eq!(
             runtime.calls,
             [
+                "network:locus-project-1-internal".into(),
+                "proxy:locus-egress-proxy-project-1".into(),
                 format!("image:{image}"),
                 format!("start:locus-agent-{run_id}"),
                 format!("pty:locus-agent-{run_id}"),

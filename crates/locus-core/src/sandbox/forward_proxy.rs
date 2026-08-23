@@ -97,10 +97,26 @@ impl ForwardProxyPolicy {
         let mut file = fs::File::create(&temporary).context("create forwarding proxy policy")?;
         writeln!(file, "{}", self.nonce).context("write forwarding proxy nonce")?;
         writeln!(file, "{}", tier_name(self.tier)).context("write forwarding proxy tier")?;
-        writeln!(file, "{}", self.model_hosts.iter().cloned().collect::<Vec<_>>().join(","))
-            .context("write forwarding proxy model allowlist")?;
-        writeln!(file, "{}", self.package_hosts.iter().cloned().collect::<Vec<_>>().join(","))
-            .context("write forwarding proxy package allowlist")?;
+        writeln!(
+            file,
+            "{}",
+            self.model_hosts
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(",")
+        )
+        .context("write forwarding proxy model allowlist")?;
+        writeln!(
+            file,
+            "{}",
+            self.package_hosts
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(",")
+        )
+        .context("write forwarding proxy package allowlist")?;
         file.sync_all().context("sync forwarding proxy policy")?;
         fs::rename(temporary, path).context("publish forwarding proxy policy")
     }
@@ -108,7 +124,8 @@ impl ForwardProxyPolicy {
     pub fn remove_from(root: &Path, run_id: &str) -> Result<()> {
         let path = policy_path(root, run_id)?;
         match fs::remove_file(path) {
-            Ok(()) | Err(ref error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
             Err(error) => Err(error).context("remove forwarding proxy policy"),
         }
     }
@@ -218,12 +235,13 @@ mod forwarded {
 
     #[test]
     fn policy_delivery_is_host_only_and_revocable() {
-        let root = std::env::temp_dir().join(format!("locus-proxy-policy-{}", uuid::Uuid::new_v4()));
+        let root =
+            std::env::temp_dir().join(format!("locus-proxy-policy-{}", uuid::Uuid::new_v4()));
         let policy = ForwardProxyPolicy::new(
             "run-1",
             "nonce",
             EgressTier::Model,
-            &DestinationAllowlists::new(["api.anthropic.com"], []),
+            &DestinationAllowlists::new(["api.anthropic.com"], std::iter::empty::<&str>()),
         )
         .unwrap();
         policy.write_to(&root).unwrap();

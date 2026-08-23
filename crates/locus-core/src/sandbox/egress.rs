@@ -53,6 +53,11 @@ impl DestinationAllowlists {
         }
     }
 
+    pub fn with_model_host(mut self, host: impl Into<String>) -> Self {
+        self.model.insert(host.into());
+        self
+    }
+
     pub fn model_hosts(&self) -> impl Iterator<Item = &String> {
         self.model.iter()
     }
