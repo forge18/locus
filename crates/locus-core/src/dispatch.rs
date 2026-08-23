@@ -91,6 +91,13 @@ impl Default for DispatchPolicy {
 }
 
 impl DispatchPolicy {
+    /// Build a policy with explicit global and per-project capacity caps.
+    pub fn with_parallelism(global_parallelism: u32, per_project_parallelism: u32) -> Result<Self> {
+        let policy = Self { global_parallelism, per_project_parallelism, ..Self::default() };
+        policy.validate()?;
+        Ok(policy)
+    }
+
     fn validate(self) -> Result<()> {
         if self.global_parallelism == 0 {
             bail!("global parallelism must be greater than zero")
