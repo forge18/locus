@@ -208,6 +208,11 @@ impl Decomposition {
         decomposition
     }
 
+    /// Calculate the one-card-per-approved-task mapping.
+    pub fn for_every_task(plan: ApprovedPlan) -> Result<Self> {
+        Self::every_task(plan)
+    }
+
     /// Make each approved task a prospective card.
     pub fn every_task(plan: ApprovedPlan) -> Result<Self> {
         let mut decomposition = Self {
