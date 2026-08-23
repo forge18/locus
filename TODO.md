@@ -25,7 +25,7 @@ of those blocks the shell or the other twelve screens. It can run alongside M0.
 | --- | --- | ---: | ---: | ---: |
 | **M0** | Spikes — these gate M1 · **closed** | 3 | 39 | 39 |
 | **M0.5** | Desktop UI on fixtures · **closed** | 12 | 268 | 268 |
-| **M0.6** | desktop desktop reconciliation | 6 | 195 | 178 |
+| **M0.6** | desktop reconciliation | 6 | 195 | 179 |
 | **M1** | Core runtime · **closed** | 14 | 270 | 270 |
 | **M1.5** | ACP agent panel and controls | 4 | 44 | 0 |
 | **M2** | Workspace | 3 | 57 | 0 |
@@ -115,7 +115,7 @@ below; it is short and it is load-bearing.
   The chrome, and only the chrome.
   *Depends on:* `design-system`
 
-## M0.6 — desktop desktop reconciliation
+## M0.6 — desktop reconciliation
 
 6 features · 195 tasks
 
