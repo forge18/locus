@@ -4,7 +4,12 @@ import { Desktop_GLOBAL_ROUTE_KINDS } from "../nav/desktop-route-kinds";
 
 export const RAIL_EXPANSION_STORAGE_KEY = "locus.rail-expansion";
 
-const PROJECT_RAIL_LINKS = ["Plan", "Develop", "Automate", "Review"] as const;
+const PROJECT_RAIL_LINKS = {
+  Plan: "plan-conversation",
+  Develop: "develop",
+  Automate: "automate-kanban",
+  Review: "review-telemetry",
+} as const;
 const MEMORY_ROUTES = Desktop_GLOBAL_ROUTE_KINDS.filter((route) =>
   route.id.startsWith("memory-"),
 );
@@ -96,13 +101,14 @@ export function ProjectRail(props: ProjectRailProps) {
         <button
           type="button"
           aria-expanded={memoryExpanded()}
-          onClick={() =>
+          onClick={() => {
+            props.onNavigate?.(destinationDesktop("memory-short-term"));
             setMemoryExpanded((open) => {
               const next = !open;
               persistExpansion("memory", next);
               return next;
-            })
-          }
+            });
+          }}
         >
           Memory
         </button>
@@ -120,13 +126,14 @@ export function ProjectRail(props: ProjectRailProps) {
         <button
           type="button"
           aria-expanded={workshopExpanded()}
-          onClick={() =>
+          onClick={() => {
+            props.onNavigate?.(destinationDesktop("workshop-agents"));
             setWorkshopExpanded((open) => {
               const next = !open;
               persistExpansion("workshop", next);
               return next;
-            })
-          }
+            });
+          }}
         >
           Workshop
         </button>
@@ -169,6 +176,9 @@ export function ProjectRail(props: ProjectRailProps) {
                 type="button"
                 data-testid={`project-switcher-option-${project}`}
                 aria-selected={activeProject() === index()}
+                onClick={() =>
+                  props.onNavigate?.(destinationDesktop("plan-conversation", project))
+                }
               >
                 {project}
               </button>
@@ -176,8 +186,17 @@ export function ProjectRail(props: ProjectRailProps) {
           </For>
         </div>
         <div data-testid="project-rail-routes">
-          <For each={PROJECT_RAIL_LINKS}>
-            {(label) => <button type="button">{label}</button>}
+          <For each={Object.entries(PROJECT_RAIL_LINKS)}>
+            {([label, route]) => (
+              <button
+                type="button"
+                onClick={() =>
+                  props.onNavigate?.(destinationDesktop(route, props.selectedProject))
+                }
+              >
+                {label}
+              </button>
+            )}
           </For>
         </div>
       </section>

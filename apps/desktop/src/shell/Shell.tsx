@@ -9,25 +9,58 @@ import type { ActiveSession } from './RunningPill'
 import type { NavStore, View } from '../nav'
 import { destinationDesktop, navigateDesktop } from '../nav/desktop-navigation'
 import type { DesktopNavTarget, DesktopRouteId } from '../nav/desktop-locator'
+import { Desktop_PROJECT_ROUTE_KINDS } from '../nav/desktop-route-kinds'
 
 export interface ShellProps {
   nav: NavStore
   children: JSX.Element
 }
 
-const desktopViews: Record<string, View> = {
-  inbox: 'inbox', dashboard: 'status', 'plan-conversation': 'plan', 'plan-spec': 'plan',
-  'plan-tasks': 'plan', develop: 'develop', 'automate-kanban': 'board',
-  'automate-agents': 'sessions', 'review-telemetry': 'telemetry', 'dispatch-runs': 'runs',
-  'memory-wiki': 'wiki', 'workshop-agents': 'agents', 'workshop-harnesses': 'harnesses',
-  'workflows-visual': 'canvas', 'workflows-governance': 'canvas',
+const desktopViews: Record<DesktopRouteId, View> = {
+  inbox: 'inbox',
+  dashboard: 'status',
+  'project-settings': 'extensions',
+  'project-analytics': 'status',
+  'plan-conversation': 'plan',
+  'plan-spec': 'plan',
+  'plan-tasks': 'plan',
+  develop: 'develop',
+  'automate-kanban': 'board',
+  'automate-agents': 'sessions',
+  'dispatch-autorun': 'runs',
+  'dispatch-schedules': 'runs',
+  'dispatch-runs': 'runs',
+  'memory-short-term': 'wiki',
+  'memory-long-term': 'wiki',
+  'memory-artifacts': 'artifact',
+  'memory-wiki': 'wiki',
+  'review-telemetry': 'telemetry',
+  'settings-guardrails': 'extensions',
+  'workshop-agents': 'agents',
+  'workshop-cli': 'extensions',
+  'workshop-commands': 'extensions',
+  'workshop-harnesses': 'harnesses',
+  'workshop-hooks': 'extensions',
+  'workshop-linters': 'extensions',
+  'workshop-output-styles': 'extensions',
+  'workshop-providers': 'extensions',
+  'workshop-rules': 'extensions',
+  'workshop-skills': 'extensions',
+  'workflows-visual': 'canvas',
+  'workflows-governance': 'canvas',
 }
 
-const desktopRoutes: Partial<Record<View, DesktopRouteId>> = {
+const desktopRoutes: Record<View, DesktopRouteId> = {
   inbox: 'inbox', status: 'dashboard', plan: 'plan-conversation', develop: 'develop',
   board: 'automate-kanban', sessions: 'automate-agents', telemetry: 'review-telemetry',
-  runs: 'dispatch-runs', wiki: 'memory-wiki', agents: 'workshop-agents',
+  runs: 'dispatch-runs', artifact: 'memory-artifacts', wiki: 'memory-wiki',
+  extensions: 'workshop-commands', agents: 'workshop-agents',
   harnesses: 'workshop-harnesses', canvas: 'workflows-visual',
+}
+
+/** Maps every registered desktop route to the currently delivered shared surface. */
+export function desktopViewFor(target: DesktopNavTarget): View {
+  return desktopViews[target.route]
 }
 
 /** The desktop title bar and project-scoped rail frame every screen. */
@@ -44,13 +77,12 @@ export function Shell(props: ShellProps) {
   const needsYou = activeSessions.filter((session) => session.needsAttention).length
   const openDesktopTarget = (target: DesktopNavTarget) => {
     const params = target.scope.kind === 'project' ? { project: target.scope.project } : undefined
-    props.nav.go(desktopViews[target.route] ?? 'extensions', params)
+    props.nav.go(desktopViewFor(target), params)
   }
   const openDesktopLocator = (locator: string) => openDesktopTarget(navigateDesktop(locator))
   const currentDesktopLocator = () => {
-    const route = desktopRoutes[props.nav.view()] ?? 'workshop-agents'
-    return route === 'plan-conversation' || route === 'develop' || route === 'automate-kanban'
-      || route === 'automate-agents' || route === 'review-telemetry'
+    const route = desktopRoutes[props.nav.view()]
+    return Desktop_PROJECT_ROUTE_KINDS.some((candidate) => candidate.id === route)
       ? destinationDesktop(route, props.nav.params().project)
       : destinationDesktop(route)
   }

@@ -22,8 +22,8 @@ use crate::{
     },
     registry::HarnessDefinition,
     sandbox::{
-        agent_image_tag, agent_mounts, project_network, CredentialProxy, EgressTarget,
-        EgressTier, Mount, PortAllocator, PtyAttachment, ToolPin, AGENT_PTY,
+        agent_image_tag, agent_mounts, project_network, CredentialProxy, EgressTier, Mount,
+        PortAllocator, PtyAttachment, ToolPin, AGENT_PTY,
     },
     session::{Run, RunStatus},
     store::Store,
@@ -622,14 +622,8 @@ fn spawn_at_port(
     }
     request
         .credential_proxy_authorizer
-        .authorize(
-            &run.id.to_string(),
-            &request.run_nonce,
-            &request.run_nonce,
-            request.egress_tier,
-            EgressTarget::Model,
-        )
-        .context("authorize credential proxy egress")?;
+        .configure_run(&run.id.to_string(), &request.run_nonce, request.egress_tier)
+        .context("configure credential proxy for run")?;
 
     let tools = request
         .tools
@@ -651,7 +645,10 @@ fn spawn_at_port(
         .into_iter()
         .map(|(key, value)| format!("{key}={value}"))
         .collect::<Vec<_>>();
-    environment.push(format!("LOCUS_CREDENTIAL_PROXY={}", request.credential_proxy.endpoint));
+    environment.push(format!(
+        "LOCUS_CREDENTIAL_PROXY={}",
+        request.credential_proxy.endpoint
+    ));
     environment.push(format!("LOCUS_PORT={port}"));
     let container = ContainerLaunch {
         name: format!("locus-agent-{}", run.id),
@@ -1322,7 +1319,9 @@ mod spawns {
     use crate::{
         materialize::{ExtensionEntry, ExtensionSet},
         registry::load_from_directory,
-        sandbox::{agent_image_tag, Mount, PtyAttachment, ToolPin, AGENT_PTY, CONFIG_SOURCE},
+        sandbox::{
+            agent_image_tag, EgressTarget, Mount, PtyAttachment, ToolPin, AGENT_PTY, CONFIG_SOURCE,
+        },
         session::{Run, RunStatus},
     };
 
@@ -1508,9 +1507,26 @@ mod spawns {
             .environment
             .iter()
             .any(|value| value.contains("test-secret")));
+        assert!(credential_proxy_authorizer.audit_rows().is_empty());
+        let forwarded = credential_proxy_authorizer
+            .request(
+                &run_id.to_string(),
+                "nonce",
+                "sk-locus-sentinel",
+                EgressTarget::Model,
+                |secret| {
+                    assert_eq!(secret, "test-secret");
+                    Ok("host response")
+                },
+            )
+            .expect("configured proxy forwards a request");
+        assert_eq!(forwarded, "host response");
         assert_eq!(credential_proxy_authorizer.audit_rows().len(), 1);
         assert!(credential_proxy_authorizer.audit_rows()[0].allowed);
-        assert_eq!(credential_proxy_authorizer.audit_rows()[0].tier, EgressTier::Model);
+        assert_eq!(
+            credential_proxy_authorizer.audit_rows()[0].tier,
+            EgressTier::Model
+        );
         assert_eq!(
             runtime.attached,
             Some((spawned.container.name.clone(), AGENT_PTY))

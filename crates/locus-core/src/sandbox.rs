@@ -244,10 +244,19 @@ pub struct OutboundAudit {
     pub credential_class: &'static str,
 }
 
+const CREDENTIAL_SENTINEL: &str = "sk-locus-sentinel";
+
+#[derive(Clone)]
+struct CredentialProxyRun {
+    nonce: String,
+    tier: EgressTier,
+}
+
 /// Host-side credential proxy. Only a sentinel and proxy URL enter the container.
 pub struct CredentialProxy {
     secret: String,
     credential_class: &'static str,
+    runs: Mutex<HashMap<String, CredentialProxyRun>>,
     audit: Mutex<Vec<OutboundAudit>>,
 }
 
@@ -256,13 +265,14 @@ impl CredentialProxy {
         Self {
             secret: secret.into(),
             credential_class,
+            runs: Mutex::new(HashMap::new()),
             audit: Mutex::new(Vec::new()),
         }
     }
 
     pub fn container_environment(&self, run_nonce: &str) -> BTreeMap<String, String> {
         BTreeMap::from([
-            ("ANTHROPIC_API_KEY".into(), "sk-locus-sentinel".into()),
+            ("ANTHROPIC_API_KEY".into(), CREDENTIAL_SENTINEL.into()),
             (
                 "ANTHROPIC_BASE_URL".into(),
                 "http://host.docker.internal:43800".into(),
@@ -271,16 +281,48 @@ impl CredentialProxy {
         ])
     }
 
-    /// The caller performs the network request; this policy method is the one proxy chokepoint.
-    pub fn authorize(
+    /// Bind a run's nonce and egress capability before its container starts.
+    pub fn configure_run(&self, run_id: &str, nonce: &str, tier: EgressTier) -> Result<()> {
+        if run_id.trim().is_empty() || nonce.trim().is_empty() {
+            bail!("credential proxy run binding requires a run id and nonce")
+        }
+        self.runs
+            .lock()
+            .expect("credential proxy runs lock")
+            .insert(
+                run_id.into(),
+                CredentialProxyRun {
+                    nonce: nonce.into(),
+                    tier,
+                },
+            );
+        Ok(())
+    }
+
+    /// Forward one host-side proxy request after exchanging the run sentinel for the host secret.
+    /// The forwarding closure is host-only; its credential argument is never returned or audited.
+    pub fn request<T>(
         &self,
         run_id: &str,
         supplied_nonce: &str,
-        expected_nonce: &str,
-        tier: EgressTier,
+        supplied_credential: &str,
         target: EgressTarget,
-    ) -> Result<()> {
-        let allowed = supplied_nonce == expected_nonce && tier.allows(target);
+        forward: impl FnOnce(&str) -> Result<T>,
+    ) -> Result<T> {
+        let binding = self
+            .runs
+            .lock()
+            .expect("credential proxy runs lock")
+            .get(run_id)
+            .cloned();
+        let tier = binding
+            .as_ref()
+            .map_or(EgressTier::None, |binding| binding.tier);
+        let allowed = binding.is_some_and(|binding| {
+            supplied_nonce == binding.nonce
+                && supplied_credential == CREDENTIAL_SENTINEL
+                && binding.tier.allows(target)
+        });
         self.audit.lock().expect("audit lock").push(OutboundAudit {
             run_id: run_id.into(),
             target,
@@ -291,7 +333,7 @@ impl CredentialProxy {
         if !allowed {
             bail!("credential proxy refused outbound request")
         }
-        Ok(())
+        forward(&self.secret)
     }
 
     pub fn audit_rows(&self) -> Vec<OutboundAudit> {
@@ -693,51 +735,60 @@ mod creds {
     }
 
     #[test]
-    fn egress_tiers() {
+    fn request_exchanges_only_the_run_sentinel_for_the_host_secret() {
         let proxy = CredentialProxy::new("real-secret", "api_key");
-        assert!(proxy
-            .authorize(
+        proxy
+            .configure_run("run", "nonce", EgressTier::Model)
+            .unwrap();
+        let forwarded = proxy
+            .request(
                 "run",
                 "nonce",
-                "nonce",
-                EgressTier::Model,
-                EgressTarget::Model
+                "sk-locus-sentinel",
+                EgressTarget::Model,
+                |secret| {
+                    assert_eq!(secret, "real-secret");
+                    Ok("host response")
+                },
             )
-            .is_ok());
-        assert!(proxy
-            .authorize(
-                "run",
-                "nonce",
-                "nonce",
-                EgressTier::None,
-                EgressTarget::Model
-            )
-            .is_err());
-        assert!(proxy
-            .authorize(
-                "run",
-                "wrong",
-                "nonce",
-                EgressTier::Open,
-                EgressTarget::Other
-            )
-            .is_err());
+            .unwrap();
+        assert_eq!(forwarded, "host response");
+        let audit = proxy.audit_rows();
+        assert_eq!(audit.len(), 1);
+        assert!(audit[0].allowed);
+        assert!(!format!("{:?}", audit).contains("real-secret"));
     }
 
     #[test]
-    fn outbound_audited() {
+    fn request_denials_are_audited_per_request() {
         let proxy = CredentialProxy::new("real-secret", "api_key");
-        let _ = proxy.authorize(
-            "run",
-            "nonce",
-            "nonce",
-            EgressTier::None,
-            EgressTarget::Model,
-        );
+        proxy
+            .configure_run("run", "nonce", EgressTier::Model)
+            .unwrap();
+        assert!(proxy
+            .request(
+                "run",
+                "wrong",
+                "sk-locus-sentinel",
+                EgressTarget::Model,
+                |_| Ok(())
+            )
+            .is_err());
+        assert!(proxy
+            .request(
+                "run",
+                "nonce",
+                "sk-locus-sentinel",
+                EgressTarget::Package,
+                |_| Ok(())
+            )
+            .is_err());
+        assert!(proxy
+            .request("run", "nonce", "wrong", EgressTarget::Model, |_| Ok(()))
+            .is_err());
         let audit = proxy.audit_rows();
-        assert_eq!(audit.len(), 1);
-        assert!(!audit[0].allowed);
-        assert!(!format!("{:?}", audit).contains("real-secret"));
+        assert_eq!(audit.len(), 3);
+        assert!(audit.iter().all(|row| !row.allowed));
     }
 }
 
