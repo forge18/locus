@@ -552,6 +552,19 @@ impl PluginHost {
 ///
 /// `root` is the real per-run config directory. Registry paths rooted at `/locus/config` are
 /// translated below it, making this function equally usable in tests and in a container.
+/// Materialize authored extensions after applying a project's subtractive extension policy.
+///
+/// The scope is applied at this boundary so disabled entries cannot leak into a generated run tree.
+pub fn materialize_project(
+    harness: &HarnessDefinition,
+    extensions: &ExtensionSet,
+    scope: &ProjectExtensionScope,
+    root: impl AsRef<Path>,
+    plugin: Option<&PluginHost>,
+) -> Result<(MaterializedTree, MaterializationReport), MaterializeError> {
+    materialize(harness, &extensions.project_scoped(scope), root, plugin)
+}
+
 pub fn materialize(
     harness: &HarnessDefinition,
     extensions: &ExtensionSet,
