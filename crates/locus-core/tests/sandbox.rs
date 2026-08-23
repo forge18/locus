@@ -5,6 +5,12 @@ mod sandbox {
     };
 
     #[test]
+    fn tool_set_rebuild() {
+        let current = vec![ImageTool::new("git", "2")];
+        assert!(!locus_core::sandbox::tool_set_requires_rebuild(&current, &current));
+    }
+
+    #[test]
     fn role_tools_absent() {
         let mut catalog = ToolCatalog::new(TrustedKeyStore::default());
         catalog.add_builtin(ImageTool::new("git", "2.49")).expect("git");
