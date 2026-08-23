@@ -67,9 +67,9 @@ function FactList() {
   )
 }
 
-function MemoryFrame(props: { testId: string; route: string; contextLayers?: string; compaction?: string; contextBudget?: string; factFixture?: string; factState?: string; artifactGroups?: string; artifactPreview?: string; children: JSX.Element }) {
+function MemoryFrame(props: { testId: string; route: string; contextLayers?: string; compaction?: string; contextBudget?: string; factFixture?: string; factState?: string; artifactGroups?: string; artifactPreview?: string; wikiFixture?: string; children: JSX.Element }) {
   return (
-    <main class="v2-memory" data-testid={props.testId} data-v2-route={props.route} data-context-layers={props.contextLayers} data-compaction={props.compaction} data-context-budget={props.contextBudget} data-fact-fixture={props.factFixture} data-fact-state={props.factState} data-artifact-groups={props.artifactGroups} data-artifact-preview={props.artifactPreview}>
+    <main class="v2-memory" data-testid={props.testId} data-v2-route={props.route} data-context-layers={props.contextLayers} data-compaction={props.compaction} data-context-budget={props.contextBudget} data-fact-fixture={props.factFixture} data-fact-state={props.factState} data-artifact-groups={props.artifactGroups} data-artifact-preview={props.artifactPreview} data-wiki-fixture={props.wikiFixture}>
       {props.children}
     </main>
   )
@@ -248,7 +248,7 @@ export function MemoryArtifactsFixture() {
 /** Curated wiki prose remains separate from agent recall. */
 export function MemoryWikiFixture() {
   return (
-    <MemoryFrame testId="v2-memory-wiki" route="memory-wiki">
+    <MemoryFrame testId="v2-memory-wiki" route="memory-wiki" wikiFixture="typed-page">
       <aside class="v2-memory-left">
         <header class="v2-memory-pane-head"><h1>All <code>153</code></h1><p>Curated project knowledge derived from sources, then reviewed by people.</p><Button variant="primary" block>Ingest a document</Button></header>
         <div class="v2-memory-kinds"><span>All 153</span><span>Decisions 14</span><span>Concepts 31</span><span>Entities 42</span></div>
