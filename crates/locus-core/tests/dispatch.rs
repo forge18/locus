@@ -2,6 +2,15 @@ mod dispatch {
     use locus_core::dispatch::DispatchPolicy;
 
     #[test]
+    fn preemption_handoff() {
+        let handoff = locus_core::dispatch::PreemptionHandoff {
+            session_id: uuid::Uuid::nil(), branch: "agent/task".into(), board_task_id: None,
+            memory_base: serde_json::json!({"decision": "keep"}),
+        };
+        assert!(handoff.retains_context());
+    }
+
+    #[test]
     fn preempts_at_boundary() {
         let controller = locus_core::dispatch::PreemptionController::default();
         assert!(!controller.has_pending_preemption());
