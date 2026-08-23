@@ -63,7 +63,7 @@ export function PlanSpecView() {
             Saving sends stage 5 back over the changed requirements only. Requirements already carried by a card on the board are marked, so you can see what a rewrite is about to contradict.
           </p>
         </article>
-        <aside class="plan-outline" aria-label="Spec outline">
+        <aside class="plan-outline" aria-label="Spec outline" data-testid="spec-outline">
           <span class="plan-outline-title">Outline</span>
           <span>1 · Scope</span>
           <span>2 · Trust boundaries</span>
