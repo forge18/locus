@@ -23,6 +23,8 @@ pub struct ProjectSettings {
     pub version: u16,
     #[serde(default)]
     harness_allow_list: BTreeSet<String>,
+    #[serde(default)]
+    agent_default: Option<String>,
 }
 
 impl ProjectSettings {
@@ -30,6 +32,7 @@ impl ProjectSettings {
         Self {
             version: SETTINGS_VERSION,
             harness_allow_list: BTreeSet::new(),
+            agent_default: None,
         }
     }
 
@@ -46,6 +49,17 @@ impl ProjectSettings {
 
     pub fn permits_harness(&self, harness: &str) -> bool {
         self.harness_allow_list.contains(harness)
+    }
+
+    /// Choose the one harness used when routing does not claim an enabled harness.
+    pub fn with_agent_default(mut self, harness: impl Into<String>) -> Result<Self> {
+        self.agent_default = Some(harness.into());
+        self.validate()?;
+        Ok(self)
+    }
+
+    pub fn agent_default(&self) -> Option<&str> {
+        self.agent_default.as_deref()
     }
 
     pub fn to_stored_value(&self) -> Result<Value> {
@@ -65,6 +79,13 @@ impl ProjectSettings {
         }
         if self.harness_allow_list.iter().any(|harness| harness.trim().is_empty()) {
             bail!("project harness allow-list cannot contain an empty harness");
+        }
+        if self
+            .agent_default
+            .as_deref()
+            .is_some_and(|harness| !self.permits_harness(harness))
+        {
+            bail!("project agent default must be in the harness allow-list");
         }
         Ok(())
     }
