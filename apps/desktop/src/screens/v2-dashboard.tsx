@@ -16,8 +16,8 @@ export function V2InboxView() {
     <div class="v2-inbox" data-testid="v2-inbox" data-v2-route="inbox">
       <aside class="v2-inbox-list">
         <div class="v2-inbox-tabs" data-testid="v2-inbox-tabs">
-          <button aria-current="page" type="button">To do <span>3</span></button>
-          <button type="button">Completed <span>3</span></button>
+          <button aria-current="page" type="button" data-inbox-group="action-required">To do <span>3</span></button>
+          <button type="button" data-inbox-group="completed">Completed <span>3</span></button>
         </div>
         <div class="v2-inbox-budget" data-testid="v2-inbox-budget">
           <span class="v2-budget-meter" aria-hidden="true"><i /><i /><i /><i /><i /><i /></span>
