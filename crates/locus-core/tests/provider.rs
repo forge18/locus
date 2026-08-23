@@ -20,6 +20,16 @@ mod provider {
     }
 
     #[test]
+    fn verifies_connection() {
+        let reference = KeychainReference::new("locus/provider/openai").expect("reference");
+        let provider = ProviderReference::new(Uuid::nil(), "openai", reference).expect("provider");
+        let metadata = ProviderBroker::new(TestKeychain)
+            .verify_connection(&provider, "2026-08-23T00:00:00Z", |_| Ok(3))
+            .expect("verification");
+        assert_eq!(metadata.model_count, 3);
+    }
+
+    #[test]
     fn connection_config() {
         let config = locus_core::provider::ProviderConnectionConfig::new("oauth", Some("https://api.example.test".into())).expect("config");
         assert_eq!(config.authentication_method(), "oauth");
