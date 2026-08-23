@@ -5,6 +5,7 @@
 //! §"Shared services — one Rust implementation, every harness".
 
 pub mod acp;
+pub mod adapter;
 pub mod agents;
 pub mod artifact;
 pub mod ask;
