@@ -142,6 +142,12 @@ pub struct StopAllSnapshot {
     pub run_ids: Vec<Uuid>,
 }
 
+impl StopAllSnapshot {
+    pub fn is_empty(&self) -> bool {
+        self.run_ids.is_empty()
+    }
+}
+
 /// A supervisor-visible run used to apply capacity and priority rules.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct QueuedRun {
