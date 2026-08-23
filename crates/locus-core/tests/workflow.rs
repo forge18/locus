@@ -2,6 +2,13 @@ mod workflow {
     use locus_core::workflow::{Guardrail, SuccessCriterion, SuccessCriterionKind, WorkflowGovernance};
 
     #[test]
+    fn results_on_run() {
+        let result = locus_core::workflow::RunGovernanceEvaluation::passed("run-1", 1);
+        assert_eq!(result.run_id, "run-1");
+        assert!(result.passed);
+    }
+
+    #[test]
     fn governance_compiles() {
         let governance = WorkflowGovernance { version: 1, goal: "Ship".into(), guardrails: vec![], success_criteria: vec![] };
         let compiled = locus_core::workflow::compile_governance(serde_json::json!({"nodes": []}), governance.clone());
