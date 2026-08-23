@@ -45,6 +45,10 @@ pub struct ProjectSettings {
     harness_allow_list: BTreeSet<String>,
     #[serde(default)]
     agent_default: Option<String>,
+    #[serde(default)]
+    base_context: Option<String>,
+    #[serde(default)]
+    base_context_token_budget: Option<u32>,
 }
 
 impl ProjectSettings {
@@ -53,6 +57,8 @@ impl ProjectSettings {
             version: SETTINGS_VERSION,
             harness_allow_list: BTreeSet::new(),
             agent_default: None,
+            base_context: None,
+            base_context_token_budget: None,
         }
     }
 
@@ -82,6 +88,22 @@ impl ProjectSettings {
         self.agent_default.as_deref()
     }
 
+    /// Store the one base context that every project run receives with its token budget.
+    pub fn with_base_context(mut self, content: impl Into<String>, token_budget: u32) -> Result<Self> {
+        self.base_context = Some(content.into());
+        self.base_context_token_budget = Some(token_budget);
+        self.validate()?;
+        Ok(self)
+    }
+
+    pub fn base_context(&self) -> Option<&str> {
+        self.base_context.as_deref()
+    }
+
+    pub fn base_context_token_budget(&self) -> Option<u32> {
+        self.base_context_token_budget
+    }
+
     pub fn to_stored_value(&self) -> Result<Value> {
         self.validate()?;
         serde_json::to_value(self).context("serialize project settings")
@@ -106,6 +128,12 @@ impl ProjectSettings {
             .is_some_and(|harness| !self.permits_harness(harness))
         {
             bail!("project agent default must be in the harness allow-list");
+        }
+        if self.base_context.as_deref().is_some_and(|context| context.trim().is_empty())
+            || self.base_context_token_budget == Some(0)
+            || self.base_context.is_some() != self.base_context_token_budget.is_some()
+        {
+            bail!("base context and a nonzero token budget must be set together");
         }
         Ok(())
     }
