@@ -512,8 +512,8 @@ pub struct SpawnRequest<'a> {
     pub config_root: PathBuf,
     pub socket_source: PathBuf,
     pub workspace_remote: String,
-    /// Host-provided proxy environment; it contains no long-lived credential.
-    pub credential_environment: BTreeMap<String, String>,
+    /// Agent-visible credential broker endpoint. The credential remains host-only.
+    pub credential_proxy: CredentialProxyConfig,
     /// Per-run capability validated by the daemon socket before it routes any agent request.
     pub run_nonce: String,
     pub base_image_digest: String,
@@ -523,6 +523,28 @@ pub struct SpawnRequest<'a> {
     pub project_tool_scope: ProjectToolScope,
     pub role_tool_scope: RoleToolScope,
     pub plugin: Option<&'a PluginHost>,
+}
+
+/// Secret-free endpoint through which an agent can request host-brokered egress.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CredentialProxyConfig {
+    endpoint: String,
+}
+
+impl CredentialProxyConfig {
+    pub fn new(endpoint: impl Into<String>) -> Result<Self> {
+        let endpoint = endpoint.into();
+        if endpoint.trim().is_empty() || endpoint.contains('@') || endpoint.contains("secret") || endpoint.contains("token") {
+            bail!("credential proxy configuration must not contain credentials")
+        }
+        Ok(Self { endpoint })
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn credential_proxy_rejects_credential_bearing_values() {
+    assert!(CredentialProxyConfig::new("https://token@example.test").is_err());
 }
 
 /// The started container and the materialized configuration used for its prompt prefix.
@@ -596,11 +618,7 @@ fn spawn_at_port(
         .context("build or reuse agent image")?;
     let setup =
         crate::sandbox::workspace_clone_command(&request.workspace_remote, &run.id.to_string())?;
-    let mut environment = request
-        .credential_environment
-        .into_iter()
-        .map(|(key, value)| format!("{key}={value}"))
-        .collect::<Vec<_>>();
+    let mut environment = vec![format!("LOCUS_CREDENTIAL_PROXY={}", request.credential_proxy.endpoint)];
     environment.push(format!("LOCUS_PORT={port}"));
     environment.push(format!("LOCUS_RUN_NONCE={}", request.run_nonce));
     let container = ContainerLaunch {
@@ -1357,10 +1375,7 @@ mod spawns {
             config_root: config_root.clone(),
             socket_source: PathBuf::from("/tmp/locus.sock"),
             workspace_remote: "/var/lib/locus/repos/project.git".into(),
-            credential_environment: BTreeMap::from([(
-                "ANTHROPIC_BASE_URL".into(),
-                "http://host.docker.internal:8787".into(),
-            )]),
+            credential_proxy: CredentialProxyConfig::new("http://host.docker.internal:8787").unwrap(),
             run_nonce: "nonce".into(),
             base_image_digest: "sha256:base".into(),
             tools: vec![
