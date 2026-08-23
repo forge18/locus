@@ -7,11 +7,27 @@ import { Sheet } from '../ui/Sheet'
 import { useRunningCount, useStripCards } from '../data/strip'
 import type { ActiveSession } from './RunningPill'
 import type { NavStore, View } from '../nav'
-import { navigateDesktop } from '../nav/desktop-navigation'
+import { destinationDesktop, navigateDesktop } from '../nav/desktop-navigation'
+import type { DesktopNavTarget, DesktopRouteId } from '../nav/desktop-locator'
 
 export interface ShellProps {
   nav: NavStore
   children: JSX.Element
+}
+
+const desktopViews: Record<string, View> = {
+  inbox: 'inbox', dashboard: 'status', 'plan-conversation': 'plan', 'plan-spec': 'plan',
+  'plan-tasks': 'plan', develop: 'develop', 'automate-kanban': 'board',
+  'automate-agents': 'sessions', 'review-telemetry': 'telemetry', 'dispatch-runs': 'runs',
+  'memory-wiki': 'wiki', 'workshop-agents': 'agents', 'workshop-harnesses': 'harnesses',
+  'workflows-visual': 'canvas', 'workflows-governance': 'canvas',
+}
+
+const desktopRoutes: Partial<Record<View, DesktopRouteId>> = {
+  inbox: 'inbox', status: 'dashboard', plan: 'plan-conversation', develop: 'develop',
+  board: 'automate-kanban', sessions: 'automate-agents', telemetry: 'review-telemetry',
+  runs: 'dispatch-runs', wiki: 'memory-wiki', agents: 'workshop-agents',
+  harnesses: 'workshop-harnesses', canvas: 'workflows-visual',
 }
 
 /** The desktop title bar and project-scoped rail frame every screen. */
@@ -26,16 +42,17 @@ export function Shell(props: ShellProps) {
       lastActivityAt: -card.idleMinutes,
     }))
   const needsYou = activeSessions.filter((session) => session.needsAttention).length
-  const openDesktopLocator = (locator: string) => {
-    const target = navigateDesktop(locator)
-    const views: Record<string, View> = {
-      inbox: 'inbox', dashboard: 'status', 'plan-conversation': 'plan', 'plan-spec': 'plan',
-      'plan-tasks': 'plan', develop: 'develop', 'automate-kanban': 'board',
-      'automate-agents': 'sessions', 'review-telemetry': 'telemetry', 'dispatch-runs': 'runs',
-      'memory-wiki': 'wiki', 'workshop-agents': 'agents', 'workshop-harnesses': 'harnesses',
-      'workflows-visual': 'canvas', 'workflows-governance': 'canvas',
-    }
-    props.nav.go(views[target.route] ?? 'extensions')
+  const openDesktopTarget = (target: DesktopNavTarget) => {
+    const params = target.scope.kind === 'project' ? { project: target.scope.project } : undefined
+    props.nav.go(desktopViews[target.route] ?? 'extensions', params)
+  }
+  const openDesktopLocator = (locator: string) => openDesktopTarget(navigateDesktop(locator))
+  const currentDesktopLocator = () => {
+    const route = desktopRoutes[props.nav.view()] ?? 'workshop-agents'
+    return route === 'plan-conversation' || route === 'develop' || route === 'automate-kanban'
+      || route === 'automate-agents' || route === 'review-telemetry'
+      ? destinationDesktop(route, props.nav.params().project)
+      : destinationDesktop(route)
   }
 
   // ⌘K resolves a locator. It is bound here because the palette is shell
@@ -70,8 +87,8 @@ export function Shell(props: ShellProps) {
       <LocatorPalette
         open={paletteOpen()}
         onOpenChange={setPaletteOpen}
-        current={props.nav.locator()}
-        onResolve={props.nav.open}
+        current={currentDesktopLocator()}
+        onResolve={openDesktopTarget}
       />
       <Sheet
         open={props.nav.detail() !== null}

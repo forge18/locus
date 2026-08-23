@@ -42,7 +42,7 @@ describe('nav/cmd-k-resolves', () => {
     cmdK()
     await waitFor(() => expect(document.querySelector('[data-testid="locator-palette-input"]')).not.toBe(null))
     const input = document.querySelector('[data-testid="locator-palette-input"]') as HTMLInputElement
-    expect(input.value).toBe('locus://tapestry/inbox')
+    expect(input.value).toBe('locus://global/inbox')
   })
 
   it('resolves what is typed and navigates there', async () => {
@@ -50,12 +50,12 @@ describe('nav/cmd-k-resolves', () => {
     cmdK()
     await waitFor(() => expect(document.querySelector('[data-testid="locator-palette-input"]')).not.toBe(null))
     const input = document.querySelector('[data-testid="locator-palette-input"]') as HTMLInputElement
-    input.value = 'locus://loom-db/task/t-004'
+    input.value = 'locus://project/loom-db/automate-kanban'
     input.dispatchEvent(new Event('input', { bubbles: true }))
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
 
     await waitFor(() => expect(nav.view()).toBe('board'))
-    expect(nav.params()).toEqual({ project: 'loom-db', taskId: 't-004' })
+    expect(nav.params()).toEqual({ project: 'loom-db' })
   })
 
   it('reports a bad locator by naming the segment, and stays put', async () => {
@@ -63,13 +63,13 @@ describe('nav/cmd-k-resolves', () => {
     cmdK()
     await waitFor(() => expect(document.querySelector('[data-testid="locator-palette-input"]')).not.toBe(null))
     const input = document.querySelector('[data-testid="locator-palette-input"]') as HTMLInputElement
-    input.value = 'locus://tapestry/widget/x'
+    input.value = 'locus://project/tapestry/widget'
     input.dispatchEvent(new Event('input', { bubbles: true }))
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
 
     await waitFor(() =>
       expect(document.querySelector('[data-testid="inline-error-cause"]')?.textContent).toContain(
-        'kind:',
+        'route:',
       ),
     )
     expect(nav.view()).toBe('inbox')

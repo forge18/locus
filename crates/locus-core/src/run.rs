@@ -22,14 +22,15 @@ use crate::{
     },
     registry::HarnessDefinition,
     sandbox::{
-        agent_image_tag, agent_mounts, project_network, Mount, PortAllocator, PtyAttachment,
-        ToolPin, AGENT_PTY,
+        agent_image_tag, agent_mounts, project_network, CredentialProxy, EgressTarget,
+        EgressTier, Mount, PortAllocator, PtyAttachment, ToolPin, AGENT_PTY,
     },
     session::{Run, RunStatus},
     store::Store,
     telemetry::{Adapter, CapturedEvent, Event, EventCollector},
     tools::{ProjectToolScope, RoleToolScope},
 };
+use url::Url;
 use uuid::Uuid;
 
 /// Normalize captured source records through the adapter selected for this run's telemetry source.
@@ -514,6 +515,10 @@ pub struct SpawnRequest<'a> {
     pub workspace_remote: String,
     /// Agent-visible credential broker endpoint. The credential remains host-only.
     pub credential_proxy: CredentialProxyConfig,
+    /// Host-only proxy that injects the sentinel and records the egress authorization.
+    pub credential_proxy_authorizer: &'a CredentialProxy,
+    /// Network capability permitted for this run.
+    pub egress_tier: EgressTier,
     /// Per-run capability validated by the daemon socket before it routes any agent request.
     pub run_nonce: String,
     pub base_image_digest: String,
@@ -531,11 +536,23 @@ pub struct CredentialProxyConfig {
     endpoint: String,
 }
 
+const CREDENTIAL_PROXY_ENDPOINT: &str = "http://host.docker.internal:43800/";
+
 impl CredentialProxyConfig {
     pub fn new(endpoint: impl Into<String>) -> Result<Self> {
         let endpoint = endpoint.into();
-        if endpoint.trim().is_empty() || endpoint.contains('@') || endpoint.contains("secret") || endpoint.contains("token") {
-            bail!("credential proxy configuration must not contain credentials")
+        let parsed = Url::parse(&endpoint).context("credential proxy endpoint must be a URL")?;
+        if parsed.scheme() != "http"
+            || parsed.host_str() != Some("host.docker.internal")
+            || parsed.port() != Some(43800)
+            || !parsed.username().is_empty()
+            || parsed.password().is_some()
+            || parsed.path() != "/"
+            || parsed.query().is_some()
+            || parsed.fragment().is_some()
+            || endpoint != CREDENTIAL_PROXY_ENDPOINT
+        {
+            bail!("credential proxy endpoint must be the host proxy root")
         }
         Ok(Self { endpoint })
     }
@@ -603,6 +620,16 @@ fn spawn_at_port(
     if request.run_nonce.trim().is_empty() {
         bail!("run socket capability nonce is required")
     }
+    request
+        .credential_proxy_authorizer
+        .authorize(
+            &run.id.to_string(),
+            &request.run_nonce,
+            &request.run_nonce,
+            request.egress_tier,
+            EgressTarget::Model,
+        )
+        .context("authorize credential proxy egress")?;
 
     let tools = request
         .tools
@@ -618,9 +645,14 @@ fn spawn_at_port(
         .context("build or reuse agent image")?;
     let setup =
         crate::sandbox::workspace_clone_command(&request.workspace_remote, &run.id.to_string())?;
-    let mut environment = vec![format!("LOCUS_CREDENTIAL_PROXY={}", request.credential_proxy.endpoint)];
+    let mut environment = request
+        .credential_proxy_authorizer
+        .container_environment(&request.run_nonce)
+        .into_iter()
+        .map(|(key, value)| format!("{key}={value}"))
+        .collect::<Vec<_>>();
+    environment.push(format!("LOCUS_CREDENTIAL_PROXY={}", request.credential_proxy.endpoint));
     environment.push(format!("LOCUS_PORT={port}"));
-    environment.push(format!("LOCUS_RUN_NONCE={}", request.run_nonce));
     let container = ContainerLaunch {
         name: format!("locus-agent-{}", run.id),
         image: image.clone(),
@@ -1368,6 +1400,7 @@ mod spawns {
             native_session_id: None,
             artifacts: vec![],
         };
+        let credential_proxy_authorizer = CredentialProxy::new("test-secret", "api_key");
         let request = SpawnRequest {
             project_id: "project-1",
             harness: registry.by_name("claude").expect("claude harness"),
@@ -1375,7 +1408,9 @@ mod spawns {
             config_root: config_root.clone(),
             socket_source: PathBuf::from("/tmp/locus.sock"),
             workspace_remote: "/var/lib/locus/repos/project.git".into(),
-            credential_proxy: CredentialProxyConfig::new("http://host.docker.internal:8787").unwrap(),
+            credential_proxy: CredentialProxyConfig::new(CREDENTIAL_PROXY_ENDPOINT).unwrap(),
+            credential_proxy_authorizer: &credential_proxy_authorizer,
+            egress_tier: EgressTier::Model,
             run_nonce: "nonce".into(),
             base_image_digest: "sha256:base".into(),
             tools: vec![
@@ -1458,6 +1493,24 @@ mod spawns {
             .environment
             .iter()
             .any(|value| value == "LOCUS_RUN_NONCE=nonce"));
+        assert!(spawned
+            .container
+            .environment
+            .iter()
+            .any(|value| value == "ANTHROPIC_API_KEY=sk-locus-sentinel"));
+        assert!(spawned
+            .container
+            .environment
+            .iter()
+            .any(|value| value == "LOCUS_CREDENTIAL_PROXY=http://host.docker.internal:43800/"));
+        assert!(!spawned
+            .container
+            .environment
+            .iter()
+            .any(|value| value.contains("test-secret")));
+        assert_eq!(credential_proxy_authorizer.audit_rows().len(), 1);
+        assert!(credential_proxy_authorizer.audit_rows()[0].allowed);
+        assert_eq!(credential_proxy_authorizer.audit_rows()[0].tier, EgressTier::Model);
         assert_eq!(
             runtime.attached,
             Some((spawned.container.name.clone(), AGENT_PTY))

@@ -5,7 +5,11 @@ import { Input } from "../ui/Input";
 import { InlineError } from "../ui/InlineError";
 import { Button } from "../ui/Button";
 import { LOCATOR_SCHEME } from "./locator";
-import { destinationDesktop } from "./desktop-navigation";
+import {
+  destinationDesktop,
+  navigateDesktop,
+} from "./desktop-navigation";
+import type { DesktopNavTarget } from "./desktop-locator";
 import { Desktop_GLOBAL_ROUTE_KINDS } from "./desktop-route-kinds";
 
 export function v2PaletteDestinations() {
@@ -20,8 +24,8 @@ export interface LocatorPaletteProps {
   onOpenChange: (open: boolean) => void;
   /** Where you are, so the field opens on it rather than empty. */
   current: string;
-  /** Throws with a message naming the bad segment if the locator does not parse. */
-  onResolve: (locator: string) => void;
+  /** Receives a locator resolved by the desktop navigation boundary. */
+  onResolve: (target: DesktopNavTarget) => void;
 }
 
 /** ⌘K resolves a locator. ⌘P searches for one, and that lands with project-search. */
@@ -31,7 +35,7 @@ export function LocatorPalette(props: LocatorPaletteProps) {
 
   const submit = () => {
     try {
-      props.onResolve(value());
+      props.onResolve(navigateDesktop(value()));
       setError(null);
       props.onOpenChange(false);
     } catch (e) {
@@ -68,7 +72,7 @@ export function LocatorPalette(props: LocatorPaletteProps) {
             {(destination) => (
               <button
                 type="button"
-                onClick={() => props.onResolve(destination.locator)}
+                onClick={() => props.onResolve(navigateDesktop(destination.locator))}
               >
                 {destination.label}
               </button>
