@@ -113,7 +113,7 @@ export function ProjectsView() {
                   <button data-testid={`harness-default-${harness.id}`} class="project-default" disabled={!enabledHarnesses().has(harness.id)} aria-pressed={defaultHarness() === harness.id} onClick={() => setDefaultHarness(harness.id)}><i />{defaultHarness() === harness.id ? 'default' : 'make default'}</button>
                 </div>
               )}</For>
-              <p class="project-panel-note">Enabled harnesses are offered to the router in the order listed; anything the router does not claim runs on the agent default.</p>
+              <p class="project-panel-note" data-testid="project-router-summary">Enabled harnesses are offered to the router in the order listed; anything the router does not claim runs on the agent default.</p>
             </section>
 
             <section class="project-panel" data-testid="project-repos">
