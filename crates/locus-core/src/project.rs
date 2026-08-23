@@ -3,6 +3,8 @@
 //! Project policy is one typed, versioned aggregate stored through `core.settings` rather than a
 //! collection of uncoordinated keys. Individual fields are added by the project-operations tasks.
 
+use std::collections::BTreeSet;
+
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -19,13 +21,31 @@ const SETTINGS_VERSION: u16 = 1;
 #[serde(deny_unknown_fields)]
 pub struct ProjectSettings {
     pub version: u16,
+    #[serde(default)]
+    harness_allow_list: BTreeSet<String>,
 }
 
 impl ProjectSettings {
     pub fn new() -> Self {
         Self {
             version: SETTINGS_VERSION,
+            harness_allow_list: BTreeSet::new(),
         }
+    }
+
+    /// Replace the project-local set of harnesses that may run work.
+    pub fn with_harness_allow_list<I, S>(mut self, harnesses: I) -> Result<Self>
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.harness_allow_list = harnesses.into_iter().map(Into::into).collect();
+        self.validate()?;
+        Ok(self)
+    }
+
+    pub fn permits_harness(&self, harness: &str) -> bool {
+        self.harness_allow_list.contains(harness)
     }
 
     pub fn to_stored_value(&self) -> Result<Value> {
@@ -42,6 +62,9 @@ impl ProjectSettings {
     fn validate(&self) -> Result<()> {
         if self.version != SETTINGS_VERSION {
             bail!("unsupported project settings version `{}`", self.version);
+        }
+        if self.harness_allow_list.iter().any(|harness| harness.trim().is_empty()) {
+            bail!("project harness allow-list cannot contain an empty harness");
         }
         Ok(())
     }
