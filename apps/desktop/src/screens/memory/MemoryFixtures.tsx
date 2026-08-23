@@ -66,9 +66,9 @@ function FactList() {
   )
 }
 
-function MemoryFrame(props: { testId: string; route: string; contextLayers?: string; compaction?: string; contextBudget?: string; children: JSX.Element }) {
+function MemoryFrame(props: { testId: string; route: string; contextLayers?: string; compaction?: string; contextBudget?: string; factFixture?: string; children: JSX.Element }) {
   return (
-    <main class="v2-memory" data-testid={props.testId} data-v2-route={props.route} data-context-layers={props.contextLayers} data-compaction={props.compaction} data-context-budget={props.contextBudget}>
+    <main class="v2-memory" data-testid={props.testId} data-v2-route={props.route} data-context-layers={props.contextLayers} data-compaction={props.compaction} data-context-budget={props.contextBudget} data-fact-fixture={props.factFixture}>
       {props.children}
     </main>
   )
@@ -166,7 +166,7 @@ export function MemoryShortTermFixture() {
 /** Project-scoped facts, their provenance, decay, and contradiction state. */
 export function MemoryLongTermFixture() {
   return (
-    <MemoryFrame testId="v2-memory-long-term" route="memory-long-term">
+    <MemoryFrame testId="v2-memory-long-term" route="memory-long-term" factFixture="long-term">
       <aside class="v2-memory-left">
         <header class="v2-memory-pane-head">
           <h1>Long-term <code>318</code></h1>
