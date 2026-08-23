@@ -1,5 +1,5 @@
 mod project {
-    use locus_core::{materialize::ProjectExtensionScope, project::{ProjectRepo, ProjectSettings}, tools::ProjectToolScope};
+    use locus_core::{materialize::ProjectExtensionScope, project::{ProjectAnalytics, ProjectRepo, ProjectRunAnalytics, ProjectSettings}, tools::ProjectToolScope};
 
     #[test]
     fn settings_roundtrip() {
@@ -18,6 +18,18 @@ mod project {
         assert!(settings.permits_harness("claude"));
         assert!(settings.permits_harness("codex"));
         assert!(!settings.permits_harness("gemini"));
+    }
+
+    #[test]
+    fn analytics() {
+        let analytics = ProjectAnalytics::from_runs([
+            ProjectRunAnalytics::new("claude", 100, 80, 3),
+            ProjectRunAnalytics::new("claude", 50, 40, 2),
+        ]);
+
+        assert_eq!(analytics.model("claude").expect("model").tokens, 150);
+        assert_eq!(analytics.model("claude").expect("model").cache_read_tokens, 120);
+        assert_eq!(analytics.model("claude").expect("model").spend_micros, 5);
     }
 
     #[test]
