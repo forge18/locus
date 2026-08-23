@@ -20,6 +20,15 @@ mod provider {
     }
 
     #[test]
+    fn verification_metadata() {
+        let metadata = locus_core::provider::ProviderVerificationMetadata::new(
+            "2026-08-23T00:00:00Z", 3, locus_core::provider::VerificationStatus::Failed,
+        ).expect("metadata");
+        assert_eq!(metadata.model_count, 3);
+        assert_eq!(metadata.status, locus_core::provider::VerificationStatus::Failed);
+    }
+
+    #[test]
     fn verifies_connection() {
         let reference = KeychainReference::new("locus/provider/openai").expect("reference");
         let provider = ProviderReference::new(Uuid::nil(), "openai", reference).expect("provider");
