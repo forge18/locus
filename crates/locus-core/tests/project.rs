@@ -1,5 +1,5 @@
 mod project {
-    use locus_core::project::{ProjectRepo, ProjectSettings};
+    use locus_core::{materialize::ProjectExtensionScope, project::{ProjectRepo, ProjectSettings}};
 
     #[test]
     fn settings_roundtrip() {
@@ -18,6 +18,16 @@ mod project {
         assert!(settings.permits_harness("claude"));
         assert!(settings.permits_harness("codex"));
         assert!(!settings.permits_harness("gemini"));
+    }
+
+    #[test]
+    fn extension_overrides() {
+        let mut overrides = ProjectExtensionScope::default();
+        overrides.disable_extension("hooks");
+        overrides.disable_entry("skills", "review");
+        let settings = ProjectSettings::new().with_extension_overrides(overrides.clone());
+
+        assert_eq!(settings.extension_overrides(), &overrides);
     }
 
     #[test]
