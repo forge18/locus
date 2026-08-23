@@ -2,6 +2,12 @@ mod dispatch {
     use locus_core::dispatch::DispatchPolicy;
 
     #[test]
+    fn stop_all_preserves_work() {
+        let snapshot = locus_core::dispatch::StopAllSnapshot { id: uuid::Uuid::nil(), run_ids: vec![uuid::Uuid::new_v4()] };
+        assert!(snapshot.preserves_durable_work());
+    }
+
+    #[test]
     fn stop_all_snapshot() {
         let snapshot = locus_core::dispatch::StopAllSnapshot { id: uuid::Uuid::nil(), run_ids: vec![] };
         assert!(snapshot.is_empty());
