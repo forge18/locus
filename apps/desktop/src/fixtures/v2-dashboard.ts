@@ -45,7 +45,7 @@ export const V2_MODEL_SCORECARD = [
 
 export const V2_DASHBOARD_COUNTERS = [
   { label: 'Steer vs review', value: '31 : 4', note: 'Steering the agent, versus recording that you read what it wrote.' },
-  { label: 'Approved unopened', value: '38%', note: 'of 61 gates · falling from 52% two weeks ago.' },
+  { label: 'Review debt', value: '38%', note: 'of 61 gates · falling from 52% two weeks ago.' },
   { label: 'Median time to land', value: '3h 12m', note: 'Task reaching the board to branch merged.' },
   { label: 'Cache read', value: '88%', note: 'Across all projects · +3pt.' },
 ] as const
