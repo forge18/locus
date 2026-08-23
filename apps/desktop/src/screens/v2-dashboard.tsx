@@ -46,7 +46,7 @@ export function V2InboxView() {
       <section class="v2-inbox-detail">
         <header>
           <div><span class="v2-inbox-kind">plan</span><h1>Keyframe extraction for recordings</h1></div>
-          <p>locus://texere/artifact/a-7741 · builder@3 · role impl · Gate: human</p>
+          <p data-inbox-detail="evidence">locus://texere/artifact/a-7741 · builder@3 · role impl · Gate: human</p>
         </header>
         <div class="v2-inbox-detail-body">
           <section>
@@ -62,8 +62,8 @@ export function V2InboxView() {
           <label class="v2-inbox-comment">Comment steers the agent that made it<textarea placeholder="Cap frames at 8, and keep the clip when the run is linked to a PR." /></label>
           <div class="v2-inbox-actions"><button type="button">Approve &amp; release the loop</button><button type="button">Send back with comment</button><span>Resolves here — the work opens where the work lives.</span></div>
           <div class="v2-inbox-explanation">
-            <p><strong>Why this is here</strong>The Gate node in workflow <code>wf-12</code> is human for irreversible steps. The agent has written nothing and is blocked, not idle.</p>
-            <p><strong>Cost of waiting</strong>One loop held for 4m.<br />No tokens burn while blocked.</p>
+            <p data-inbox-detail="why"><strong>Why this is here</strong>The Gate node in workflow <code>wf-12</code> is human for irreversible steps. The agent has written nothing and is blocked, not idle.</p>
+            <p data-inbox-detail="cost"><strong>Cost of waiting</strong>One loop held for 4m.<br />No tokens burn while blocked.</p>
           </div>
         </div>
       </section>
