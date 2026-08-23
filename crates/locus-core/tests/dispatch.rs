@@ -2,6 +2,13 @@ mod dispatch {
     use locus_core::dispatch::DispatchPolicy;
 
     #[test]
+    fn queues_at_cap() {
+        let policy = DispatchPolicy::with_parallelism(1, 1).expect("caps");
+        assert!(locus_core::dispatch::queues_at_cap(&policy, 1));
+        assert!(!locus_core::dispatch::queues_at_cap(&policy, 0));
+    }
+
+    #[test]
     fn priority_policy() {
         let policy = DispatchPolicy::with_priority(locus_core::dispatch::PriorityMethod::Manual).expect("policy");
         assert_eq!(policy.priority_method, locus_core::dispatch::PriorityMethod::Manual);
