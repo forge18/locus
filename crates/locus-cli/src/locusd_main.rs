@@ -28,6 +28,17 @@ const DEFAULT_SOCKET_PATH: &str = "/run/locus.sock";
 struct UnroutedVerbs;
 
 impl AgentSocketRouter for UnroutedVerbs {
+    fn authorize(
+        &self,
+        _run_id: locus_core::ids::RunId,
+        _verb: AgentSocketVerb,
+        _args: &[String],
+    ) -> std::result::Result<(), AgentSocketError> {
+        // No request reaches a service while the daemon has no routes. Concrete routers must
+        // replace this with a project/session ownership lookup before `route` is reachable.
+        Ok(())
+    }
+
     fn route(
         &self,
         _run_id: locus_core::ids::RunId,

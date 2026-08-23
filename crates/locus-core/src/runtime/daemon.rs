@@ -247,7 +247,18 @@ pub struct AgentSocketResponse {
 }
 
 /// Domain routing remains in the core, never in the container CLI.
+///
+/// `authorize` is deliberately mandatory rather than a permissive default: every new route,
+/// including one with a caller-supplied ID, must prove the authenticated run owns its target
+/// project/session before the daemon invokes it.
 pub trait AgentSocketRouter: Send + Sync {
+    fn authorize(
+        &self,
+        run_id: RunId,
+        verb: AgentSocketVerb,
+        args: &[String],
+    ) -> std::result::Result<(), AgentSocketError>;
+
     fn route(
         &self,
         run_id: RunId,
@@ -279,14 +290,20 @@ pub async fn serve_agent_socket_once(
         .context("accept agent socket client")?;
     let request: AgentSocketRequest = read_frame(&mut stream).await?;
     let response = match capabilities.get(&request.nonce) {
-        Some(run_id) => match router.route(*run_id, request.verb, &request.args) {
-            Ok(result) => AgentSocketResponse {
-                result: Some(result),
-                error: None,
-            },
+        Some(run_id) => match router.authorize(*run_id, request.verb, &request.args) {
             Err(error) => AgentSocketResponse {
                 result: None,
                 error: Some(error),
+            },
+            Ok(()) => match router.route(*run_id, request.verb, &request.args) {
+                Ok(result) => AgentSocketResponse {
+                    result: Some(result),
+                    error: None,
+                },
+                Err(error) => AgentSocketResponse {
+                    result: None,
+                    error: Some(error),
+                },
             },
         },
         None => AgentSocketResponse {
@@ -380,6 +397,23 @@ mod agent_socket {
 
     struct Router;
     impl AgentSocketRouter for Router {
+        fn authorize(
+            &self,
+            run_id: RunId,
+            _: super::AgentSocketVerb,
+            args: &[String],
+        ) -> std::result::Result<(), super::AgentSocketError> {
+            if args
+                .first()
+                .is_some_and(|target| target != &run_id.to_string())
+            {
+                return Err(super::AgentSocketError::permission_denied(
+                    "socket target is outside the authenticated run",
+                ));
+            }
+            Ok(())
+        }
+
         fn route(
             &self,
             run_id: RunId,
@@ -445,6 +479,32 @@ mod agent_socket {
         assert_eq!(response["result"]["run_id"], run_id.to_string());
         let _ = std::fs::remove_file(path);
     }
+    #[tokio::test]
+    async fn refuses_a_cross_run_target_before_routing() {
+        let path = path();
+        let listener = bind_agent_socket(&path).unwrap();
+        let run_a = RunId::generate();
+        let run_b = RunId::generate();
+        let capabilities = BTreeMap::from([("nonce".into(), run_a)]);
+        let server = tokio::spawn(async move {
+            serve_agent_socket_once(&listener, &capabilities, &Router)
+                .await
+                .unwrap();
+        });
+        let response = request(
+            &path,
+            json!({"nonce":"nonce","verb":"artifact.get","args":[run_b.to_string()]}),
+        )
+        .await;
+        server.await.unwrap();
+        assert_eq!(response["error"]["kind"], "permission_denied");
+        assert_eq!(
+            response["error"]["message"],
+            "socket target is outside the authenticated run"
+        );
+        let _ = std::fs::remove_file(path);
+    }
+
     #[test]
     fn rejects_unknown_verbs_at_the_socket_boundary() {
         let error = serde_json::from_value::<super::AgentSocketRequest>(json!({

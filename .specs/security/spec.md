@@ -32,6 +32,16 @@ filters." Tiers `None`/`Model`/`Packages`/`Open` map to allowlisted destination 
 cannot reach hosts outside its allowlist, regardless of the transport it attempts. Same-project isolation
 (`none` shares no general network with egress-capable runs) is preserved.
 
+**F1 topology — dual-network proxy sidecar.** Each project receives an internal agent network and a
+Locus-managed forwarding-proxy sidecar attached both to that network and to a separate egress network.
+Agent containers attach only to the internal network, so the proxy is their sole outbound peer. `None`
+runs receive no proxy route; `Model` and `Packages` may use only their declared destinations; `Open`
+permits general HTTP/HTTPS and `CONNECT` through the proxy for research, but never a direct socket.
+The proxy records allow and deny decisions. It is a vendored Locus image built from this repository,
+not a third-party runtime image. Its lifecycle, provider-derived model hosts, and package-registry
+allowlist are part of this story rather than agent-image configuration. `Packages` starts with no
+registry defaults: a project must explicitly declare each package host before a run can reach it.
+
 **F2 — trust boundary, non-blocking.** Content authored by our extensions, the harness, or the user is
 the instruction plane. All other content (workspace reads from the clone remote, fetched pages, other
 agents' artifacts, generic tool results) is data-only. One standing operator rule in the always-on

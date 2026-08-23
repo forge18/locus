@@ -275,8 +275,8 @@ where
         if secret.is_empty() {
             bail!("provider credential resolution failed")
         }
-        let model_count =
-            probe(&secret).map_err(|error| anyhow!(redact(&error.to_string(), &secret)))?;
+        let model_count = probe(&secret)
+            .map_err(|error| provider_egress_error(provider, "verification", &error, &secret))?;
         ProviderVerificationMetadata::new(verified_at, model_count, VerificationStatus::Verified)
     }
 
@@ -293,10 +293,34 @@ where
             bail!("provider credential resolution failed")
         }
 
-        egress(&secret).map_err(|error| anyhow!(redact(&error.to_string(), &secret)))
+        egress(&secret).map_err(|error| provider_egress_error(provider, "request", &error, &secret))
     }
 }
 
+/// Keep the raw provider failure in the host's trusted log. The error returned across this
+/// boundary is only a secret-free gist: upstream callers must never receive provider text.
+fn provider_egress_error(
+    provider: &ProviderReference,
+    operation: &str,
+    error: &anyhow::Error,
+    secret: &str,
+) -> anyhow::Error {
+    let exactly_redacted = redact(&error.to_string(), secret);
+    tracing::warn!(
+        provider = %provider.identifier,
+        operation,
+        error = %error,
+        exactly_redacted_error = %exactly_redacted,
+        "provider egress failed"
+    );
+    anyhow!(
+        "provider={} status=unavailable reason=upstream_{}_failed",
+        provider.identifier,
+        operation
+    )
+}
+
+/// Exact replacement remains a defense-in-depth scrub for trusted host diagnostics.
 fn redact(message: &str, secret: &str) -> String {
     message.replace(secret, "[REDACTED]")
 }
@@ -367,6 +391,40 @@ impl OsKeychain for LeakyKeychain {
     fn delete_secret(&self, _: &KeychainReference) -> Result<()> {
         Ok(())
     }
+}
+
+#[cfg(test)]
+#[test]
+fn transformed_provider_errors_do_not_cross_the_egress_boundary() -> Result<()> {
+    let provider = ProviderReference::new(
+        Uuid::nil(),
+        "anthropic",
+        KeychainReference::new("os-keychain://locus/anthropic")?,
+    )?;
+    let transformed_secret = "test%2Dprovider%2Dsecret";
+    let error = match ProviderBroker::new(TestKeychain).with_host_egress(&provider, |_| {
+        anyhow::bail!("upstream refused {transformed_secret}")
+    }) {
+        Ok(()) => bail!("provider egress unexpectedly succeeded"),
+        Err(error) => error,
+    };
+
+    assert!(!error.to_string().contains(SECRET));
+    assert!(!error.to_string().contains(transformed_secret));
+    assert_eq!(
+        error.to_string(),
+        "provider=anthropic status=unavailable reason=upstream_request_failed"
+    );
+    Ok(())
+}
+
+#[cfg(test)]
+#[test]
+fn exact_redaction_remains_a_defense_in_depth_scrub() {
+    assert_eq!(
+        redact("rejected test-provider-secret", SECRET),
+        "rejected [REDACTED]"
+    );
 }
 
 #[cfg(test)]
