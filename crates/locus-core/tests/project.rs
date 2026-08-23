@@ -21,6 +21,16 @@ mod project {
     }
 
     #[test]
+    fn base_context() {
+        let settings = ProjectSettings::new()
+            .with_base_context("Use cargo test.", 1_500)
+            .expect("set base context");
+
+        assert_eq!(settings.base_context(), Some("Use cargo test."));
+        assert_eq!(settings.base_context_token_budget(), Some(1_500));
+    }
+
+    #[test]
     fn repos() {
         let repo = ProjectRepo::new("core", "/work/core").expect("valid repo");
 
