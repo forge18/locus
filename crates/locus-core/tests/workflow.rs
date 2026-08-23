@@ -2,6 +2,12 @@ mod workflow {
     use locus_core::workflow::{Guardrail, SuccessCriterion, SuccessCriterionKind, WorkflowGovernance};
 
     #[test]
+    fn guardrail_prompts() {
+        let guardrail = Guardrail { name: "safe".into(), prompt: "preserve data".into() };
+        assert_eq!((guardrail.name.as_str(), guardrail.prompt.as_str()), ("safe", "preserve data"));
+    }
+
+    #[test]
     fn goal_not_node() {
         let governance = WorkflowGovernance { version: 1, goal: "Ship".into(), guardrails: vec![], success_criteria: vec![] };
         assert_eq!(governance.goal, "Ship");
