@@ -362,6 +362,24 @@ where
     ///
     /// Keychain and egress errors intentionally omit their underlying detail: either source may
     /// include the credential, and errors are observable outside this boundary.
+    pub fn verify_connection(
+        &self,
+        provider: &ProviderReference,
+        verified_at: impl Into<String>,
+        probe: impl FnOnce(&str) -> Result<u32>,
+    ) -> Result<ProviderVerificationMetadata> {
+        let verified_at = verified_at.into();
+        let secret = self
+            .keychain
+            .read_secret(&provider.keychain_reference)
+            .map_err(|_| anyhow!("provider credential resolution failed"))?;
+        if secret.is_empty() {
+            bail!("provider credential resolution failed")
+        }
+        let model_count = probe(&secret).map_err(|error| anyhow!(redact(&error.to_string(), &secret)))?;
+        ProviderVerificationMetadata::new(verified_at, model_count, VerificationStatus::Verified)
+    }
+
     pub fn with_host_egress(
         &self,
         provider: &ProviderReference,
