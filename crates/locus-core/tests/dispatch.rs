@@ -2,6 +2,11 @@ mod dispatch {
     use locus_core::dispatch::DispatchPolicy;
 
     #[test]
+    fn restore_window() {
+        assert_eq!(locus_core::dispatch::StopAllSnapshot::restore_window_minutes(), 10);
+    }
+
+    #[test]
     fn stop_all_preserves_work() {
         let snapshot = locus_core::dispatch::StopAllSnapshot { id: uuid::Uuid::nil(), run_ids: vec![uuid::Uuid::new_v4()] };
         assert!(snapshot.preserves_durable_work());
