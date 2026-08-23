@@ -77,7 +77,7 @@ export function TelemetryView() {
   const maxTool = Math.max(...tools.map((t) => t.count))
 
   return (
-    <div class="telemetry" data-testid="telemetry">
+    <div class="telemetry" data-testid="telemetry" data-v2-route="review-telemetry">
       <div class="tm-search" data-testid="tm-search">
         <Icon name="magnifying-glass" size={12} style={{ color: 'var(--text-muted)' }} />
         <span class="tm-query" data-testid="tm-query">
