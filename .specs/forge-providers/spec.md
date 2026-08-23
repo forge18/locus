@@ -18,7 +18,7 @@ features.
 
 Local repository work stays in `gix`. A provider-neutral `ForgeProvider` port owns only remote-forge
 operations: repository identity, issue import/create, change-request open/update, CI status and logs,
-review comments, and signed webhook verification.
+review comments, signed webhook verification, and an `ExternalWorkItemProvider` bridge for import.
 
 The adapter registry selects an implementation from a persisted provider kind and host/base URL:
 
@@ -65,6 +65,7 @@ a change request, but never merges to `main` or `master`.
 10. Provider tokens are obtained only through the credential broker and are scoped by provider host.
 11. No Locus path merges `main` or `master`.
 12. Existing GitHub issue links migrate without losing their repository, number, URL, or snapshot.
+13. Each forge adapter exposes its issue tracker through the external-work-item provider contract.
 
 ## Open
 

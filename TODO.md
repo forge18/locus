@@ -1,6 +1,6 @@
 # TODO
 
-61 features, 1355 tasks, across twelve milestones. Every task carries a runnable
+63 features, 1393 tasks, across twelve milestones. Every task carries a runnable
 `verify:`; a task with none is not a task.
 
 **How this fits together.** [PLAN.md](PLAN.md) is the architecture and the authority.
@@ -32,11 +32,11 @@ of those blocks the shell or the other twelve screens. It can run alongside M0.
 | **M3** | Coordination, memory, and mail | 6 | 133 | 0 |
 | **M3.5** | Agent capabilities: debug and browser | 3 | 56 | 0 |
 | **M4** | Workflow canvas | 3 | 69 | 0 |
-| **M5** | Project management | 4 | 109 | 0 |
+| **M5** | Project management | 5 | 127 | 0 |
 | **M6** | Automation and discoverability | 3 | 46 | 0 |
-| **M7** | Forge providers | 3 | 58 | 0 |
+| **M7** | Forge providers | 4 | 78 | 0 |
 | **M8** | Marketplace installer | 1 | 11 | 0 |
-| | | **61** | **1355** | **772** |
+| | | **63** | **1393** | **772** |
 
 ---
 
@@ -277,7 +277,7 @@ below; it is short and it is load-bearing.
 
 ## M5 — Project management
 
-4 features · 109 tasks
+5 features · 127 tasks
 
 - [ ] **[board](.specs/board/spec.md)** · 23 tasks · [tasks](.specs/board/tasks.md)
   Deliberately small.
@@ -291,6 +291,9 @@ below; it is short and it is load-bearing.
 - [ ] **[wiki](.specs/wiki/spec.md)** · 26 tasks · [tasks](.specs/wiki/tasks.md)
   **Ingested and typed, not a blank page.** The premise taken from `llm-wiki-agent` is the right one: most knowledge tools make you search your own notes; this one reads everything you have collected and writes a structured wiki that compounds.
   *Depends on:* `store`, `screens-wiki`, `workflow-canvas`
+- [ ] **[task-orchestration](.specs/task-orchestration/spec.md)** · 18 tasks · [tasks](.specs/task-orchestration/tasks.md)
+  Automate is task-centric: each task owns its workflow execution, root session, and agent run tree.
+  *Depends on:* `board`, `workflow-engine`, `run-supervisor`, `screens-automate`
 
 ## M6 — Automation and discoverability
 
@@ -308,7 +311,7 @@ below; it is short and it is load-bearing.
 
 ## M7 — Forge providers
 
-3 features · 58 tasks
+4 features · 78 tasks
 
 - [ ] **[agent-prs](.specs/agent-prs/spec.md)** · 14 tasks · [tasks](.specs/agent-prs/tasks.md)
   Agent-authored change requests as a **first-class flow**, not an agent shelling out to a provider CLI.
@@ -320,6 +323,10 @@ below; it is short and it is load-bearing.
   Provider-neutral hosted change requests, CI, review comments, and explicitly linked issues for GitHub, GitLab,
   Codeberg, Bitbucket Cloud, and Bitbucket Data Center.
   *Depends on:* `repo-manager`, `board`
+- [ ] **[external-work-items](.specs/external-work-items/spec.md)** · 20 tasks · [tasks](.specs/external-work-items/tasks.md)
+  Import configured tracker work into the same local task workflow, with no outbound writes before Done and a
+  comment-and-resolve completion delivery afterward.
+  *Depends on:* `task-orchestration`, `forge-providers`, `board`
 
 ## M8 — Marketplace installer
 

@@ -51,6 +51,6 @@
 | 47 | Render card-mode choices, row carve-out toggle, and approval count copy | 24 | `pnpm -C apps/desktop test -- plan/card-mode-controls` |
 | 48 | Render selected-project Automate Kanban and fixed board columns | 25 | `pnpm -C apps/desktop test -- automate/kanban-desktop` |
 | 49 | Render task cards with role, dependencies, estimates, gate, and review state | 48 | `pnpm -C apps/desktop test -- automate/task-cards-desktop` |
-| 50 | Render Automate agents list with run status, transcript, and filters | 30 | `pnpm -C apps/desktop test -- automate/agents-desktop` |
-| 51 | Render agent handoff, pause, cancel, and needs-attention controls | 32,50 | `pnpm -C apps/desktop test -- automate/agent-controls` |
+| 50 | Render Automate task list with workflow and root-session summaries | 30 | `pnpm -C apps/desktop test -- automate/tasks-desktop` |
+| 51 | Render task-scoped handoff, pause, cancel, and needs-attention controls | 32,50 | `pnpm -C apps/desktop test -- automate/task-controls` |
 | 52 | Render all Guardrails controls: iterations, budget, stuck, reassignment, wall-clock, and parallelism | 27,28 | `pnpm -C apps/desktop test -- settings/guardrails-desktop` |

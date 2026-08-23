@@ -3,7 +3,7 @@
 | # | Task | Deps | verify |
 | --- | --- | --- | --- |
 | 1 | `src/nav/views.ts` — the view/category/label table as one exported constant | — | `pnpm -C apps/desktop test -- nav/view-table` |
-| 2 | `src/nav/tabs.ts` — tab sets per category, Automate's in Kanban-then-Agents order | 1 | `pnpm -C apps/desktop test -- nav/tab-sets` |
+| 2 | `src/nav/tabs.ts` — tab sets per category, Automate's in Kanban-then-List order | 1 | `pnpm -C apps/desktop test -- nav/tab-sets` |
 | 3 | Locator grammar parser: `parse(locator)` over all six object kinds | — | `pnpm -C apps/desktop test -- nav/locator-parse` |
 | 4 | `format(view, params) → locator`, the parser's inverse | 3 | `pnpm -C apps/desktop test -- nav/locator-format` |
 | 5 | Round-trip property test across every view and kind | 3,4 | `pnpm -C apps/desktop test -- nav/locator-roundtrip` |

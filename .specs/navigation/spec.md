@@ -30,12 +30,12 @@ callers.
 | `inbox`, `status` | `dashboard` | Inbox |
 | `plan` | `plan` | Plan |
 | `develop` | `develop` | Develop |
-| `board`, `sessions` | `automate` | Automate |
+| `board`, `tasks` | `automate` | Automate |
 | `telemetry`, `runs`, `artifact` | `review` | Review |
 | `extensions`, `agents`, `canvas`, `harnesses` | `workshop` | Workshop |
 | `wiki` | `wiki` | Wiki |
 
-**Tabs per category** — Dashboard `[Inbox, Status]`; Automate `[Kanban, Agents]` **in that order**;
+**Tabs per category** — Dashboard `[Inbox, Status]`; Automate `[Kanban, List]` **in that order**;
 Review `[Telemetry, Runs, Artifacts]`; Workshop `[Extensions, Workflow, Harnesses]`. Plan, Develop and
 Wiki have none.
 
@@ -43,9 +43,8 @@ Wiki have none.
 Workshop→`extensions`.
 
 **`agents` is a drill-down of Extensions, not a tab.** Entered from the `agents` card on Extensions;
-while open the **Extensions tab stays lit** and the sidebar shows a `← Extensions` back link. Do not add
-an Agents tab to the Workshop bar — Automate's "Agents" tab is a different thing entirely, the live
-session list.
+while open the **Extensions tab stays lit** and the sidebar shows a `← Extensions` back link. Automate
+has no Agents tab: task detail exposes a task's root session and child-agent run tree.
 
 **Locator grammar**, the one address space:
 

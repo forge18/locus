@@ -1,85 +1,46 @@
 # screens-automate
 
-> **Historical M0.5 contract.** Desktop separates project Automate from global Dispatch; new work follows
-> `.specs/design-desktop/spec.md`.
+> **Historical M0.5 surface.** The fixture implementation is superseded by
+> `.specs/task-orchestration/spec.md` and `.specs/external-work-items/spec.md` for live runtime work.
 
-**Milestone** M0.5 · **Depends on** `app-shell`, `navigation`, `fixtures` · Views `board`, `sessions`
+**Milestone** M0.5 · **Depends on** `app-shell`, `navigation`, `fixtures` · Views `board`, `tasks`
 
 ## Purpose
 
-Where work is assigned and watched. Two tabs — **Kanban** then **Agents**, in that order. PLAN.md puts
-sessions here because a session lives with the agent it belongs to, and puts the board here because
-the board is what assigns them.
-
-## Governed by
-
-- PLAN.md §The board — six fixed columns, `blocked` as a status, the two gating rules
-- PLAN.md §Sessions do not all fit, so most are strips
-- PLAN.md §Workflow guardrails — waiting ≠ idle; kill and reassign at three stuck iterations
-- `.specs/design-desktop/spec.md` §Project, plan, and dispatch policy
+Automate shows project tasks. Kanban and List are two views of the same task set. A workflow execution,
+root session, and its agents are details of a selected task, not peer-level Automate rows.
 
 ## Contract
 
-### Kanban (first tab)
+### Kanban and List
 
-Header: "Fixed columns across every project", `prohibit-inset` + "blocked is a status, not a column",
-right-aligned project `.tag-neutral` chips.
+Both tabs render the same six fixed-column task board: Ready · In Progress · Testing · Reviewing ·
+Waiting For Approval · Done. Blocked remains an in-place status, never a column. The header provides
+**New task** and **Import task** actions in both views; neither adds, removes, or reorders columns.
 
-**Six fixed columns** in a 6-col grid, 9px gaps: Ready · Building · Testing · Reviewing · Waiting For
-Approval · Done. Column head is a 10px uppercase label (accent for Waiting For Approval) plus a count
-in `--mu2`.
+A card or row shows task summary, project/repo, workflow, root-session state, dependencies, verify state,
+evidence count, and external-link state. Selecting it opens a task detail sheet, not an Agents pane.
 
-Cards: `--sf` + hairline, radius 7, 11.8px title, then a 10px meta line — accent project · repo, mono
-verify command, `reviewer@2 · read-only tools`, `Gate: reviewer agent`. Variants:
+### Task detail
 
-- **blocked** — a red `prohibit-inset`, shown *on* the card wherever it sits
-- **stuck** — red inset ring plus `stuck 3/3 · 102.3k`
-- **waiting approval** — accent ring and the note "an inbox item, not a place to go looking"
-- **done** — `opacity:.86` with `--ok` "evidence: 2 runs, 41 events"
+The detail sheet shows the selected task's workflow, root orchestration session, child-agent run tree,
+current activity, evidence, and run controls. Pause, cancel, handoff, guardrail, and needs-attention
+actions remain task-scoped. The persistent running strip links to this sheet.
 
-**There is no add-column affordance, and that is the feature.** Columns are fixed across every project.
+### Creation and import
 
-### Agents (second tab)
-
-**Left 356px.** Header `AGENTS · N running · one session each` with funnel and accent sort icons. Cards
-on `#22303c` radius 8: status dot, project 12px/500, mono agent, role, right-aligned mono tokens; a
-task line at 11.5px/76% opacity; then a status chip, the mono current tool, and a right-aligned run
-count. Selected is `#293947` + `inset 0 0 0 1px rgba(255,187,57,.55)`; stuck cards carry a red hairline.
-
-Footer: "Sorted by needs-attention, then activity. **Selecting one does not close the others — a
-session you stopped watching is not a session you ended.**"
-
-**Right.** Header: dot, project, mono agent, role, truncated task, status chip, mono locator,
-`arrows-out-simple` (detach to its own Tauri window) and `minus` (minimize to strip). Body is a mono
-11.5px/1.68 event stream colored by verb — accent tool calls, `#8fb8d6` thinking, `--ok` pass, `--bad`
-error — ending in a prompt line with a 7x14px blinking accent block cursor.
-
-Conditional footers, driven by the session's status:
-
-- **stuck** → red-tinted guardrail card: "kill & reassign after 3 stuck iterations", the handoff
-  summary, and "Hand off to reviewer@2" / "Let it run"
-- **waiting** → `--sf` card with `hourglass-medium` and **"Waiting ≠ idle."**
-
-Status bar: mono "PTY attached from the host · one session per terminal" + the run id.
-
-**Detach opens a second Tauri window, never a second webview.** PLAN.md is explicit: multiwebview is
-behind an unstable flag; multi-window is ordinary.
+New task opens the shared task draft and requires workflow confirmation before start. Import opens the
+shared external-work-item preview and confirmation flow. Imported work becomes a local task and follows
+the identical workflow/session/run path; no external write occurs before Done.
 
 ## Acceptance
 
-1. Exactly six columns render, with no affordance to add, remove, or reorder one.
-2. A blocked card shows its status as an icon **without moving column** — proving blocked is orthogonal
-   to progress.
-3. Selecting a different session swaps the transcript, header and footer; the other sessions keep
-   running in the list and the strip.
-4. The stuck footer appears only for stuck sessions and the waiting footer only for waiting ones.
-5. The waiting footer states "Waiting ≠ idle" — the two are never rendered the same.
-6. Transcript lines are colored by verb, and only the twelve canonical verbs appear.
-7. Session list sorts needs-attention first, then activity.
-8. Minimize moves the session to the strip without ending it.
+1. Kanban and List contain tasks, not agents or sessions.
+2. Both views expose the same New task and Import task actions and create the same drafts.
+3. Both views resolve task selection to the same task detail sheet.
+4. The task detail contains the task-owned workflow, root session, and agent run tree.
+5. The six columns remain fixed and blocked stays orthogonal to column.
 
 ## Open
 
-- The handoff draws the Kanban columns as Ready / Building / Testing / Reviewing / Waiting For Approval
-  / Done, while PLAN.md §The board names the second column **In Progress**. Same column, two labels —
-  one wins, and it should be settled before the board is wired at M5.
+None.

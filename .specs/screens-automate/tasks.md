@@ -1,34 +1,34 @@
 # screens-automate — tasks
 
-Open question carried from the spec: the second column is "Building" in the handoff and "In Progress"
-in PLAN.md. Task 3 uses one label and records which.
+> **Historical fixture tasks.** Live task creation, orchestration detail, and external imports are
+> specified by `task-orchestration` and `external-work-items`.
 
 | # | Task | Deps | verify |
 | --- | --- | --- | --- |
-| 1 | `<KanbanView>` header with the fixed-columns and blocked-is-a-status notes | — | `pnpm -C apps/desktop test -- kanban/header` |
-| 2 | Project `.tag-neutral` chips, right-aligned | 1 | `pnpm -C apps/desktop test -- kanban/project-chips` |
-| 3 | Six-column grid at 9px gaps, labels and counts; record the second column's label | 1 | `pnpm -C apps/desktop test -- kanban/six-columns` |
-| 4 | Assert no add, remove, or reorder affordance exists | 3 | `pnpm -C apps/desktop test -- kanban/columns-fixed` |
-| 5 | Accent label on the Waiting For Approval column head | 3 | `pnpm -C apps/desktop test -- kanban/approval-accent` |
-| 6 | `<TaskCard>` with title and the 10px meta line | 3 | `pnpm -C apps/desktop test -- kanban/card` |
-| 7 | Blocked variant: red `prohibit-inset` shown in place | 6 | `pnpm -C apps/desktop test -- kanban/blocked-in-place` |
-| 8 | Assert a blocked card can appear in any column | 7 | `pnpm -C apps/desktop test -- kanban/blocked-is-orthogonal` |
-| 9 | Stuck, waiting-approval and done card variants | 6 | `pnpm -C apps/desktop test -- kanban/card-variants` |
-| 10 | `<AgentsView>` split at 356px | — | `pnpm -C apps/desktop test -- agents/layout` |
-| 11 | Session list header with count, funnel and accent sort | 10 | `pnpm -C apps/desktop test -- agents/list-header` |
-| 12 | `<SessionCard>`: status dot, project, mono agent, role, tokens, task, chip, tool, runs | 10 | `pnpm -C apps/desktop test -- agents/session-card` |
-| 13 | Selected and stuck card states | 12 | `pnpm -C apps/desktop test -- agents/card-states` |
-| 14 | Sort needs-attention first, then activity | 12 | `pnpm -C apps/desktop test -- agents/sort-order` |
-| 15 | List footer with the session-you-stopped-watching note | 11 | `pnpm -C apps/desktop test -- agents/list-footer` |
-| 16 | Transcript header with detach and minimize controls | 10 | `pnpm -C apps/desktop test -- agents/transcript-header` |
-| 17 | `<Transcript>` at mono 11.5/1.68, colored by verb | 10 | `pnpm -C apps/desktop test -- agents/transcript` |
-| 18 | Assert only the twelve canonical verbs are colorable | 17 | `pnpm -C apps/desktop test -- agents/canonical-verbs-only` |
-| 19 | Prompt line with the 7x14px blinking block cursor | 17 | `pnpm -C apps/desktop test -- agents/cursor` |
-| 20 | Stuck footer: guardrail card with both actions | 16 | `pnpm -C apps/desktop test -- agents/stuck-footer` |
-| 21 | Waiting footer stating "Waiting ≠ idle" | 16 | `pnpm -C apps/desktop test -- agents/waiting-not-idle` |
-| 22 | Assert the conditional footers are mutually exclusive and status-driven | 20,21 | `pnpm -C apps/desktop test -- agents/footer-exclusive` |
-| 23 | Status bar with the PTY note and run id | 10 | `pnpm -C apps/desktop test -- agents/status-bar` |
-| 24 | Session select swaps the right pane and leaves the others running | 12,17 | `pnpm -C apps/desktop test -- agents/select-does-not-close` |
-| 25 | Minimize sends the session to the strip without ending it | 16 | `pnpm -C apps/desktop test -- agents/minimize-to-strip` |
-| 26 | Detach stub asserting a second window, never a second webview | 16 | `pnpm -C apps/desktop test -- agents/detach-is-a-window` |
-| 27 | Visual check against `screenshots/05-automate-kanban.png` and `06-automate-agents.png` | 9,26 | `pnpm -C apps/desktop test -- visual -- board sessions` |
+| 1 | Kanban header with fixed-columns and blocked-is-a-status notes | — | `pnpm -C apps/desktop test -- kanban/header` |
+| 2 | Project chips and task-view actions | 1 | `pnpm -C apps/desktop test -- kanban/project-chips` |
+| 3 | Six-column grid at 9px gaps, labels, and counts | 1 | `pnpm -C apps/desktop test -- kanban/six-columns` |
+| 4 | Assert no column add, remove, or reorder affordance | 3 | `pnpm -C apps/desktop test -- kanban/columns-fixed` |
+| 5 | Accent Waiting For Approval column head | 3 | `pnpm -C apps/desktop test -- kanban/approval-accent` |
+| 6 | Task card with title and metadata | 3 | `pnpm -C apps/desktop test -- kanban/card` |
+| 7 | Blocked variant shown in place | 6 | `pnpm -C apps/desktop test -- kanban/blocked-in-place` |
+| 8 | Assert a blocked task appears in any column | 7 | `pnpm -C apps/desktop test -- kanban/blocked-is-orthogonal` |
+| 9 | Stuck, approval, and done task-card variants | 6 | `pnpm -C apps/desktop test -- kanban/card-variants` |
+| 10 | List layout for project tasks | — | `pnpm -C apps/desktop test -- automate/list-layout` |
+| 11 | List header, filters, and sort controls | 10 | `pnpm -C apps/desktop test -- automate/list-header` |
+| 12 | Task row with workflow, root-session, dependency, and evidence summaries | 10 | `pnpm -C apps/desktop test -- automate/task-row` |
+| 13 | Selected, blocked, and stuck row states | 12 | `pnpm -C apps/desktop test -- automate/task-row-states` |
+| 14 | Sort task list by needs-attention then activity | 12 | `pnpm -C apps/desktop test -- automate/task-sort-order` |
+| 15 | List footer explaining task ownership of runs | 11 | `pnpm -C apps/desktop test -- automate/task-list-footer` |
+| 16 | Task-detail header with workflow and root-session locator | 10 | `pnpm -C apps/desktop test -- automate/task-detail-header` |
+| 17 | Task detail run tree with agent activity | 16 | `pnpm -C apps/desktop test -- automate/task-run-tree` |
+| 18 | Assert task detail renders only canonical event verbs | 17 | `pnpm -C apps/desktop test -- automate/task-canonical-verbs` |
+| 19 | Current activity prompt line | 17 | `pnpm -C apps/desktop test -- automate/task-activity` |
+| 20 | Task-scoped stuck controls | 16 | `pnpm -C apps/desktop test -- automate/task-stuck-controls` |
+| 21 | Task-scoped waiting-for-approval state | 16 | `pnpm -C apps/desktop test -- automate/task-waiting-state` |
+| 22 | Assert task conditional states are mutually exclusive | 20,21 | `pnpm -C apps/desktop test -- automate/task-state-exclusive` |
+| 23 | Task detail evidence and external-link status | 16 | `pnpm -C apps/desktop test -- automate/task-evidence` |
+| 24 | Task selection leaves other task runs active | 12,17 | `pnpm -C apps/desktop test -- automate/task-select-does-not-stop` |
+| 25 | Task controls preserve task/run links | 16 | `pnpm -C apps/desktop test -- automate/task-controls-preserve-links` |
+| 26 | Running strip opens the owning task detail | 16 | `pnpm -C apps/desktop test -- automate/strip-opens-task` |
+| 27 | Visual check for task Kanban, List, and detail | 9,26 | `pnpm -C apps/desktop test -- visual -- board tasks` |
