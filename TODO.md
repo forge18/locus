@@ -132,7 +132,7 @@ below; it is short and it is load-bearing.
   Replace the v1 shell with the project-scoped rail, running popover, locator, and accessible shared
   navigation.
   *Depends on:* `design-v2`, `theme-system`
-- [ ] **[v2-project-operations](.specs/v2-project-operations/spec.md)** · 52 tasks · [tasks](.specs/v2-project-operations/tasks.md)
+- [x] **[v2-project-operations](.specs/v2-project-operations/spec.md)** · 52 tasks · **complete** · [tasks](.specs/v2-project-operations/tasks.md)
   Make Project Settings, planning decomposition, Automate, queue policy, and safe Dispatch controls
   durable and reviewable.
   *Depends on:* `v2-application-shell`
