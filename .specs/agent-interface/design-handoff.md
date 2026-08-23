@@ -5,7 +5,7 @@
 This is a **requirements + research transfer** for designing the **Locus agent panel** — the primary
 surface a user interacts with for a single running agent session. It is NOT a design; the visual and
 layout decisions are yours. Your deliverable is a high-fidelity HTML mockup of the agent panel that
-matches the depth and conventions of the existing `docs/design_handoff_locus_v2/` handoff, using the
+matches the depth and conventions of the existing `docs/design_handoff_locus_desktop/` handoff, using the
 same design tokens and shell vocabulary. This document gives you the requirements, the surfaces, the states, the copy vocabulary, and the
 research that justifies each decision — so you design it, not me.
 
@@ -15,9 +15,9 @@ agent over **ACP** (Agent Client Protocol) — the wire protocol. The agent pane
 types (Agent Pane = typed event stream, Editor Pane = CodeMirror). This handoff covers the **agent
 panel only**, as it appears in the pane manager, running alongside an editor pane.
 
-Read, before designing: `docs/design_handoff_locus_v2/README.md` (the tokens, shell, and interaction
+Read, before designing: `docs/design_handoff_locus_desktop/README.md` (the tokens, shell, and interaction
 conventions the whole app shares), `docs/design_handoff_locus_desktop_ui/README.md` (v1, for the
-screens v2 does not supersede), `src/panes/README.md`, `src/ui/README.md`.
+screens desktop does not supersede), `src/panes/README.md`, `src/ui/README.md`.
 
 ## The one principle everything else serves
 
@@ -164,11 +164,11 @@ Every disclosure uses the same three-state pattern, default-research-why.
 Some defaults are deliberately conservative (the collapsed-state is the "caller can raise" story)
 but the entire graded amount is always available.
 
-## Design tokens / interaction conventions (from the v2 handoff)
+## Design tokens / interaction conventions (from the desktop handoff)
 
 Follow the shared tokens exactly — the accent, the data ramp, surface hierarchy, hover/pressed/focus,
 the 11px floor, Inter 400/500 (no 600+), JetBrains Mono for IDs/paths/models/numerics, Phosphor icons
-regular+fill only. Key guideline from v2 to honor:
+regular+fill only. Key guideline from desktop to honor:
 
 - **`--ac` (needs-you / act)** for approval, gates, selection, focus — approvals must *look* like
   "act now".
@@ -186,7 +186,7 @@ regular+fill only. Key guideline from v2 to honor:
 - Shell/Terminal rendering; this surface is ACP events, no terminal emulator in the panel.
 - The workflows / agent-fleet surface.
 
-## Review the v2 + v1 handoffs first
+## Review the desktop + v1 handoffs first
 
 Both — prose and tokens — are the source of visual truth. The agent panel must read as a Locus
 surface (same family as Plan/Develop), not a clone of any specific external product, though you may
@@ -199,7 +199,7 @@ you design from the same evidence, not just my conclusions.
 
 ### Protocol surface — what the panel renders
 
-- **ACP v2 `session/update` variants** — the panel rows as events: `agent_message` (output),
+- **ACP desktop `session/update` variants** — the panel rows as events: `agent_message` (output),
   `agent_thought` / `agent_thought_chunk` (thinking), `user_message` / `user_message_chunk` (user),
   `tool_call_update` / `tool_call_content_chunk` (tool), `plan_update` (plan),
   `state_update` (running / idle / requires_action), `usage_update` (tokens/cost),
@@ -207,7 +207,7 @@ you design from the same evidence, not just my conclusions.
   `terminal_*` (display-only; no live terminal in the panel).
   The five object families in the stream **map 1:1** to these event classes — that is why they must
   stay visually distinct: they are different wire types.
-- **ACP v2 prompt lifecycle** — turn output is `state_update` + `message`; the panel is an event
+- **ACP desktop prompt lifecycle** — turn output is `state_update` + `message`; the panel is an event
   renderer, not a terminal scrollback.
 
 ### Permission mode
@@ -274,7 +274,7 @@ that the field mostly does NOT surface research separately, which is an argument
 Produce a **high-fidelity HTML mockup** (standalone, capable of open) of the agent panel as described:
 toolbar, message stream with the **five distinct card families**, the permission-mode diff approval,
 the bypass path, the research pane, the plan list, and the context view. Dense but legible; ~ one agent
-panel at the width the v2 mockup gives it.
+panel at the width the desktop mockup gives it.
 
 ## Open questions for you (not blocking)
 

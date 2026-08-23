@@ -1,7 +1,7 @@
 # screens-workshop
 
-> **Historical M0.5 contract.** V2 expands Workshop and separates workflow Governance; new work
-> follows `.specs/design-v2/spec.md`.
+> **Historical M0.5 contract.** Desktop expands Workshop and separates workflow Governance; new work
+> follows `.specs/design-desktop/spec.md`.
 
 **Milestone** M0.5 · **Depends on** `app-shell`, `navigation`, `fixtures` · Views `extensions`, `agents`, `canvas`, `harnesses`
 
@@ -20,7 +20,7 @@ tab** — see `navigation`.
 - PLAN.md §Materializers — the strategies and `weaker_than_native`
 - PLAN.md §Model routing — mechanism in the file, policy in the UI
 - PLAN.md §The Workflow Canvas — node vocabulary, guardrails, `Condition` as a total language
-- `.specs/design-v2/spec.md` §Provider, harness, and tool policy
+- `.specs/design-desktop/spec.md` §Provider, harness, and tool policy
 
 ## Contract
 

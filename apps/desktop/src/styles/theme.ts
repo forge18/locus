@@ -39,7 +39,7 @@ export const THEME_REGISTRY = registerThemes([
   {
     id: "dark",
     label: "Dark",
-    fixture: "v2-dashboard",
+    fixture: "desktop-dashboard",
     values: {
       "--surface-ground": "#1d2731",
       "--surface-chrome": "#151d25",
@@ -55,7 +55,7 @@ export const THEME_REGISTRY = registerThemes([
   {
     id: "light",
     label: "Light",
-    fixture: "v2-dashboard",
+    fixture: "desktop-dashboard",
     values: {
       "--surface-ground": "#f3f6f8",
       "--surface-chrome": "#e8eef3",

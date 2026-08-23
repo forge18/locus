@@ -1,7 +1,7 @@
 # screens-dashboard
 
-> **Historical M0.5 contract.** V2 replaces this surface's screen geometry and scope in
-> `.specs/design-v2/spec.md`.
+> **Historical M0.5 contract.** Desktop replaces this surface's screen geometry and scope in
+> `.specs/design-desktop/spec.md`.
 
 **Milestone** M0.5 · **Depends on** `app-shell`, `navigation`, `fixtures` · Views `inbox`, `status`
 
@@ -15,7 +15,7 @@ the whole design leans on — **a decision resolves in place; work routes out.**
 
 - PLAN.md §The user inbox — silence is the default
 - PLAN.md §Navigation — Dashboard is mine; Dashboard is now, Review is after
-- `.specs/design-v2/spec.md` §Shell and screen inventory
+- `.specs/design-desktop/spec.md` §Shell and screen inventory
 
 ## Contract
 

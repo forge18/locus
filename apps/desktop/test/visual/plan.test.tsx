@@ -13,7 +13,7 @@ import { SRC, read, rules } from "../css";
  * survives without one: which elements, in what order, at which declared sizes,
  * carrying which copy.
  */
-const SHOTS = resolve(SRC, "../../../docs/design_handoff_locus_v2/screenshots");
+const SHOTS = resolve(SRC, "../../../docs/design_handoff_locus_desktop/screenshots");
 const rule = (file: string, sel: string) =>
   rules(read(file)).find((r) => r.selector === sel)!;
 
@@ -31,7 +31,7 @@ describe("visual: plan", () => {
     expect(existsSync(resolve(SHOTS, "05-plan-conversation.png"))).toBe(true);
   });
 
-  it("is a v2 workspace around the plan list, active tab, and outputs", () => {
+  it("is a desktop workspace around the plan list, active tab, and outputs", () => {
     const { getByTestId } = mount();
     for (const part of [
       "titlebar",

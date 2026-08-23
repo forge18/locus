@@ -17,7 +17,7 @@ per-session research pane.
   event subscription.
 - `artifacts` — `finding` artifacts become a session-scoped research feed with provenance.
 - `memory` — selected session findings promote at session close; this remains a review action.
-- `v2-project-operations` — Dispatch owns the per-job bypass toggle and its auditable default.
+- `desktop-project-operations` — Dispatch owns the per-job bypass toggle and its auditable default.
 - `planning-module` — its findings seed a child task session's research feed.
 
 ## Contract conflicts to resolve

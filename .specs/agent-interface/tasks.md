@@ -2,7 +2,7 @@
 
 | # | Task | Deps | verify |
 | --- | --- | --- | --- |
-| 1 | Project the session, run, task, workflow, and permission posture into one Agent Pane view model | `run-supervisor`, `v2-project-operations` | `cargo test -p locus-core agent_interface::view_model` |
+| 1 | Project the session, run, task, workflow, and permission posture into one Agent Pane view model | `run-supervisor`, `desktop-project-operations` | `cargo test -p locus-core agent_interface::view_model` |
 | 2 | Mount the panel as a flex column: stream is the only flexible region; header, blockers, plan dock, and composer remain visible | 1 | `pnpm -C apps/desktop test -- agent-panel/layout` |
 | 3 | Render the 44px header with project handle, optional task/workflow chips, editable session name, cost toggle, and research control | 2 | `pnpm -C apps/desktop test -- agent-panel/header` |
 | 4 | Derive the live pill from run progress plus pending gate/elicitation; clicking it finds the active blocker | 1 | `pnpm -C apps/desktop test -- agent-panel/live-status` |

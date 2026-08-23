@@ -1,7 +1,7 @@
 # screens-develop
 
-> **Historical M0.5 contract.** V2 replaces this fixture's shell and geometry; new work follows
-> `.specs/design-v2/spec.md`.
+> **Historical M0.5 contract.** Desktop replaces this fixture's shell and geometry; new work follows
+> `.specs/design-desktop/spec.md`.
 
 **Milestone** M0.5 · **Depends on** `app-shell`, `navigation`, `fixtures` · View `develop`
 
@@ -19,7 +19,7 @@ faithful enough to specify against.
 
 - PLAN.md §Editor — one editor at two zoom levels; `MergeView` as the primary surface
 - PLAN.md §The git model — clone not mount; you decide what lands
-- `.specs/design-v2/spec.md` §Shell and screen inventory
+- `.specs/design-desktop/spec.md` §Shell and screen inventory
 
 ## Contract
 

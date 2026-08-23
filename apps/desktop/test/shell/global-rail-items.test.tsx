@@ -1,6 +1,6 @@
 import { render } from "@solidjs/testing-library";
 import { describe, expect, it } from "vitest";
-import { V2_GLOBAL_ROUTE_KINDS } from "../../src/nav/v2-route-kinds";
+import { Desktop_GLOBAL_ROUTE_KINDS } from "../../src/nav/desktop-route-kinds";
 import { ProjectRail } from "../../src/shell/ProjectRail";
 
 describe("shell/global-rail-items", () => {
@@ -14,7 +14,7 @@ describe("shell/global-rail-items", () => {
       [...global.querySelectorAll("button")].map(
         (item) => item.firstChild?.textContent,
       ),
-    ).toEqual(V2_GLOBAL_ROUTE_KINDS.map((route) => route.label));
+    ).toEqual(Desktop_GLOBAL_ROUTE_KINDS.map((route) => route.label));
     expect(getByTestId("global-rail-inbox-badge").textContent).toBe("3");
   });
 });

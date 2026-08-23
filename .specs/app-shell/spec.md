@@ -1,7 +1,7 @@
 # app-shell
 
 > **Historical M0.5 contract.** The v1 four-band shell is superseded for new work by
-> `.specs/design-v2/spec.md` §Shell and screen inventory.
+> `.specs/design-desktop/spec.md` §Shell and screen inventory.
 
 **Milestone** M0.5 · **Depends on** `design-system`, `ui-primitives` · **Blocks** every `screens-*`
 
@@ -13,8 +13,8 @@ window per project because that would rebuild the fragmentation the whole design
 
 ## Governed by
 
-- `docs/design_handoff_locus_v2/README.md` §Shell
-- `.specs/design-v2/spec.md`
+- `docs/design_handoff_locus_desktop/README.md` §Shell
+- `.specs/design-desktop/spec.md`
 - PLAN.md §Navigation — one window, project as a filter; the inbox count on the rail
 - PLAN.md §Sessions do not all fit, so most are strips
 

@@ -1,7 +1,7 @@
 # screens-plan
 
-> **Historical M0.5 contract.** V2 adds editable Spec and Tasks & cards views; new work follows
-> `.specs/design-v2/spec.md`.
+> **Historical M0.5 contract.** Desktop adds editable Spec and Tasks & cards views; new work follows
+> `.specs/design-desktop/spec.md`.
 
 **Milestone** M0.5 · **Depends on** `app-shell`, `navigation`, `fixtures` · View `plan`
 
@@ -16,7 +16,7 @@ honestly.
 
 - PLAN.md §The planning module — three agents, the eight-step sequence, scope changes as approvals
 - PLAN.md §Outputs — the recommendation object
-- `.specs/design-v2/spec.md` §Project, plan, and dispatch policy
+- `.specs/design-desktop/spec.md` §Project, plan, and dispatch policy
 
 ## Contract
 

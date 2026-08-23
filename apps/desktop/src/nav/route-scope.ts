@@ -1,5 +1,5 @@
 import { createSignal, type Accessor } from 'solid-js'
-import type { V2RouteKind } from './v2-route-kinds'
+import type { DesktopRouteKind } from './desktop-route-kinds'
 
 export type RouteScope =
   | { kind: 'global' }
@@ -14,7 +14,7 @@ export interface RouteScopeStore {
   showProject: (project: string) => void
 }
 
-export function resolveRouteScope(route: V2RouteKind, selectedProject: string | null): RouteScope {
+export function resolveRouteScope(route: DesktopRouteKind, selectedProject: string | null): RouteScope {
   if (route.scope === 'global') return { kind: 'global' }
 
   const project = selectedProject?.trim()

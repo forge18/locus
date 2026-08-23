@@ -1,6 +1,6 @@
 # design-system
 
-> **Historical M0.5 contract.** `design-v2` and `theme-system` supersede its v1 handoff reference
+> **Historical M0.5 contract.** `design-desktop` and `theme-system` supersede its v1 handoff reference
 > for new work. This remains the record of the completed fixture baseline.
 
 **Milestone** M0.5 · **Depends on** none · **Blocks** every `screens-*`, `ui-primitives`, `app-shell`
@@ -14,8 +14,8 @@ which is how a dense professional tool ends up looking like fourteen different a
 
 ## Governed by
 
-- `docs/design_handoff_locus_v2/README.md` §Design tokens, §Interactions
-- `.specs/design-v2/spec.md` and `.specs/theme-system/spec.md`
+- `docs/design_handoff_locus_desktop/README.md` §Design tokens, §Interactions
+- `.specs/design-desktop/spec.md` and `.specs/theme-system/spec.md`
 - PLAN.md §Frontend and IPC constraints — the component library is deliberately small
 
 ## Contract
@@ -118,5 +118,5 @@ permanent chunky bar is what a layout that did not fit looks like.
 - Whether AAA (7:1) is worth reaching for on body text. `--mu` already clears it on
   every ground; `--mu2` and the status pair would need another lift, and that costs
   the tonal separation between the three text levels.
-- The v1 screenshots were removed with the handoff. The v2 captures are the visual reference;
-  new `visual --` checks conform to `.specs/design-v2/` and `.specs/theme-system/`.
+- The v1 screenshots were removed with the handoff. The desktop captures are the visual reference;
+  new `visual --` checks conform to `.specs/design-desktop/` and `.specs/theme-system/`.

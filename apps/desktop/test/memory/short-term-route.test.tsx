@@ -5,6 +5,6 @@ import { MemoryShortTermFixture } from '../../src/screens/memory/MemoryFixtures'
 describe('Memory short-term route', () => {
   it('identifies the short-term context fixture route', () => {
     const { getByTestId } = render(() => <MemoryShortTermFixture />)
-    expect(getByTestId('v2-memory-short-term').getAttribute('data-v2-route')).toBe('memory-short-term')
+    expect(getByTestId('desktop-memory-short-term').getAttribute('data-desktop-route')).toBe('memory-short-term')
   })
 })

@@ -1,7 +1,7 @@
 # screens-review
 
-> **Historical M0.5 contract.** V2 replaces this fixture's shell and navigation; new work follows
-> `.specs/design-v2/spec.md`.
+> **Historical M0.5 contract.** Desktop replaces this fixture's shell and navigation; new work follows
+> `.specs/design-desktop/spec.md`.
 
 **Milestone** M0.5 · **Depends on** `app-shell`, `navigation`, `fixtures` · Views `telemetry`, `runs`, `artifact`
 
@@ -17,7 +17,7 @@ queries rather than new instrumentation.
 - PLAN.md §Canonical event vocabulary — the action list these facets count
 - PLAN.md §Artifacts — one viewer per kind; comments steer the agent that made it
 - PLAN.md §Token discipline — cache rate and payload-by-tool as first-class metrics
-- `.specs/design-v2/spec.md` §Shell and screen inventory
+- `.specs/design-desktop/spec.md` §Shell and screen inventory
 
 ## Contract
 

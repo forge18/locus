@@ -119,9 +119,9 @@ the strongest available argument that skipping VSCodium costs less than it would
 | Permissions | **Bypass is the default; a job may explicitly opt into gated approval.** What an agent may do is *declared* — the tool allowlist on the agent definition, narrowed per role by the workflow's `Agent` node — and enforced by the container. A gated request blocks as a visible human action; an unexpected bypass request is an alarm. |
 | UI components | **Kobalte** headless primitives + **shadcn-solid** components copied into the repo + **Tailwind**. Headless, because an IDE's chrome is small and its large surfaces are all bespoke or bring their own DOM. |
 
-### v2 desktop revision
+### desktop desktop revision
 
-`docs/design_handoff_locus_v2/` is the adopted desktop-design reference. Its HTML and JavaScript are
+`docs/design_handoff_locus_desktop/` is the adopted desktop-design reference. Its HTML and JavaScript are
 reference material only: production code remains SolidJS and Rust. It replaces the removed v1 handoff
 for shell geometry, palette, screen inventory, and interaction copy.
 
@@ -146,7 +146,7 @@ Four product changes are architecture, not paint:
    untrusted upload is rejected; read-only access is not a meaningful containment boundary for code
    executed during an image build.
 
-The reconciliation contract and runnable work live in `.specs/design-v2/`. The v2 Dark theme and a cool-neutral Light theme are implemented as semantic roles under a root
+The reconciliation contract and runnable work live in `.specs/design-desktop/`. The desktop Dark theme and a cool-neutral Light theme are implemented as semantic roles under a root
 `data-theme` contract in `.specs/theme-system/`, so later themes add values and fixtures rather than
 component forks. These specs supersede the conflicting
 v1-derived portions of the M0.5 screen contracts without changing their historical completion record.
@@ -2195,7 +2195,7 @@ high-frequency path here is a Channel:
 Coalesce per pane on an animation-frame tick regardless of mechanism. A thousand small sends per
 second will drop frames whatever the transport.
 
-**Never two webviews in one window; any number of windows.** Tauri v2's multiwebview — several
+**Never two webviews in one window; any number of windows.** Tauri 2's multiwebview — several
 webviews inside a single window — is behind an unstable flag and less mature than Electron's
 renderer-per-window model. Multi-*window* is not: it is ordinary and well-supported.
 
@@ -2323,8 +2323,8 @@ locus harness lint          # refuses an undeclared extension or an unknown stra
 ### M0.5 — Desktop UI on fixtures
 
 **Historical record.** M0.5 delivered the v1 shell and fourteen fixture screens before the runtime.
-The v1 handoff was removed when v2 replaced it; its completed contracts remain under `.specs/` only as
-baseline history. New desktop work follows the M0.6 v2 reconciliation below.
+The v1 handoff was removed when desktop replaced it; its completed contracts remain under `.specs/` only as
+baseline history. New desktop work follows the M0.6 desktop reconciliation below.
 
 Built ahead of the runtime on purpose. The alternative — a screen arriving with the milestone that
 makes its data real — spreads one coherent visual system across five milestones and re-decides it each
@@ -2352,13 +2352,13 @@ command that will replace it; and the Harnesses and Extensions screens compute t
 `harnesses/*.toml`, so those two are correct on the first day and stay correct without an edit.
 
 Historical verification reached every v1 screen, derived Harnesses data from the TOMLs, and enforced
-keyboard focus and a clean `pnpm build`. The v2 verification inventory is `.specs/design-v2/tasks.md`.
+keyboard focus and a clean `pnpm build`. The desktop verification inventory is `.specs/design-desktop/tasks.md`.
 
-### M0.6 — v2 desktop reconciliation
+### M0.6 — desktop desktop reconciliation
 
-The v2 handoff replaces the shell, expands the fixture set to thirty-one screens, and introduces
+The desktop handoff replaces the shell, expands the fixture set to thirty-one screens, and introduces
 Providers, CLI tools, project scope, plan decomposition, dispatch, and workflow Governance. It also
-ships Dark and cool-neutral Light themes through semantic roles. The contract is `.specs/design-v2/`;
+ships Dark and cool-neutral Light themes through semantic roles. The contract is `.specs/design-desktop/`;
 theme values and regression requirements are `.specs/theme-system/`.
 
 `verify:` the 31-screen fixture inventory, provider-secret redaction, selected-project navigation,

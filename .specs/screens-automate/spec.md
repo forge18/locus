@@ -1,7 +1,7 @@
 # screens-automate
 
-> **Historical M0.5 contract.** V2 separates project Automate from global Dispatch; new work follows
-> `.specs/design-v2/spec.md`.
+> **Historical M0.5 contract.** Desktop separates project Automate from global Dispatch; new work follows
+> `.specs/design-desktop/spec.md`.
 
 **Milestone** M0.5 · **Depends on** `app-shell`, `navigation`, `fixtures` · Views `board`, `sessions`
 
@@ -16,7 +16,7 @@ the board is what assigns them.
 - PLAN.md §The board — six fixed columns, `blocked` as a status, the two gating rules
 - PLAN.md §Sessions do not all fit, so most are strips
 - PLAN.md §Workflow guardrails — waiting ≠ idle; kill and reassign at three stuck iterations
-- `.specs/design-v2/spec.md` §Project, plan, and dispatch policy
+- `.specs/design-desktop/spec.md` §Project, plan, and dispatch policy
 
 ## Contract
 

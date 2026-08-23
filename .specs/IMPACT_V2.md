@@ -1,18 +1,18 @@
-# v2 design-handoff impact
+# desktop design-handoff impact
 
 ## Target
 
-`docs/design_handoff_locus_v2/` supersedes the removed v1 handoff. It changes the application shell,
+`docs/design_handoff_locus_desktop/` supersedes the removed v1 handoff. It changes the application shell,
 project scope model, planning-to-board handoff, dispatch control, runtime policy, credential ownership,
 tool installation, harness routing, and workflow authoring.
 
 ## Dependents
 
 - `PLAN.md` — navigation, credentials, tools, model routing, planning, guardrails, and workflows.
-- `DESIGN.md` — the UI authority; its v1-derived shell and proposed decisions conflict with v2.
+- `DESIGN.md` — the UI authority; its v1-derived shell and proposed decisions conflict with desktop.
 - `.specs/app-shell`, `.specs/navigation`, `.specs/design-system`, `.specs/fixtures` — shell and
   fixture contracts.
-- `.specs/screens-*` — v1 screen inventory is replaced by 31 v2 screens.
+- `.specs/screens-*` — v1 screen inventory is replaced by 31 desktop screens.
 - `.specs/harness-registry`, `.specs/sandbox`, `.specs/agent-definitions`, `.specs/materializers` —
   providers, aliases, routing, adapter gate, image tool sets, and extension selection.
 - `.specs/planning-module`, `.specs/board`, `.specs/guardrails`, `.specs/workflow-engine`,
@@ -23,15 +23,15 @@ tool installation, harness routing, and workflow authoring.
 
 ## Affected stories
 
-- M0.5 shell and all fixture screens need a v2 replacement rather than incremental visual changes.
+- M0.5 shell and all fixture screens need a desktop replacement rather than incremental visual changes.
 - M1 must add provider/keychain ownership and image-tool configuration before harness runs can use the
-  v2 routing model.
+  desktop routing model.
 - M3–M6 must gain planning decomposition, dispatch policy, and workflow governance contracts before
   their UI surfaces are implementable.
 
 ## Test coverage
 
-- Existing desktop fixtures and visual tests cover v1 views only; they do not cover v2’s project
+- Existing desktop fixtures and visual tests cover v1 views only; they do not cover desktop’s project
   scope, provider configuration, dispatch state, plan decomposition, or workflow governance.
 - Core tests cover the current harness TOML and agent tool allowlist, but not provider aliases,
   keychain references, project overrides, or priority scheduling.
@@ -48,10 +48,10 @@ all-project filter navigation model.
   no provider secret enters a container.
 - The selected-project rail replaces the all-project navigation filter.
 - User-uploaded CLI tools must verify with Minisign against trusted public keys in Locus settings; unsigned or untrusted uploads are rejected.
-- M0.6 ships both v2 Dark and a cool-neutral Light theme through one semantic-token contract.
+- M0.6 ships both desktop Dark and a cool-neutral Light theme through one semantic-token contract.
 
 ## Recommended action
 
-Adopt v2 as the visual authority through the dedicated M0.6 reconciliation milestone. Amend affected
+Adopt desktop as the visual authority through the dedicated M0.6 reconciliation milestone. Amend affected
 feature contracts before implementation; do not port the HTML/JS authoring scaffold or retrofit v1
 screen tasks.

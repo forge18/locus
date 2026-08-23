@@ -5,6 +5,6 @@ import { MemoryArtifactsFixture } from '../../src/screens/memory/MemoryFixtures'
 describe('Memory artifact preview', () => {
   it('identifies preview comments and review state', () => {
     const { getByTestId } = render(() => <MemoryArtifactsFixture />)
-    expect(getByTestId('v2-memory-artifacts').getAttribute('data-artifact-preview')).toBe('comments-review')
+    expect(getByTestId('desktop-memory-artifacts').getAttribute('data-artifact-preview')).toBe('comments-review')
   })
 })

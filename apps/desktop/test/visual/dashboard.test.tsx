@@ -15,7 +15,7 @@ import { SRC, read, rules } from "../css";
  * which elements exist, in what order, at which declared sizes, carrying which
  * copy. A real pixel comparison needs a browser and belongs with a packaged build.
  */
-const SHOTS = resolve(SRC, "../../../docs/design_handoff_locus_v2/screenshots");
+const SHOTS = resolve(SRC, "../../../docs/design_handoff_locus_desktop/screenshots");
 const rule = (file: string, sel: string) =>
   rules(read(file)).find((r) => r.selector === sel)!;
 

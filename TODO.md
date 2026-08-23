@@ -25,7 +25,7 @@ of those blocks the shell or the other twelve screens. It can run alongside M0.
 | --- | --- | ---: | ---: | ---: |
 | **M0** | Spikes — these gate M1 · **closed** | 3 | 39 | 39 |
 | **M0.5** | Desktop UI on fixtures · **closed** | 12 | 268 | 268 |
-| **M0.6** | v2 desktop reconciliation | 6 | 195 | 178 |
+| **M0.6** | desktop desktop reconciliation | 6 | 195 | 178 |
 | **M1** | Core runtime · **closed** | 14 | 270 | 270 |
 | **M1.5** | ACP agent panel and controls | 4 | 44 | 0 |
 | **M2** | Workspace | 3 | 57 | 0 |
@@ -115,33 +115,33 @@ below; it is short and it is load-bearing.
   The chrome, and only the chrome.
   *Depends on:* `design-system`
 
-## M0.6 — v2 desktop reconciliation
+## M0.6 — desktop desktop reconciliation
 
 6 features · 195 tasks
 
-- [x] **[design-v2](.specs/design-v2/spec.md)** · 24 tasks · **complete** · [tasks](.specs/design-v2/tasks.md)
-  Adopt the v2 handoff without porting its HTML or JavaScript. Replace the v1 fixture contract and
+- [x] **[design-desktop](.specs/design-desktop/spec.md)** · 24 tasks · **complete** · [tasks](.specs/design-desktop/tasks.md)
+  Adopt the desktop handoff without porting its HTML or JavaScript. Replace the v1 fixture contract and
   settle provider references, adapter-gated routing, project scope, plan decomposition, dispatch
   policy, and workflow Governance before implementation depends on them.
   *Depends on:* M0.5
 - [x] **[theme-system](.specs/theme-system/spec.md)** · 8 tasks · **complete** · [tasks](.specs/theme-system/tasks.md)
-  Ship v2 Dark and cool-neutral Light through semantic tokens and a root-theme contract; later themes
+  Ship desktop Dark and cool-neutral Light through semantic tokens and a root-theme contract; later themes
   add values and fixtures without component forks.
-  *Depends on:* `design-v2`
-- [x] **[v2-application-shell](.specs/v2-application-shell/spec.md)** · 28 tasks · **complete** · [tasks](.specs/v2-application-shell/tasks.md)
+  *Depends on:* `design-desktop`
+- [x] **[desktop-application-shell](.specs/desktop-application-shell/spec.md)** · 28 tasks · **complete** · [tasks](.specs/desktop-application-shell/tasks.md)
   Replace the v1 shell with the project-scoped rail, running popover, locator, and accessible shared
   navigation.
-  *Depends on:* `design-v2`, `theme-system`
-- [x] **[v2-project-operations](.specs/v2-project-operations/spec.md)** · 52 tasks · **complete** · [tasks](.specs/v2-project-operations/tasks.md)
+  *Depends on:* `design-desktop`, `theme-system`
+- [x] **[desktop-project-operations](.specs/desktop-project-operations/spec.md)** · 52 tasks · **complete** · [tasks](.specs/desktop-project-operations/tasks.md)
   Make Project Settings, planning decomposition, Automate, queue policy, and safe Dispatch controls
   durable and reviewable.
-  *Depends on:* `v2-application-shell`
-- [x] **[v2-knowledge-review](.specs/v2-knowledge-review/spec.md)** · 30 tasks · [tasks](.specs/v2-knowledge-review/tasks.md)
-  Replace v1 Inbox, Dashboard, Develop, Review, and Wiki fixtures with the scoped v2 viewers.
-  *Depends on:* `v2-application-shell`, `theme-system`
-- [ ] **[v2-workshop-runtime](.specs/v2-workshop-runtime/spec.md)** · 53 tasks · [tasks](.specs/v2-workshop-runtime/tasks.md)
+  *Depends on:* `desktop-application-shell`
+- [x] **[desktop-knowledge-review](.specs/desktop-knowledge-review/spec.md)** · 30 tasks · [tasks](.specs/desktop-knowledge-review/tasks.md)
+  Replace v1 Inbox, Dashboard, Develop, Review, and Wiki fixtures with the scoped desktop viewers.
+  *Depends on:* `desktop-application-shell`, `theme-system`
+- [ ] **[desktop-workshop-runtime](.specs/desktop-workshop-runtime/spec.md)** · 53 tasks · [tasks](.specs/desktop-workshop-runtime/tasks.md)
   Build Providers, Minisign tool verification, adapter-gated harness routing, and Workflow Governance.
-  *Depends on:* `v2-application-shell`, `theme-system`
+  *Depends on:* `desktop-application-shell`, `theme-system`
 
 ## M1 — Core runtime
 
@@ -207,7 +207,7 @@ below; it is short and it is load-bearing.
   *Depends on:* `artifacts`, `planning-module`, `memory`
 - [ ] **[agent-dispatch-permissions](.specs/agent-dispatch-permissions/spec.md)** · 3 tasks · [tasks](.specs/agent-dispatch-permissions/tasks.md)
   The per-job bypass-default/gated-opt-in control that creates the run's immutable permission posture.
-  *Depends on:* `v2-project-operations`, `agent-session-controls`
+  *Depends on:* `desktop-project-operations`, `agent-session-controls`
 
 ## M2 — Workspace
 

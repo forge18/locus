@@ -13,7 +13,7 @@ import { SRC, read, rules } from "../css";
  * 10-automate-agents.png — not a pixel diff. jsdom has no layout engine; what is
  * asserted is what the screenshots encode that survives without one.
  */
-const SHOTS = resolve(SRC, "../../../docs/design_handoff_locus_v2/screenshots");
+const SHOTS = resolve(SRC, "../../../docs/design_handoff_locus_desktop/screenshots");
 const rule = (sel: string) =>
   rules(read("screens/screens.css")).find((r) => r.selector === sel)!;
 

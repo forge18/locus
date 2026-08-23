@@ -1,6 +1,6 @@
 # agent-dispatch-permissions
 
-**Milestone** M1.5 · **Depends on** `v2-project-operations`, `agent-session-controls`
+**Milestone** M1.5 · **Depends on** `desktop-project-operations`, `agent-session-controls`
 
 ## Purpose
 

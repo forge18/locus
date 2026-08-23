@@ -1,13 +1,13 @@
 import { createMemo, createSignal, For } from "solid-js";
-import { V2_GLOBAL_ROUTE_KINDS } from "../nav/v2-route-kinds";
+import { Desktop_GLOBAL_ROUTE_KINDS } from "../nav/desktop-route-kinds";
 
 export const RAIL_EXPANSION_STORAGE_KEY = "locus.rail-expansion";
 
 const PROJECT_RAIL_LINKS = ["Plan", "Develop", "Automate", "Review"] as const;
-const MEMORY_ROUTES = V2_GLOBAL_ROUTE_KINDS.filter((route) =>
+const MEMORY_ROUTES = Desktop_GLOBAL_ROUTE_KINDS.filter((route) =>
   route.id.startsWith("memory-"),
 );
-const WORKSHOP_ROUTES = V2_GLOBAL_ROUTE_KINDS.filter((route) =>
+const WORKSHOP_ROUTES = Desktop_GLOBAL_ROUTE_KINDS.filter((route) =>
   route.id.startsWith("workshop-"),
 );
 
@@ -63,7 +63,7 @@ export function ProjectRail(props: ProjectRailProps) {
           if (event.key === "ArrowDown") {
             event.preventDefault();
             setActiveGlobalRoute(
-              (index) => (index + 1) % V2_GLOBAL_ROUTE_KINDS.length,
+              (index) => (index + 1) % Desktop_GLOBAL_ROUTE_KINDS.length,
             );
           }
         }}
@@ -73,7 +73,7 @@ export function ProjectRail(props: ProjectRailProps) {
           data-state={props.dispatchState ?? "ready"}
           aria-label="Dispatch status"
         />
-        <For each={V2_GLOBAL_ROUTE_KINDS}>
+        <For each={Desktop_GLOBAL_ROUTE_KINDS}>
           {(route, index) => (
             <button
               type="button"

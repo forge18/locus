@@ -53,7 +53,7 @@ export function DevelopView() {
   const tabs = useEditorTabs()
 
   return (
-    <div class="develop" data-testid="develop" data-v2-route="develop">
+    <div class="develop" data-testid="develop" data-desktop-route="develop">
       <FileTree
         selectedPath={selectedPath()}
         onSelect={(path) => {

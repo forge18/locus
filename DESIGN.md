@@ -1,6 +1,6 @@
 # Locus design
 
-**Status: adopted — v2.** `docs/design_handoff_locus_v2/` is the visual reference. Its HTML,
+**Status: adopted — desktop.** `docs/design_handoff_locus_desktop/` is the visual reference. Its HTML,
 standalone bundle, and `support.js` are source material for review and fixture extraction; none is
 production code.
 
@@ -10,11 +10,11 @@ production code.
 | --- | --- | --- |
 | `PLAN.md` | architecture and product decisions | highest |
 | **This file** | interface purpose, information architecture, and non-negotiable UX rules | design authority |
-| `.specs/design-v2/spec.md` | v2 reconciliation and acceptance | implementation contract |
+| `.specs/design-desktop/spec.md` | desktop reconciliation and acceptance | implementation contract |
 | Feature specs | feature detail and runnable tasks | implementation detail |
-| `docs/design_handoff_locus_v2/` | high-fidelity geometry, copy, states, and tokens | visual reference |
+| `docs/design_handoff_locus_desktop/` | high-fidelity geometry, copy, states, and tokens | visual reference |
 
-The v2 handoff supersedes the removed v1 handoff. It is authoritative for the 31-screen inventory,
+The desktop handoff supersedes the removed v1 handoff. It is authoritative for the 31-screen inventory,
 the project-scoped rail, dark tokens, and visible interactions. It does not override `PLAN.md`.
 Where it changes an architecture decision, the reconciliation in `PLAN.md` wins.
 
@@ -54,7 +54,7 @@ is authoring only; run state appears in Dispatch, Automate, and Review.
 
 ## Visual rules
 
-- Dark v2 and a cool-neutral Light theme ship. In both, `--ac` means **human action / focus** and
+- Dark desktop and a cool-neutral Light theme ship. In both, `--ac` means **human action / focus** and
   `--ac2` means **machine activity**; they never substitute for each other.
 - Themes are value sets, not component forks. `theme-system` separates theme values, semantic roles,
   and component aliases under `[data-theme]`; a later theme supplies values and fixtures only.
@@ -105,4 +105,4 @@ an implementation contract.
 
 `pnpm -C apps/desktop test` must cover rail scope, provider-secret redaction, project/harness gating,
 plan card decomposition, dispatcher state transitions, and workflow governance routing. Visual fixture
-checks read the v2 screen inventory and token rules from `.specs/design-v2/`.
+checks read the desktop screen inventory and token rules from `.specs/design-desktop/`.

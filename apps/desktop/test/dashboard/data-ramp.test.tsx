@@ -1,10 +1,10 @@
 import { render } from '@solidjs/testing-library'
 import { describe, expect, it } from 'vitest'
-import { V2DashboardView } from '../../src/screens/v2-dashboard'
+import { DesktopDashboardView } from '../../src/screens/desktop-dashboard'
 
 describe('Dashboard data ramp', () => {
   it('marks token chart segments as data-ramp values', () => {
-    const { getByTestId } = render(() => <V2DashboardView />)
-    expect(getByTestId('v2-token-chart').getAttribute('data-data-ramp')).toBe('true')
+    const { getByTestId } = render(() => <DesktopDashboardView />)
+    expect(getByTestId('desktop-token-chart').getAttribute('data-data-ramp')).toBe('true')
   })
 })

@@ -7,7 +7,7 @@
 
 ## Context
 
-We researched ACP (Agent Client Protocol) v1/v2, the reference client UIs (Zed's Agent Panel,
+We researched ACP (Agent Client Protocol) v1/desktop, the reference client UIs (Zed's Agent Panel,
 JetBrains AI Chat, Grok Build), and the academic/industry literature on agent interfaces. The goal
 was to pin down how agent panels, permissions, thinking display, and scheduling should behave in
 Locus. The findings below are the converged answer to the six open threads; each carries its named
@@ -56,7 +56,7 @@ postures:
 - **Event meaning flip (scoped to a bypass-off job):** `permission_request` reads as "needs you"
   (real approval → inbox), not "a gate got left on" (misconfiguration alarm). This is scoped to the
   job's mode, not a global redefinition.
-- *Owned by:* `design-v2`/`v2-project-operations` (Dispatch surface).
+- *Owned by:* `design-desktop`/`desktop-project-operations` (Dispatch surface).
 - *Source:* Zed `agent.always_allow_tool_actions`; Claude Code `--permission-mode`; LangGraph
   interrupts / Microsoft `approval_mode="always_require"`.
 
@@ -142,7 +142,7 @@ presence is the permission. Nothing needs declaring. Only write-vs-read scope an
 
 **Status: decided.**
 
-Drawn from the full ACP v2 surface + reference panels (Zed, Claude Code). This is what the agent
+Drawn from the full ACP desktop surface + reference panels (Zed, Claude Code). This is what the agent
 panel renders/links; it extends the decisions above.
 
 ### Diff preview in the approval gate
@@ -177,12 +177,12 @@ on; in bypass mode there is no gate, so no diff prompt.
 ### Plan rendering — needs design
 
 - Plan display within the panel is still open (current plan, given one-plan-at-a-time).
-- ACP v2 has `plan_update` (planId, types: items / markdown / file). To be designed separately;
+- ACP desktop has `plan_update` (planId, types: items / markdown / file). To be designed separately;
   flagged as open exploration.
 
 ### Session replay
 
-- In scope. Session re-attach / replay (ACP v2's own purpose) aligns with the session/run model.
+- In scope. Session re-attach / replay (ACP desktop's own purpose) aligns with the session/run model.
 
 ### Subagents
 

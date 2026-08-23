@@ -5,6 +5,6 @@ import { TelemetryView } from '../../src/screens/review/TelemetryView'
 describe('Review telemetry route', () => {
   it('identifies the selected-project telemetry route', () => {
     const { getByTestId } = render(() => <TelemetryView />)
-    expect(getByTestId('telemetry').getAttribute('data-v2-route')).toBe('review-telemetry')
+    expect(getByTestId('telemetry').getAttribute('data-desktop-route')).toBe('review-telemetry')
   })
 })

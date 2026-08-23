@@ -1,7 +1,7 @@
 # screens-wiki
 
-> **Historical M0.5 contract.** V2 moves this view under Memory; new work follows
-> `.specs/design-v2/spec.md`.
+> **Historical M0.5 contract.** Desktop moves this view under Memory; new work follows
+> `.specs/design-desktop/spec.md`.
 
 **Milestone** M0.5 · **Depends on** `app-shell`, `navigation`, `fixtures` · View `wiki`
 
@@ -17,7 +17,7 @@ The Wiki is a category in its own right with no tabs — the seventh rail item.
 
 - PLAN.md §The wiki — typed pages, ingest not authoring, contradictions at ingest time, the linter
 - PLAN.md §Knowledge, as one model — why the wiki is not the memory store
-- `.specs/design-v2/spec.md` §Shell and screen inventory
+- `.specs/design-desktop/spec.md` §Shell and screen inventory
 
 ## Contract
 

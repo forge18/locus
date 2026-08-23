@@ -1,7 +1,7 @@
 # navigation
 
 > **Historical M0.5 contract.** Its seven-category rail and all-project filter are superseded for
-> new work by `.specs/design-v2/spec.md` §Shell and screen inventory.
+> new work by `.specs/design-desktop/spec.md` §Shell and screen inventory.
 
 **Milestone** M0.5 · **Depends on** `app-shell` · **Blocks** every `screens-*`
 
@@ -18,8 +18,8 @@ callers.
 - PLAN.md §One address space, so there is one resolver — the locator grammar
 - PLAN.md §Navigation — seven categories; operate versus author; project as a filter
 - PLAN.md §Three rules that keep it from sprawling
-- `docs/design_handoff_locus_v2/README.md` §Shell
-- `.specs/design-v2/spec.md`
+- `docs/design_handoff_locus_desktop/README.md` §Shell
+- `.specs/design-desktop/spec.md`
 
 ## Contract
 
