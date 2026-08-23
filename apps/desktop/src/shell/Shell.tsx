@@ -13,7 +13,7 @@ export interface ShellProps {
   children: JSX.Element
 }
 
-/** The v2 title bar and project-scoped rail frame every screen. */
+/** The desktop title bar and project-scoped rail frame every screen. */
 export function Shell(props: ShellProps) {
   const [paletteOpen, setPaletteOpen] = createSignal(false)
   const activeSessions: ActiveSession[] = useStripCards()

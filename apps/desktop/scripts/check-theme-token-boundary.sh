@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Components consume semantic theme roles. The v2 aliases are compatibility-only
+# Components consume semantic theme roles. The compatibility aliases are compatibility-only
 # declarations in tokens.css while the migration completes.
 set -euo pipefail
 cd "$(dirname "$0")/.."

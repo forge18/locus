@@ -7,7 +7,7 @@ const dark = rules(tokens).find((rule) =>
 );
 
 describe("theme/dark-token-contract", () => {
-  it("defines the v2 Dark semantic palette under the dark theme selector", () => {
+  it("defines the desktop Dark semantic palette under the dark theme selector", () => {
     expect(dark).toBeDefined();
 
     for (const token of [
@@ -29,7 +29,7 @@ describe("theme/dark-token-contract", () => {
     }
   });
 
-  it("keeps v2 names as compatibility aliases to semantic roles", () => {
+  it("keeps legacy names as compatibility aliases to semantic roles", () => {
     for (const token of [
       "--bg: var(--surface-ground)",
       "--bg-deep: var(--surface-chrome)",

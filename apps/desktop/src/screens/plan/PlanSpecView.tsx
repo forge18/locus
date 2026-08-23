@@ -19,7 +19,7 @@ export function PlanSpecView() {
     <section class="plan-spec" data-testid="plan-spec">
       <header class="plan-spec-toolbar">
         <span class="mono plan-spec-file">spec.md</span>
-        <span class="plan-spec-meta">v2 · 14 requirements · you edited R-07 at 09:44</span>
+        <span class="plan-spec-meta">desktop · 14 requirements · you edited R-07 at 09:44</span>
         <span class="plan-unsaved" data-testid="spec-unsaved">unsaved</span>
         <div class="plan-spec-actions">
           <Button variant="ghost">Revert</Button>

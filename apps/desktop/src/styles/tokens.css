@@ -1,5 +1,5 @@
 /* Design tokens — the one place a value is written down.
-   Derived from the v2 handoff and the theme-system contract. */
+   Derived from the desktop handoff and the theme-system contract. */
 
 /* Geometry and typography are invariant across themes. */
 :root {
@@ -38,7 +38,7 @@
 }
 
 [data-theme="dark"] {
- /* Theme values. New styles name the role; v2 aliases keep existing styles stable. */
+ /* Theme values. New styles name the role; compatibility aliases keep existing styles stable. */
  --surface-ground: #1d2731;
  --surface-chrome: #151d25;
  --surface-raised: #22303c;
@@ -102,7 +102,7 @@
 }
 
 [data-theme="light"] {
- /* Cool-neutral Light values retain the same semantic and v2 alias contract. */
+ /* Cool-neutral Light values retain the same semantic and compatibility alias contract. */
  --surface-ground: #f3f6f8;
  --surface-chrome: #e8eef3;
  --surface-raised: #ffffff;

@@ -29,7 +29,7 @@ describe("shell/frame", () => {
     expect(win).toContain("background: var(--bg)");
   });
 
-  it("renders the v2 title bar and project-scoped rail", () => {
+  it("renders the desktop title bar and project-scoped rail", () => {
     const { getByTestId } = mount();
     expect(getByTestId("app-titlebar")).toBeTruthy();
     expect(getByTestId("project-rail")).toBeTruthy();

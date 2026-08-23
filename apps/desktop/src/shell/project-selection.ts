@@ -12,7 +12,7 @@ function storedProject(fallback: string): string {
   return stored?.trim() || fallback
 }
 
-/** The selected-project card's state, shared by the v2 rail and route resolver. */
+/** The selected-project card's state, shared by the desktop rail and route resolver. */
 export function createProjectSelection(defaultProject: string): ProjectSelection {
   const [selectedProject, setSelectedProject] = createSignal(storedProject(defaultProject))
 

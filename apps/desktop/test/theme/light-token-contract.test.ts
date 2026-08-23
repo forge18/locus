@@ -30,7 +30,7 @@ describe("theme/light-token-contract", () => {
     }
   });
 
-  it("keeps the v2 aliases bound to the Light semantic roles", () => {
+  it("keeps the compatibility aliases bound to the Light semantic roles", () => {
     for (const token of [
       "--bg: var(--surface-ground)",
       "--bg-deep: var(--surface-chrome)",
