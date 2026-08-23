@@ -176,7 +176,7 @@ function RunsFixtureView() {
   return (
     <div class="dispatch-view" data-testid="dispatch-runs">
       <header class="dispatch-header"><DispatchTabs active="runs" /><span class="dispatch-header-note">Every run, scheduled or not · a schedule is just one way a run starts</span></header>
-      <div class="dispatch-runs-controls"><span>Search every run — a path, a tool name, an event verb</span><span>Today · 7d · <strong>30d</strong></span><span>612 runs · 300 sessions · 4 projects</span></div>
+      <div class="dispatch-runs-controls" data-testid="dispatch-pause-controls"><span>Search every run — a path, a tool name, an event verb</span><span>Today · 7d · <strong>30d</strong></span><span>612 runs · 300 sessions · 4 projects</span></div>
       <section class="dispatch-runs-table" data-testid="dispatch-runs-table"><h2>Runs (612)</h2><table><thead><tr><th>When</th><th>Harness</th><th>Project · repo</th><th>Agent · role</th><th>Model resolved</th><th>Events</th><th>Errors</th><th>Tokens</th><th>Verify</th><th>Id</th></tr></thead><tbody><For each={RUN_FIXTURE_ROWS}>{(run) => <tr><td>{run.at.slice(0, 16).replace('T', ' ')}</td><td>{run.harness}</td><td>{run.project} · core</td><td>{run.agent} · {run.role}</td><td>{run.model}</td><td>{run.events.toLocaleString('en-US')}</td><td class={run.errors > 0 ? 'verify-bad' : ''}>{run.errors || '—'}</td><td>{run.tokens === null ? <span class="unknown">unknown</span> : `${(run.tokens / 1000).toFixed(1)}k`}</td><td class={`verify-${run.status === 'passed' ? 'ok' : run.status === 'failed' ? 'bad' : 'skipped'}`}>{run.status}</td><td>{run.id}</td></tr>}</For></tbody></table></section>
     </div>
   )
