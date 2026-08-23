@@ -11,7 +11,7 @@ use serde_json::Value;
 use sqlx::{query, Row};
 use uuid::Uuid;
 
-use crate::store::Store;
+use crate::{materialize::ProjectExtensionScope, store::Store};
 
 const SETTINGS_KEY: &str = "project_settings";
 const SETTINGS_VERSION: u16 = 1;
@@ -49,6 +49,8 @@ pub struct ProjectSettings {
     base_context: Option<String>,
     #[serde(default)]
     base_context_token_budget: Option<u32>,
+    #[serde(default)]
+    extension_overrides: ProjectExtensionScope,
 }
 
 impl ProjectSettings {
@@ -59,6 +61,7 @@ impl ProjectSettings {
             agent_default: None,
             base_context: None,
             base_context_token_budget: None,
+            extension_overrides: ProjectExtensionScope::default(),
         }
     }
 
@@ -102,6 +105,15 @@ impl ProjectSettings {
 
     pub fn base_context_token_budget(&self) -> Option<u32> {
         self.base_context_token_budget
+    }
+
+    pub fn with_extension_overrides(mut self, overrides: ProjectExtensionScope) -> Self {
+        self.extension_overrides = overrides;
+        self
+    }
+
+    pub fn extension_overrides(&self) -> &ProjectExtensionScope {
+        &self.extension_overrides
     }
 
     pub fn to_stored_value(&self) -> Result<Value> {
