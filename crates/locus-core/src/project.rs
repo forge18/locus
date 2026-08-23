@@ -3,7 +3,7 @@
 //! Project policy is one typed, versioned aggregate stored through `core.settings` rather than a
 //! collection of uncoordinated keys. Individual fields are added by the project-operations tasks.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
@@ -15,6 +15,51 @@ use crate::{materialize::ProjectExtensionScope, store::Store, tools::ProjectTool
 
 const SETTINGS_KEY: &str = "project_settings";
 const SETTINGS_VERSION: u16 = 1;
+
+/// Token and spend facts emitted by one project run.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ProjectRunAnalytics {
+    pub model: String,
+    pub tokens: u64,
+    pub cache_read_tokens: u64,
+    pub spend_micros: u64,
+}
+
+impl ProjectRunAnalytics {
+    pub fn new(model: impl Into<String>, tokens: u64, cache_read_tokens: u64, spend_micros: u64) -> Self {
+        Self { model: model.into(), tokens, cache_read_tokens, spend_micros }
+    }
+}
+
+/// A model row aggregated from project-scoped run data.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ProjectModelAnalytics {
+    pub tokens: u64,
+    pub cache_read_tokens: u64,
+    pub spend_micros: u64,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ProjectAnalytics {
+    models: BTreeMap<String, ProjectModelAnalytics>,
+}
+
+impl ProjectAnalytics {
+    pub fn from_runs(runs: impl IntoIterator<Item = ProjectRunAnalytics>) -> Self {
+        let mut analytics = Self::default();
+        for run in runs {
+            let model = analytics.models.entry(run.model).or_default();
+            model.tokens += run.tokens;
+            model.cache_read_tokens += run.cache_read_tokens;
+            model.spend_micros += run.spend_micros;
+        }
+        analytics
+    }
+
+    pub fn model(&self, model: &str) -> Option<&ProjectModelAnalytics> {
+        self.models.get(model)
+    }
+}
 
 /// A repository belongs to one project through `core.repos.project_id`.
 #[derive(Clone, Debug, PartialEq, Eq)]
