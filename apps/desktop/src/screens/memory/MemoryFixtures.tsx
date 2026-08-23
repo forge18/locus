@@ -66,9 +66,9 @@ function FactList() {
   )
 }
 
-function MemoryFrame(props: { testId: string; route: string; children: JSX.Element }) {
+function MemoryFrame(props: { testId: string; route: string; contextLayers?: string; children: JSX.Element }) {
   return (
-    <main class="v2-memory" data-testid={props.testId} data-v2-route={props.route}>
+    <main class="v2-memory" data-testid={props.testId} data-v2-route={props.route} data-context-layers={props.contextLayers}>
       {props.children}
     </main>
   )
@@ -77,7 +77,7 @@ function MemoryFrame(props: { testId: string; route: string; children: JSX.Eleme
 /** The rebuilt, per-iteration context window fixture. */
 export function MemoryShortTermFixture() {
   return (
-    <MemoryFrame testId="v2-memory-short-term" route="memory-short-term">
+    <MemoryFrame testId="v2-memory-short-term" route="memory-short-term" contextLayers="resident">
       <aside class="v2-memory-left">
         <header class="v2-memory-pane-head">
           <h1>Short-term</h1>
