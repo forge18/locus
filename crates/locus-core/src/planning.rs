@@ -2,6 +2,32 @@
 
 use anyhow::{bail, Result};
 
+/// The ordered durable states of a planning conversation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PlanningStage {
+    Inputs,
+    Orient,
+    Converse,
+    Synthesise,
+    Audit,
+    Recommend,
+    Override,
+    Decompose,
+    Approve,
+}
+
+impl PlanningStage {
+    pub const ALL: [Self; 9] = [
+        Self::Inputs, Self::Orient, Self::Converse, Self::Synthesise, Self::Audit,
+        Self::Recommend, Self::Override, Self::Decompose, Self::Approve,
+    ];
+
+    pub fn next(self) -> Option<Self> {
+        let index = Self::ALL.iter().position(|stage| *stage == self)?;
+        Self::ALL.get(index + 1).copied()
+    }
+}
+
 /// The approved planning inputs available for decomposition.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ApprovedPlan {
