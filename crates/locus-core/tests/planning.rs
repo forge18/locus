@@ -1,5 +1,17 @@
 mod planning {
-    use locus_core::planning::{EditableSpec, PlanningStage, Requirement};
+    use locus_core::planning::{CardMode, EditableSpec, PlanTask, PlanningStage, Requirement};
+
+    #[test]
+    fn task_decomposition() {
+        let task = PlanTask::new("T-01", "Implement")
+            .with_role("builder")
+            .with_estimate_minutes(45)
+            .with_dependencies(["T-00"]);
+
+        assert_eq!(task.role, "builder");
+        assert_eq!(task.estimate_minutes, 45);
+        assert_eq!(CardMode::SelectedCarveOuts.card_count(3), 4);
+    }
 
     #[test]
     fn reaudits_changed_requirements() {
