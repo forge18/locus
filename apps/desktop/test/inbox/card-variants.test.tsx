@@ -25,7 +25,7 @@ describe('inbox/card-variants', () => {
     const { getByTestId } = mount(guardrail)
     const card = getByTestId(`inbox-card-${guardrail.id}`)
     expect(iconOf(card)).toBe('#ph-warning-octagon-fill')
-    expect(card.querySelector('svg')!.getAttribute('style')).toContain('var(--bad)')
+    expect(card.querySelector('svg')!.getAttribute('style')).toContain('var(--status-danger)')
   })
 
   it('marks the selected card in the DOM and paints it --sf2 with the accent ring', () => {
@@ -34,7 +34,7 @@ describe('inbox/card-variants', () => {
     const rule = rules(read('screens/screens.css')).find(
       (r) => r.selector === ".inbox-card[aria-selected='true']",
     )!
-    expect(rule.body).toContain('background: var(--sf2)')
+    expect(rule.body).toContain('background: var(--surface-selected)')
     expect(rule.body).toContain('box-shadow: var(--ring-sel)')
   })
 
@@ -42,7 +42,7 @@ describe('inbox/card-variants', () => {
     const { getByTestId } = mount(gate, false)
     expect(getByTestId(`inbox-card-${gate.id}`).getAttribute('aria-selected')).toBe('false')
     const rule = rules(read('screens/screens.css')).find((r) => r.selector === '.inbox-card')!
-    expect(rule.body).toContain('background: var(--sf)')
-    expect(rule.body).toContain('border: 1px solid var(--line)')
+    expect(rule.body).toContain('background: var(--surface-raised)')
+    expect(rule.body).toContain('border: 1px solid var(--border-subtle)')
   })
 })

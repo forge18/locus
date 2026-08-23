@@ -44,6 +44,6 @@ describe('screens/desktop-settings', () => {
   it('keeps the dense rail and independently scrolling content pane', () => {
     expect(rule('.settings-rail').body).toContain('width: 196px')
     expect(rule('.settings-body').body).toContain('overflow: auto')
-    expect(rule('.settings-row').body).toContain('border-bottom: 1px solid var(--line)')
+    expect(rule('.settings-row').body).toContain('border-bottom: 1px solid var(--border-subtle)')
   })
 })

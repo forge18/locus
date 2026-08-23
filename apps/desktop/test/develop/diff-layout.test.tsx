@@ -26,7 +26,7 @@ describe('develop/diff-layout', () => {
     const body = rule('.diff-gutter').body
     expect(body).toContain('width: 34px')
     expect(body).toContain('text-align: right')
-    expect(body).toContain('color: var(--mu2)')
+    expect(body).toContain('color: var(--text-muted)')
   })
 
   it('gives the sign column 12px', () => {

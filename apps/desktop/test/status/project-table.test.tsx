@@ -32,8 +32,8 @@ describe('status/project-table', () => {
     expect(weaver.querySelector('.verify-bad')!.textContent).toBe('44%')
     expect(tapestry.querySelector('.verify-ok')!.textContent).toBe('78%')
     const css = rules(read('screens/screens.css'))
-    expect(css.find((r) => r.selector === '.verify-ok')!.body).toContain('color: var(--ok)')
-    expect(css.find((r) => r.selector === '.verify-bad')!.body).toContain('color: var(--bad)')
+    expect(css.find((r) => r.selector === '.verify-ok')!.body).toContain('color: var(--status-success)')
+    expect(css.find((r) => r.selector === '.verify-bad')!.body).toContain('color: var(--status-danger)')
   })
 
   it('sets every numeric column in mono and right-aligned, by column type', () => {

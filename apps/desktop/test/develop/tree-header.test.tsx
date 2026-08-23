@@ -28,7 +28,7 @@ describe('develop/tree-header', () => {
   it('sets the header in accent — the branch is the agent’s and that is worth saying', () => {
     expect(
       rules(read('screens/screens.css')).find((r) => r.selector === '.dev-tree-head')!.body,
-    ).toContain('color: var(--ac)')
+    ).toContain('color: var(--action-attention)')
   })
 
   it('carries the caret on the right', () => {

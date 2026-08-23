@@ -30,7 +30,7 @@ describe('develop/chunk-count', () => {
     expect(getByTestId('dev-chunks').className).toContain('dev-chunks')
     expect(
       rules(read('screens/screens.css')).find((r) => r.selector === '.dev-chunks')!.body,
-    ).toContain('color: var(--ac)')
+    ).toContain('color: var(--action-attention)')
   })
 
   it('sits on the right of the tab strip', () => {

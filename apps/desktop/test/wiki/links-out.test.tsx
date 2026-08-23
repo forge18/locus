@@ -29,8 +29,8 @@ describe('wiki/links-out', () => {
 
   it('pills them on --sf with a hairline', () => {
     const body = rules(read('screens/screens.css')).find((r) => r.selector === '.wikilink')!.body
-    expect(body).toContain('background: var(--sf)')
-    expect(body).toContain('border: 1px solid var(--line)')
+    expect(body).toContain('background: var(--surface-raised)')
+    expect(body).toContain('border: 1px solid var(--border-subtle)')
   })
 
   it('shows no section at all when a page links nowhere', () => {

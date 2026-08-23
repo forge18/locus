@@ -18,7 +18,7 @@ describe("extensions/materialization-card", () => {
       rules(read("screens/screens.css")).find(
         (r) => r.selector === ".materialization",
       )!.body,
-    ).toContain("inset 0 0 0 1px var(--ac-ring)");
+    ).toContain("inset 0 0 0 1px var(--action-attention-ring)");
   });
 
   it("states the byte-determinism rule and why it matters", () => {

@@ -20,8 +20,8 @@ const mount = () =>
 describe('develop/git-header', () => {
   it('sits on the deep ground behind a left hairline', () => {
     const body = rule('.git-panel').body
-    expect(body).toContain('background: var(--bg-deep)')
-    expect(body).toContain('border-left: 1px solid var(--line)')
+    expect(body).toContain('background: var(--surface-chrome)')
+    expect(body).toContain('border-left: 1px solid var(--border-subtle)')
   })
 
   it('is headed GIT', () => {
@@ -34,8 +34,8 @@ describe('develop/git-header', () => {
     const { getByTestId } = mount()
     expect(getByTestId('git-ahead').textContent).toBe('2↑')
     expect(getByTestId('git-behind').textContent).toBe('0↓')
-    expect(rule('.git-ahead').body).toContain('color: var(--ac)')
-    expect(rule('.git-behind').body).toContain('color: var(--mu2)')
+    expect(rule('.git-ahead').body).toContain('color: var(--action-attention)')
+    expect(rule('.git-behind').body).toContain('color: var(--text-muted)')
     expect(rule('.git-ahead').body).toContain('font-family: var(--fm)')
   })
 

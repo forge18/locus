@@ -25,7 +25,7 @@ describe('plan/list-approved', () => {
     expect(step.className).toContain('plan-card-landed')
     expect(
       rules(read('screens/screens.css')).find((r) => r.selector === '.plan-card-landed')!.body,
-    ).toContain('color: var(--ok)')
+    ).toContain('color: var(--status-success)')
   })
 
   it('shows no spinner on an approved card — it is finished, not running', () => {

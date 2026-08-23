@@ -16,7 +16,7 @@ describe('agents/card-states', () => {
     ))
     expect(getByTestId(`session-card-${running.id}`).getAttribute('aria-selected')).toBe('true')
     const body = rule(".session-card[aria-selected='true']").body
-    expect(body).toContain('background: var(--sf2)')
+    expect(body).toContain('background: var(--surface-selected)')
     expect(body).toContain('box-shadow: var(--ring-sel-soft)')
   })
 
@@ -25,7 +25,7 @@ describe('agents/card-states', () => {
       <SessionCard session={stuck} selected={false} onSelect={() => {}} />
     ))
     expect(getByTestId(`session-card-${stuck.id}`).className).toContain('session-card-stuck')
-    expect(rule('.session-card-stuck').body).toContain('border-color: var(--bad)')
+    expect(rule('.session-card-stuck').body).toContain('border-color: var(--status-danger)')
   })
 
   it('tints the chip by status — stuck red, waiting accent', () => {

@@ -10,8 +10,8 @@ const mount = () => render(() => <AgentDefsView onNavigate={() => {}} />)
 describe('agentdefs/frontmatter', () => {
   it('grounds the block on --sf with a 2px accent left border', () => {
     const body = rule('.frontmatter').body
-    expect(body).toContain('background: var(--sf)')
-    expect(body).toContain('border-left: 2px solid var(--ac)')
+    expect(body).toContain('background: var(--surface-raised)')
+    expect(body).toContain('border-left: 2px solid var(--action-attention)')
   })
 
   it('is mono at 15px on a 1.72 line', () => {

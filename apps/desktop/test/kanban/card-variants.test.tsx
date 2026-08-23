@@ -15,7 +15,7 @@ describe('kanban/card-variants', () => {
     const { getByTestId } = render(() => <TaskCard task={stuck} />)
     expect(getByTestId(`task-card-${stuck.id}`).className).toContain('task-card-stuck')
     expect(getByTestId(`task-stuck-${stuck.id}`).textContent).toBe('stuck 3/3 · 102.3k')
-    expect(rule('.task-card-stuck').body).toContain('inset 0 0 0 1px var(--bad)')
+    expect(rule('.task-card-stuck').body).toContain('inset 0 0 0 1px var(--status-danger)')
   })
 
   it('rings a waiting-approval card in accent and says where it belongs', () => {
@@ -33,7 +33,7 @@ describe('kanban/card-variants', () => {
     expect(getByTestId(`task-card-${done.id}`).className).toContain('task-card-done')
     expect(getByTestId(`task-evidence-${done.id}`).textContent).toBe('evidence: 2 runs, 41 events')
     expect(rule('.task-card-done').body).toMatch(/opacity:\s*\.86/)
-    expect(rule('.task-card-evidence').body).toContain('color: var(--ok)')
+    expect(rule('.task-card-evidence').body).toContain('color: var(--status-success)')
   })
 
   it('wires the evidence through from the board data', () => {

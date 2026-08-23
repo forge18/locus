@@ -18,7 +18,7 @@ describe('harnesses/heavy-downgrade', () => {
         heavy ? 'true' : null,
       )
     }
-    expect(rule('.hn-card-heavy').body).toContain('border-color: var(--bad)')
+    expect(rule('.hn-card-heavy').body).toContain('border-color: var(--status-danger)')
   })
 
   it('marks aider, which is the weakest of the set', () => {
@@ -37,7 +37,7 @@ describe('harnesses/heavy-downgrade', () => {
     const { getByTestId } = mount()
     expect(getByTestId('hn-downgrades-aider').className).toContain('hn-downgrades-bad')
     expect(getByTestId('hn-downgrades-codex').className).not.toContain('hn-downgrades-bad')
-    expect(rule('.hn-downgrades-bad').body).toContain('color: var(--bad)')
+    expect(rule('.hn-downgrades-bad').body).toContain('color: var(--status-danger)')
   })
 
   it('reads "all native" where nothing was lost', () => {

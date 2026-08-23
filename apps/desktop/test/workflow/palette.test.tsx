@@ -49,7 +49,7 @@ describe('workflow/palette', () => {
     const { getByTestId } = mount()
     expect(getByTestId('wf-chip-goal').getAttribute('data-tone')).toBe('goal')
     expect(getByTestId('wf-chip-condition').getAttribute('data-tone')).toBe('condition')
-    expect(rule('.wf-chip-goal').body).toContain('border-color: var(--ac-ring)')
+    expect(rule('.wf-chip-goal').body).toContain('border-color: var(--action-attention-ring)')
     expect(rule('.wf-chip-condition').body).toContain('color: var(--code-keyword)')
   })
 })

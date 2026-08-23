@@ -46,9 +46,9 @@ describe('ui/segmented', () => {
     const rule = rules(css).find(
       (r) => r.selector === '.seg-opt[data-selected],\n.seg-opt[data-checked]',
     )!
-    expect(rule.body).toContain('color: var(--ac)')
+    expect(rule.body).toContain('color: var(--action-attention)')
     expect(rule.body).toContain('box-shadow: var(--ring-sel-soft)')
-    expect(rule.body).not.toContain('background: var(--ac)')
+    expect(rule.body).not.toContain('background: var(--action-attention)')
   })
 
   it('names the group for a reader who cannot see the segments', () => {

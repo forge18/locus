@@ -15,8 +15,8 @@ describe('inbox/detail-header', () => {
   it('tags the kind in accent', () => {
     const { getByTestId } = mount()
     expect(getByTestId('inbox-detail-kind').textContent).toBe('gate')
-    expect(rule('.inbox-detail-kind')!.body).toContain('color: var(--ac)')
-    expect(rule('.inbox-detail-kind')!.body).toContain('background: var(--ac-wash)')
+    expect(rule('.inbox-detail-kind')!.body).toContain('color: var(--action-attention)')
+    expect(rule('.inbox-detail-kind')!.body).toContain('background: var(--action-attention-wash)')
   })
 
   it('sets the title at 19px/500', () => {

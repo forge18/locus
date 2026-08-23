@@ -29,11 +29,11 @@ describe('accent-single-source', () => {
 
   it('moves rings, live dots, active tabs and metric numerals together', () => {
     // Selection rings resolve from --ac …
-    expect(tokens).toContain('--ring-sel: inset 0 0 0 1px var(--ac)')
-    expect(tokens).toContain('--ring-sel-soft: inset 0 0 0 1px var(--ac-ring)')
+    expect(tokens).toContain('--ring-sel: inset 0 0 0 1px var(--action-attention)')
+    expect(tokens).toContain('--ring-sel-soft: inset 0 0 0 1px var(--action-attention-ring)')
 
     // … focus is the same accent …
-    expect(read('styles/interaction.css')).toContain('outline: 2px solid var(--ac)')
+    expect(read('styles/interaction.css')).toContain('outline: 2px solid var(--action-attention)')
 
     // … the live dot animates opacity, so it inherits whatever color --ac resolves to …
     const motion = read('styles/motion.css')

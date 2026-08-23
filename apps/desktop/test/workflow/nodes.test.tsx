@@ -40,7 +40,7 @@ describe('workflow/nodes', () => {
   })
 
   it('tints the strip by tone — goal amber, condition blue', () => {
-    expect(rule('.wf-node-goal .wf-node-strip').body).toContain('background: var(--ac-wash)')
+    expect(rule('.wf-node-goal .wf-node-strip').body).toContain('background: var(--action-attention-wash)')
     expect(rule('.wf-node-condition .wf-node-strip').body).toContain('rgba(143,184,214,.18)')
     const { getByTestId } = mount()
     expect(getByTestId('wf-node-n-goal').getAttribute('data-tone')).toBe('goal')

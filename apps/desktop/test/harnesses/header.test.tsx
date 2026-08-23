@@ -30,7 +30,7 @@ describe('harnesses/header', () => {
   it('colours the legend swatches accent and the downgrade red', () => {
     const css = rules(read('screens/screens.css'))
     expect(css.find((r) => r.selector === '.hn-legend-native i')!.body).toContain(
-      'background: var(--ac)',
+      'background: var(--action-attention)',
     )
     expect(css.find((r) => r.selector === '.hn-legend-downgraded i')!.body).toContain(
       'rgba(212,97,79,.55)',

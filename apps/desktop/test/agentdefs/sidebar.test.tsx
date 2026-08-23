@@ -15,7 +15,7 @@ describe('agentdefs/sidebar', () => {
   it('hairlines the seam', () => {
     expect(
       rules(read('screens/screens.css')).find((r) => r.selector === '.agentdefs-side')!.body,
-    ).toContain('border-right: 1px solid var(--line)')
+    ).toContain('border-right: 1px solid var(--border-subtle)')
   })
 
   it('leads with the ← Extensions back link, in accent', () => {
@@ -26,7 +26,7 @@ describe('agentdefs/sidebar', () => {
     const body = rules(read('screens/screens.css')).find(
       (r) => r.selector === '.agentdefs-back',
     )!.body
-    expect(body).toContain('color: var(--ac)')
+    expect(body).toContain('color: var(--action-attention)')
     expect(body).toContain('font-size: var(--t-meta)')
   })
 

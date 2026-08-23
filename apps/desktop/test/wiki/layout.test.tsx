@@ -28,8 +28,8 @@ describe('wiki/layout', () => {
   })
 
   it('hairlines both seams', () => {
-    expect(rule('.wiki-tree').body).toContain('border-right: 1px solid var(--line)')
-    expect(rule('.wiki-side').body).toContain('border-left: 1px solid var(--line)')
+    expect(rule('.wiki-tree').body).toContain('border-right: 1px solid var(--border-subtle)')
+    expect(rule('.wiki-side').body).toContain('border-left: 1px solid var(--border-subtle)')
   })
 
   it('has no tabs to draw — Wiki is a category with one view', () => {

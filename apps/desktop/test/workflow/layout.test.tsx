@@ -26,11 +26,11 @@ describe('workflow/layout', () => {
   })
 
   it('grounds the palette on --bg-deep', () => {
-    expect(rule('.wf-palette').body).toContain('background: var(--bg-deep)')
+    expect(rule('.wf-palette').body).toContain('background: var(--surface-chrome)')
   })
 
   it('hairlines both seams', () => {
-    expect(rule('.wf-palette').body).toContain('border-right: 1px solid var(--line)')
-    expect(rule('.wf-inspector').body).toContain('border-left: 1px solid var(--line)')
+    expect(rule('.wf-palette').body).toContain('border-right: 1px solid var(--border-subtle)')
+    expect(rule('.wf-inspector').body).toContain('border-left: 1px solid var(--border-subtle)')
   })
 })

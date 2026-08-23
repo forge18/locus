@@ -21,8 +21,8 @@ describe("shell/titlebar", () => {
   it("sits on the deep ground with a bottom hairline", () => {
     const body = rule(".titlebar")!.body;
     expect(body).toContain("height: 42px");
-    expect(body).toContain("background: var(--bg-deep)");
-    expect(body).toContain("border-bottom: 1px solid var(--line)");
+    expect(body).toContain("background: var(--surface-chrome)");
+    expect(body).toContain("border-bottom: 1px solid var(--border-subtle)");
   });
 
   it("draws three traffic lights in the macOS colors", () => {

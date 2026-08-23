@@ -19,7 +19,7 @@ describe('plan/list-selected', () => {
     const rule = rules(read('screens/screens.css')).find(
       (r) => r.selector === ".plan-card[aria-selected='true']",
     )!
-    expect(rule.body).toContain('background: var(--sf2)')
+    expect(rule.body).toContain('background: var(--surface-selected)')
     expect(rule.body).toContain('box-shadow: var(--ring-sel)')
   })
 

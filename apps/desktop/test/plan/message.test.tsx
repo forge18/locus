@@ -28,7 +28,7 @@ describe('plan/message', () => {
     const { getByTestId } = mount()
     expect(getByTestId(`msg-bubble-${interviewer.id}`).textContent).toBe(interviewer.body)
     expect(rule('.msg-bubble').body).toContain('max-width: 600px')
-    expect(rule('.msg-bubble').body).toContain('background: var(--sf)')
+    expect(rule('.msg-bubble').body).toContain('background: var(--surface-raised)')
   })
 
   it('shows the fact row when the speaker went and looked', () => {

@@ -7,7 +7,7 @@ describe('no-default-focus-ring', () => {
   it('sets the accent outline on a universal :focus-visible, so nothing is missed', () => {
     const r = rules(interaction).find((x) => x.selector === ':focus-visible')
     expect(r, 'no universal :focus-visible rule').toBeDefined()
-    expect(r!.body).toContain('outline: 2px solid var(--ac)')
+    expect(r!.body).toContain('outline: 2px solid var(--action-attention)')
   })
 
   it('removes an outline nowhere without putting the accent one back', () => {

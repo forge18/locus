@@ -22,7 +22,7 @@ describe('plan/one-approval-rule', () => {
     const rule = rules(read('screens/screens.css')).find(
       (r) => r.selector === '.plan-list-footer',
     )!
-    expect(rule.body).toContain('border-top: 1px solid var(--line)')
+    expect(rule.body).toContain('border-top: 1px solid var(--border-subtle)')
     expect(rule.body).toContain('flex: none')
   })
 

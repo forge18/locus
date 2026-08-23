@@ -24,7 +24,7 @@ describe('inbox/comment-box', () => {
     expect(box.tagName).toBe('TEXTAREA')
     expect(box.className).toContain('input')
     const rule = rules(read('ui/ui.css')).find((r) => r.selector === '.input')!
-    expect(rule.body).toContain('background: var(--sf)')
+    expect(rule.body).toContain('background: var(--surface-raised)')
   })
 
   it('starts at 64px and grows', () => {

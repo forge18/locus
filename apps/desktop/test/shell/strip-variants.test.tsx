@@ -38,7 +38,7 @@ describe("shell/strip-variants", () => {
       "strip-card-stuck",
     );
     expect(rule(".strip-card-stuck")!.body).toContain(
-      "border-color: var(--bad)",
+      "border-color: var(--status-danger)",
     );
   });
 

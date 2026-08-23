@@ -54,7 +54,7 @@ describe('ui/kobalte-styled', () => {
       />
     ))
     expect(getByTestId('combobox-input').className).toBe('combobox-input')
-    expect(rule('.combobox-control')!.body).toContain('background: var(--sf)')
+    expect(rule('.combobox-control')!.body).toContain('background: var(--surface-raised)')
   })
 
   it('shows a toast in the region, for work the reader is not watching', async () => {

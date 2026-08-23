@@ -8,7 +8,7 @@ const rule = (sel: string) => rules(css).find((r) => r.selector === sel)
 
 describe('ui/input', () => {
   it('grounds both controls on --sf', () => {
-    expect(rule('.input')!.body).toContain('background: var(--sf)')
+    expect(rule('.input')!.body).toContain('background: var(--surface-raised)')
   })
 
   it('shares one class, so an input and a textarea cannot drift apart', () => {
@@ -24,8 +24,8 @@ describe('ui/input', () => {
   })
 
   it('gives the caret the accent, and focus the accent border', () => {
-    expect(rule('.input')!.body).toContain('caret-color: var(--ac)')
-    expect(rule('.input:focus-visible')!.body).toContain('border-color: var(--ac)')
+    expect(rule('.input')!.body).toContain('caret-color: var(--action-attention)')
+    expect(rule('.input:focus-visible')!.body).toContain('border-color: var(--action-attention)')
   })
 
   it('gives the textarea a real starting height and lets it grow', () => {

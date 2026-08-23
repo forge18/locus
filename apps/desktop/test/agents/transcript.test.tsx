@@ -24,7 +24,7 @@ describe('agents/transcript', () => {
   })
 
   it('colours tool calls in accent', () => {
-    expect(rule('.verb-tool_call').body).toContain('color: var(--ac)')
+    expect(rule('.verb-tool_call').body).toContain('color: var(--action-attention)')
   })
 
   it('colours thinking #8fb8d6, through the token', () => {
@@ -33,8 +33,8 @@ describe('agents/transcript', () => {
   })
 
   it('colours a pass --ok and an error --bad', () => {
-    expect(rule('.verb-tool_result').body).toContain('color: var(--ok)')
-    expect(rule('.verb-tool_error').body).toContain('color: var(--bad)')
+    expect(rule('.verb-tool_result').body).toContain('color: var(--status-success)')
+    expect(rule('.verb-tool_error').body).toContain('color: var(--status-danger)')
   })
 
   it('tags every line with the verb that coloured it', () => {

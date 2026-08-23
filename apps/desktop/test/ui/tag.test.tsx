@@ -33,7 +33,7 @@ describe('ui/tag', () => {
   })
 
   it('draws outline as a line and accent as a ground, both from --ac', () => {
-    expect(rule('.tag-outline')!.body).toContain('border-color: var(--ac)')
+    expect(rule('.tag-outline')!.body).toContain('border-color: var(--action-attention)')
     expect(rule('.tag')!.body).toContain('background: var(--ac-deep)')
   })
 })

@@ -25,7 +25,7 @@ describe('telemetry/filter-chips', () => {
     }
     expect(
       rules(read('ui/ui.css')).find((r) => r.selector === '.tag-outline')!.body,
-    ).toContain('border-color: var(--ac)')
+    ).toContain('border-color: var(--action-attention)')
   })
 
   it('offers a Reset control in accent', () => {
@@ -33,7 +33,7 @@ describe('telemetry/filter-chips', () => {
     expect(getByTestId('tm-reset').textContent).toBe(RESET_LABEL)
     expect(
       rules(read('screens/screens.css')).find((r) => r.selector === '.tm-reset')!.body,
-    ).toContain('color: var(--ac)')
+    ).toContain('color: var(--action-attention)')
   })
 
   it('marks which chips are active in the DOM', () => {

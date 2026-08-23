@@ -21,7 +21,7 @@ describe('agentdefs/footer-note', () => {
     expect(side.children[1]).toBe(getByTestId('agentdefs-side-foot'))
     expect(
       rules(read('screens/screens.css')).find((r) => r.selector === '.agentdefs-side-foot')!.body,
-    ).toContain('border-top: 1px solid var(--line)')
+    ).toContain('border-top: 1px solid var(--border-subtle)')
   })
 
   it('rules out a canvas, which is a claim the screen has to keep', () => {

@@ -7,8 +7,8 @@ const rule = (sel: string) => rules(css).find((r) => r.selector === sel)
 describe('ui/button-outlined', () => {
   it('draws primary as an accent line, not an accent fill', () => {
     const primary = rule('.btn-primary')!
-    expect(primary.body).toContain('color: var(--ac)')
-    expect(primary.body).toContain('border-color: var(--ac)')
+    expect(primary.body).toContain('color: var(--action-attention)')
+    expect(primary.body).toContain('border-color: var(--action-attention)')
     // A background at all would make it a fill.
     expect(primary.body).not.toMatch(/background/)
   })

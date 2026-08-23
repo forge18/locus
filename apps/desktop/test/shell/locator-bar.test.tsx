@@ -11,8 +11,8 @@ describe("shell/locator-bar", () => {
     const body = rule(".locator-bar")!.body;
     expect(body).toContain("width: clamp(240px, 40vw, 520px)");
     expect(body).toContain("height: 26px");
-    expect(body).toContain("background: var(--sf)");
-    expect(body).toContain("border: 1px solid var(--line)");
+    expect(body).toContain("background: var(--surface-raised)");
+    expect(body).toContain("border: 1px solid var(--border-subtle)");
     expect(body).toContain("border-radius: var(--r-md)");
   });
 
@@ -32,7 +32,7 @@ describe("shell/locator-bar", () => {
   });
 
   it("dims the scheme below the path, so the address reads first", () => {
-    expect(rule(".locator-scheme")!.body).toContain("color: var(--mu2)");
+    expect(rule(".locator-scheme")!.body).toContain("color: var(--text-muted)");
     expect(rule(".locator-path")!.body).toContain("color: var(--mu)");
   });
 
@@ -41,7 +41,7 @@ describe("shell/locator-bar", () => {
     expect(getByTestId("locator-key").textContent).toBe("⌘K");
     const body = rule(".locator-key")!.body;
     expect(body).toContain("margin-left: auto");
-    expect(body).toContain("border: 1px solid var(--line2)");
+    expect(body).toContain("border: 1px solid var(--border-strong)");
     expect(body).toContain("border-radius: 4px");
   });
 

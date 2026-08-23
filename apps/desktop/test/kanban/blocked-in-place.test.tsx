@@ -18,7 +18,7 @@ describe('kanban/blocked-in-place', () => {
     const { getByTestId } = render(() => <TaskCard task={blocked} />)
     expect(
       getByTestId(`task-card-${blocked.id}`).querySelector('svg')!.getAttribute('style'),
-    ).toContain('var(--bad)')
+    ).toContain('var(--status-danger)')
   })
 
   it('names the state for a reader who cannot see the glyph', () => {

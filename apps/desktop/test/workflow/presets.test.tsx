@@ -21,7 +21,7 @@ describe('workflow/presets', () => {
   it('grounds them on --sf2, a step above the node chips', () => {
     expect(
       rules(read('screens/screens.css')).find((r) => r.selector === '.wf-preset')!.body,
-    ).toContain('background: var(--sf2)')
+    ).toContain('background: var(--surface-selected)')
   })
 
   it('says a preset expands into ordinary nodes', () => {

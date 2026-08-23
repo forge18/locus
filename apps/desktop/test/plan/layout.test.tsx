@@ -27,8 +27,8 @@ describe('plan/layout', () => {
   })
 
   it('hairlines both seams', () => {
-    expect(rule('.plan-list').body).toContain('border-right: 1px solid var(--line)')
-    expect(rule('.plan-outputs').body).toContain('border-left: 1px solid var(--line)')
+    expect(rule('.plan-list').body).toContain('border-right: 1px solid var(--border-subtle)')
+    expect(rule('.plan-outputs').body).toContain('border-left: 1px solid var(--border-subtle)')
   })
 
   it('scrolls each pane on its own', () => {

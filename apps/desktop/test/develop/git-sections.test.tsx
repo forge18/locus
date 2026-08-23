@@ -34,7 +34,7 @@ describe('develop/git-sections', () => {
   it('sets both bulk links in accent', () => {
     expect(
       rules(read('screens/screens.css')).find((r) => r.selector === '.git-bulk')!.body,
-    ).toContain('color: var(--ac)')
+    ).toContain('color: var(--action-attention)')
   })
 
   it('reports each bulk action', () => {

@@ -13,7 +13,7 @@ describe('artifacts/header', () => {
     expect(getByTestId('artifact-kind').textContent).toBe('diff')
     expect(
       rules(read('screens/screens.css')).find((r) => r.selector === '.wiki-kind')!.body,
-    ).toContain('color: var(--ac)')
+    ).toContain('color: var(--action-attention)')
   })
 
   it('shows the file name in mono', () => {
@@ -40,7 +40,7 @@ describe('artifacts/header', () => {
     const css = rules(read('screens/screens.css'))
     expect(css.find((r) => r.selector === '.artifact-note')!.body).toContain('margin-left: auto')
     expect(css.find((r) => r.selector === '.artifact-head')!.body).toContain(
-      'border-bottom: 1px solid var(--line)',
+      'border-bottom: 1px solid var(--border-subtle)',
     )
   })
 })

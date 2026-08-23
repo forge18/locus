@@ -26,7 +26,7 @@ describe('extensions/agents-entry-card', () => {
     const { getByTestId } = mount()
     const arrow = getByTestId('type-card-arrow')
     expect(arrow.querySelector('use')!.getAttribute('href')).toBe('#ph-arrow-right')
-    expect(rule('.type-card-arrow').body).toContain('color: var(--ac)')
+    expect(rule('.type-card-arrow').body).toContain('color: var(--action-attention)')
   })
 
   it('navigates to the drill-down when clicked', () => {

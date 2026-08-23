@@ -13,20 +13,20 @@ describe('plan/auditor-finding', () => {
     const { getByTestId } = render(() => <Message message={auditor} />)
     expect(getByTestId(`msg-${auditor.id}`).className).toContain('msg-auditor')
     const body = rule('.msg-auditor .msg-bubble').body
-    expect(body).toContain('border-color: var(--bad)')
-    expect(body).toContain('color-mix(in srgb, var(--bad) 8%, var(--sf))')
+    expect(body).toContain('border-color: var(--status-danger)')
+    expect(body).toContain('color-mix(in srgb, var(--status-danger) 8%, var(--surface-raised))')
   })
 
   it('leaves an ordinary agent bubble on the hairline', () => {
     const { getByTestId } = render(() => <Message message={interviewer} />)
     expect(getByTestId(`msg-${interviewer.id}`).className).not.toContain('msg-auditor')
-    expect(rule('.msg-bubble').body).toContain('border: 1px solid var(--line)')
+    expect(rule('.msg-bubble').body).toContain('border: 1px solid var(--border-subtle)')
   })
 
   it('labels the finding, in --bad', () => {
     const { getByTestId } = render(() => <Message message={auditor} />)
     expect(getByTestId(`msg-finding-${auditor.id}`).textContent).toBe('Finding — missed question')
-    expect(rule('.msg-auditor .msg-finding').body).toContain('color: var(--bad)')
+    expect(rule('.msg-auditor .msg-finding').body).toContain('color: var(--status-danger)')
   })
 
   it('carries the auditor caption naming its fresh context and its standard', () => {

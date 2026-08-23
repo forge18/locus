@@ -63,6 +63,6 @@ describe('kanban/six-columns', () => {
       (r) => r.selector === '.kanban-column-count',
     )!.body
     expect(body).toContain('font-family: var(--fm)')
-    expect(body).toContain('color: var(--mu2)')
+    expect(body).toContain('color: var(--text-muted)')
   })
 })

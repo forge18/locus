@@ -26,20 +26,20 @@ describe('workflow/inspector', () => {
   it('joins clauses with an accent and', () => {
     const { getByTestId } = mount()
     expect(getByTestId('clause-joiner').textContent).toBe('and')
-    expect(rule('.clause-joiner').body).toContain('color: var(--ac)')
+    expect(rule('.clause-joiner').body).toContain('color: var(--action-attention)')
     expect(useExpression().length).toBe(2)
   })
 
   it('offers a ghost add-clause', () => {
     const { getByTestId } = mount()
     expect(getByTestId('clause-add').textContent).toBe('+ add clause')
-    expect(rule('.clause-add').body).toContain('color: var(--mu2)')
+    expect(rule('.clause-add').body).toContain('color: var(--text-muted)')
   })
 
   it('shows the compiled expression in a card with an --ok hairline', () => {
     const { getByTestId } = mount()
     expect(getByTestId('wf-compiled-expr').textContent).toBe(COMPILED)
-    expect(rule('.compiled').body).toContain('inset 0 0 0 1px var(--ok)')
+    expect(rule('.compiled').body).toContain('inset 0 0 0 1px var(--status-success)')
   })
 
   it('says the expression is total, evaluable in the core, and reproducible', () => {

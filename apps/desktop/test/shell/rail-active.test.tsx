@@ -20,17 +20,17 @@ describe("shell/rail-active", () => {
 
   it("paints it --sf2 with the accent inset ring and accent text", () => {
     const body = rule(".rail-item[aria-current='true']")!.body;
-    expect(body).toContain("background: var(--sf2)");
+    expect(body).toContain("background: var(--surface-selected)");
     expect(body).toContain("box-shadow: var(--ring-sel-soft)");
-    expect(body).toContain("color: var(--ac)");
+    expect(body).toContain("color: var(--action-attention)");
   });
 
   it("resolves the ring from --ac, so retheming moves it", () => {
     expect(read("styles/tokens.css")).toContain(
-      "--ring-sel-soft: inset 0 0 0 1px var(--ac-ring)",
+      "--ring-sel-soft: inset 0 0 0 1px var(--action-attention-ring)",
     );
     expect(read("styles/tokens.css")).toContain(
-      "--ac-ring: color-mix(in srgb, var(--ac) 55%, transparent)",
+      "--ac-ring: color-mix(in srgb, var(--action-attention) 55%, transparent)",
     );
   });
 

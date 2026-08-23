@@ -44,7 +44,7 @@ describe("extensions/native-vs-downgraded", () => {
       rules(read("screens/screens.css")).find(
         (r) => r.selector === ".type-card-foot-bad",
       )!.body,
-    ).toContain("color: var(--bad)");
+    ).toContain("color: var(--status-danger)");
   });
 
   it("leaves context all native, because every harness reads a file", () => {

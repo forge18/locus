@@ -51,8 +51,8 @@ describe('telemetry/sessions-table', () => {
     expect(statusOf('3dc1e427')).toBe('status-waiting')
 
     const css = rules(read('screens/screens.css'))
-    expect(css.find((r) => r.selector === '.status-running')!.body).toContain('color: var(--ac)')
-    expect(css.find((r) => r.selector === '.status-closed')!.body).toContain('color: var(--ok)')
+    expect(css.find((r) => r.selector === '.status-running')!.body).toContain('color: var(--action-attention)')
+    expect(css.find((r) => r.selector === '.status-closed')!.body).toContain('color: var(--status-success)')
     expect(css.find((r) => r.selector === '.status-waiting')!.body).toContain('color: var(--mu)')
   })
 

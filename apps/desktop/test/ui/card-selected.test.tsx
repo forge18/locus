@@ -22,16 +22,16 @@ describe('ui/card-selected', () => {
 
   it('applies the accent inset ring over the raised surface', () => {
     const body = rule('.card-selected')!.body
-    expect(body).toContain('background: var(--sf2)')
+    expect(body).toContain('background: var(--surface-selected)')
     expect(body).toContain('box-shadow: var(--ring-sel)')
-    expect(read('styles/tokens.css')).toContain('--ring-sel: inset 0 0 0 1px var(--ac)')
+    expect(read('styles/tokens.css')).toContain('--ring-sel: inset 0 0 0 1px var(--action-attention)')
   })
 
   it('never rings with an outer glow', () => {
     for (const r of rules(ui)) {
       const shadows = r.body.match(/box-shadow:\s*([^;]+)/g) ?? []
       for (const s of shadows) {
-        if (!s.includes('var(--ac)') && !s.includes('ring-sel')) continue
+        if (!s.includes('var(--action-attention)') && !s.includes('ring-sel')) continue
         expect(s, `${r.selector}: ${s}`).toMatch(/inset|ring-sel/)
       }
     }

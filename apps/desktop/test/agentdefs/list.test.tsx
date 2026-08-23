@@ -38,8 +38,8 @@ describe('agentdefs/list', () => {
     const body = rules(read('screens/screens.css')).find(
       (r) => r.selector === ".agentdefs-row[aria-selected='true']",
     )!.body
-    expect(body).toContain('background: var(--sf2)')
-    expect(body).toContain('inset 0 0 0 1px var(--line2)')
+    expect(body).toContain('background: var(--surface-selected)')
+    expect(body).toContain('inset 0 0 0 1px var(--border-strong)')
   })
 
   it('opens on builder', () => {

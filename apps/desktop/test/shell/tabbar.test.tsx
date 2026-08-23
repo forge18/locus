@@ -10,8 +10,8 @@ describe("shell/tabbar", () => {
   it("carries a bottom hairline over the surface-to-ground gradient", () => {
     const body = rule(".tabbar")!.body;
     expect(body).toContain("height: 40px");
-    expect(body).toContain("background: linear-gradient(var(--sf), var(--bg))");
-    expect(body).toContain("border-bottom: 1px solid var(--line)");
+    expect(body).toContain("background: linear-gradient(var(--surface-raised), var(--surface-ground))");
+    expect(body).toContain("border-bottom: 1px solid var(--border-subtle)");
   });
 
   it("leads with the current category label", () => {

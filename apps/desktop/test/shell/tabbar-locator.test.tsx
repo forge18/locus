@@ -19,7 +19,7 @@ describe("shell/tabbar-locator", () => {
     )!;
     expect(rule.body).toContain("font-family: var(--fm)");
     expect(rule.body).toContain("margin-left: auto");
-    expect(rule.body).toContain("color: var(--mu2)");
+    expect(rule.body).toContain("color: var(--text-muted)");
   });
 
   it("offers the detach affordance only when detaching is possible", () => {

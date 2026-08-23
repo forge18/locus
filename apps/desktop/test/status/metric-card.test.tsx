@@ -48,7 +48,7 @@ describe('status/metric-card', () => {
       />
     ))
     expect(getByTestId('metric-note').className).toContain('metric-note-bad')
-    expect(rule('.metric-note-bad')!.body).toContain('color: var(--bad)')
+    expect(rule('.metric-note-bad')!.body).toContain('color: var(--status-danger)')
   })
 
   it('omits the unit when there is none', () => {

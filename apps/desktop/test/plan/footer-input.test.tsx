@@ -17,7 +17,7 @@ describe('plan/footer-input', () => {
     const { getByTestId } = mount()
     const caret = getByTestId('plan-caret')
     expect(caret.className).toContain('blink')
-    expect(rule('.plan-caret').body).toContain('color: var(--ac)')
+    expect(rule('.plan-caret').body).toContain('color: var(--action-attention)')
     expect(read('styles/motion.css')).toContain('.blink { animation: blink 1.1s')
   })
 
@@ -31,7 +31,7 @@ describe('plan/footer-input', () => {
 
   it('sits under a top hairline, outside the scrolling messages', () => {
     const { getByTestId } = mount()
-    expect(rule('.plan-convo-footer').body).toContain('border-top: 1px solid var(--line)')
+    expect(rule('.plan-convo-footer').body).toContain('border-top: 1px solid var(--border-subtle)')
     expect(getByTestId('plan-messages').contains(getByTestId('plan-footer'))).toBe(false)
   })
 })

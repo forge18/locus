@@ -39,12 +39,12 @@ describe('develop/git-history', () => {
     const dots = [...getByTestId('git-panel').querySelectorAll('.git-dot')]
     expect(dots[0].getAttribute('data-newest')).toBe('true')
     expect(dots.filter((d) => d.getAttribute('data-newest')).length).toBe(1)
-    expect(rule('.git-dot-newest').body).toContain('box-shadow: 0 0 0 3px var(--ac-wash)')
-    expect(rule('.git-dot-newest').body).toContain('background: var(--ac)')
+    expect(rule('.git-dot-newest').body).toContain('box-shadow: 0 0 0 3px var(--action-attention-wash)')
+    expect(rule('.git-dot-newest').body).toContain('background: var(--action-attention)')
   })
 
   it('dims the older dots', () => {
-    expect(rule('.git-dot').body).toContain('background: var(--mu2)')
+    expect(rule('.git-dot').body).toContain('background: var(--text-muted)')
   })
 
   it('sets sha · author · age in mono', () => {

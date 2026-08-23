@@ -17,7 +17,7 @@ describe('plan/human-reply', () => {
   })
 
   it('grounds it on --sf3, a step above the agents', () => {
-    expect(rule('.msg-you .msg-bubble').body).toContain('background: var(--sf3)')
+    expect(rule('.msg-you .msg-bubble').body).toContain('background: var(--surface-elevated)')
   })
 
   it('caps it at 560px, narrower than an agent bubble', () => {

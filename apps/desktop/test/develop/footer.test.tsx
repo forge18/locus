@@ -11,7 +11,7 @@ describe('develop/footer', () => {
   it('is 52px under a top hairline', () => {
     const body = rule('.dev-footer').body
     expect(body).toContain('height: 52px')
-    expect(body).toContain('border-top: 1px solid var(--line)')
+    expect(body).toContain('border-top: 1px solid var(--border-subtle)')
   })
 
   it('offers Revert chunk as the secondary', () => {

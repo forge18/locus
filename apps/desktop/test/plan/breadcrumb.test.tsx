@@ -30,10 +30,10 @@ describe('plan/breadcrumb', () => {
   })
 
   it('checks the done steps in --ok, pills the current one in accent, dims the rest', () => {
-    expect(rule('.crumb-done').body).toContain('color: var(--ok)')
-    expect(rule('.crumb-current').body).toContain('color: var(--ac)')
+    expect(rule('.crumb-done').body).toContain('color: var(--status-success)')
+    expect(rule('.crumb-current').body).toContain('color: var(--action-attention)')
     expect(rule('.crumb-current').body).toContain('box-shadow: var(--ring-sel-soft)')
-    expect(rule('.crumb').body).toContain('color: var(--mu2)')
+    expect(rule('.crumb').body).toContain('color: var(--text-muted)')
 
     const { getByTestId } = render(() => <Breadcrumb current="Audit" />)
     expect(getByTestId('crumb-inputs').querySelector('use')!.getAttribute('href')).toBe('#ph-check')

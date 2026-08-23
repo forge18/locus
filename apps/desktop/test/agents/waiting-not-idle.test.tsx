@@ -46,6 +46,6 @@ describe('agents/waiting-not-idle', () => {
   it('grounds the waiting card on --sf rather than tinting it like a problem', () => {
     expect(
       rules(read('screens/screens.css')).find((r) => r.selector === '.waiting-card')!.body,
-    ).toContain('background: var(--sf)')
+    ).toContain('background: var(--surface-raised)')
   })
 })

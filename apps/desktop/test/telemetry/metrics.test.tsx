@@ -28,8 +28,8 @@ describe('telemetry/metrics', () => {
     const { getByTestId } = mount()
     expect(getByTestId('tm-metric-tool-errors').getAttribute('data-bad')).toBe('true')
     expect(getByTestId('tm-metrics').querySelectorAll('[data-bad="true"]').length).toBe(1)
-    expect(rule('.tm-metric-bad').body).toContain('border-color: var(--bad)')
-    expect(rule('.tm-metric-bad .metric-numeral').body).toContain('color: var(--bad)')
+    expect(rule('.tm-metric-bad').body).toContain('border-color: var(--status-danger)')
+    expect(rule('.tm-metric-bad .metric-numeral').body).toContain('color: var(--status-danger)')
   })
 
   it('shows the unit suffix where there is one', () => {

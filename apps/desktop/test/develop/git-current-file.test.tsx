@@ -26,7 +26,7 @@ describe('develop/git-current-file', () => {
   it('paints it --sf2', () => {
     expect(
       rules(read('screens/screens.css')).find((r) => r.selector === '.git-row-current')!.body,
-    ).toContain('background: var(--sf2)')
+    ).toContain('background: var(--surface-selected)')
   })
 
   it('highlights exactly one row', () => {

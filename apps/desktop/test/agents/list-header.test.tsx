@@ -33,7 +33,7 @@ describe('agents/list-header', () => {
     expect(getByLabelText('Filter').querySelector('use')!.getAttribute('href')).toBe('#ph-funnel')
     const sort = getByLabelText('Sort')
     expect(sort.querySelector('use')!.getAttribute('href')).toBe('#ph-sort-ascending')
-    expect(sort.getAttribute('style')).toContain('var(--ac)')
+    expect(sort.getAttribute('style')).toContain('var(--action-attention)')
   })
 
   it('sits above the list under a bottom hairline', () => {
@@ -41,6 +41,6 @@ describe('agents/list-header', () => {
     expect(getByTestId('session-list').children[0]).toBe(getByTestId('session-list-head'))
     expect(
       rules(read('screens/screens.css')).find((r) => r.selector === '.session-list-head')!.body,
-    ).toContain('border-bottom: 1px solid var(--line)')
+    ).toContain('border-bottom: 1px solid var(--border-subtle)')
   })
 })

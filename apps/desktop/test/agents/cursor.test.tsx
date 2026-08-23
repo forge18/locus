@@ -24,7 +24,7 @@ describe('agents/cursor', () => {
   })
 
   it('paints it accent', () => {
-    expect(rule('.transcript-cursor').body).toContain('background: var(--ac)')
+    expect(rule('.transcript-cursor').body).toContain('background: var(--action-attention)')
   })
 
   it('blinks it with the shared keyframe', () => {

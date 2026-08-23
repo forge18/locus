@@ -24,9 +24,9 @@ describe('status/runs-by-hour', () => {
   })
 
   it('colors passed accent, failed --bad and aborted --blue-lit', () => {
-    expect(rule('.hour-seg-passed')!.body).toContain('background: var(--ac)')
-    expect(rule('.hour-seg-failed')!.body).toContain('background: var(--bad)')
-    expect(rule('.hour-seg-aborted')!.body).toContain('background: var(--blue-lit)')
+    expect(rule('.hour-seg-passed')!.body).toContain('background: var(--action-attention)')
+    expect(rule('.hour-seg-failed')!.body).toContain('background: var(--status-danger)')
+    expect(rule('.hour-seg-aborted')!.body).toContain('background: var(--avatar-ground-lit)')
   })
 
   it('puts the three states in every bar, passed first from the bottom', () => {

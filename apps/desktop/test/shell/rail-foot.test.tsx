@@ -19,7 +19,7 @@ describe("shell/rail-foot", () => {
     const rule = rules(read("shell/shell.css")).find(
       (r) => r.selector === ".rail-foot",
     )!;
-    expect(rule.body).toContain("color: var(--mu2)");
+    expect(rule.body).toContain("color: var(--text-muted)");
     expect(rule.body).toContain("margin-top: auto");
   });
 

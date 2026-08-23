@@ -21,8 +21,8 @@ describe('develop/diff-headers', () => {
   })
 
   it('dims the base and accents the agent side', () => {
-    expect(rule('.diff-header-left').body).toContain('color: var(--mu2)')
-    expect(rule('.diff-header-right').body).toContain('color: var(--ac)')
+    expect(rule('.diff-header-left').body).toContain('color: var(--text-muted)')
+    expect(rule('.diff-header-right').body).toContain('color: var(--action-attention)')
   })
 
   it('sets both in mono', () => {

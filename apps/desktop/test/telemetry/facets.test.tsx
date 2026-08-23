@@ -39,8 +39,8 @@ describe('telemetry/facets', () => {
   })
 
   it('grounds the chips on --sf3 with the count in --mu2', () => {
-    expect(rule('.facet').body).toContain('background: var(--sf3)')
-    expect(rule('.facet-count').body).toContain('color: var(--mu2)')
+    expect(rule('.facet').body).toContain('background: var(--surface-elevated)')
+    expect(rule('.facet-count').body).toContain('color: var(--text-muted)')
   })
 
   it('sets the counts in mono', () => {

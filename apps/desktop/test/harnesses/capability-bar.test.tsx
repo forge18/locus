@@ -37,7 +37,7 @@ describe('harnesses/capability-bar', () => {
   })
 
   it('paints native accent and downgraded red', () => {
-    expect(rule('.hn-seg-native').body).toContain('background: var(--ac)')
+    expect(rule('.hn-seg-native').body).toContain('background: var(--action-attention)')
     expect(rule('.hn-seg-downgraded').body).toContain('rgba(212,97,79,.55)')
   })
 

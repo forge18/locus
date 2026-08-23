@@ -15,7 +15,7 @@ describe('plan/recommendation', () => {
     expect(getByTestId('recommendation-confidence').textContent).toBe('0.62')
     const body = rule('.recommendation-confidence').body
     expect(body).toContain('font-size: var(--t-metric)')
-    expect(body).toContain('color: var(--ac)')
+    expect(body).toContain('color: var(--action-attention)')
   })
 
   it('always shows two decimal places, so 0.6 and 0.60 do not read differently', () => {

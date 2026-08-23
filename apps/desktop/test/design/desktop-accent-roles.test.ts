@@ -21,7 +21,7 @@ describe('design/desktop-accent-roles', () => {
     expect(rule('.bar-fill')?.body).toContain('background: var(--data-3)')
 
     for (const selector of ['.sparkline-bar', '.bar-fill']) {
-      expect(rule(selector)?.body).not.toContain('var(--ac)')
+      expect(rule(selector)?.body).not.toContain('var(--action-attention)')
       expect(rule(selector)?.body).not.toContain('var(--ac2)')
     }
   })

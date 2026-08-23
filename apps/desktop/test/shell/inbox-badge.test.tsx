@@ -31,13 +31,13 @@ describe("shell/inbox-badge", () => {
     expect(body).toContain("right: 9px");
     expect(body).toContain("min-width: 15px");
     expect(body).toContain("height: 15px");
-    expect(body).toContain("background: var(--ac)");
+    expect(body).toContain("background: var(--action-attention)");
   });
 
   it("inks the numeral in the app ground and carries the one 700 weight", () => {
     const body = rule(".rail-badge")!.body;
     expect(body).toContain("color: var(--ac-ink)");
-    expect(read("styles/tokens.css")).toContain("--ac-ink: var(--bg)");
+    expect(read("styles/tokens.css")).toContain("--ac-ink: var(--surface-ground)");
     expect(body).toContain("font-weight: 700");
   });
 });

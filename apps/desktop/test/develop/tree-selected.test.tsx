@@ -17,7 +17,7 @@ describe('develop/tree-selected', () => {
   it('paints it --sf2 at radius 5', () => {
     const css = rules(read('screens/screens.css'))
     expect(css.find((r) => r.selector === ".dev-tree-row[aria-selected='true']")!.body).toContain(
-      'background: var(--sf2)',
+      'background: var(--surface-selected)',
     )
     expect(css.find((r) => r.selector === '.dev-tree-row')!.body).toContain(
       'border-radius: var(--r-sm)',
@@ -32,12 +32,12 @@ describe('develop/tree-selected', () => {
     expect(badge.className).toContain('dev-status-M')
     expect(
       rules(read('screens/screens.css')).find((r) => r.selector === '.dev-status-M')!.body,
-    ).toContain('color: var(--ac)')
+    ).toContain('color: var(--action-attention)')
   })
 
   it('gives A the --ok colour and ? the muted one', () => {
     const css = rules(read('screens/screens.css'))
-    expect(css.find((r) => r.selector === '.dev-status-A')!.body).toContain('color: var(--ok)')
-    expect(css.find((r) => r.selector === '.dev-status-unknown')!.body).toContain('color: var(--mu2)')
+    expect(css.find((r) => r.selector === '.dev-status-A')!.body).toContain('color: var(--status-success)')
+    expect(css.find((r) => r.selector === '.dev-status-unknown')!.body).toContain('color: var(--text-muted)')
   })
 })

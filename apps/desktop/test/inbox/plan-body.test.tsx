@@ -15,7 +15,7 @@ describe('inbox/plan-body', () => {
   it('labels a gate body PLAN, in accent uppercase', () => {
     const { getByTestId } = mount()
     expect(getByTestId('inbox-body-label').textContent).toBe('Plan')
-    expect(rule('.inbox-body-label')!.body).toContain('color: var(--ac)')
+    expect(rule('.inbox-body-label')!.body).toContain('color: var(--action-attention)')
     expect(rule('.inbox-body-label')!.body).toContain('text-transform: uppercase')
   })
 
@@ -44,7 +44,7 @@ describe('inbox/plan-body', () => {
     const callout = getByTestId('inbox-callout')
     expect(callout.querySelector('use')!.getAttribute('href')).toBe('#ph-info')
     expect(callout.textContent).toContain('kept out')
-    expect(rule('.inbox-callout')!.body).toContain('background: var(--sf)')
+    expect(rule('.inbox-callout')!.body).toContain('background: var(--surface-raised)')
   })
 
   it('shows no callout on an item that has none', () => {

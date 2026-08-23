@@ -33,10 +33,10 @@ describe('status/six-metrics', () => {
   })
 
   it('paints the accent card --sf2 with the accent ring, label and numeral', () => {
-    expect(rule('.metric-card-attention')!.body).toContain('background: var(--sf2)')
+    expect(rule('.metric-card-attention')!.body).toContain('background: var(--surface-selected)')
     expect(rule('.metric-card-attention')!.body).toContain('box-shadow: var(--ring-sel)')
     const accented = rule('.metric-card-attention .metric-label,\n.metric-card-attention .metric-numeral')!
-    expect(accented.body).toContain('color: var(--ac)')
+    expect(accented.body).toContain('color: var(--action-attention)')
   })
 
   it('carries "oldest 26m" on it — the age is what makes it urgent', () => {

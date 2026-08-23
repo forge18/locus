@@ -21,7 +21,7 @@ describe('inbox/needs-you-header', () => {
     const rule = rules(read('screens/screens.css')).find(
       (r) => r.selector === '.inbox-section-title',
     )!
-    expect(rule.body).toContain('color: var(--ac)')
+    expect(rule.body).toContain('color: var(--action-attention)')
   })
 
   it('counts the items that are actually there', () => {

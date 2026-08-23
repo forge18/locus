@@ -51,8 +51,8 @@ describe('develop/git-rows', () => {
     const row = getByTestId('git-row-crates/locus-core/src/store/notify.rs')
     expect(row.querySelector('.git-added')!.textContent).toBe('+9')
     expect(row.querySelector('.git-removed')!.textContent).toBe('−2')
-    expect(rule('.git-added').body).toContain('color: var(--ok)')
-    expect(rule('.git-removed').body).toContain('color: var(--bad)')
+    expect(rule('.git-added').body).toContain('color: var(--status-success)')
+    expect(rule('.git-removed').body).toContain('color: var(--status-danger)')
   })
 
   it('shows no count where there is none — an untracked file has no diff yet', () => {

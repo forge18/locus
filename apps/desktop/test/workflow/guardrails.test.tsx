@@ -40,7 +40,7 @@ describe('workflow/guardrails', () => {
     )
     expect(
       rules(read('screens/screens.css')).find((r) => r.selector === ".toggle[data-on='true']")!.body,
-    ).toContain('inset 0 0 0 1px var(--ac)')
+    ).toContain('inset 0 0 0 1px var(--action-attention)')
   })
 
   it('shows idle at 60s, and wall-clock and budget as none', () => {

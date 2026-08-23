@@ -12,8 +12,8 @@ describe('wiki/article-header', () => {
   it('tags the kind in accent', () => {
     const { getByTestId } = mount()
     expect(getByTestId('wiki-article-kind').textContent).toBe('decision')
-    expect(rule('.wiki-kind').body).toContain('color: var(--ac)')
-    expect(rule('.wiki-kind').body).toContain('background: var(--ac-wash)')
+    expect(rule('.wiki-kind').body).toContain('color: var(--action-attention)')
+    expect(rule('.wiki-kind').body).toContain('background: var(--action-attention-wash)')
   })
 
   it('sets the title at 19px/500', () => {

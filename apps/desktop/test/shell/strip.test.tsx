@@ -11,8 +11,8 @@ describe("shell/strip", () => {
   it("is a footer on the deep ground with a top hairline", () => {
     const body = rule(".strip")!.body;
     expect(body).toContain("height: 54px");
-    expect(body).toContain("background: var(--bg-deep)");
-    expect(body).toContain("border-top: 1px solid var(--line)");
+    expect(body).toContain("background: var(--surface-chrome)");
+    expect(body).toContain("border-top: 1px solid var(--border-subtle)");
   });
 
   it("carries the vertical STRIP label", () => {

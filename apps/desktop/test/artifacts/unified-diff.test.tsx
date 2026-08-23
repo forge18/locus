@@ -19,7 +19,7 @@ describe('artifacts/unified-diff', () => {
   it('dims the @@ headers', () => {
     const { getByTestId } = mount()
     expect(getByTestId('udiff-hunk--18,7').textContent).toContain('@@ -18,7 +18,9 @@')
-    expect(rule('.udiff-hunk').body).toContain('color: var(--mu2)')
+    expect(rule('.udiff-hunk').body).toContain('color: var(--text-muted)')
   })
 
   it('gives the gutter 26px, right-aligned', () => {

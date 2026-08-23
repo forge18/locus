@@ -38,6 +38,6 @@ describe('agentdefs/header', () => {
   it('sits under a bottom hairline', () => {
     expect(
       rules(read('screens/screens.css')).find((r) => r.selector === '.agentdefs-head')!.body,
-    ).toContain('border-bottom: 1px solid var(--line)')
+    ).toContain('border-bottom: 1px solid var(--border-subtle)')
   })
 })

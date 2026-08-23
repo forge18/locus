@@ -32,7 +32,7 @@ describe('agents/status-bar', () => {
       (r) => r.selector === '.session-status-bar',
     )!.body
     expect(body).toContain('font-family: var(--fm)')
-    expect(body).toContain('background: var(--bg-deep)')
+    expect(body).toContain('background: var(--surface-chrome)')
   })
 
   it('sits at the very foot, below any conditional footer', () => {

@@ -28,7 +28,7 @@ describe('develop/tree-footer', () => {
     expect([...tree.children].indexOf(foot)).toBe(2)
     expect(
       rules(read('screens/screens.css')).find((r) => r.selector === '.dev-tree-foot')!.body,
-    ).toContain('border-top: 1px solid var(--line)')
+    ).toContain('border-top: 1px solid var(--border-subtle)')
   })
 
   it('says "your own", which is the distinction that matters', () => {

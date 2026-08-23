@@ -47,7 +47,7 @@ describe('develop/git-branch-block', () => {
     const { getByTestId } = mount()
     expect(
       getByTestId('git-branch-block').querySelector('svg')!.getAttribute('style'),
-    ).toContain('var(--ac)')
+    ).toContain('var(--action-attention)')
   })
 
   it('sits under the header, above the sections', () => {

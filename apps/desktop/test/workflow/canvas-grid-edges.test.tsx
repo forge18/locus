@@ -11,7 +11,7 @@ describe('workflow/canvas-grid-edges', () => {
   it('draws a 24px dot grid', () => {
     const body = rule('.wf-canvas').body
     expect(body).toContain('background-size: 24px 24px')
-    expect(body).toContain('radial-gradient(var(--line) 1px, transparent 1px)')
+    expect(body).toContain('radial-gradient(var(--border-subtle) 1px, transparent 1px)')
   })
 
   it('has an SVG edge layer over the grid', () => {
@@ -42,6 +42,6 @@ describe('workflow/canvas-grid-edges', () => {
   })
 
   it('hairlines the edges from the shared token', () => {
-    expect(rule('.graph-edge').body).toContain('stroke: var(--line2)')
+    expect(rule('.graph-edge').body).toContain('stroke: var(--border-strong)')
   })
 })

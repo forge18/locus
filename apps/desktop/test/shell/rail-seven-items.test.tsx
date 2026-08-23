@@ -13,8 +13,8 @@ describe("shell/rail-seven-items", () => {
   it("flexes around 78px on the deep ground, with a right hairline", () => {
     const body = rule(".rail")!.body;
     expect(body).toContain("width: clamp(68px, 6vw, 92px)");
-    expect(body).toContain("background: var(--bg-deep)");
-    expect(body).toContain("border-right: 1px solid var(--line)");
+    expect(body).toContain("background: var(--surface-chrome)");
+    expect(body).toContain("border-right: 1px solid var(--border-subtle)");
     expect(body).toContain("padding: 8px var(--g-3)");
     expect(body).toContain("gap: var(--g-1)");
   });

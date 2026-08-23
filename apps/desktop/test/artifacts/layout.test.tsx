@@ -26,8 +26,8 @@ describe('artifacts/layout', () => {
   })
 
   it('hairlines both seams', () => {
-    expect(rule('.artifact-list').body).toContain('border-right: 1px solid var(--line)')
-    expect(rule('.comment-rail').body).toContain('border-left: 1px solid var(--line)')
+    expect(rule('.artifact-list').body).toContain('border-right: 1px solid var(--border-subtle)')
+    expect(rule('.comment-rail').body).toContain('border-left: 1px solid var(--border-subtle)')
   })
 
   it('scrolls the diff and the thread on their own', () => {

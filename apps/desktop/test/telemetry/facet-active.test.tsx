@@ -16,13 +16,13 @@ describe('telemetry/facet-active', () => {
 
   it('gives it the accent tint and an accent inset ring', () => {
     const body = rule(".facet[aria-pressed='true']").body
-    expect(body).toContain('background: var(--ac-wash)')
+    expect(body).toContain('background: var(--action-attention-wash)')
     expect(body).toContain('box-shadow: var(--ring-sel-soft)')
-    expect(body).toContain('color: var(--ac)')
+    expect(body).toContain('color: var(--action-attention)')
   })
 
   it('accents its count too', () => {
-    expect(rule(".facet[aria-pressed='true'] .facet-count").body).toContain('color: var(--ac)')
+    expect(rule(".facet[aria-pressed='true'] .facet-count").body).toContain('color: var(--action-attention)')
   })
 
   it('has exactly one active facet in the fixture, matching the filter chip', () => {
@@ -33,6 +33,6 @@ describe('telemetry/facet-active', () => {
 
   it('never uses an outer glow to say active — the ring token is inset', () => {
     expect(rule(".facet[aria-pressed='true']").body).toContain('box-shadow: var(--ring-sel-soft)')
-    expect(read('styles/tokens.css')).toContain('--ring-sel-soft: inset 0 0 0 1px var(--ac-ring)')
+    expect(read('styles/tokens.css')).toContain('--ring-sel-soft: inset 0 0 0 1px var(--action-attention-ring)')
   })
 })

@@ -10,7 +10,7 @@ describe('artifacts/commented-line', () => {
   it('marks the commented line with the accent left inset', () => {
     expect(
       rules(read('screens/screens.css')).find((r) => r.selector === '.udiff-commented')!.body,
-    ).toContain('box-shadow: inset 3px 0 0 var(--ac)')
+    ).toContain('box-shadow: inset 3px 0 0 var(--action-attention)')
   })
 
   it('marks exactly the line the comment hangs off', () => {

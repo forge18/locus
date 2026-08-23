@@ -16,7 +16,7 @@ describe('kanban/approval-accent', () => {
       rules(read('screens/screens.css')).find(
         (r) => r.selector === '.kanban-column-head-approval',
       )!.body,
-    ).toContain('color: var(--ac)')
+    ).toContain('color: var(--action-attention)')
   })
 
   it('accents that head and no other', () => {

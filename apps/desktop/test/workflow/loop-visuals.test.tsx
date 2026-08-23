@@ -18,8 +18,8 @@ describe('workflow/loop-visuals', () => {
       ).toBe(edge.label)
     }
     const body = rule('.wf-edge-label').body
-    expect(body).toContain('background: var(--bg)')
-    expect(body).toContain('border: 1px solid var(--line2)')
+    expect(body).toContain('background: var(--surface-ground)')
+    expect(body).toContain('border: 1px solid var(--border-strong)')
   })
 
   it('dashes the loop-back edge, and only it', () => {
@@ -43,7 +43,7 @@ describe('workflow/loop-visuals', () => {
     expect(group.style.left).toBe(`${LOOP_GROUP.x}px`)
     expect(group.style.width).toBe(`${LOOP_GROUP.width}px`)
     const body = rule('.wf-loop-group').body
-    expect(body).toContain('border: 1px dashed var(--line2)')
+    expect(body).toContain('border: 1px dashed var(--border-strong)')
     expect(body).toContain('border-radius: var(--r-lg)')
   })
 

@@ -25,15 +25,15 @@ describe('artifacts/comments', () => {
     const { getByTestId } = mount()
     expect(getByTestId('comment-c-1').getAttribute('data-author')).toBe('you')
     expect(getByTestId('comment-c-1').className).not.toContain('comment-agent')
-    expect(rule('.comment').body).toContain('background: var(--sf)')
+    expect(rule('.comment').body).toContain('background: var(--surface-raised)')
   })
 
   it('grounds the agent reply on --sf2 with a --line2 ring', () => {
     const { getByTestId } = mount()
     expect(getByTestId('comment-c-2').className).toContain('comment-agent')
     const body = rule('.comment-agent').body
-    expect(body).toContain('background: var(--sf2)')
-    expect(body).toContain('inset 0 0 0 1px var(--line2)')
+    expect(body).toContain('background: var(--surface-selected)')
+    expect(body).toContain('inset 0 0 0 1px var(--border-strong)')
   })
 
   it('gives each a 16px mono-initial avatar', () => {

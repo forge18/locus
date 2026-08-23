@@ -14,8 +14,8 @@ const mount = () =>
 describe('inbox/footer', () => {
   it('sits on the deep ground under a top hairline', () => {
     const body = rule('.inbox-footer')!.body
-    expect(body).toContain('background: var(--bg-deep)')
-    expect(body).toContain('border-top: 1px solid var(--line)')
+    expect(body).toContain('background: var(--surface-chrome)')
+    expect(body).toContain('border-top: 1px solid var(--border-subtle)')
   })
 
   it('leads with the primary approve', () => {
@@ -42,7 +42,7 @@ describe('inbox/footer', () => {
 
   it('draws the primary as an accent line, not a fill', () => {
     const primary = rules(read('ui/ui.css')).find((r) => r.selector === '.btn-primary')!
-    expect(primary.body).toContain('border-color: var(--ac)')
+    expect(primary.body).toContain('border-color: var(--action-attention)')
     expect(primary.body).not.toMatch(/background/)
   })
 })

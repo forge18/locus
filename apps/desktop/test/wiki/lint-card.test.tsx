@@ -42,6 +42,6 @@ describe('wiki/lint-card', () => {
     expect(clean.className).toContain('lint-clean')
     expect(
       rules(read('screens/screens.css')).find((r) => r.selector === '.lint-clean')!.body,
-    ).toContain('color: var(--ok)')
+    ).toContain('color: var(--status-success)')
   })
 })

@@ -37,6 +37,6 @@ describe('artifacts/comment-actions', () => {
     expect([...rail.children].indexOf(foot)).toBe(2)
     expect(
       rules(read('screens/screens.css')).find((r) => r.selector === '.comment-foot')!.body,
-    ).toContain('border-top: 1px solid var(--line)')
+    ).toContain('border-top: 1px solid var(--border-subtle)')
   })
 })

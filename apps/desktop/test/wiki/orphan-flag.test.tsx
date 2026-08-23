@@ -19,7 +19,7 @@ describe('wiki/orphan-flag', () => {
   it('sets the flag in --bad', () => {
     expect(
       rules(read('screens/screens.css')).find((r) => r.selector === '.wiki-orphan')!.body,
-    ).toContain('color: var(--bad)')
+    ).toContain('color: var(--status-danger)')
   })
 
   it('flags nothing that is linked to', () => {

@@ -23,8 +23,8 @@ describe('inline-error', () => {
 
   it('renders in --bad, on the surface that failed', () => {
     const el = mount().getByTestId('inline-error') as HTMLElement
-    expect(el.style.color).toBe('var(--bad)')
-    expect(el.style.boxShadow).toContain('var(--bad)')
+    expect(el.style.color).toBe('var(--status-danger)')
+    expect(el.style.boxShadow).toContain('var(--status-danger)')
   })
 
   it('announces itself where it sits, rather than as a toast', () => {

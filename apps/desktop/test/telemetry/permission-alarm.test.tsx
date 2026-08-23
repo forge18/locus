@@ -35,8 +35,8 @@ describe('telemetry/permission-alarm', () => {
     const body = rules(read('screens/screens.css')).find(
       (r) => r.selector === '.alarm-callout',
     )!.body
-    expect(body).toContain('inset 0 0 0 1px var(--bad)')
-    expect(body).toContain('color-mix(in srgb, var(--bad) 8%, var(--sf))')
+    expect(body).toContain('inset 0 0 0 1px var(--status-danger)')
+    expect(body).toContain('color-mix(in srgb, var(--status-danger) 8%, var(--surface-raised))')
   })
 
   it('is the only verb carrying one', () => {

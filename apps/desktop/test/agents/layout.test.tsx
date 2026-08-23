@@ -28,7 +28,7 @@ describe('agents/layout', () => {
   it('hairlines the seam', () => {
     expect(
       rules(read('screens/screens.css')).find((r) => r.selector === '.session-list')!.body,
-    ).toContain('border-right: 1px solid var(--line)')
+    ).toContain('border-right: 1px solid var(--border-subtle)')
   })
 
   it('is resizable, because the drawn width is a default', () => {

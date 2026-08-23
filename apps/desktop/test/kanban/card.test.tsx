@@ -23,7 +23,7 @@ describe('kanban/card', () => {
     expect(card.textContent).toContain('tapestry-app')
     expect(
       rules(read('screens/screens.css')).find((r) => r.selector === '.task-card-project')!.body,
-    ).toContain('color: var(--ac)')
+    ).toContain('color: var(--action-attention)')
   })
 
   it('shows the verify command in mono — it is what decides done', () => {
@@ -47,7 +47,7 @@ describe('kanban/card', () => {
       (r) => r.selector === '.task-card-meta',
     )!.body
     expect(body).toContain('font-size: var(--t-meta)')
-    expect(body).toContain('color: var(--mu2)')
+    expect(body).toContain('color: var(--text-muted)')
   })
 
   it('omits the assignee line where there is none', () => {

@@ -31,7 +31,7 @@ describe('wiki/graph', () => {
     const { getByTestId } = mount()
     const centre = getByTestId('graph-node-w-clone').querySelector('circle')!
     expect(centre.getAttribute('r')).toBe('7')
-    expect(centre.getAttribute('fill')).toBe('var(--ac)')
+    expect(centre.getAttribute('fill')).toBe('var(--action-attention)')
     expect(getByTestId('graph-node-w-clone').getAttribute('data-focal')).toBe('true')
   })
 
@@ -40,13 +40,13 @@ describe('wiki/graph', () => {
     const fills = graph.nodes
       .filter((n) => !n.center)
       .map((n) => getByTestId(`graph-node-${n.id}`).querySelector('circle')!.getAttribute('fill'))
-    expect(new Set(fills)).toEqual(new Set(['var(--blue-lit)', 'var(--sf3)']))
+    expect(new Set(fills)).toEqual(new Set(['var(--avatar-ground-lit)', 'var(--surface-elevated)']))
   })
 
   it('hairlines the edges', () => {
     expect(
       rules(read('screens/screens.css')).find((r) => r.selector === '.graph-edge')!.body,
-    ).toContain('stroke: var(--line2)')
+    ).toContain('stroke: var(--border-strong)')
   })
 
   it('captions what the graph is', () => {

@@ -27,7 +27,7 @@ describe('telemetry/actions', () => {
 
   it('fills the track from the data ramp, and in --bad where the verb is a problem', () => {
     expect(rule('.bar-fill').body).toContain('background: var(--data-3)')
-    expect(rule('.bar-fill-bad').body).toContain('background: var(--bad)')
+    expect(rule('.bar-fill-bad').body).toContain('background: var(--status-danger)')
     const { getByTestId } = mount()
     expect(getByTestId('action-tool_error').querySelector('.bar-fill')!.className).toContain(
       'bar-fill-bad',

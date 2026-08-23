@@ -39,6 +39,6 @@ describe('agents/list-footer', () => {
     expect(list.children[2]).toBe(getByTestId('session-list-foot'))
     expect(
       rules(read('screens/screens.css')).find((r) => r.selector === '.session-list-foot')!.body,
-    ).toContain('border-top: 1px solid var(--line)')
+    ).toContain('border-top: 1px solid var(--border-subtle)')
   })
 })

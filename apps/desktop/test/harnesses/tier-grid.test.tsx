@@ -44,7 +44,7 @@ describe('harnesses/tier-grid', () => {
     expect(
       rules(read('screens/screens.css')).find((r) => r.selector === '.hn-tier-high .hn-tier-value')!
         .body,
-    ).toContain('color: var(--ac)')
+    ).toContain('color: var(--action-attention)')
   })
 
   it('reads the mapping from settings, which is policy rather than mechanism', () => {

@@ -17,7 +17,7 @@ describe('telemetry/search', () => {
   it('blinks an accent caret after it', () => {
     const { getByTestId } = mount()
     expect(getByTestId('tm-caret').className).toContain('blink')
-    expect(rule('.tm-caret').body).toContain('background: var(--ac)')
+    expect(rule('.tm-caret').body).toContain('background: var(--action-attention)')
   })
 
   it('says what is being searched, and how', () => {
@@ -35,6 +35,6 @@ describe('telemetry/search', () => {
   })
 
   it('grounds the bar on --sf', () => {
-    expect(rule('.tm-search').body).toContain('background: var(--sf)')
+    expect(rule('.tm-search').body).toContain('background: var(--surface-raised)')
   })
 })

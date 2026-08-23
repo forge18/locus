@@ -31,7 +31,7 @@ describe('screens/desktop-dashboard', () => {
     expect(getByTestId('desktop-model-scorecard').querySelectorAll('tbody tr').length).toBe(4)
     expect(getByTestId('desktop-dashboard-counters').querySelectorAll('[data-dashboard-counter]').length).toBe(4)
     expect(rule('.desktop-magnitude-fill')?.body).toContain('var(--data-')
-    expect(rule('.desktop-magnitude-fill')?.body).not.toContain('var(--ac)')
+    expect(rule('.desktop-magnitude-fill')?.body).not.toContain('var(--action-attention)')
     expect(rule('.desktop-magnitude-fill')?.body).not.toContain('var(--ac2)')
   })
 })

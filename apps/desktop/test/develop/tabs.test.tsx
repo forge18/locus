@@ -11,8 +11,8 @@ describe('develop/tabs', () => {
   it('is 30px on the deep ground', () => {
     const body = rule('.dev-tabs').body
     expect(body).toContain('height: 30px')
-    expect(body).toContain('background: var(--bg-deep)')
-    expect(body).toContain('border-bottom: 1px solid var(--line)')
+    expect(body).toContain('background: var(--surface-chrome)')
+    expect(body).toContain('border-bottom: 1px solid var(--border-subtle)')
   })
 
   it('renders one tab per open file', () => {
@@ -24,8 +24,8 @@ describe('develop/tabs', () => {
     const { getByTestId } = mount()
     expect(getByTestId('dev-tab-notify.rs').getAttribute('aria-selected')).toBe('true')
     const body = rule(".dev-tab[aria-selected='true']").body
-    expect(body).toContain('background: var(--bg)')
-    expect(body).toContain('box-shadow: inset 0 2px 0 var(--ac)')
+    expect(body).toContain('background: var(--surface-ground)')
+    expect(body).toContain('box-shadow: inset 0 2px 0 var(--action-attention)')
   })
 
   it('gives the active tab a close control, and only it', () => {

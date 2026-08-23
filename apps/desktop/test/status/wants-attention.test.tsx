@@ -21,7 +21,7 @@ describe('status/wants-attention', () => {
     const row = getByTestId('attention-stuck')
     expect(row.className).toContain('attention-row-stuck')
     expect(row.querySelector('use')!.getAttribute('href')).toBe('#ph-warning-octagon-fill')
-    expect(rule('.attention-row-stuck')!.body).toContain('inset 0 0 0 1px var(--bad)')
+    expect(rule('.attention-row-stuck')!.body).toContain('inset 0 0 0 1px var(--status-danger)')
   })
 
   it('gives idle the moon', () => {
@@ -40,7 +40,7 @@ describe('status/wants-attention', () => {
     const { getByTestId } = mount()
     const action = getByTestId('attention-stuck-action')
     expect(action.textContent).toBe('Reassign')
-    expect(rule('.attention-action')!.body).toContain('color: var(--ac)')
+    expect(rule('.attention-action')!.body).toContain('color: var(--action-attention)')
   })
 
   it('offers no action on idle or waiting — neither needs a person yet', () => {

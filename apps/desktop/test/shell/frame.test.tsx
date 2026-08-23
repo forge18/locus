@@ -26,7 +26,7 @@ describe("shell/frame", () => {
   it("is a column flex on --bg", () => {
     const win = rule(".window")!.body;
     expect(win).toContain("flex-direction: column");
-    expect(win).toContain("background: var(--bg)");
+    expect(win).toContain("background: var(--surface-ground)");
   });
 
   it("renders the desktop title bar and project-scoped rail", () => {

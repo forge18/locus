@@ -18,7 +18,7 @@ describe('inbox/layout', () => {
     const body = rule('.inbox-list')!.body
     expect(body).toContain('width: clamp(300px, 30%, 440px)')
     expect(body).toContain('flex: none')
-    expect(body).toContain('border-right: 1px solid var(--line)')
+    expect(body).toContain('border-right: 1px solid var(--border-subtle)')
   })
 
   it('lets the detail pane take the rest', () => {
