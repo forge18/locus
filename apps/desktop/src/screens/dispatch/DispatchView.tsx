@@ -157,7 +157,7 @@ function SchedulesView() {
         <section class="dispatch-section schedule-intro">
           <h1>Schedules</h1>
           <p>A cron expression fires a workflow. <strong>locusd outlives the window</strong> — a schedule that only fires while the app happens to be open is not a schedule.</p>
-          <div class="schedule-create"><strong>0 2 * * *</strong><span>every day at 02:00 · America/Chicago</span><small id="schedule-overlap-note" data-testid="schedule-overlap-note">Overlap is skipped, never queued. A job that runs longer than its own interval does not build a backlog.</small></div>
+          <div class="schedule-create"><strong>0 2 * * *</strong><span>every day at 02:00 · America/Chicago</span><span data-testid="schedule-outcome"><small id="schedule-overlap-note" data-testid="schedule-overlap-note">Overlap is skipped, never queued. A job that runs longer than its own interval does not build a backlog.</small></span></div>
         </section>
         <aside class="schedule-warning"><strong>Nightly wiki reconcile has skipped 11 of its last 14 firings</strong><span>Overlap is visible so a schedule that stops running is not silent.</span></aside>
         <section class="schedule-cards" data-testid="schedule-cards">
