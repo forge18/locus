@@ -16,6 +16,16 @@ use crate::{
     store::Store,
 };
 
+/// Per-project durable autorun posture.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AutorunState(bool);
+
+impl AutorunState {
+    pub fn enabled() -> Self { Self(true) }
+    pub fn disabled() -> Self { Self(false) }
+    pub fn is_enabled(self) -> bool { self.0 }
+}
+
 /// The configured ordering for queued runs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
