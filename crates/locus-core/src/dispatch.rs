@@ -98,6 +98,13 @@ impl DispatchPolicy {
         Ok(policy)
     }
 
+    /// Build a policy with the supplied queue ranking and the fixed longest-waiting tie break.
+    pub fn with_priority(priority_method: PriorityMethod) -> Result<Self> {
+        let policy = Self { priority_method, ..Self::default() };
+        policy.validate()?;
+        Ok(policy)
+    }
+
     fn validate(self) -> Result<()> {
         if self.global_parallelism == 0 {
             bail!("global parallelism must be greater than zero")
