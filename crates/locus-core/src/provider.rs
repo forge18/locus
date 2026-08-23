@@ -342,11 +342,11 @@ where
     ///
     /// Keychain and egress errors intentionally omit their underlying detail: either source may
     /// include the credential, and errors are observable outside this boundary.
-    pub fn with_secret<T>(
+    pub fn with_host_egress(
         &self,
         provider: &ProviderReference,
-        egress: impl FnOnce(&str) -> Result<T>,
-    ) -> Result<T> {
+        egress: impl FnOnce(&str) -> Result<()>,
+    ) -> Result<()> {
         let secret = self
             .keychain
             .read_secret(&provider.keychain_reference)
@@ -536,14 +536,12 @@ async fn never_persists_secret() {
 
     let broker = ProviderBroker::new(TestKeychain);
     let egress_error = broker
-        .with_secret::<()>(&provider, |secret| {
-            anyhow::bail!("upstream rejected {secret}")
-        })
+        .with_host_egress(&provider, |secret| anyhow::bail!("upstream rejected {secret}"))
         .unwrap_err();
     assert!(!egress_error.to_string().contains(SECRET));
 
     let keychain_error = ProviderBroker::new(LeakyKeychain)
-        .with_secret::<()>(&provider, |_| Ok(()))
+        .with_host_egress(&provider, |_| Ok(()))
         .unwrap_err();
     assert!(!keychain_error.to_string().contains(SECRET));
 }
