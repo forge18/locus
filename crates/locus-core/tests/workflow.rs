@@ -2,6 +2,14 @@ mod workflow {
     use locus_core::workflow::{Guardrail, SuccessCriterion, SuccessCriterionKind, WorkflowGovernance};
 
     #[test]
+    fn governance_compiles() {
+        let governance = WorkflowGovernance { version: 1, goal: "Ship".into(), guardrails: vec![], success_criteria: vec![] };
+        let compiled = locus_core::workflow::compile_governance(serde_json::json!({"nodes": []}), governance.clone());
+        assert_eq!(compiled.governance, governance);
+        assert_eq!(compiled.graph["nodes"], serde_json::json!([]));
+    }
+
+    #[test]
     fn success_criteria() {
         let criterion = SuccessCriterion { kind: SuccessCriterionKind::Command, checker: "cargo test".into() };
         assert_eq!(criterion.kind, SuccessCriterionKind::Command);
