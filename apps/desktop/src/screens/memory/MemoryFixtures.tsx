@@ -67,9 +67,9 @@ function FactList() {
   )
 }
 
-function MemoryFrame(props: { testId: string; route: string; contextLayers?: string; compaction?: string; contextBudget?: string; factFixture?: string; factState?: string; children: JSX.Element }) {
+function MemoryFrame(props: { testId: string; route: string; contextLayers?: string; compaction?: string; contextBudget?: string; factFixture?: string; factState?: string; artifactGroups?: string; children: JSX.Element }) {
   return (
-    <main class="v2-memory" data-testid={props.testId} data-v2-route={props.route} data-context-layers={props.contextLayers} data-compaction={props.compaction} data-context-budget={props.contextBudget} data-fact-fixture={props.factFixture} data-fact-state={props.factState}>
+    <main class="v2-memory" data-testid={props.testId} data-v2-route={props.route} data-context-layers={props.contextLayers} data-compaction={props.compaction} data-context-budget={props.contextBudget} data-fact-fixture={props.factFixture} data-fact-state={props.factState} data-artifact-groups={props.artifactGroups}>
       {props.children}
     </main>
   )
@@ -222,7 +222,7 @@ export function MemoryLongTermFixture() {
 /** Reviewable artifacts retain their source while comments steer their session. */
 export function MemoryArtifactsFixture() {
   return (
-    <MemoryFrame testId="v2-memory-artifacts" route="memory-artifacts">
+    <MemoryFrame testId="v2-memory-artifacts" route="memory-artifacts" artifactGroups="review-reference">
       <aside class="v2-memory-left">
         <Label>Review artifacts</Label>
         <div class="v2-memory-list">
