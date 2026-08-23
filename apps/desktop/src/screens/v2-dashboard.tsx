@@ -74,7 +74,7 @@ export function V2InboxView() {
 /** Global aggregate fixture; it deliberately ignores the selected-project scope. */
 export function V2DashboardView() {
   return (
-    <div class="v2-dashboard" data-testid="v2-dashboard">
+    <div class="v2-dashboard" data-testid="v2-dashboard" data-v2-route="dashboard">
       <header class="v2-dashboard-head"><h1>All projects</h1><p>5 projects · the one surface that ignores the project selector</p><div data-testid="v2-dashboard-range"><button type="button">7d</button><button aria-current="page" type="button">14d</button><button type="button">30d</button></div></header>
       <div class="v2-dashboard-summary">
         <section class="v2-panel"><h2>Spend today</h2><p class="v2-summary-value">$68.40 <span>of $240 across all projects</span></p><div class="v2-spend-bar"><i class="v2-magnitude-fill v2-data-hi" /><i class="v2-magnitude-fill v2-data-3" /><i class="v2-magnitude-fill v2-data-2" /><i class="v2-magnitude-fill v2-data-1" /></div><p class="v2-legend">opus-4.6 $40.30 · gpt-5.2-pro $12.80 · gemini-3-ultra $7.40 · composer-2 $7.90</p></section>
