@@ -43,10 +43,11 @@ a:hover{color:#ffd27a}
 </style>
 </helmet>
 
-<div style="display:flex;height:100vh;background:var(--bg);color:var(--tx);font:400 15px Inter,system-ui,sans-serif;overflow:hidden">
+<div style="display:flex;width:100%;min-width:0;height:100%;background:var(--bg);color:var(--tx);font:400 15px Inter,system-ui,sans-serif;overflow:hidden">
 
   <div style="flex:1;min-width:0;display:flex;flex-direction:column;position:relative">
 
+    <sc-if value="{{ showHeader }}" hint-placeholder-val="{{ true }}">
     <div style="flex:none;height:44px;display:flex;align-items:center;gap:9px;padding:0 11px;background:rgba(0,0,0,.3);border-bottom:1px solid var(--line);position:relative;z-index:40;min-width:0">
       <span style="flex:0 1 auto;min-width:0;font-family:var(--fm);font-size:13px;color:var(--ac2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">#tapestry</span>
       <span style="flex:none;width:1px;height:18px;background:var(--line)"></span>
@@ -68,7 +69,7 @@ a:hover{color:#ffd27a}
         <sc-if value="{{ costOn }}">
           <span style="display:inline-flex;align-items:center;gap:6px;font-family:var(--fm);font-size:12px;color:var(--mu)"><span style="color:var(--tx)">38.4k</span>tok<span style="color:var(--line2)">·</span><span style="color:var(--tx)">$0.41</span></span>
         </sc-if>
-        <span onClick="{{ toggleResearch }}" style="{{ resBtn }}"><i class="ph ph-flask" style="font-size:14px"></i><span style="font-size:12.5px">Research</span><span style="{{ resCount }}">4</span></span>
+        <span onClick="{{ toggleResearch }}" style="{{ resBtn }}"><i class="{{ resIcon }}" style="font-size:14px"></i><span style="font-size:12.5px">{{ resLabel }}</span><span style="{{ resCount }}">4</span></span>
         <span onClick="{{ toggleMenu }}" style="{{ menuBtn }}"><i class="ph ph-dots-three-vertical" style="font-size:15px"></i></span>
       </div>
 
@@ -95,6 +96,7 @@ a:hover{color:#ffd27a}
       </div>
       </sc-if>
     </div>
+    </sc-if>
 
     <div style="flex:1;min-height:0;position:relative;display:flex;flex-direction:column">
     <span onClick="{{ jumpToAction }}" style="{{ livePill }}"><span style="{{ liveDotBig }}"></span>{{ liveLabel }}</span>
@@ -607,7 +609,7 @@ a:hover{color:#ffd27a}
 </div>
 
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1320,&quot;height&quot;:900},&quot;workflow&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;nightly-auth-sweep&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Run&quot;},&quot;permissionMode&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;gated&quot;,&quot;bypass&quot;],&quot;default&quot;:&quot;gated&quot;,&quot;tsType&quot;:&quot;'gated'|'bypass'&quot;,&quot;section&quot;:&quot;Run&quot;},&quot;permissionGate&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;pending&quot;,&quot;approved&quot;,&quot;declined&quot;],&quot;default&quot;:&quot;pending&quot;,&quot;tsType&quot;:&quot;'pending'|'approved'|'declined'&quot;,&quot;section&quot;:&quot;Run&quot;},&quot;elicitation&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;answered&quot;,&quot;pending&quot;],&quot;default&quot;:&quot;answered&quot;,&quot;tsType&quot;:&quot;'answered'|'pending'&quot;,&quot;section&quot;:&quot;Run&quot;},&quot;sessionState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;running&quot;,&quot;idle&quot;],&quot;default&quot;:&quot;running&quot;,&quot;tsType&quot;:&quot;'running'|'idle'&quot;,&quot;section&quot;:&quot;Run&quot;},&quot;taskLinked&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Run&quot;},&quot;thinkingDisplay&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;summary&quot;,&quot;full&quot;,&quot;hidden&quot;],&quot;default&quot;:&quot;summary&quot;,&quot;tsType&quot;:&quot;'summary'|'full'|'hidden'&quot;,&quot;section&quot;:&quot;Disclosure&quot;},&quot;showCost&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Disclosure&quot;},&quot;researchOpen&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Disclosure&quot;},&quot;planOpen&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Disclosure&quot;}}">
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1180,&quot;height&quot;:820},&quot;showHeader&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;},&quot;sessionName&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Reduce auth churn to one rotation path&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;taskLinked&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;},&quot;workflow&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Ralph loop v4&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;researchOpen&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;showCost&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;},&quot;planOpen&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;},&quot;elicitation&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;pending&quot;,&quot;answered&quot;],&quot;default&quot;:&quot;pending&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;permissionGate&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;pending&quot;,&quot;approved&quot;,&quot;denied&quot;],&quot;default&quot;:&quot;pending&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;onResearchToggle&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;(open: boolean) =&gt; void&quot;}}">
 class Component extends DCLogic {
   state = {
     mode: null, st: null, cost: null, research: null, plan: null, think: null,
@@ -735,7 +737,8 @@ class Component extends DCLogic {
         : [['     Running 4 tests', 'var(--mu)'], ['  ok  rotates_once · ttl_read_is_single_source · mfa_defers · token_defers', 'var(--ok)'], ['  Summary  4 passed in 0.38s', 'var(--mu)']];
 
     return {
-      sessionName: 'Reduce auth churn to one rotation path',
+      showHeader: this.props.showHeader ?? true,
+      sessionName: this.props.sessionName ?? 'Reduce auth churn to one rotation path',
       workflow: this.props.workflow ?? 'nightly-auth-sweep',
       hasWorkflow: !!(this.props.workflow ?? 'nightly-auth-sweep'),
       taskLinked: this.g('taskLinked', 'taskLinked', true),
@@ -788,13 +791,15 @@ class Component extends DCLogic {
         row: 'display:flex;align-items:center;gap:9px;padding:4px 6px;border-radius:5px'
       })),
 
-      resBtn: 'display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:6px;cursor:pointer;background:'
+      resBtn: (this.props.showResearch === false ? 'display:none' : 'display:inline-flex') + ';align-items:center;gap:6px;padding:3px 9px;border-radius:6px;cursor:pointer;background:'
         + (research ? 'var(--sf2)' : 'var(--sf)') + ';border:1px solid ' + (research ? 'var(--line2)' : 'var(--line)')
         + ';color:' + (research ? 'var(--tx)' : 'var(--mu)'),
-      resCount: 'min-width:16px;height:16px;display:grid;place-items:center;border-radius:8px;background:var(--sf3);'
+      resCount: research ? 'display:none' : 'min-width:16px;height:16px;display:grid;place-items:center;border-radius:8px;background:var(--sf3);'
         + 'font:400 10.5px "JetBrains Mono",monospace;color:var(--mu)',
+      resLabel: research ? 'Changes' : 'Research',
+      resIcon: research ? 'ph ph-git-diff' : 'ph ph-flask',
       researchOpen: research,
-      toggleResearch: () => this.set('research', !research),
+      toggleResearch: () => { this.set('research', !research); if (this.props.onResearchToggle) this.props.onResearchToggle(!research); },
 
       menuBtn: 'display:grid;place-items:center;width:26px;height:24px;border-radius:6px;cursor:pointer;color:var(--mu);background:'
         + (s.menu ? 'var(--sf2)' : 'transparent'),

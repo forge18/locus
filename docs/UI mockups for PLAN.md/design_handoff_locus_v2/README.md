@@ -1,4 +1,4 @@
-# Handoff: Locus desktop UI
+# Handoff: Locus desktop UI — v2
 
 ## Overview
 A single high-fidelity HTML mockup of the **Locus** desktop app — the multi-project, multi-agent
@@ -16,22 +16,22 @@ streams, Shell Panes = real PTY via xterm.js, one webview per window), `src/work
 
 **This supersedes `design_handoff_locus_desktop_ui/` (v1).** The v1 token table, type scale, shell
 anatomy and per-screen detail for Inbox, Develop, Automate, Telemetry, Runs, Artifacts and Wiki all
-still hold — read that README for those. This one documents what the desktop handoff adds and changes.
+still hold — read that README for those. This one documents what v2 adds and changes.
 
 ## About the design files
-`Locus desktop.dc.html` is a **design reference created in HTML**, not production code. Do not port its
+`Locus v2.dc.html` is a **design reference created in HTML**, not production code. Do not port its
 markup: recreate the screens as SolidJS components using the repo's patterns. The mockup's runtime
 (`support.js`, `<x-dc>`, `<sc-if>`, `<sc-for>`) is authoring scaffolding with no analogue in the app.
 Inline styles are an artifact of the authoring environment — express the values as CSS variables.
 
-`Locus desktop (standalone, offline).html` is the same mockup bundled into one self-contained file (fonts,
+`Locus v2 (standalone, offline).html` is the same mockup bundled into one self-contained file (fonts,
 icons and design system inlined). Open it in any browser, no server, no network.
 
 ## Fidelity
 **High-fidelity.** Final colors, type sizes, spacing, density and copy. Deliberately dense: a
 professional tool at ~1450×930. Do not loosen the spacing.
 
-## Design tokens (desktop palette)
+## Design tokens (v2 palette)
 Two accents, and they never do each other's job:
 
 | Token | Value | Role |
@@ -58,7 +58,7 @@ Window 1450×930, radius 11px. Title bar (42px): traffic lights, `LOCUS`, curren
 label, and a right-side **running-agent pill** (`8 running` with a pulsing `--ac2` dot, `1 needs you`
 in `--ac`) that opens a popover of every active session.
 
-**Rail (212px)** — the navigation model changed in the desktop handoff. It is project-scoped:
+**Rail (212px)** — the navigation model changed in v2. It is project-scoped:
 - Global, above the divider: **Inbox** (badge), **Dashboard**, **Projects**.
 - A **project card** (`--ac2` tinted, rounded) holding the current project switcher (`#tapestry`,
   type-to-filter menu with match highlighting) and the four project-scoped views: **Plan**,
@@ -72,7 +72,7 @@ in `--ac`) that opens a popover of every active session.
 autorun is armed somewhere; red when dispatch is fully stopped. It is the one always-visible
 answer to "is anything happening?".
 
-## What the desktop handoff adds
+## What v2 adds
 
 ### Providers (Workshop)
 New. Credentials and the short list of models actually used.
@@ -189,8 +189,8 @@ dispatch stopped, panel visibility. Real data comes over Tauri commands and even
 Read pixel values from the token tables, not off the images (they are scaled to fit the capture).
 
 ## Files
-- `Locus desktop.dc.html` — the mockup (all screens + shell).
-- `Locus desktop (standalone, offline).html` — same thing, self-contained.
+- `Locus v2.dc.html` — the mockup (all screens + shell).
+- `Locus v2 (standalone, offline).html` — same thing, self-contained.
 - `support.js` — the mockup's runtime. Included only so the HTML opens; not part of the design.
 - `_ds/nocturne-…/` — the Nocturne design system the mockup was built against (`styles.css`,
   bundle, guide). Map its `.btn` / `.tag` / `.card` / `.table` / `.input` / `.seg` classes to

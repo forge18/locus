@@ -31,12 +31,23 @@ impl PortAllocator {
     }
 }
 
+/// The agent-only network. Docker marks it `internal`, so it has no NAT route to the Internet.
+pub fn project_internal_network(project_id: &str) -> String {
+    format!("locus-{project_id}-internal")
+}
+
+/// The sidecar-only outward network. Agent containers are never attached to this network.
+pub fn project_egress_network(project_id: &str) -> String {
+    format!("locus-{project_id}-egress")
+}
+
+/// Compatibility name for the project network used by agents.
 pub fn project_network(project_id: &str) -> String {
-    format!("locus-{project_id}")
+    project_internal_network(project_id)
 }
 
 pub fn same_project_network(left: &str, right: &str) -> bool {
-    project_network(left) == project_network(right)
+    project_internal_network(left) == project_internal_network(right)
 }
 
 #[cfg(test)]
@@ -62,11 +73,22 @@ mod net {
 
     #[test]
     fn project_network() {
-        assert_eq!(super::project_network("project-a"), "locus-project-a");
+        assert_eq!(super::project_network("project-a"), "locus-project-a-internal");
+        assert_eq!(
+            super::project_egress_network("project-a"),
+            "locus-project-a-egress"
+        );
     }
 
     #[test]
     fn project_isolation() {
         assert!(!same_project_network("project-a", "project-b"));
+    }
+
+    #[test]
+    fn project_isolation_keeps_none_runs_off_the_egress_network() {
+        let agent_network = project_internal_network("project-a");
+        let sidecar_egress = project_egress_network("project-a");
+        assert_ne!(agent_network, sidecar_egress);
     }
 }

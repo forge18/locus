@@ -38,10 +38,12 @@ pub const LOCUS_SOCKET: &str = "/run/locus.sock";
 pub mod credential_proxy;
 pub mod docker;
 pub mod egress;
+pub mod forward_proxy;
 pub mod image;
 pub mod mounts;
 pub mod ports;
 pub mod services;
 pub mod workspace;
 
-pub use egress::{AuditSink, EgressTarget, EgressTier, OutboundAudit};
+pub use egress::{AuditSink, DestinationAllowlists, EgressTarget, EgressTier, OutboundAudit};
+pub use forward_proxy::{ForwardProxyLaunch, ForwardProxyPolicy};

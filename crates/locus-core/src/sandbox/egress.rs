@@ -53,6 +53,14 @@ impl DestinationAllowlists {
         }
     }
 
+    pub fn model_hosts(&self) -> impl Iterator<Item = &String> {
+        self.model.iter()
+    }
+
+    pub fn package_hosts(&self) -> impl Iterator<Item = &String> {
+        self.packages.iter()
+    }
+
     /// `Open` permits research destinations through the sidecar; it never grants a direct route.
     pub fn permits(&self, tier: EgressTier, target: EgressTarget, host: &str) -> bool {
         match tier {
