@@ -46,6 +46,7 @@ detectable** — the status *is* the evidence, replayed. The two gating rules be
 fold, so an agent cannot route around them by writing the table; there is no table to write.
 
 **Two gating rules, and no more:**
+
 - An agent cannot move a card to **Done** without evidence.
 - **Blocked** clears automatically and never manually — it is derived from `blocked_by`, so clearing it
   by hand would just be lying about a dependency.

@@ -4,6 +4,11 @@ name   = "opencode"
 binary = "opencode"
 detect = ["--version"]
 
+# opencode's plugin format is its own: an async function returning hook implementations,
+# loaded from the config `plugins/` directory. Note the PLURAL — `plugin` singular is the
+# opencode.json key that lists npm packages, and a file written there never loads.
+materializer = "opencode/materialize"
+
 [image]
 base     = "debian:bookworm-slim"
 version  = "unverified"
@@ -27,7 +32,7 @@ list_argv = ["models"]
 [layout]
 agents        = { via = "dir", dir = "/locus/config/agents", format = "markdown+frontmatter" }
 commands      = { via = "dir", dir = "/locus/config/command", format = "markdown+frontmatter" }
-hooks         = { via = "plugin", emits = "/locus/config/plugin/locus-hooks.ts", weaker_than_native = "tool lifecycle only; session-level events are core-driven from the container boundary" }
+hooks         = { via = "plugin", emits = "/locus/config/plugins/locus-hooks.ts", weaker_than_native = "tool lifecycle only; session-level events are core-driven from the container boundary" }
 linters       = { via = "dir", dir = "/locus/config/linters", format = "shell+markdown" }
 output-styles = { via = "listed-in", dir = "/locus/config/output-styles", target = "/locus/config/opencode.json", key = "instructions", active = "brief-bright-gone", weaker_than_native = "listed as an instruction; a native style REPLACES the prompt's communication section" }
 rules         = { via = "listed-in", dir = "/locus/config/rules", target = "/locus/config/opencode.json", key = "instructions", weaker_than_native = "everything in instructions loads every turn; path scoping is lost" }

@@ -1,6 +1,6 @@
 mod provider {
     use anyhow::Result;
-    use locus_core::provider::{
+    use locus_core::services::provider::{
         KeychainReference, KeyringKeychain, OsKeychain, ProviderBroker, ProviderReference,
     };
     use uuid::Uuid;
@@ -21,28 +21,36 @@ mod provider {
 
     #[test]
     fn model_aliases() {
-        let model = locus_core::provider::ProviderModel::new(Uuid::nil(), "gpt-5")
+        let model = locus_core::services::provider::ProviderModel::new(Uuid::nil(), "gpt-5")
             .expect("model")
-            .with_alias("Fast").expect("alias");
-        let selector = locus_core::provider::selector_projection(&[model]);
+            .with_alias("Fast")
+            .expect("alias");
+        let selector = locus_core::services::provider::selector_projection(&[model]);
         assert_eq!(selector[0].label, "Fast");
     }
 
     #[test]
     fn model_catalog() {
         let provider_id = Uuid::nil();
-        let model = locus_core::provider::ProviderModel::new(provider_id, "gpt-5").expect("model");
+        let model = locus_core::services::provider::ProviderModel::new(provider_id, "gpt-5")
+            .expect("model");
         assert_eq!(model.provider_id, provider_id);
         assert_eq!(model.model_id, "gpt-5");
     }
 
     #[test]
     fn verification_metadata() {
-        let metadata = locus_core::provider::ProviderVerificationMetadata::new(
-            "2026-08-23T00:00:00Z", 3, locus_core::provider::VerificationStatus::Failed,
-        ).expect("metadata");
+        let metadata = locus_core::services::provider::ProviderVerificationMetadata::new(
+            "2026-08-23T00:00:00Z",
+            3,
+            locus_core::services::provider::VerificationStatus::Failed,
+        )
+        .expect("metadata");
         assert_eq!(metadata.model_count, 3);
-        assert_eq!(metadata.status, locus_core::provider::VerificationStatus::Failed);
+        assert_eq!(
+            metadata.status,
+            locus_core::services::provider::VerificationStatus::Failed
+        );
     }
 
     #[test]
@@ -57,7 +65,11 @@ mod provider {
 
     #[test]
     fn connection_config() {
-        let config = locus_core::provider::ProviderConnectionConfig::new("oauth", Some("https://api.example.test".into())).expect("config");
+        let config = locus_core::services::provider::ProviderConnectionConfig::new(
+            "oauth",
+            Some("https://api.example.test".into()),
+        )
+        .expect("config");
         assert_eq!(config.authentication_method(), "oauth");
         assert_eq!(config.base_url(), Some("https://api.example.test"));
     }
@@ -67,10 +79,17 @@ mod provider {
         let directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations");
         let mut versions = std::collections::BTreeSet::new();
         for entry in std::fs::read_dir(directory).expect("migrations") {
-            let name = entry.expect("migration entry").file_name().into_string().expect("utf8 name");
+            let name = entry
+                .expect("migration entry")
+                .file_name()
+                .into_string()
+                .expect("utf8 name");
             if name.ends_with(".up.sql") {
                 let version = name.split('_').next().expect("version");
-                assert!(versions.insert(version.to_owned()), "duplicate migration version {version}");
+                assert!(
+                    versions.insert(version.to_owned()),
+                    "duplicate migration version {version}"
+                );
             }
         }
     }

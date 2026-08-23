@@ -1,40 +1,23 @@
 //! The Locus core: everything an agent can do, implemented once.
 //!
-//! Shared services live here rather than in any harness adapter, so memory, mail,
-//! and the rest behave identically no matter which harness a run uses. See PLAN.md
-//! §"Shared services — one Rust implementation, every harness".
+//! The module tree mirrors PLAN.md §Process topology rather than the order features were
+//! built, so where a thing lives says what it is:
+//!
+//! - [`harness`] — load `harnesses/*`, validate them, materialize a config tree per run
+//! - [`runtime`] — spawn, stream, normalize, persist, cancel; the session/run/turn model
+//! - [`sandbox`] — one container per run, and the credential boundary around it
+//! - [`store`] — Postgres, and the only place a query lives
+//! - [`services`] — shared services: memory, mail, board, wiki, telemetry, tools
+//!
+//! Shared services live here rather than in any harness adapter, so memory, mail, and the
+//! rest behave identically no matter which harness a run uses. See PLAN.md §"Shared
+//! services — one Rust implementation, every harness".
 
-pub mod acp;
-pub mod adapter;
-pub mod agents;
-pub mod artifact;
-pub mod ask;
-pub mod backup;
-pub mod board;
-pub mod bus;
-pub mod daemon;
-pub mod dispatch;
 pub mod harness;
-pub mod invoke;
 pub mod ipc;
-pub mod lint;
-pub mod mail;
-pub mod materialize;
-pub mod memory;
-pub mod models;
-pub mod planning;
-pub mod provider;
-pub mod project;
-pub mod registry;
-pub mod restore;
-pub mod routing;
-pub mod run;
+pub mod runtime;
 pub mod sandbox;
-pub mod session;
+pub mod services;
 pub mod smoke;
 pub mod store;
-pub mod telemetry;
 pub mod testkit;
-pub mod tools;
-pub mod wiki;
-pub mod workflow;

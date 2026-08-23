@@ -1,13 +1,17 @@
 use std::path::PathBuf;
 
 use locus_core::{
-    agents::{seeded_definitions, AgentDefinition},
-    artifact::{ArtifactComment, ArtifactContent, ArtifactKind, ArtifactRow, ArtifactStore},
+    harness::{
+        materialize::{reports_for_registry, MaterializationReport},
+        registry::load_from_directory,
+    },
     ipc::PtyChannel,
-    lint::discover as discover_linters,
-    materialize::{reports_for_registry, MaterializationReport},
-    registry::load_from_directory,
-    telemetry::{Event, EventCollector},
+    services::{
+        agents::{seeded_definitions, AgentDefinition},
+        artifact::{ArtifactComment, ArtifactContent, ArtifactKind, ArtifactRow, ArtifactStore},
+        lint::discover as discover_linters,
+        telemetry::{Event, EventCollector},
+    },
 };
 use serde::{Deserialize, Serialize};
 use tauri::{

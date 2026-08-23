@@ -10,9 +10,11 @@ use anyhow::{bail, Context, Result};
 use serde_json::json;
 
 use crate::{
-    materialize::{materialize, ExtensionEntry, ExtensionSet, PluginHost},
-    registry::{HarnessDefinition, HarnessRegistry},
-    telemetry::{Event, EventVerb},
+    harness::{
+        materialize::{materialize, ExtensionEntry, ExtensionSet, PluginHost},
+        registry::{HarnessDefinition, HarnessRegistry},
+    },
+    services::telemetry::{Event, EventVerb},
 };
 
 const CANARY_SKILL: &str = include_str!("../../../tests/canary/skill.md");
@@ -56,7 +58,8 @@ pub fn run_canary_smoke(harness: &HarnessDefinition) -> Result<Vec<Event>> {
         .named_entries()
         .iter()
         .any(|(_, entry)| entry.via == "plugin")
-        .then(plugin_host);
+        .then(|| plugin_host(harness))
+        .flatten();
     let result = materialize(harness, &extensions, &root, plugin.as_ref())
         .with_context(|| format!("{}: materialization failed", harness.name))
         .and_then(|(tree, _)| {
@@ -124,11 +127,11 @@ fn event(run_id: &str, seq: u64, verb: EventVerb, text: Option<String>) -> Event
     }
 }
 
-fn plugin_host() -> PluginHost {
-    PluginHost {
-        program: PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../harnesses/pi/materialize"),
+fn plugin_host(harness: &HarnessDefinition) -> Option<PluginHost> {
+    harness.materializer_program().map(|program| PluginHost {
+        program,
         args: Vec::new(),
-    }
+    })
 }
 
 fn smoke_root(harness: &str) -> PathBuf {

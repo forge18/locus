@@ -1,10 +1,21 @@
 mod planning {
-    use locus_core::planning::{ApprovedPlan, CardMode, Decomposition, EditableSpec, PlanTask, PlanningStage, Requirement};
+    use locus_core::services::planning::{
+        ApprovedPlan, CardMode, Decomposition, EditableSpec, PlanTask, PlanningStage, Requirement,
+    };
 
     #[test]
     fn cards_keep_dependencies() {
-        let plan = ApprovedPlan::new("Spec", vec![PlanTask::new("T-01", "One"), PlanTask::new("T-02", "Two").with_dependencies(["T-01"])]);
-        let cards = Decomposition::for_every_task(plan).expect("mapping").approved_cards().expect("approve");
+        let plan = ApprovedPlan::new(
+            "Spec",
+            vec![
+                PlanTask::new("T-01", "One"),
+                PlanTask::new("T-02", "Two").with_dependencies(["T-01"]),
+            ],
+        );
+        let cards = Decomposition::for_every_task(plan)
+            .expect("mapping")
+            .approved_cards()
+            .expect("approve");
 
         assert_eq!(cards[1].dependencies, ["task:T-01"]);
     }
@@ -12,14 +23,20 @@ mod planning {
     #[test]
     fn approval_commits_mapping() {
         let plan = ApprovedPlan::new("Spec", vec![PlanTask::new("T-01", "One")]);
-        let cards = Decomposition::for_every_task(plan).expect("mapping").final_approval().expect("approve");
+        let cards = Decomposition::for_every_task(plan)
+            .expect("mapping")
+            .final_approval()
+            .expect("approve");
 
         assert_eq!(cards.len(), 1);
     }
 
     #[test]
     fn carve_out_cards() {
-        let plan = ApprovedPlan::new("Spec", vec![PlanTask::new("T-01", "One"), PlanTask::new("T-02", "Two")]);
+        let plan = ApprovedPlan::new(
+            "Spec",
+            vec![PlanTask::new("T-01", "One"), PlanTask::new("T-02", "Two")],
+        );
         let cards = Decomposition::for_selected_carve_outs(plan, ["T-02"]).expect("cards");
 
         assert_eq!(cards.cards().len(), 2);
@@ -27,7 +44,10 @@ mod planning {
 
     #[test]
     fn every_task_cards() {
-        let plan = ApprovedPlan::new("Spec", vec![PlanTask::new("T-01", "One"), PlanTask::new("T-02", "Two")]);
+        let plan = ApprovedPlan::new(
+            "Spec",
+            vec![PlanTask::new("T-01", "One"), PlanTask::new("T-02", "Two")],
+        );
         let cards = Decomposition::for_every_task(plan).expect("cards");
 
         assert_eq!(cards.cards().len(), 2);
@@ -55,20 +75,33 @@ mod planning {
 
     #[test]
     fn reaudits_changed_requirements() {
-        let mut spec = EditableSpec::new([Requirement::new("R-01", "one"), Requirement::new("R-02", "two")]).expect("spec");
+        let mut spec = EditableSpec::new([
+            Requirement::new("R-01", "one"),
+            Requirement::new("R-02", "two"),
+        ])
+        .expect("spec");
         spec.edit("R-02", "changed").expect("edit");
 
-        assert_eq!(spec.changed_requirements().map(|requirement| requirement.id.as_str()).collect::<Vec<_>>(), ["R-02"]);
+        assert_eq!(
+            spec.changed_requirements()
+                .map(|requirement| requirement.id.as_str())
+                .collect::<Vec<_>>(),
+            ["R-02"]
+        );
         spec.mark_reaudited();
         assert!(spec.changed_requirements().next().is_none());
     }
 
     #[test]
     fn editable_requirements() {
-        let mut spec = EditableSpec::new([Requirement::new("R-01", "Keep branches")]).expect("spec");
+        let mut spec =
+            EditableSpec::new([Requirement::new("R-01", "Keep branches")]).expect("spec");
         spec.edit("R-01", "Keep every branch").expect("edit");
 
-        assert_eq!(spec.requirement("R-01").expect("requirement").body, "Keep every branch");
+        assert_eq!(
+            spec.requirement("R-01").expect("requirement").body,
+            "Keep every branch"
+        );
     }
 
     #[test]

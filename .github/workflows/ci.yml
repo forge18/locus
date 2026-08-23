@@ -47,12 +47,15 @@ jobs:
         run: cargo run -p locus-cli -- harness lint
 
       - name: Materialization determinism
-        run: cargo test -p locus-core materialize::ci_determinism -- --exact
+        run: bash scripts/run-named-test.sh locus-core harness::materialize::ci_determinism
 
       - name: Per-harness canary smoke
         run: |
-          cargo test -p locus-core smoke::all_twelve -- --ignored
-          cargo test -p locus-core smoke::isolates_failure -- --ignored
+          bash scripts/run-named-test.sh locus-core smoke::all_registered_harnesses --ignored
+          bash scripts/run-named-test.sh locus-core smoke::isolates_failure --ignored
 
-      - name: Docker test markers
-        run: bash scripts/check-no-silent-skips.sh
+      - name: Architecture invariants
+        run: |
+          bash scripts/check-no-harness-names-in-core.sh
+          bash scripts/check-lint-not-in-hooks.sh
+          bash scripts/check-no-silent-skips.sh

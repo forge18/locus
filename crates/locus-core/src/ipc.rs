@@ -2,7 +2,7 @@
 
 use tokio::sync::broadcast;
 
-use crate::telemetry::Event;
+use crate::services::telemetry::Event;
 
 /// High-frequency terminal bytes. Tauri forwards each item through a `Channel`, never an event.
 #[derive(Clone, Debug)]
@@ -72,7 +72,7 @@ mod pty_channel {
 #[cfg(test)]
 mod event_channel {
     use super::EventChannel;
-    use crate::telemetry::{Event, EventVerb};
+    use crate::services::telemetry::{Event, EventVerb};
     #[tokio::test]
     async fn delivers_normalized_events_without_an_event_transport() {
         let stream = EventChannel::new(1);

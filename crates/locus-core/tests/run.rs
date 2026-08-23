@@ -1,4 +1,4 @@
-use locus_core::run::CredentialProxyConfig;
+use locus_core::runtime::run::CredentialProxyConfig;
 
 #[test]
 fn credential_proxy_accepts_only_the_host_proxy_root() {

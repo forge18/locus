@@ -5,6 +5,11 @@ name   = "omp"
 binary = "omp"
 detect = ["--version"]
 
+# omp is a pi fork with the same hooks shape and the same emits path, so it runs pi's
+# materializer today. Stated here rather than inherited: when omp's hook event set
+# drifts, this line is what changes, and the drift is visible in this file.
+materializer = "pi/materialize"
+
 [image]
 base     = "debian:bookworm-slim"
 version  = "unverified"

@@ -8,8 +8,8 @@ if rg -n '#\[ignore(?: =)?' crates | grep -Fv 'requires Docker' >/dev/null; then
 fi
 
 for required in \
-  'crates/locus-core/src/sandbox.rs:requires Docker daemon' \
-  'crates/locus-core/src/materialize/mod.rs:requires Docker image' \
+  'crates/locus-core/src/sandbox/mod.rs:requires Docker daemon' \
+  'crates/locus-core/src/harness/materialize/mod.rs:requires Docker image' \
   'crates/locus-core/src/smoke.rs:requires Docker for the future live-harness smoke'; do
   path=${required%%:*}
   message=${required#*:}

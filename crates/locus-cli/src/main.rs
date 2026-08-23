@@ -8,9 +8,9 @@ use std::{env, path::PathBuf, process::Command};
 
 use anyhow::{bail, Context, Result};
 use locus_core::{
-    backup::{Backup, RetainedBackupConfig, SystemBackupFilesystem, SystemProcessRunner},
-    lint::{run as run_linters, verify as verify_linters, LintRequest},
-    registry::load_from_directory,
+    harness::registry::load_from_directory,
+    services::lint::{run as run_linters, verify as verify_linters, LintRequest},
+    store::backup::{Backup, RetainedBackupConfig, SystemBackupFilesystem, SystemProcessRunner},
 };
 
 mod hook;
@@ -210,13 +210,13 @@ mod lint {
 
     #[test]
     fn exit_code() {
-        let report = locus_core::lint::LintReport::default();
+        let report = locus_core::services::lint::LintReport::default();
         assert!(verify_linters(&report).is_ok());
     }
 
     #[test]
     fn prints_the_rule() {
-        let report = locus_core::lint::LintReport::default();
+        let report = locus_core::services::lint::LintReport::default();
         assert!(report.evidence().is_empty());
     }
 }

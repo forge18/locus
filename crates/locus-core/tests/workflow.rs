@@ -1,43 +1,78 @@
 mod workflow {
-    use locus_core::workflow::{Guardrail, SuccessCriterion, SuccessCriterionKind, WorkflowGovernance};
+    use locus_core::services::workflow::{
+        Guardrail, SuccessCriterion, SuccessCriterionKind, WorkflowGovernance,
+    };
 
     #[test]
     fn results_on_run() {
-        let result = locus_core::workflow::RunGovernanceEvaluation::passed("run-1", 1);
+        let result = locus_core::services::workflow::RunGovernanceEvaluation::passed("run-1", 1);
         assert_eq!(result.run_id, "run-1");
         assert!(result.passed);
     }
 
     #[test]
     fn governance_compiles() {
-        let governance = WorkflowGovernance { version: 1, goal: "Ship".into(), guardrails: vec![], success_criteria: vec![] };
-        let compiled = locus_core::workflow::compile_governance(serde_json::json!({"nodes": []}), governance.clone());
+        let governance = WorkflowGovernance {
+            version: 1,
+            goal: "Ship".into(),
+            guardrails: vec![],
+            success_criteria: vec![],
+        };
+        let compiled = locus_core::services::workflow::compile_governance(
+            serde_json::json!({"nodes": []}),
+            governance.clone(),
+        );
         assert_eq!(compiled.governance, governance);
         assert_eq!(compiled.graph["nodes"], serde_json::json!([]));
     }
 
     #[test]
     fn success_criteria() {
-        let criterion = SuccessCriterion { kind: SuccessCriterionKind::Command, checker: "cargo test".into() };
+        let criterion = SuccessCriterion {
+            kind: SuccessCriterionKind::Command,
+            checker: "cargo test".into(),
+        };
         assert_eq!(criterion.kind, SuccessCriterionKind::Command);
         assert_eq!(criterion.checker, "cargo test");
     }
 
     #[test]
     fn guardrail_prompts() {
-        let guardrail = Guardrail { name: "safe".into(), prompt: "preserve data".into() };
-        assert_eq!((guardrail.name.as_str(), guardrail.prompt.as_str()), ("safe", "preserve data"));
+        let guardrail = Guardrail {
+            name: "safe".into(),
+            prompt: "preserve data".into(),
+        };
+        assert_eq!(
+            (guardrail.name.as_str(), guardrail.prompt.as_str()),
+            ("safe", "preserve data")
+        );
     }
 
     #[test]
     fn goal_not_node() {
-        let governance = WorkflowGovernance { version: 1, goal: "Ship".into(), guardrails: vec![], success_criteria: vec![] };
+        let governance = WorkflowGovernance {
+            version: 1,
+            goal: "Ship".into(),
+            guardrails: vec![],
+            success_criteria: vec![],
+        };
         assert_eq!(governance.goal, "Ship");
     }
 
     #[test]
     fn governance_root() {
-        let governance = WorkflowGovernance { version: 1, goal: "Ship".into(), guardrails: vec![Guardrail { name: "safe".into(), prompt: "preserve".into() }], success_criteria: vec![SuccessCriterion { kind: SuccessCriterionKind::Command, checker: "cargo test".into() }] };
+        let governance = WorkflowGovernance {
+            version: 1,
+            goal: "Ship".into(),
+            guardrails: vec![Guardrail {
+                name: "safe".into(),
+                prompt: "preserve".into(),
+            }],
+            success_criteria: vec![SuccessCriterion {
+                kind: SuccessCriterionKind::Command,
+                checker: "cargo test".into(),
+            }],
+        };
         assert_eq!(governance.version, 1);
     }
 }

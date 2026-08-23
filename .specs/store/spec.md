@@ -53,10 +53,12 @@ calibration loop — and both currently describe a watermark with nothing in the
 id only** — the payload cap is 8000 bytes, so anything larger is fetched by the listener.
 
 **Backup**:
+
 ```
 locus backup                 dumps the eight schemas AND the artifact blob tree together
 locus restore --drill        restores into a scratch database, asserts row counts against the source
 ```
+
 Nightly and before every migration. Seven dailies, four weeklies.
 
 **`--drill` is the point.** A backup nobody has restored is a belief, not a backup — and it is why
@@ -76,9 +78,9 @@ paths to nothing.
    mismatch — proven by a test that corrupts a dump on purpose.
 6. A migration run triggers a backup first, and the backup's completion gates the migration.
 7. `NOTIFY` payloads are ids only; a test asserts none exceeds the 8000-byte cap.
-9. Backup covers `log.entries` alongside the eight schemas and the blob tree; a drill that restores
+8. Backup covers `log.entries` alongside the eight schemas and the blob tree; a drill that restores
    and then rebuilds produces the projections the source had.
-8. `agents.events` carries `stream_pos`, monotonic per project, with a `(project_id, stream_pos)`
+9. `agents.events` carries `stream_pos`, monotonic per project, with a `(project_id, stream_pos)`
    index — proven by a range-scan query plan test, not just by the column existing.
 
 ## Open

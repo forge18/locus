@@ -1,4 +1,4 @@
-# Antigravity (agy) — capture via stream-json; hooks are tool-scoped only.
+# Antigravity (agy) — capture is ACP like every harness; hooks are tool-scoped only.
 name   = "antigravity"
 binary = "agy"
 detect = ["--version"]

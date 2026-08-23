@@ -1,21 +1,31 @@
 mod project {
     #[test]
     fn lifecycle_preserves_history() {
-        let project = locus_core::project::ProjectLifecycle::new("alpha").expect("project");
+        let project =
+            locus_core::services::project::ProjectLifecycle::new("alpha").expect("project");
         let archived = project.rename("beta").archive();
         assert_eq!(archived.name(), "beta");
         assert!(archived.is_archived());
         assert!(archived.preserves_history());
     }
 
-    use locus_core::{materialize::ProjectExtensionScope, project::{ProjectAnalytics, ProjectRepo, ProjectRunAnalytics, ProjectSettings}, tools::ProjectToolScope};
+    use locus_core::{
+        harness::materialize::ProjectExtensionScope,
+        services::{
+            project::{ProjectAnalytics, ProjectRepo, ProjectRunAnalytics, ProjectSettings},
+            tools::ProjectToolScope,
+        },
+    };
 
     #[test]
     fn settings_roundtrip() {
         let settings = ProjectSettings::new();
         let stored = settings.to_stored_value().expect("settings serialize");
 
-        assert_eq!(ProjectSettings::from_stored_value(stored).expect("settings deserialize"), settings);
+        assert_eq!(
+            ProjectSettings::from_stored_value(stored).expect("settings deserialize"),
+            settings
+        );
     }
 
     #[test]
@@ -37,7 +47,10 @@ mod project {
         ]);
 
         assert_eq!(analytics.model("claude").expect("model").tokens, 150);
-        assert_eq!(analytics.model("claude").expect("model").cache_read_tokens, 120);
+        assert_eq!(
+            analytics.model("claude").expect("model").cache_read_tokens,
+            120
+        );
         assert_eq!(analytics.model("claude").expect("model").spend_micros, 5);
     }
 

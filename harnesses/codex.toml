@@ -29,7 +29,7 @@ flag      = "--model"
 list_argv = []
 
 [layout]
-agents        = { via = "entries-in", dir = "/locus/config/agents", target = "/locus/config/agents", format = "toml", keys = ["name", "description", "developer_instructions"] }
+agents        = { via = "entries-in", dir = "/locus/config/agents", target = "/locus/config/agents", format = "toml", keys = ["name", "description", "developer_instructions"], body_key = "developer_instructions" }
 commands      = { via = "dir", dir = "/locus/config/prompts", format = "markdown+frontmatter", flat = true }
 hooks         = { via = "entries-in", dir = "/locus/config/hooks", format = "shell", target = "/locus/config/config.toml", key = "hooks" }
 linters       = { via = "dir", dir = "/locus/config/linters", format = "shell+markdown" }

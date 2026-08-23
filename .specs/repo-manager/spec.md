@@ -40,6 +40,7 @@ nothing Locus does writes to it. **This is an invariant, not a default, and the 
 enforces it.**
 
 **Why this beats shared worktrees, kept here on purpose:**
+
 - **Locus stays out of your editor, your merge tool, and your shell.** Reviewing an agent's work is
   ordinary git, not a bespoke UI you have to trust.
 - **Isolation is real.** A bind-mounted worktree can always be escaped by a path bug; a filesystem that

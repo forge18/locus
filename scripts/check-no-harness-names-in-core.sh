@@ -21,20 +21,35 @@ fi
 pattern="(^|[^[:alnum:]_])(${harness_names})([^[:alnum:]_]|$)"
 violations=0
 
+# Blank every `#[cfg(test)]` item, in every file, keeping line numbers intact so a
+# reported violation points at the real line. Truncating at the first attribute would
+# hide production code in the files that interleave tests with it, such as run.rs.
+strip_test_items='
+/^#\[(test|tokio::test)\]/ || /^#\[cfg\((test|all\(test)/ { in_test = 1; opened = 0; print ""; next }
+in_test == 1 && opened == 0 {
+    print ""
+    if (/\{[[:space:]]*$/) { opened = 1; next }
+    if (/^#\[/)            { next }
+    if (/;[[:space:]]*$/)  { in_test = 0 }
+    next
+}
+in_test == 1 {
+    print ""
+    if (/^\}/) { in_test = 0 }
+    next
+}
+{ print }
+'
+
 while IFS= read -r source; do
     case "$source" in
-    "$core_src/registry.rs")
-        # Registry unit tests may name fixture declarations. Production code ends here.
-        content=$(awk '/^#\[cfg\(test\)\]/{ exit } { print }' "$source")
-        ;;
-    "$core_src/registry/fixtures/"*)
+    "$core_src"/*/fixtures/*)
         # Fixtures may name a harness so registry tests can exercise real declarations.
         continue
         ;;
-    *)
-        content=$(cat "$source")
-        ;;
     esac
+
+    content=$(awk "$strip_test_items" "$source")
 
     matches=$(printf '%s\n' "$content" | grep -nE "$pattern" || true)
     if [[ -n "$matches" ]]; then

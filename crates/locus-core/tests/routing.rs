@@ -1,11 +1,19 @@
 mod routing {
+    use locus_core::runtime::routing::{AutoroutingPolicy, ComplexityBand, RoutingBand};
     use std::collections::BTreeMap;
-    use locus_core::routing::{AutoroutingPolicy, ComplexityBand, RoutingBand};
 
     #[test]
     fn decision_recorded() {
-        let defaults = locus_core::routing::RoutingDefaults { model_id: "sonnet".into(), effort: "medium".into() };
-        let decision = AutoroutingPolicy { enabled: false, bands: BTreeMap::new() }.route(ComplexityBand::Low, &defaults).expect("default route");
+        let defaults = locus_core::runtime::routing::RoutingDefaults {
+            model_id: "sonnet".into(),
+            effort: "medium".into(),
+        };
+        let decision = AutoroutingPolicy {
+            enabled: false,
+            bands: BTreeMap::new(),
+        }
+        .route(ComplexityBand::Low, &defaults)
+        .expect("default route");
         assert_eq!(decision.model_id, "sonnet");
         assert_eq!(decision.effort, "medium");
     }
@@ -13,23 +21,88 @@ mod routing {
     #[test]
     fn approval_band() {
         let mut bands = BTreeMap::new();
-        bands.insert(ComplexityBand::Max, RoutingBand { model_id: Some("opus".into()), effort: "high".into(), approval_required: true, when_to_use: "irreversible".into() });
-        let decision = AutoroutingPolicy { enabled: true, bands }.route(ComplexityBand::Max, &locus_core::routing::RoutingDefaults { model_id: "sonnet".into(), effort: "medium".into() }).expect("route");
+        bands.insert(
+            ComplexityBand::Max,
+            RoutingBand {
+                model_id: Some("opus".into()),
+                effort: "high".into(),
+                approval_required: true,
+                when_to_use: "irreversible".into(),
+            },
+        );
+        let decision = AutoroutingPolicy {
+            enabled: true,
+            bands,
+        }
+        .route(
+            ComplexityBand::Max,
+            &locus_core::runtime::routing::RoutingDefaults {
+                model_id: "sonnet".into(),
+                effort: "medium".into(),
+            },
+        )
+        .expect("route");
         assert!(decision.approval_required);
     }
 
     #[test]
     fn falls_up() {
         let mut bands = BTreeMap::new();
-        bands.insert(ComplexityBand::High, RoutingBand { model_id: Some("opus".into()), effort: "high".into(), approval_required: false, when_to_use: "hard".into() });
-        let decision = AutoroutingPolicy { enabled: true, bands }.route(ComplexityBand::Medium, &locus_core::routing::RoutingDefaults { model_id: "sonnet".into(), effort: "medium".into() }).expect("fallback");
+        bands.insert(
+            ComplexityBand::High,
+            RoutingBand {
+                model_id: Some("opus".into()),
+                effort: "high".into(),
+                approval_required: false,
+                when_to_use: "hard".into(),
+            },
+        );
+        let decision = AutoroutingPolicy {
+            enabled: true,
+            bands,
+        }
+        .route(
+            ComplexityBand::Medium,
+            &locus_core::runtime::routing::RoutingDefaults {
+                model_id: "sonnet".into(),
+                effort: "medium".into(),
+            },
+        )
+        .expect("fallback");
         assert_eq!(decision.selected_band, Some(ComplexityBand::High));
     }
 
     #[test]
     fn six_bands() {
-        let bands = [ComplexityBand::XtraLow, ComplexityBand::Low, ComplexityBand::Medium, ComplexityBand::High, ComplexityBand::XtraHigh, ComplexityBand::Max]
-            .into_iter().map(|band| (band, RoutingBand { model_id: Some("model".into()), effort: "medium".into(), approval_required: false, when_to_use: "work".into() })).collect::<BTreeMap<_, _>>();
-        assert_eq!(AutoroutingPolicy { enabled: true, bands }.bands.len(), 6);
+        let bands = [
+            ComplexityBand::XtraLow,
+            ComplexityBand::Low,
+            ComplexityBand::Medium,
+            ComplexityBand::High,
+            ComplexityBand::XtraHigh,
+            ComplexityBand::Max,
+        ]
+        .into_iter()
+        .map(|band| {
+            (
+                band,
+                RoutingBand {
+                    model_id: Some("model".into()),
+                    effort: "medium".into(),
+                    approval_required: false,
+                    when_to_use: "work".into(),
+                },
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+        assert_eq!(
+            AutoroutingPolicy {
+                enabled: true,
+                bands
+            }
+            .bands
+            .len(),
+            6
+        );
     }
 }

@@ -9,13 +9,13 @@ use std::{fs, path::PathBuf};
 
 #[cfg(test)]
 use crate::{
-    registry::{load_from_directory, register_from_directory},
-    telemetry::EventVerb,
+    harness::registry::{load_from_directory, register_from_directory},
+    services::telemetry::EventVerb,
     testkit::{assert_event, assert_event_text, run_canary_smoke, smoke_registry},
 };
 
 #[cfg(test)]
-fn registry() -> crate::registry::HarnessRegistry {
+fn registry() -> crate::harness::registry::HarnessRegistry {
     load_from_directory(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../harnesses"))
         .expect("registry loads")
 }
