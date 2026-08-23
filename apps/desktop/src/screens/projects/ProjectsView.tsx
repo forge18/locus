@@ -129,7 +129,7 @@ export function ProjectsView() {
               <p class="project-panel-note">Kept short on purpose: it is the one file every run pays for. Over budget usually means something belongs in a skill or a rule instead.</p>
             </section>
 
-            <section class="project-panel" data-testid="project-extensions">
+            <section class="project-panel" data-testid="project-extension-groups">
               <PanelTitle title="Extensions" note="pulled from the defaults in Workshop — switch one off and this project materializes without it" />
               <div class="extension-grid"><For each={extensions}>{([name, count]) => <div class="extension-card"><div><strong>{name}</strong><small>{count}</small><button class="toggle" aria-label={`Enable ${name}`} data-on={enabledExtensions().has(name)} onClick={() => toggleExtension(name)}><i /></button></div><p>{enabledExtensions().has(name) ? 'Included on the next run' : 'Excluded from the materialized tree'}</p></div>}</For></div>
               <p class="project-panel-note">Definitions are global; what is per-project is which of them this project gets. Switching one off here removes it from the materialized tree on the next run — it does not delete it.</p>
