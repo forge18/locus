@@ -1,4 +1,4 @@
-import { For, Show } from "solid-js";
+import { For, Show, createSignal } from "solid-js";
 import {
   PRIORITY_METHODS,
   SETTINGS_NAVIGATION,
@@ -6,6 +6,7 @@ import {
 } from "../../data/guardrails";
 import type { GuardrailControl } from "../../fixtures/settings-guardrails";
 import { AppearanceSelector } from "./AppearanceSelector";
+import { Button } from "../../ui/Button";
 
 function Stepper(props: {
   id: string;
@@ -74,6 +75,13 @@ function Control(props: { id: string; control: GuardrailControl }) {
 
 /** Guardrail defaults fixture; persistence arrives with the dispatch settings command. */
 export function GuardrailsView() {
+  const shipped = useGuardrails()
+  const [sections, setSections] = createSignal(shipped)
+  const [saved, setSaved] = createSignal(false)
+
+  const saveDefaults = () => setSaved(true)
+  const resetDefaults = () => { setSections(shipped); setSaved(false) }
+
   return (
     <div class="settings" data-testid="settings">
       <aside class="settings-rail" data-testid="settings-rail">
@@ -111,7 +119,7 @@ export function GuardrailsView() {
           </header>
 
           <AppearanceSelector />
-          <For each={useGuardrails()}>
+          <For each={sections()}>
             {(section) => (
               <section
                 class="settings-section"
@@ -163,6 +171,11 @@ export function GuardrailsView() {
               </section>
             )}
           </For>
+          <footer class="settings-guardrails-footer" data-testid="guardrails-save-footer">
+            <Show when={saved()}><span class="settings-saved">Saved — applies to runs started after saving. Nothing in flight is retuned underneath itself.</span></Show>
+            <Button variant="ghost" onClick={resetDefaults}>Reset to shipped values</Button>
+            <Button onClick={saveDefaults}>Save defaults</Button>
+          </footer>
         </div>
       </main>
     </div>

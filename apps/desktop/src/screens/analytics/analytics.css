@@ -1,0 +1,55 @@
+.analytics-view { display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: auto; padding: 15px 18px; gap: var(--g-4); }
+.analytics-header, .analytics-range { display: flex; align-items: center; gap: var(--g-5); }
+.analytics-header > div { flex: 1; }
+.analytics-header h1 { margin: 0; font-size: var(--t-lead); font-weight: 500; }
+.analytics-header p, .analytics-range > span { margin: var(--g-2) 0 0; color: var(--text-muted); font-size: var(--t-meta); }
+.analytics-range { padding-bottom: var(--g-3); border-bottom: 1px solid var(--border-subtle); }
+.analytics-overview { display: flex; flex-direction: column; gap: var(--g-5); }
+.analytics-stat-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--g-4); }
+.analytics-stat { display: flex; flex-direction: column; gap: var(--g-2); padding: 12px; border: 1px solid var(--border-subtle); border-radius: var(--r-lg); background: var(--surface-raised); color: var(--text-secondary); font-family: inherit; text-align: left; }
+button.analytics-stat { cursor: pointer; }
+.analytics-stat[aria-pressed='true'] { border-color: var(--action-attention); box-shadow: var(--ring-sel-soft); }
+.analytics-stat span { font-size: var(--t-meta); text-transform: uppercase; letter-spacing: .1em; }
+.analytics-stat strong { font-family: var(--fm); font-size: var(--t-metric-lg); font-weight: 500; color: var(--text-primary); }
+.analytics-stat small { font-size: var(--t-label); color: var(--text-muted); }
+.analytics-card { display: flex; flex-direction: column; gap: var(--g-4); padding: 13px; border: 1px solid var(--border-subtle); border-radius: var(--r-lg); background: var(--surface-raised); overflow: auto; }
+.analytics-card header { display: flex; align-items: baseline; gap: var(--g-4); }
+.analytics-card h2, .analytics-telemetry-main > section > h2 { margin: 0; font-size: var(--t-label); letter-spacing: .12em; text-transform: uppercase; font-weight: 500; color: var(--text-secondary); }
+.analytics-card header span { font-size: var(--t-label); color: var(--text-muted); }
+.analytics-measure-tabs, .analytics-dimension-tabs { display: flex; gap: var(--g-2); flex-wrap: wrap; }
+.analytics-measure-tabs button, .analytics-dimension-tabs button, .analytics-facet button { border: 1px solid var(--border-subtle); border-radius: var(--r-sm); background: var(--surface-ground); color: var(--text-secondary); padding: 4px 8px; font: inherit; font-size: var(--t-label); cursor: pointer; }
+.analytics-measure-tabs button[aria-pressed='true'], .analytics-dimension-tabs button[aria-pressed='true'], .analytics-facet button[aria-pressed='true'] { color: var(--action-attention); border-color: var(--action-attention); }
+.analytics-bars { display: flex; align-items: flex-end; gap: 8px; height: 130px; padding: 12px 0 0; }
+.analytics-bars i { flex: 1; min-width: 8px; background: var(--data-2); border-radius: 2px 2px 0 0; }
+.analytics-card table { width: 100%; border-collapse: collapse; font-size: var(--t-meta); }
+.analytics-card th, .analytics-card td { padding: 7px 6px; border-top: 1px solid var(--border-subtle); text-align: left; white-space: nowrap; }
+.analytics-card th { color: var(--text-muted); font-size: var(--t-label); text-transform: uppercase; font-weight: 500; }
+.analytics-two-col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--g-5); }
+.analytics-outcomes { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--g-3); }
+.analytics-outcomes div { display: flex; flex-direction: column; gap: 3px; padding: 8px; background: var(--surface-ground); border-radius: var(--r-card); }
+.analytics-outcomes span, .analytics-note { font-size: var(--t-label); color: var(--text-muted); }
+.analytics-outcomes strong { font-family: var(--fm); font-size: var(--t-title); color: var(--text-primary); }
+.analytics-card h3 { margin: 0; font-size: var(--t-label); color: var(--text-secondary); text-transform: uppercase; letter-spacing: .1em; font-weight: 500; }
+.analytics-note { margin: 0; line-height: 1.5; }
+.telemetry-analytics { display: grid; grid-template-columns: 264px minmax(0, 1fr); gap: var(--g-5); min-height: 0; }
+.analytics-facets { display: flex; flex-direction: column; gap: var(--g-4); padding: 12px; border: 1px solid var(--border-subtle); border-radius: var(--r-lg); background: var(--surface-raised); }
+.analytics-facets h2 { margin: 0; font-size: var(--t-label); text-transform: uppercase; letter-spacing: .12em; font-weight: 500; }
+.analytics-facet { display: flex; flex-direction: column; gap: var(--g-2); }
+.analytics-facet > span { font-size: var(--t-label); color: var(--text-muted); }
+.analytics-facet button { width: 100%; text-align: left; }
+.analytics-facets p { margin-top: auto; color: var(--text-muted); font-size: var(--t-label); line-height: 1.5; }
+.analytics-telemetry-main { display: flex; flex-direction: column; gap: var(--g-4); min-width: 0; }
+.analytics-search { display: flex; align-items: center; gap: var(--g-3); }
+.analytics-search .input { flex: 1; }
+.analytics-filter-chips { display: flex; gap: var(--g-2); flex-wrap: wrap; }
+.analytics-filter-chips button { border: 0; border-radius: var(--r-sm); background: var(--action-attention-wash); color: var(--action-attention); padding: 3px 8px; font: inherit; font-size: var(--t-label); cursor: pointer; }
+.analytics-actions { gap: var(--g-3); }
+.analytics-action { display: flex; gap: var(--g-3); align-items: center; font-family: var(--fm); font-size: var(--t-meta); }
+.analytics-action > span { width: 140px; color: var(--text-secondary); }
+.analytics-action i { flex: 1; height: 7px; background: var(--surface-ground); border-radius: 2px; overflow: hidden; }
+.analytics-action b { display: block; height: 100%; background: var(--data-3); }
+.analytics-action strong { width: 52px; text-align: right; color: var(--text-muted); }
+.analytics-alarm > span, .analytics-alarm > strong { color: var(--status-danger); }
+.analytics-alarm b { background: var(--status-danger); }
+@media (max-width: 900px) { .analytics-stat-grid, .analytics-two-col { grid-template-columns: repeat(2, minmax(0, 1fr)); } .telemetry-analytics { grid-template-columns: 1fr; } }
+@media (max-width: 560px) { .analytics-stat-grid, .analytics-two-col { grid-template-columns: 1fr; } .analytics-header, .analytics-range { align-items: flex-start; flex-direction: column; } }

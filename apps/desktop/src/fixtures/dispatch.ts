@@ -2,6 +2,15 @@
 // replaced by: invoke("dispatch_snapshot")
 
 export type AutorunState = 'on' | 'off' | 'suspended' | 'archived'
+export const AUTORUN_STATES = Object.freeze(['on', 'off', 'suspended', 'archived'] as const)
+export const VERIFY_VOCABULARY = Object.freeze(['running', 'passed', 'failed', 'failed ×n', 'waiting: gate', 'n/a', 'aborted'] as const)
+export const NEVER_AUTORUN_EXCLUSIONS = Object.freeze([
+  { id: 'migrations', label: 'Anything touching migrations/**', reason: 'A migration is append-only and irreversible in practice.' },
+  { id: 'gate', label: 'Any workflow containing a Gate node', reason: 'The gate is the point. Skipping it would be deleting it.' },
+  { id: 'change-ceiling', label: 'Anything over the change ceiling', reason: 'Past a reviewer capacity, review degrades from semantic to syntactic.' },
+  { id: 'verify-floor', label: 'A project under 60% verify pass', reason: 'Trust is measured, not assumed. It resumes on its own.' },
+  { id: 'first-plan-task', label: 'The first task of any plan', reason: 'You see what a plan produces once before it produces unattended.' },
+] as const)
 
 export interface DispatchProject {
   id: string
@@ -56,6 +65,19 @@ export const DISPATCH_PROJECTS: readonly DispatchProject[] = Object.freeze([
   },
 ])
 
+export const SCHEDULE_RUN_MODES = Object.freeze(['project', 'custom'] as const)
+export const SCHEDULE_WHEN = Object.freeze(['run-once', 'on-schedule', 'hold'] as const)
+export const CRON_PRESETS = Object.freeze([
+  { id: 'hourly', label: 'Hourly', cron: '0 * * * *' },
+  { id: 'nightly', label: 'Nightly', cron: '0 2 * * *' },
+  { id: 'weekdays', label: 'Weekdays 09:00', cron: '0 9 * * 1-5' },
+  { id: 'pick', label: 'Once at a time I pick', cron: '' },
+] as const)
+
+export function cronForPreset(id: string) {
+  return CRON_PRESETS.find((preset) => preset.id === id)?.cron ?? ''
+}
+
 export interface ScheduleFixture {
   id: string
   name: string
@@ -94,3 +116,9 @@ export const SCHEDULE_EXECUTIONS: readonly ScheduleExecution[] = Object.freeze([
 
 export const STOP_ALL_AGENT_COUNT = 8
 export const STOP_ALL_RESTORE_MINUTES = 10
+
+export function autorunMasterState(projects: readonly DispatchProject[]) {
+  const eligible = projects.filter((project) => project.state !== 'archived' && project.state !== 'suspended')
+  const on = eligible.filter((project) => project.state === 'on').length
+  return { eligible: eligible.length, on, label: eligible.length > 0 && on === eligible.length ? 'All on' : on === 0 ? 'All off' : 'Mixed' }
+}

@@ -70,4 +70,29 @@
 .dispatch-runs-table { flex: 1; min-height: 0; overflow: auto; padding: 11px 14px; }
 .dispatch-runs-table h2 { margin: 0 0 var(--g-3); color: var(--text-secondary); font-size: var(--t-label); letter-spacing: .11em; text-transform: uppercase; }
 .dispatch-runs-table td { font-family: var(--fm); }
-@media (max-width: 900px) { .autorun-project { grid-template-columns: 28px 130px minmax(180px, 1fr); } .autorun-project-state, .autorun-project-activity { display: none; } .dispatch-grid, .schedule-cards { grid-template-columns: 1fr; } .dispatch-header-note { display: none; } }
+.dispatch-master { display: flex; align-items: baseline; gap: var(--g-4); margin-bottom: 12px; padding: 10px 12px; border: 1px solid var(--border-subtle); border-radius: var(--r-card); background: var(--surface-chrome); }
+.dispatch-master strong { color: var(--action-attention); }
+.dispatch-master span { color: var(--text-muted); font-size: var(--t-meta); }
+.dispatch-policy-values { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--g-3); margin: 14px 0 0; }
+.dispatch-policy-values div { padding-top: 8px; border-top: 1px solid var(--border-subtle); }
+.dispatch-policy-values dt { font-size: var(--t-label); color: var(--text-muted); }
+.dispatch-policy-values dd { margin: 3px 0 0; font-family: var(--fm); font-size: var(--t-meta); color: var(--text-secondary); }
+.dispatch-card li { display: flex; flex-direction: column; gap: 2px; }
+.dispatch-card li strong { color: var(--text-primary); font-weight: 500; }
+.dispatch-card li span { color: var(--text-muted); }
+.dispatch-handoff-note { margin: -6px 18px 15px !important; color: var(--text-muted) !important; font-size: var(--t-meta) !important; }
+.schedule-builder { display: flex; flex-direction: column; gap: var(--g-4); margin: 15px 0; padding: 14px 15px; border: 1px solid var(--border-subtle); border-radius: var(--r-card); background: var(--surface-raised); }
+.schedule-builder h2 { margin: 0; font-size: var(--t-label); text-transform: uppercase; letter-spacing: .12em; color: var(--text-secondary); }
+.schedule-builder fieldset { display: flex; align-items: center; flex-wrap: wrap; gap: var(--g-3); margin: 0; padding: 0; border: 0; font-size: var(--t-meta); color: var(--text-secondary); }
+.schedule-builder legend { width: 100%; margin-bottom: var(--g-2); font-size: var(--t-meta); font-weight: 500; color: var(--text-primary); }
+.schedule-builder legend small { margin-left: var(--g-2); font-weight: 400; color: var(--text-muted); }
+.schedule-builder fieldset span { color: var(--text-muted); }
+.schedule-builder fieldset label { display: inline-flex; align-items: center; gap: var(--g-2); }
+.schedule-guardrail-pills { display: flex; flex-wrap: wrap; gap: var(--g-2); width: 100%; }
+.schedule-guardrail-pills code { padding: 3px 6px; border: 1px solid var(--border-subtle); border-radius: var(--r-sm); color: var(--text-secondary); }
+.schedule-presets { display: flex; flex-wrap: wrap; gap: var(--g-2); width: 100%; }
+.schedule-presets button { border: 1px solid var(--border-subtle); border-radius: var(--r-sm); background: var(--surface-ground); color: var(--text-secondary); padding: 4px 8px; font: inherit; font-size: var(--t-label); }
+.schedule-builder-note { margin: 0; font-size: var(--t-meta); line-height: 1.5; color: var(--text-muted); }
+.dispatch-verify-vocabulary { display: flex; flex-wrap: wrap; align-items: center; gap: var(--g-2); margin-bottom: 10px; font-size: var(--t-label); color: var(--text-muted); }
+.dispatch-verify-vocabulary code { padding: 2px 6px; border-radius: var(--r-sm); background: var(--surface-elevated); color: var(--text-secondary); }
+@media (max-width: 900px) { .autorun-project { grid-template-columns: 28px 130px minmax(180px, 1fr); } .autorun-project-state, .autorun-project-activity { display: none; } .dispatch-grid, .schedule-cards { grid-template-columns: 1fr; } .dispatch-header-note { display: none; } .dispatch-policy-values { grid-template-columns: repeat(2, 1fr); } }

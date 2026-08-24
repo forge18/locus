@@ -6,6 +6,9 @@ import {
   SCHEDULES,
   STOP_ALL_AGENT_COUNT,
   STOP_ALL_RESTORE_MINUTES,
+  NEVER_AUTORUN_EXCLUSIONS,
+  VERIFY_VOCABULARY,
+  autorunMasterState,
   type AutorunState,
 } from '../../fixtures/dispatch'
 import { Button } from '../../ui/Button'
@@ -55,6 +58,8 @@ function AutorunView() {
   const [projects, setProjects] = createSignal(DISPATCH_PROJECTS)
   const [stopOpen, setStopOpen] = createSignal(false)
   const [stopped, setStopped] = createSignal(false)
+  const [handoff, setHandoff] = createSignal(true)
+  const master = () => autorunMasterState(projects())
 
   const toggleProject = (id: string) => {
     setProjects((current) =>
@@ -85,6 +90,9 @@ function AutorunView() {
 
       <div class="dispatch-scroll">
         <section class="dispatch-section">
+          <div class="dispatch-master" data-testid="autorun-master" data-state={master().label.toLowerCase().replace(' ', '-') }>
+            <strong>{master().label}</strong><span>{master().eligible} eligible projects · {master().on} on</span>
+          </div>
           <h1>Autorun is on or off, per project</h1>
           <p>On means agents in that project pick up their own work and run it without you starting anything. Off means every run begins with you, or with a schedule you wrote.</p>
           <div class="autorun-projects" data-testid="autorun-projects">
@@ -116,14 +124,12 @@ function AutorunView() {
             <strong class="dispatch-metric" data-testid="autorun-review-debt">3 <span>of 4 review slots in use · 1 free</span></strong>
             <div class="dispatch-slots" aria-label="3 of 4 review slots"><i /><i /><i /><i /></div>
             <p>A slot is one change you have not reviewed yet, not one agent. Autorun drains at the rate you absorb, or it is just a way of generating a backlog faster.</p>
+            <dl class="dispatch-policy-values"><div><dt>Review debt</dt><dd>3 landed, unread</dd></div><div><dt>Pauses at</dt><dd>4 changes</dd></div><div><dt>Inbox budget</dt><dd>6 / hour</dd></div><div><dt>Change ceiling</dt><dd>400 lines · 12 files</dd></div></dl>
           </section>
           <section class="dispatch-card">
             <h2>Never autoruns</h2>
             <ul>
-              <li>Anything touching <code>migrations/**</code></li>
-              <li>Any workflow containing a Gate node</li>
-              <li>Anything over the change ceiling</li>
-              <li>A project under 60% verify pass</li>
+              <For each={NEVER_AUTORUN_EXCLUSIONS}>{(exclusion) => <li data-testid={`never-autorun-${exclusion.id}`}><strong>{exclusion.label}</strong><span> — {exclusion.reason}</span></li>}</For>
             </ul>
           </section>
         </div>
@@ -140,7 +146,8 @@ function AutorunView() {
               <li>3 schedules — skipped, not queued</li>
               <li>Branches, artifacts and memory — untouched</li>
             </ul>
-            <label class="dispatch-handoff"><input type="checkbox" checked /> Let each agent write its handoff first</label>
+            <label class="dispatch-handoff"><input type="checkbox" checked={handoff()} onChange={(event) => setHandoff(event.currentTarget.checked)} /> Let each agent write its handoff first</label>
+            <p class="dispatch-handoff-note">{handoff() ? 'Up to 30 seconds each. A successor starts from the payload instead of re-deriving it.' : 'Immediate. Work in flight is discarded and the next agent starts from the transcript.'}</p>
             <footer><span>Reversible for {STOP_ALL_RESTORE_MINUTES} minutes — the handoffs are kept.</span><Button variant="ghost" onClick={() => setStopOpen(false)}>Cancel</Button><Button onClick={() => { setStopOpen(false); setStopped(true) }}>Stop all — {STOP_ALL_AGENT_COUNT} agents</Button></footer>
           </section>
         </div>
@@ -158,6 +165,13 @@ function SchedulesView() {
           <h1>Schedules</h1>
           <p>A cron expression fires a workflow. <strong>locusd outlives the window</strong> — a schedule that only fires while the app happens to be open is not a schedule.</p>
           <div class="schedule-create"><strong>0 2 * * *</strong><span>every day at 02:00 · America/Chicago</span><span data-testid="schedule-outcome"><small id="schedule-overlap-note" data-testid="schedule-overlap-note">Overlap is skipped, never queued. A job that runs longer than its own interval does not build a backlog.</small></span></div>
+        </section>
+        <section class="schedule-builder" data-testid="schedule-builder">
+          <h2>Start work</h2>
+          <fieldset><legend>What runs</legend><label><input type="radio" name="schedule-run-mode" checked /> Project</label><span>Runs every active agent on its own assignment; agents with nothing assigned are skipped.</span><label><input type="radio" name="schedule-run-mode" /> Custom</label><span>Agent · Harness · Project · optional spec · optional prompt</span></fieldset>
+          <fieldset><legend>Guardrails <small>optional override</small></legend><div class="schedule-guardrail-pills"><code>preset: default</code><code>max iterations: fall through</code><code>change ceiling: fall through</code><code>files touched: fall through</code><code>network: fall through</code><code>token budget: fall through</code></div><span>Anything left unset falls through to Settings → Guardrails for #project. A ceiling reached here stops the run and splits it; it does not fail.</span></fieldset>
+          <fieldset><legend>When</legend><label><input type="radio" name="schedule-when" checked /> Run once, now</label><label><input type="radio" name="schedule-when" /> On a schedule</label><label><input type="radio" name="schedule-when" /> Hold</label><div class="schedule-presets"><button type="button">Hourly</button><button type="button">Nightly</button><button type="button">Weekdays 09:00</button><button type="button">Once at a time I pick</button></div></fieldset>
+          <p class="schedule-builder-note">A prompt produces a run and an artifact, but no board task — nothing reaches the board without a plan. <strong>Overlap is skipped, never queued.</strong></p>
         </section>
         <aside class="schedule-warning"><strong>Nightly wiki reconcile has skipped 11 of its last 14 firings</strong><span>Overlap is visible so a schedule that stops running is not silent.</span></aside>
         <section class="schedule-cards" data-testid="schedule-cards">
@@ -177,7 +191,7 @@ function RunsFixtureView() {
     <div class="dispatch-view" data-testid="dispatch-runs">
       <header class="dispatch-header"><DispatchTabs active="runs" /><span class="dispatch-header-note">Every run, scheduled or not · a schedule is just one way a run starts</span></header>
       <div class="dispatch-runs-controls" data-testid="dispatch-pause-controls"><span>Search every run — a path, a tool name, an event verb</span><span>Today · 7d · <strong>30d</strong></span><span>612 runs · 300 sessions · 4 projects</span></div>
-      <section class="dispatch-runs-table" data-testid="dispatch-runs-table"><h2>Runs (612)</h2><table><thead><tr><th>When</th><th>Harness</th><th>Project · repo</th><th>Agent · role</th><th>Model resolved</th><th>Events</th><th>Errors</th><th>Tokens</th><th>Verify</th><th>Id</th></tr></thead><tbody><For each={RUN_FIXTURE_ROWS}>{(run) => <tr><td>{run.at.slice(0, 16).replace('T', ' ')}</td><td>{run.harness}</td><td>{run.project} · core</td><td>{run.agent} · {run.role}</td><td>{run.model}</td><td>{run.events.toLocaleString('en-US')}</td><td class={run.errors > 0 ? 'verify-bad' : ''}>{run.errors || '—'}</td><td>{run.tokens === null ? <span class="unknown">unknown</span> : `${(run.tokens / 1000).toFixed(1)}k`}</td><td class={`verify-${run.status === 'passed' ? 'ok' : run.status === 'failed' ? 'bad' : 'skipped'}`}>{run.status}</td><td>{run.id}</td></tr>}</For></tbody></table></section>
+      <section class="dispatch-runs-table" data-testid="dispatch-runs-table"><h2>Runs (612)</h2><div class="dispatch-verify-vocabulary" data-testid="runs-verify-vocabulary"><span>Verify</span><For each={VERIFY_VOCABULARY}>{(status) => <code class={`verify-vocabulary-${status.replace(/[^a-z]+/g, '-')}`}>{status}</code>}</For></div><table><thead><tr><th>When</th><th>Harness</th><th>Project · repo</th><th>Agent · role</th><th>Model resolved</th><th>Events</th><th>Errors</th><th>Tokens</th><th>Verify</th><th>Id</th></tr></thead><tbody><For each={RUN_FIXTURE_ROWS}>{(run) => <tr><td>{run.at.slice(0, 16).replace('T', ' ')}</td><td>{run.harness}</td><td>{run.project} · core</td><td>{run.agent} · {run.role}</td><td>{run.model}</td><td>{run.events.toLocaleString('en-US')}</td><td class={run.errors > 0 ? 'verify-bad' : ''}>{run.errors || '—'}</td><td>{run.tokens === null ? <span class="unknown">unknown</span> : `${(run.tokens / 1000).toFixed(1)}k`}</td><td class={`verify-${run.status === 'passed' ? 'ok' : run.status === 'failed' ? 'bad' : 'skipped'}`}>{run.status}</td><td>{run.id}</td></tr>}</For></tbody></table></section>
     </div>
   )
 }

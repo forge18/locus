@@ -1,0 +1,25 @@
+.qa-view { display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: auto; padding: 15px 18px; gap: var(--g-5); }
+.qa-header { display: flex; align-items: center; gap: var(--g-5); padding-bottom: 2px; }
+.qa-header > div { flex: 1; min-width: 0; }
+.qa-header h1 { margin: 0; font-size: var(--t-lead); font-weight: 500; }
+.qa-header p { margin: var(--g-2) 0 0; color: var(--text-muted); font-size: var(--t-meta); }
+.qa-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--g-5); }
+.qa-group { display: flex; flex-direction: column; gap: var(--g-4); padding: 14px; border: 1px solid var(--border-subtle); border-radius: var(--r-lg); background: var(--surface-raised); }
+.qa-group-header { display: flex; align-items: flex-start; gap: var(--g-4); }
+.qa-group-header h2 { margin: 0; font-size: var(--t-title); font-weight: 500; }
+.qa-group-header span { display: block; margin-top: var(--g-2); font-size: var(--t-meta); color: var(--text-muted); }
+.qa-summary { margin-left: auto; white-space: nowrap; color: var(--text-secondary) !important; }
+.qa-findings { display: flex; flex-direction: column; gap: var(--g-3); }
+.qa-finding { display: flex; align-items: flex-start; gap: var(--g-3); padding: 10px; border: 1px solid var(--border-subtle); border-radius: var(--r-card); background: var(--surface-ground); }
+.qa-finding-fail { box-shadow: inset 2px 0 var(--status-danger); }
+.qa-finding-warn { box-shadow: inset 2px 0 var(--action-attention); }
+.qa-severity { flex: none; width: 34px; font-family: var(--fm); font-size: var(--t-label); text-transform: uppercase; color: var(--status-danger); }
+.qa-finding-warn .qa-severity { color: var(--action-attention); }
+.qa-finding-copy { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 3px; }
+.qa-finding-copy strong { font-size: var(--t-body); font-weight: 500; }
+.qa-location { font-family: var(--fm); font-size: var(--t-label); color: var(--text-muted); }
+.qa-finding-copy p { margin: 3px 0 0; font-size: var(--t-meta); line-height: 1.45; color: var(--text-secondary); }
+.qa-finding .btn { flex: none; align-self: center; }
+.qa-empty { margin: 0; color: var(--text-muted); font-size: var(--t-meta); }
+.qa-footer { flex: none; padding-top: var(--g-3); border-top: 1px solid var(--border-subtle); color: var(--text-muted); font-size: var(--t-label); line-height: 1.5; }
+@media (max-width: 900px) { .qa-header { align-items: flex-start; flex-direction: column; } .qa-groups { grid-template-columns: 1fr; } }

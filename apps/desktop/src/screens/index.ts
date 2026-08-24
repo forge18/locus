@@ -21,3 +21,7 @@ export {
   MemoryShortTermFixture,
   MemoryWikiFixture,
 } from './memory/MemoryFixtures'
+export { QAView } from './review/QAView'
+export type { QAViewProps } from './review/QAView'
+export { AnalyticsView } from './analytics/AnalyticsView'
+export type { AnalyticsViewProps } from './analytics/AnalyticsView'
