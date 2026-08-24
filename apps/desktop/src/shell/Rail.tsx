@@ -31,7 +31,7 @@ export function Rail(props: RailProps) {
           >
             <Icon name={item.icon} size={19} />
             <span class="rail-item-label">{item.label}</span>
-            <Show when={item.category === 'dashboard' && props.inboxCount > 0}>
+            <Show when={item.category === 'pill' && props.inboxCount > 0}>
               <span class="rail-badge" data-testid="inbox-badge">
                 {props.inboxCount}
               </span>

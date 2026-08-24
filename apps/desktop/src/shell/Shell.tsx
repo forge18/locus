@@ -1,71 +1,32 @@
-import { createSignal, onCleanup, onMount } from "solid-js";
+import { createSignal, onCleanup, onMount, Show } from "solid-js";
 import type { JSX } from "solid-js";
 import { AppTitleBar } from "./AppTitleBar";
 import { ProjectRail } from "./ProjectRail";
 import { LocatorPalette } from "../nav/LocatorPalette";
 import { Sheet } from "../ui/Sheet";
+import { ToastRegion } from "../ui/Toast";
+import { MergeModal } from "./MergeModal";
 import { useRunningCount, useStripCards } from "../data/strip";
 import type { ActiveSession } from "./RunningPill";
 import type { NavStore, View } from "../nav";
 import { destinationDesktop, navigateDesktop } from "../nav/desktop-navigation";
 import type { DesktopNavTarget, DesktopRouteId } from "../nav/desktop-locator";
-import { Desktop_PROJECT_ROUTE_KINDS } from "../nav/desktop-route-kinds";
+import { Desktop_PROJECT_ROUTE_KINDS, Desktop_ROUTE_KINDS } from "../nav/desktop-route-kinds";
+
+const Desktop_ROUTE_IDS = Desktop_ROUTE_KINDS.map((route) => route.id);
 
 export interface ShellProps {
     nav: NavStore;
     children: JSX.Element;
 }
 
-const desktopViews: Record<DesktopRouteId, View> = {
-    inbox: "inbox",
-    dashboard: "status",
-    "project-settings": "extensions",
-    "project-analytics": "status",
-    "plan-conversation": "plan",
-    "plan-spec": "plan",
-    "plan-tasks": "plan",
-    develop: "develop",
-    "automate-kanban": "board",
-    "automate-agents": "sessions",
-    "dispatch-autorun": "runs",
-    "dispatch-schedules": "runs",
-    "dispatch-runs": "runs",
-    "memory-short-term": "wiki",
-    "memory-long-term": "wiki",
-    "memory-artifacts": "artifact",
-    "memory-wiki": "wiki",
-    "review-telemetry": "telemetry",
-    "settings-guardrails": "extensions",
-    "workshop-agents": "agents",
-    "workshop-cli": "extensions",
-    "workshop-commands": "extensions",
-    "workshop-harnesses": "harnesses",
-    "workshop-hooks": "extensions",
-    "workshop-linters": "extensions",
-    "workshop-output-styles": "extensions",
-    "workshop-providers": "extensions",
-    "workshop-rules": "extensions",
-    "workshop-skills": "extensions",
-    "workflows-visual": "canvas",
-    "workflows-governance": "canvas",
-};
+const desktopViews: Record<DesktopRouteId, View> = Object.fromEntries(
+    Desktop_ROUTE_IDS.map((route) => [route, route]),
+) as Record<DesktopRouteId, View>;
 
-const desktopRoutes: Record<View, DesktopRouteId> = {
-    inbox: "inbox",
-    status: "dashboard",
-    plan: "plan-conversation",
-    develop: "develop",
-    board: "automate-kanban",
-    sessions: "automate-agents",
-    telemetry: "review-telemetry",
-    runs: "dispatch-runs",
-    artifact: "memory-artifacts",
-    wiki: "memory-wiki",
-    extensions: "workshop-commands",
-    agents: "workshop-agents",
-    harnesses: "workshop-harnesses",
-    canvas: "workflows-visual",
-};
+const desktopRoutes: Record<View, DesktopRouteId> = Object.fromEntries(
+    Desktop_ROUTE_IDS.map((route) => [route, route]),
+) as Record<View, DesktopRouteId>;
 
 /** Maps every registered desktop route to the currently delivered shared surface. */
 export function desktopViewFor(target: DesktopNavTarget): View {
@@ -85,6 +46,7 @@ export function desktopLocatorFor(view: View, project: string): string {
 /** The desktop title bar and project-scoped rail frame every screen. */
 export function Shell(props: ShellProps) {
     const [paletteOpen, setPaletteOpen] = createSignal(false);
+    const [dispatchOpen, setDispatchOpen] = createSignal(false);
     const activeSessions: ActiveSession[] = useStripCards()
         .filter((card) => card.kind === "agent")
         .map((card) => ({
@@ -131,6 +93,10 @@ export function Shell(props: ShellProps) {
                 running={useRunningCount()}
                 needsYou={needsYou}
                 sessions={activeSessions}
+                inboxCount={needsYou}
+                onOpenDispatch={() => openDesktopLocator(destinationDesktop("autorun"))}
+                onOpenInbox={() => openDesktopLocator(destinationDesktop("inbox"))}
+                onDispatchOpenChange={setDispatchOpen}
             />
             <div class="body">
                 <ProjectRail
@@ -144,6 +110,8 @@ export function Shell(props: ShellProps) {
                 </div>
             </div>
 
+            <Show when={props.nav.view() !== "interact" && !dispatchOpen()}><ToastRegion /></Show>
+            <MergeModal open={false} />
             <LocatorPalette
                 open={paletteOpen()}
                 onOpenChange={setPaletteOpen}

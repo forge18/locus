@@ -1,87 +1,69 @@
-import { Desktop_ROUTE_KINDS } from "./desktop-route-kinds";
-import type { RouteScope } from "./route-scope";
-import type { DesktopRouteKind } from "./desktop-route-kinds";
+import { Desktop_ROUTE_KINDS } from './desktop-route-kinds'
+import type { FixtureScope } from '../fixtures/desktop-screen-inventory'
 
-export type DesktopRouteId = DesktopRouteKind["id"];
+export type DesktopRouteId = (typeof Desktop_ROUTE_KINDS)[number]['id']
+export type DesktopLocatorScope = FixtureScope
 
 export interface DesktopNavTarget {
-  route: DesktopRouteId;
-  scope: RouteScope;
+  route: DesktopRouteId
+  scope: { kind: 'all' } | { kind: 'app' } | { kind: 'project'; project: string }
 }
 
-const LOCATOR_SCHEME = "locus://";
-const SEGMENT = /^[A-Za-z0-9._@-]+$/;
+const LOCATOR_SCHEME = 'locus://'
+const SEGMENT = /^[A-Za-z0-9._@-]+$/
 
 export class DesktopLocatorError extends Error {}
 
-function routeFor(id: string): DesktopRouteKind {
-  const route = Desktop_ROUTE_KINDS.find((candidate) => candidate.id === id);
-  if (!route)
-    throw new DesktopLocatorError(`route: "${id}" is not a registered desktop route`);
-  return route;
+function routeFor(id: string): (typeof Desktop_ROUTE_KINDS)[number] {
+  const route = Desktop_ROUTE_KINDS.find((candidate) => candidate.id === id)
+  if (!route) throw new DesktopLocatorError(`route: "${id}" is not a registered desktop route`)
+  return route
 }
 
 function projectFor(project: string | undefined): string {
-  if (!project || !SEGMENT.test(project)) {
-    throw new DesktopLocatorError(`project: "${project}" is not a project segment`);
+  if (!project || !SEGMENT.test(project) || project === 'all' || project === 'app') {
+    throw new DesktopLocatorError(`project: "${project}" is not a project segment`)
   }
-  return project;
+  return project
 }
 
-/** Formats the desktop canonical locator with an explicit global or project scope. */
+/**
+ * Formats the canonical view locator. Project names are the first segment;
+ * cross-project and install-wide views use the reserved `all` and `app` scopes.
+ */
 export function formatDesktopLocator(routeId: DesktopRouteId, project?: string): string {
-  const route = routeFor(routeId);
-  if (route.scope === "global") {
-    if (project !== undefined) {
-      throw new DesktopLocatorError(
-        `scope: global route "${routeId}" does not carry a project`,
-      );
-    }
-    return `${LOCATOR_SCHEME}global/${routeId}`;
+  const route = routeFor(routeId)
+  if (route.scope === 'project') return `${LOCATOR_SCHEME}${projectFor(project)}/view/${route.id}`
+  if (project !== undefined) {
+    throw new DesktopLocatorError(`scope: ${route.scope} route "${routeId}" does not carry a project`)
   }
-
-  return `${LOCATOR_SCHEME}project/${projectFor(project)}/${routeId}`;
+  return `${LOCATOR_SCHEME}${route.scope}/view/${route.id}`
 }
 
-/** Resolves a canonical desktop locator. Legacy v1 locators remain with `resolve`. */
+/** Resolves every canonical desktop locator through this one boundary. */
 export function resolveDesktopLocator(locator: string): DesktopNavTarget {
   if (!locator.startsWith(LOCATOR_SCHEME)) {
+    throw new DesktopLocatorError(`scheme: expected "${LOCATOR_SCHEME}"`)
+  }
+  const segments = locator.slice(LOCATOR_SCHEME.length).split('/')
+  if (segments.length !== 3 || segments[1] !== 'view') {
     throw new DesktopLocatorError(
-      `scheme: expected "${LOCATOR_SCHEME}", got "${locator.split("/")[0]}//"`,
-    );
+      'locator: expected locus://<project|all|app>/view/<route>',
+    )
+  }
+  const [scope, , id] = segments
+  const route = routeFor(id)
+
+  if (scope === 'all' || scope === 'app') {
+    if (route.scope !== scope) {
+      throw new DesktopLocatorError(`scope: route "${route.id}" requires ${route.scope} scope`)
+    }
+    return { route: route.id, scope: { kind: scope } }
   }
 
-  const [scope, ...tail] = locator.slice(LOCATOR_SCHEME.length).split("/");
-  if (scope === "global") {
-    if (tail.length !== 1) {
-      throw new DesktopLocatorError(
-        "scope: global locators are locus://global/<route>",
-      );
-    }
-    const route = routeFor(tail[0]);
-    if (route.scope !== "global") {
-      throw new DesktopLocatorError(
-        `scope: route "${route.id}" requires a project scope`,
-      );
-    }
-    return { route: route.id, scope: { kind: "global" } };
+  const project = projectFor(scope)
+  if (route.scope !== 'project') {
+    throw new DesktopLocatorError(`scope: route "${route.id}" is ${route.scope}`)
   }
-
-  if (scope === "project") {
-    if (tail.length !== 2) {
-      throw new DesktopLocatorError(
-        "scope: project locators are locus://project/<project>/<route>",
-      );
-    }
-    const project = projectFor(tail[0]);
-    const route = routeFor(tail[1]);
-    if (route.scope !== "project") {
-      throw new DesktopLocatorError(`scope: route "${route.id}" is global`);
-    }
-    return { route: route.id, scope: { kind: "project", project } };
-  }
-
-  throw new DesktopLocatorError(
-    `scope: expected "global" or "project", got "${scope}"`,
-  );
+  return { route: route.id, scope: { kind: 'project', project } }
 }

@@ -1,4 +1,5 @@
-import { RunningPill } from './RunningPill'
+import { DispatchPill } from './DispatchPill'
+import { InboxPill } from './InboxPill'
 import type { ActiveSession } from './RunningPill'
 
 export interface AppTitleBarProps {
@@ -7,6 +8,10 @@ export interface AppTitleBarProps {
   running: number
   needsYou: number
   sessions?: ActiveSession[]
+  inboxCount?: number
+  onOpenDispatch?: () => void
+  onOpenInbox?: () => void
+  onDispatchOpenChange?: (open: boolean) => void
 }
 
 export function AppTitleBar(props: AppTitleBarProps) {
@@ -25,7 +30,8 @@ export function AppTitleBar(props: AppTitleBarProps) {
         <span data-testid="title-view">{props.viewLabel}</span>
       </div>
       <div style={{ flex: 1 }} />
-      <RunningPill running={props.running} needsYou={props.needsYou} sessions={props.sessions} />
+      <DispatchPill running={props.running} needsYou={props.needsYou} sessions={props.sessions} onOpenDispatch={props.onOpenDispatch} onOpenChange={props.onDispatchOpenChange} />
+      <InboxPill count={props.inboxCount ?? 0} onOpenInbox={props.onOpenInbox} />
     </div>
   )
 }

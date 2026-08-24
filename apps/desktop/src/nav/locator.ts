@@ -1,217 +1,126 @@
-// The locator grammar — one address space, so there is one resolver.
-//
-//   locus://<project>/session/<id>[/run/<id>]
-//   locus://<project>/task/<id>       artifact/<id>       page/<slug>
-//   locus://<project>/workflow/<id>[/execution/<id>]      agent/<name>@<version>
-//
-// Plus a view form for the screens that address no single object:
-//
-//   locus://<project>/<view>
-//
-// The command palette, global search, inbox items, board-card links, artifact
-// comments, deep links, and a detached window's identity are seven navigation
-// paths. Against this grammar they are one resolver with seven callers.
+// Canonical locator grammar shared by view links and object deep links.
+// Views use locus://<project|all|app>/view/<id>; objects use
+// locus://<project>/<kind>/<id>[/<sub-kind>/<id>].
+import { Desktop_FIXTURE_ROUTES } from '../fixtures/desktop-screen-inventory'
+import type { View } from './views'
 
-import { VIEWS } from "./views";
-import type { View } from "./views";
+export const LOCATOR_SCHEME = 'locus://'
+export const KINDS = ['session', 'task', 'artifact', 'page', 'workflow', 'agent'] as const
+export type LocatorKind = (typeof KINDS)[number]
+export type ViewParams = { project?: string; [key: string]: string | undefined }
 
-export const LOCATOR_SCHEME = "locus://";
-
-/** The six addressable object kinds. */
-export const KINDS = [
-  "session",
-  "task",
-  "artifact",
-  "page",
-  "workflow",
-  "agent",
-] as const;
-
-export type LocatorKind = (typeof KINDS)[number];
-
-/**
- * How each view addresses its object. One viewer per kind, however you reached it.
- *
- * `sessions` and `runs` share the `session` kind and are told apart by the run
- * sub-segment: a live session is operated in Automate, and a finished run is
- * examined in Review. Dashboard is now, Review is after — and the locator says
- * which of the two you asked for.
- */
-interface ViewForm {
-  kind: LocatorKind;
-  idParam: string;
-  sub?: { segment: string; param: string; required: boolean };
-}
-
-const VIEW_FORM: Partial<Record<View, ViewForm>> = {
-  sessions: { kind: "session", idParam: "sessionId" },
-  runs: {
-    kind: "session",
-    idParam: "sessionId",
-    sub: { segment: "run", param: "runId", required: true },
-  },
-  board: { kind: "task", idParam: "taskId" },
-  artifact: { kind: "artifact", idParam: "artifactId" },
-  wiki: { kind: "page", idParam: "slug" },
-  canvas: {
-    kind: "workflow",
-    idParam: "workflowId",
-    sub: { segment: "execution", param: "executionId", required: false },
-  },
-  agents: { kind: "agent", idParam: "agentName" },
-};
-
-/** The sub-segment each kind may carry. Parsing needs this before a view is known. */
-const KIND_SUB: Partial<Record<LocatorKind, string>> = {
-  session: "run",
-  workflow: "execution",
-};
-
-/** Which view a parsed locator opens. */
-function viewFor(kind: LocatorKind, hasSub: boolean): View {
-  if (kind === "session") return hasSub ? "runs" : "sessions";
-  const found = Object.entries(VIEW_FORM).find(
-    ([view, form]) => form!.kind === kind && !(view === "runs"),
-  )!;
-  return found[0] as View;
-}
-
-export interface ViewParams {
-  project?: string;
-  [key: string]: string | undefined;
-}
-
-export interface Locator {
-  project: string;
-  /** Null for a view-form locator, which addresses a screen rather than an object. */
-  kind: LocatorKind | null;
-  /** The object id, or the view name for a view-form locator. */
-  id: string;
-  /** The sub-object id, where the kind allows one. */
-  subId: string | null;
-}
-
-export interface NavTarget {
-  view: View;
-  params: ViewParams;
-}
-
-const SEGMENT = /^[A-Za-z0-9._@-]+$/;
+const VIEW_IDS = Desktop_FIXTURE_ROUTES.map((route) => route.id) as readonly string[]
+const PROJECT_VIEWS = new Set(Desktop_FIXTURE_ROUTES.filter((route) => route.scope === 'project').map((route) => route.id))
+const APP_VIEWS = new Set(Desktop_FIXTURE_ROUTES.filter((route) => route.scope === 'app').map((route) => route.id))
+const SEGMENT = /^[A-Za-z0-9._@-]+$/
+const KIND_SUB: Partial<Record<LocatorKind, string>> = { session: 'run', workflow: 'execution' }
 
 export class LocatorError extends Error {}
 
-/** Structural parse. Throws with the offending segment named. */
+export interface Locator {
+  project: string
+  kind: LocatorKind | null
+  id: string
+  subId: string | null
+}
+export interface NavTarget {
+  view: View
+  params: ViewParams
+}
+
+function isScope(value: string): boolean {
+  return value === 'all' || value === 'app'
+}
+function viewFor(kind: LocatorKind, hasSub: boolean): View {
+  if (kind === 'session') return (hasSub ? 'runs' : 'sessions') as View
+  if (kind === 'task') return 'manage' as View
+  if (kind === 'artifact') return 'artifact' as View
+  if (kind === 'page') return 'wiki' as View
+  if (kind === 'workflow') return 'canvas' as View
+  return 'agents' as View
+}
+
 export function parse(locator: string): Locator {
-  if (!locator.startsWith(LOCATOR_SCHEME)) {
-    throw new LocatorError(
-      `scheme: expected "${LOCATOR_SCHEME}", got "${locator.split("/")[0]}//"`,
-    );
-  }
+  if (!locator.startsWith(LOCATOR_SCHEME)) throw new LocatorError(`scheme: expected "${LOCATOR_SCHEME}"`)
+  const segments = locator.slice(LOCATOR_SCHEME.length).split('/')
+  const [scope, kind, id, ...sub] = segments
+  if (!scope || !SEGMENT.test(scope)) throw new LocatorError(`scope: "${scope}" is invalid`)
 
-  const rest = locator.slice(LOCATOR_SCHEME.length);
-  const segments = rest.split("/");
-
-  const [project, ...tail] = segments;
-  if (!project || !SEGMENT.test(project)) {
-    throw new LocatorError(`project: "${project}" is not a project segment`);
-  }
-  if (tail.length === 0) {
-    throw new LocatorError(
-      "view: a locator addresses a view or an object, and this names neither",
-    );
-  }
-
-  // View form: locus://<project>/<view>
-  if (tail.length === 1) {
-    if (!(VIEWS as readonly string[]).includes(tail[0])) {
-      throw new LocatorError(
-        `view: "${tail[0]}" is not one of the fourteen views`,
-      );
+  if (kind === 'view') {
+    if (segments.length !== 3 || !VIEW_IDS.includes(id)) {
+      throw new LocatorError(`view: "${id}" is not one of the 29 views`)
     }
-    return { project, kind: null, id: tail[0], subId: null };
+    return { project: scope, kind: null, id, subId: null }
   }
 
-  const [kind, id, ...sub] = tail;
-  if (!(KINDS as readonly string[]).includes(kind)) {
-    throw new LocatorError(`kind: "${kind}" is not one of ${KINDS.join(", ")}`);
+  if (isScope(scope)) throw new LocatorError('scope: object locators require a project')
+  if (!(KINDS as readonly string[]).includes(kind)) throw new LocatorError(`kind: "${kind}" is not supported`)
+  const k = kind as LocatorKind
+  if (!id || !SEGMENT.test(id)) throw new LocatorError(`id: "${id}" is invalid`)
+  if (k === 'agent' && !/^[A-Za-z0-9._-]+@\d+$/.test(id)) throw new LocatorError(`id: "${id}" is not <name>@<version>`)
+  if (!sub.length) return { project: scope, kind: k, id, subId: null }
+  const allowed = KIND_SUB[k]
+  if (!allowed || sub.length !== 2 || sub[0] !== allowed || !SEGMENT.test(sub[1])) {
+    throw new LocatorError(`sub: expected "${allowed ?? 'none'}/<id>"`)
   }
-  const k = kind as LocatorKind;
-
-  if (!id || !SEGMENT.test(id)) {
-    throw new LocatorError(`id: "${id}" is not an id for kind "${kind}"`);
-  }
-  if (k === "agent" && !/^[A-Za-z0-9._-]+@\d+$/.test(id)) {
-    throw new LocatorError(`id: "${id}" is not <name>@<version>`);
-  }
-
-  if (sub.length === 0) return { project, kind: k, id, subId: null };
-
-  const allowed = KIND_SUB[k];
-  if (!allowed) {
-    throw new LocatorError(
-      `sub: kind "${kind}" carries no sub-object, got "${sub[0]}"`,
-    );
-  }
-  if (sub.length !== 2) {
-    throw new LocatorError(
-      `sub: expected "${allowed}/<id>", got "${sub.join("/")}"`,
-    );
-  }
-  if (sub[0] !== allowed) {
-    throw new LocatorError(
-      `sub: kind "${kind}" carries "${allowed}", not "${sub[0]}"`,
-    );
-  }
-  if (!SEGMENT.test(sub[1])) {
-    throw new LocatorError(`sub: "${sub[1]}" is not an id`);
-  }
-
-  return { project, kind: k, id, subId: sub[1] };
+  return { project: scope, kind: k, id, subId: sub[1] }
 }
 
-/** The parser's inverse. */
+function viewScope(view: View): 'project' | 'all' | 'app' {
+  if (PROJECT_VIEWS.has(view)) return 'project'
+  if (APP_VIEWS.has(view)) return 'app'
+  return 'all'
+}
+
 export function format(view: View, params: ViewParams): string {
-  const form = VIEW_FORM[view];
-  if (!params.project) {
-    throw new LocatorError("project: a legacy locator requires a project scope");
+  const scope = viewScope(view)
+  const project = params.project
+  const forms: Partial<Record<View, [LocatorKind, string, string?]>> = {
+    sessions: ['session', 'sessionId'],
+    runs: ['session', 'sessionId', 'runId'],
+    artifact: ['artifact', 'artifactId'],
+    wiki: ['page', 'slug'],
+    canvas: ['workflow', 'workflowId', 'executionId'],
+    agents: ['agent', 'agentName'],
   }
-  const base = `${LOCATOR_SCHEME}${params.project}`;
-  if (!form) return `${base}/${view}`;
-
-  let id = params[form.idParam];
-  if (form.kind === "agent" && id && params.agentVersion)
-    id = `${id}@${params.agentVersion}`;
-
-  const subId = form.sub ? params[form.sub.param] : undefined;
-  // With no id — or with a required sub-object missing — this addresses the screen
-  // rather than one object on it.
-  if (!id || (form.sub?.required && !subId)) return `${base}/${view}`;
-
-  return subId
-    ? `${base}/${form.kind}/${id}/${form.sub!.segment}/${subId}`
-    : `${base}/${form.kind}/${id}`;
+  const form = forms[view]
+  if (form) {
+    const [kind, idParam, subParam] = form
+    let id = params[idParam]
+    if (kind === 'agent' && id && params.agentVersion) id = `${id}@${params.agentVersion}`
+    if (id) {
+      if (!project || isScope(project)) throw new LocatorError(`project: object locators require a project`)
+      if (subParam === 'runId' && !params[subParam]) return `${LOCATOR_SCHEME}${project}/view/${view}`
+      const sub = subParam && params[subParam]
+      return `${LOCATOR_SCHEME}${project}/${kind}/${id}${sub ? `/${kind === 'session' ? 'run' : 'execution'}/${sub}` : ''}`
+    }
+  }
+  if (scope === 'project') {
+    if (!project || isScope(project)) throw new LocatorError('project: a project-scoped view requires a project')
+    return `${LOCATOR_SCHEME}${project}/view/${view}`
+  }
+  if (project !== undefined) throw new LocatorError(`scope: ${scope} views do not carry a project`)
+  return `${LOCATOR_SCHEME}${scope}/view/${view}`
 }
 
-/** The single navigation entry point. Everything that navigates comes through here. */
 export function resolve(locator: string): NavTarget {
-  const parsed = parse(locator);
-
+  const parsed = parse(locator)
   if (parsed.kind === null) {
-    return { view: parsed.id as View, params: { project: parsed.project } };
+    return {
+      view: parsed.id as View,
+      params: isScope(parsed.project) ? {} : { project: parsed.project },
+    }
   }
-
-  const view = viewFor(parsed.kind, parsed.subId !== null);
-  const form = VIEW_FORM[view]!;
-
-  const params: ViewParams = { project: parsed.project };
-  if (parsed.kind === "agent") {
-    const [name, version] = parsed.id.split("@");
-    params.agentName = name;
-    params.agentVersion = version;
+  const view = viewFor(parsed.kind, parsed.subId !== null)
+  const params: ViewParams = { project: parsed.project }
+  if (parsed.kind === 'agent') {
+    const [name, version] = parsed.id.split('@')
+    params.agentName = name
+    params.agentVersion = version
   } else {
-    params[form.idParam] = parsed.id;
+    const key = parsed.kind === 'session' ? 'sessionId' : parsed.kind === 'artifact' ? 'artifactId' : parsed.kind === 'page' ? 'slug' : parsed.kind === 'workflow' ? 'workflowId' : 'taskId'
+    params[key] = parsed.id
   }
-  if (form.sub && parsed.subId) params[form.sub.param] = parsed.subId;
-
-  return { view, params };
+  if (parsed.subId) params[parsed.kind === 'session' ? 'runId' : 'executionId'] = parsed.subId
+  return { view, params }
 }

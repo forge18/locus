@@ -58,12 +58,7 @@ export function createNavStore(options: NavStoreOptions = {}): NavStore {
 
   const view = createMemo(() => target().view)
   const params = createMemo(() => target().params)
-  const locator = createMemo(() => {
-    const current = target()
-    return current.params.project
-      ? format(current.view, current.params)
-      : `locus://global/${current.view}`
-  })
+  const locator = createMemo(() => format(target().view, target().params))
 
   /**
    * Push onto the stack, discarding anything forward of the cursor.
@@ -74,10 +69,8 @@ export function createNavStore(options: NavStoreOptions = {}): NavStore {
    * where that becomes true instead of merely intended.
    */
   const push = (next: NavTarget) => {
-    const at = next.params.project
-      ? format(next.view, next.params)
-      : `locus://global/${next.view}`
-    setTarget(next.params.project ? resolve(at) : next)
+    const at = format(next.view, next.params)
+    setTarget(resolve(at))
     if (at === stack()[cursor()]) return
     setStack([...stack().slice(0, cursor() + 1), at])
     setCursor(cursor() + 1)
@@ -103,9 +96,7 @@ export function createNavStore(options: NavStoreOptions = {}): NavStore {
     if (to < 0 || to >= stack().length) return
     setCursor(to)
     const at = stack()[to]
-    setTarget(at.startsWith('locus://global/')
-      ? { view: at.slice('locus://global/'.length) as View, params: {} }
-      : resolve(at))
+    setTarget(resolve(at))
   }
 
   return {
