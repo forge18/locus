@@ -1,115 +1,316 @@
-import { createMemo, createSignal, For } from 'solid-js'
-import { destinationDesktop } from '../nav/desktop-navigation'
-import { Desktop_ALL_ROUTE_KINDS, Desktop_APP_ROUTE_KINDS } from '../nav/desktop-route-kinds'
+import { createMemo, createSignal, For } from "solid-js";
+import { destinationDesktop } from "../nav/desktop-navigation";
+import {
+      Desktop_ALL_ROUTE_KINDS,
+      Desktop_APP_ROUTE_KINDS,
+} from "../nav/desktop-route-kinds";
 
-export const RAIL_EXPANSION_STORAGE_KEY = 'locus.rail-expansion'
+export const RAIL_EXPANSION_STORAGE_KEY = "locus.rail-expansion";
 
 const PROJECT_RAIL_LINKS = [
-  ['Setup', 'projects'],
-  ['Plan', 'plan'],
-  ['Manage', 'sessions'],
-  ['Interact', 'interact'],
-  ['Review', 'qa'],
-] as const
-const CROSS_PROJECT_LINKS = [['Analytics', 'status']] as const
-const MEMORY_ROUTES = Desktop_ALL_ROUTE_KINDS.filter((route) => route.category === 'memory')
-const WORKSHOP_ROUTES = Desktop_APP_ROUTE_KINDS.filter((route) => route.category === 'workshop')
+      ["Setup", "projects"],
+      ["Plan", "plan"],
+      ["Manage", "sessions"],
+      ["Interact", "interact"],
+      ["Review", "qa"],
+] as const;
+const CROSS_PROJECT_LINKS = [["Analytics", "status"]] as const;
+const MEMORY_ROUTES = Desktop_ALL_ROUTE_KINDS.filter(
+      (route) => route.category === "memory",
+);
+const WORKSHOP_ROUTES = Desktop_APP_ROUTE_KINDS.filter(
+      (route) => route.category === "workshop",
+);
 
 const readExpansion = (): Record<string, boolean> => {
-  try {
-    const value: unknown = JSON.parse(localStorage.getItem(RAIL_EXPANSION_STORAGE_KEY) ?? '{}')
-    return typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, boolean> : {}
-  } catch { return {} }
-}
+      try {
+            const value: unknown = JSON.parse(
+                  localStorage.getItem(RAIL_EXPANSION_STORAGE_KEY) ?? "{}",
+            );
+            return typeof value === "object" &&
+                  value !== null &&
+                  !Array.isArray(value)
+                  ? (value as Record<string, boolean>)
+                  : {};
+      } catch {
+            return {};
+      }
+};
 
 export interface ProjectRailProps {
-  selectedProject: string
-  inboxCount?: number
-  dispatchState?: 'ready' | 'working' | 'blocked'
-  projects?: readonly string[]
-  projectDetails?: readonly { id: string; running: number; spend: string }[]
-  onNavigate?: (locator: string) => void
+      selectedProject: string;
+      inboxCount?: number;
+      dispatchState?: "ready" | "working" | "blocked";
+      projects?: readonly string[];
+      projectDetails?: readonly {
+            id: string;
+            running: number;
+            spend: string;
+      }[];
+      onNavigate?: (locator: string) => void;
 }
 
 export function ProjectRail(props: ProjectRailProps) {
-  const saved = readExpansion()
-  const [filter, setFilter] = createSignal('')
-  const [activeProject, setActiveProject] = createSignal(0)
-  const [memoryExpanded, setMemoryExpanded] = createSignal(saved.memory ?? false)
-  const [workshopExpanded, setWorkshopExpanded] = createSignal(saved.workshop ?? false)
-  const projects = createMemo(() => {
-    const needle = filter().trim().toLowerCase()
-    return (props.projects ?? [props.selectedProject]).filter((project) => project.toLowerCase().includes(needle))
-  })
-  const persist = (name: 'memory' | 'workshop', value: boolean) =>
-    localStorage.setItem(RAIL_EXPANSION_STORAGE_KEY, JSON.stringify({ ...readExpansion(), [name]: value }))
-  const moveProject = (delta: 1 | -1) => {
-    const count = projects().length
-    if (count) setActiveProject((index) => (index + delta + count) % count)
-  }
+      const saved = readExpansion();
+      const [filter, setFilter] = createSignal("");
+      const [activeProject, setActiveProject] = createSignal(0);
+      const [memoryExpanded, setMemoryExpanded] = createSignal(
+            saved.memory ?? false,
+      );
+      const [workshopExpanded, setWorkshopExpanded] = createSignal(
+            saved.workshop ?? false,
+      );
+      const projects = createMemo(() => {
+            const needle = filter().trim().toLowerCase();
+            return (props.projects ?? [props.selectedProject]).filter(
+                  (project) => project.toLowerCase().includes(needle),
+            );
+      });
+      const persist = (name: "memory" | "workshop", value: boolean) =>
+            localStorage.setItem(
+                  RAIL_EXPANSION_STORAGE_KEY,
+                  JSON.stringify({ ...readExpansion(), [name]: value }),
+            );
+      const moveProject = (delta: 1 | -1) => {
+            const count = projects().length;
+            if (count)
+                  setActiveProject((index) => (index + delta + count) % count);
+      };
 
-  return (
-    <nav aria-label="Application navigation" class="project-rail" data-testid="project-rail">
-      <section data-testid="project-group">
-        <div class="rail-group-label">Project</div>
-        <button type="button" class="project-switcher" data-testid="project-switcher">#{props.selectedProject}</button>
-        <input
-          type="search"
-          data-testid="project-switcher-filter"
-          aria-label="Filter projects"
-          value={filter()}
-          onInput={(event) => { setFilter(event.currentTarget.value); setActiveProject(0) }}
-          onKeyDown={(event) => {
-            if (event.key === 'ArrowDown') { event.preventDefault(); moveProject(1) }
-            if (event.key === 'ArrowUp') { event.preventDefault(); moveProject(-1) }
-          }}
-        />
-        <div data-testid="project-switcher-results">
-          <For each={projects()}>{(project, index) => {
-            const detail = () => props.projectDetails?.find((entry) => entry.id === project)
-            const selected = () => project === props.selectedProject
-            return (
-              <button
-                type="button"
-                data-testid={`project-switcher-option-${project}`}
-                data-selected-project={selected() ? 'true' : 'false'}
-                data-project-running={detail()?.running ?? 0}
-                data-project-spend={detail()?.spend ?? ''}
-                aria-selected={activeProject() === index()}
-                aria-current={selected() ? 'true' : undefined}
-                onClick={() => props.onNavigate?.(destinationDesktop('projects', project))}
-              >
-                <span>{project}</span>
-                <small data-testid={`project-meta-${project}`}>
-                  {detail() ? `${detail()!.running} running · ${detail()!.spend}` : selected() ? 'selected' : ''}
-                </small>
-              </button>
-            )
-          }}</For>
-        </div>
-        <button type="button" class="new-project" onClick={() => props.onNavigate?.(destinationDesktop('projects', props.selectedProject))}>+ New project</button>
-        <div data-testid="project-rail-routes">
-          <For each={PROJECT_RAIL_LINKS}>{([label, route]) => (
-            <button type="button" onClick={() => props.onNavigate?.(destinationDesktop(route, props.selectedProject))}>{label}</button>
-          )}</For>
-        </div>
-      </section>
+      return (
+            <nav
+                  aria-label="Application navigation"
+                  class="project-rail"
+                  data-testid="project-rail"
+            >
+                  <section data-testid="project-group">
+                        <div class="rail-group-label">Project</div>
+                        <button
+                              type="button"
+                              class="project-switcher"
+                              data-testid="project-switcher"
+                        >
+                              #{props.selectedProject}
+                        </button>
+                        <input
+                              type="search"
+                              data-testid="project-switcher-filter"
+                              aria-label="Filter projects"
+                              value={filter()}
+                              onInput={(event) => {
+                                    setFilter(event.currentTarget.value);
+                                    setActiveProject(0);
+                              }}
+                              onKeyDown={(event) => {
+                                    if (event.key === "ArrowDown") {
+                                          event.preventDefault();
+                                          moveProject(1);
+                                    }
+                                    if (event.key === "ArrowUp") {
+                                          event.preventDefault();
+                                          moveProject(-1);
+                                    }
+                              }}
+                        />
+                        <div data-testid="project-switcher-results">
+                              <For each={projects()}>
+                                    {(project, index) => {
+                                          const detail = () =>
+                                                props.projectDetails?.find(
+                                                      (entry) =>
+                                                            entry.id ===
+                                                            project,
+                                                );
+                                          const selected = () =>
+                                                project ===
+                                                props.selectedProject;
+                                          return (
+                                                <button
+                                                      type="button"
+                                                      data-testid={`project-switcher-option-${project}`}
+                                                      data-selected-project={
+                                                            selected()
+                                                                  ? "true"
+                                                                  : "false"
+                                                      }
+                                                      data-project-running={
+                                                            detail()?.running ??
+                                                            0
+                                                      }
+                                                      data-project-spend={
+                                                            detail()?.spend ??
+                                                            ""
+                                                      }
+                                                      aria-selected={
+                                                            activeProject() ===
+                                                            index()
+                                                      }
+                                                      aria-current={
+                                                            selected()
+                                                                  ? "true"
+                                                                  : undefined
+                                                      }
+                                                      onClick={() =>
+                                                            props.onNavigate?.(
+                                                                  destinationDesktop(
+                                                                        "projects",
+                                                                        project,
+                                                                  ),
+                                                            )
+                                                      }
+                                                >
+                                                      <span>{project}</span>
+                                                      <small
+                                                            data-testid={`project-meta-${project}`}
+                                                      >
+                                                            {detail()
+                                                                  ? `${detail()!.running} running · ${detail()!.spend}`
+                                                                  : selected()
+                                                                    ? "selected"
+                                                                    : ""}
+                                                      </small>
+                                                </button>
+                                          );
+                                    }}
+                              </For>
+                        </div>
+                        <button
+                              type="button"
+                              class="new-project"
+                              onClick={() =>
+                                    props.onNavigate?.(
+                                          destinationDesktop(
+                                                "projects",
+                                                props.selectedProject,
+                                          ),
+                                    )
+                              }
+                        >
+                              + New project
+                        </button>
+                        <div data-testid="project-rail-routes">
+                              <For each={PROJECT_RAIL_LINKS}>
+                                    {([label, route]) => (
+                                          <button
+                                                type="button"
+                                                onClick={() =>
+                                                      props.onNavigate?.(
+                                                            destinationDesktop(
+                                                                  route,
+                                                                  props.selectedProject,
+                                                            ),
+                                                      )
+                                                }
+                                          >
+                                                {label}
+                                          </button>
+                                    )}
+                              </For>
+                        </div>
+                        <span
+                              data-testid="dispatch-dot"
+                              data-state={props.dispatchState ?? "ready"}
+                              aria-label={`Dispatch ${props.dispatchState ?? "ready"}`}
+                        />
+                  </section>
 
-      <section data-testid="cross-project-group">
-        <div class="rail-group-label">Cross-Project</div>
-        <For each={CROSS_PROJECT_LINKS}>{([label, route]) => (
-          <button type="button" onClick={() => props.onNavigate?.(destinationDesktop(route))}>{label}</button>
-        )}</For>
-        <button type="button" aria-expanded={memoryExpanded()} onClick={() => { props.onNavigate?.(destinationDesktop('short')); const next = !memoryExpanded(); setMemoryExpanded(next); persist('memory', next) }}>Memory</button>
-        <div data-testid="memory-rail-links" hidden={!memoryExpanded()}>
-          <For each={MEMORY_ROUTES}>{(route) => <button type="button" onClick={() => props.onNavigate?.(destinationDesktop(route.id))}>{route.label}</button>}</For>
-        </div>
-        <button type="button" onClick={() => props.onNavigate?.(destinationDesktop('settings'))}>Settings</button>
-        <button type="button" aria-expanded={workshopExpanded()} onClick={() => { props.onNavigate?.(destinationDesktop('agents')); const next = !workshopExpanded(); setWorkshopExpanded(next); persist('workshop', next) }}>Workshop</button>
-        <div data-testid="workshop-rail-links" hidden={!workshopExpanded()}>
-          <For each={WORKSHOP_ROUTES}>{(route) => <button type="button" onClick={() => props.onNavigate?.(destinationDesktop(route.id))}>{route.label}</button>}</For>
-        </div>
-      </section>
-    </nav>
-  )
+                  <section data-testid="cross-project-group">
+                        <div class="rail-group-label">Cross-Project</div>
+                        <For each={CROSS_PROJECT_LINKS}>
+                              {([label, route]) => (
+                                    <button
+                                          type="button"
+                                          onClick={() =>
+                                                props.onNavigate?.(
+                                                      destinationDesktop(route),
+                                                )
+                                          }
+                                    >
+                                          {label}
+                                    </button>
+                              )}
+                        </For>
+                        <button
+                              type="button"
+                              aria-expanded={memoryExpanded()}
+                              onClick={() => {
+                                    props.onNavigate?.(
+                                          destinationDesktop("short"),
+                                    );
+                                    const next = !memoryExpanded();
+                                    setMemoryExpanded(next);
+                                    persist("memory", next);
+                              }}
+                        >
+                              Memory
+                        </button>
+                        <div
+                              data-testid="memory-rail-links"
+                              hidden={!memoryExpanded()}
+                        >
+                              <For each={MEMORY_ROUTES}>
+                                    {(route) => (
+                                          <button
+                                                type="button"
+                                                onClick={() =>
+                                                      props.onNavigate?.(
+                                                            destinationDesktop(
+                                                                  route.id,
+                                                            ),
+                                                      )
+                                                }
+                                          >
+                                                {route.label}
+                                          </button>
+                                    )}
+                              </For>
+                        </div>
+                        <button
+                              type="button"
+                              onClick={() =>
+                                    props.onNavigate?.(
+                                          destinationDesktop("settings"),
+                                    )
+                              }
+                        >
+                              Settings
+                        </button>
+                        <button
+                              type="button"
+                              aria-expanded={workshopExpanded()}
+                              onClick={() => {
+                                    props.onNavigate?.(
+                                          destinationDesktop("agents"),
+                                    );
+                                    const next = !workshopExpanded();
+                                    setWorkshopExpanded(next);
+                                    persist("workshop", next);
+                              }}
+                        >
+                              Workshop
+                        </button>
+                        <div
+                              data-testid="workshop-rail-links"
+                              hidden={!workshopExpanded()}
+                        >
+                              <For each={WORKSHOP_ROUTES}>
+                                    {(route) => (
+                                          <button
+                                                type="button"
+                                                onClick={() =>
+                                                      props.onNavigate?.(
+                                                            destinationDesktop(
+                                                                  route.id,
+                                                            ),
+                                                      )
+                                                }
+                                          >
+                                                {route.label}
+                                          </button>
+                                    )}
+                              </For>
+                        </div>
+                  </section>
+            </nav>
+      );
 }

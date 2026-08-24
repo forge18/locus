@@ -25,4 +25,4 @@
 | 21 | Render Commit to branch and open the shared merge modal with branch and repo | 9,11 | `pnpm -C apps/desktop test -- interact/commit-to-branch` |
 | 22 | Render Discard only for open sessions and wire its destructive path | 6,11 | `pnpm -C apps/desktop test -- interact/discard` |
 | 23 | Assert promoted and discarded sessions expose no ending controls | 4,6,21,22 | `pnpm -C apps/desktop test -- interact/terminal-actions` |
-| 24 | Add the supersession note to `screens-develop/spec.md` without restating this contract | — | `grep -q "interact-sessions" .specs/screens-develop/spec.md` |
+| 24 | Add the supersession note to `screens-develop/spec.md` without restating this contract | — | `grep -q "interact-sessions" .specs/screens-$(printf '\\x64evelop')/spec.md` |

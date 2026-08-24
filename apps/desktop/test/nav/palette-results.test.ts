@@ -8,11 +8,13 @@ describe("nav/palette-results", () => {
     expect(destinations).toHaveLength(Desktop_ROUTE_KINDS.length);
     expect(destinations).toContainEqual({
       label: "Inbox",
-      locator: "locus://global/inbox",
+      locator: "locus://all/view/inbox",
+      section: "Needs you",
     });
     expect(destinations).toContainEqual({
-      label: "Develop",
-      locator: "locus://project/locus/develop",
+      label: "Plan",
+      locator: "locus://locus/view/plan",
+      section: "Where you were",
     });
   });
 });

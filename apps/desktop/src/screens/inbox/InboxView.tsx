@@ -96,7 +96,8 @@ export function InboxView(props: InboxViewProps) {
   );
   const completedGroups = createMemo(() => groupByDay(completedItems()));
   const selected = createMemo(
-    () => items().find((item) => item.id === selectedId()) ?? items()[0] ?? null,
+    () =>
+      items().find((item) => item.id === selectedId()) ?? items()[0] ?? null,
   );
 
   /**
@@ -123,7 +124,7 @@ export function InboxView(props: InboxViewProps) {
   };
 
   return (
-    <div class="inbox" data-testid="inbox">
+    <div class="inbox" data-testid="inbox" data-desktop-route="inbox">
       <div
         class="inbox-list"
         data-testid="inbox-list"
@@ -155,7 +156,8 @@ export function InboxView(props: InboxViewProps) {
             aria-controls="inbox-completed-panel"
             onClick={() => setTab("completed")}
           >
-            Completed <span data-testid="inbox-completed-count">
+            Completed{" "}
+            <span data-testid="inbox-completed-count">
               {completedItems().length}
             </span>
           </button>
@@ -179,9 +181,13 @@ export function InboxView(props: InboxViewProps) {
             <i />
           </span>
           <span data-testid="inbox-throughput-value">
-            {throughput.resolvedThisHour} / {throughput.hourlyBudget} {throughput.periodLabel}
+            {throughput.resolvedThisHour} / {throughput.hourlyBudget}{" "}
+            {throughput.periodLabel}
           </span>
-          <span class="inbox-throughput-status" data-testid="inbox-throughput-status">
+          <span
+            class="inbox-throughput-status"
+            data-testid="inbox-throughput-status"
+          >
             {throughput.resolvedThisHour < throughput.hourlyBudget
               ? "under budget"
               : "at budget"}
@@ -210,10 +216,7 @@ export function InboxView(props: InboxViewProps) {
               data-inbox-completed="true"
             >
               <div class="inbox-section">
-                <span
-                  class="inbox-section-title"
-                  data-testid="completed-title"
-                >
+                <span class="inbox-section-title" data-testid="completed-title">
                   Completed
                 </span>
                 <span class="inbox-section-note">
@@ -242,19 +245,14 @@ export function InboxView(props: InboxViewProps) {
                         data-day={group.day}
                         data-resolved-day={group.day}
                       >
-                        <h2 class="inbox-completed-day-title">
-                          {group.day}
-                        </h2>
+                        <h2 class="inbox-completed-day-title">{group.day}</h2>
                         <For each={group.items}>
                           {(row) => (
                             <div
                               class="inbox-completed-row inbox-resolved-row"
                               data-testid={`inbox-completed-row-${row.id}`}
                             >
-                              <Icon
-                                name={RESOLVED_ICON[row.kind]}
-                                size={11}
-                              />
+                              <Icon name={RESOLVED_ICON[row.kind]} size={11} />
                               <span class="inbox-completed-title">
                                 {row.title}
                               </span>
@@ -262,9 +260,12 @@ export function InboxView(props: InboxViewProps) {
                                 class="inbox-resolution inbox-resolution-time"
                                 data-testid={`resolved-time-${row.id}`}
                                 data-resolution-minutes={row.resolutionMinutes}
-                                data-resolution-time={resolutionTime(row.resolutionMinutes)}
+                                data-resolution-time={resolutionTime(
+                                  row.resolutionMinutes,
+                                )}
                               >
-                                Resolved in {resolutionTime(row.resolutionMinutes)}
+                                Resolved in{" "}
+                                {resolutionTime(row.resolutionMinutes)}
                               </span>
                             </div>
                           )}
@@ -288,8 +289,8 @@ export function InboxView(props: InboxViewProps) {
                 Needs you
               </span>
               <span class="inbox-section-note" data-testid="needs-you-note">
-                {items().length} {items().length === 1 ? "item" : "items"} · silence
-                is the default
+                {items().length} {items().length === 1 ? "item" : "items"} ·
+                silence is the default
               </span>
             </div>
 

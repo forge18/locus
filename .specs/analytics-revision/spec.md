@@ -7,7 +7,7 @@ analytics implementation and the project Analytics tab in `setup-revision`
 
 Define the current Analytics surface: a global overview that deliberately ignores the project selector,
 a project-scoped instance in Setup, and an Analytics → Telemetry sub-tab over the normalized event log.
-The mockup's old Dashboard contract does not cover range bucketing, the measure-selected projections,
+The mockup's old global-metrics contract does not cover range bucketing, the measure-selected projections,
 task outcomes, p90 workflow duration, memory retrieval quality, extension usage, or the queryable event
 ledger. This spec adds projections, not a second telemetry store: every number is derived from persisted
 runs, events, artifacts, memory retrievals, and materialization records.
@@ -16,7 +16,7 @@ runs, events, artifacts, memory retrievals, and materialization records.
 
 - `PLAN.md` §Telemetry — normalized event vocabulary and the rule that missing verbs are recorded, never synthesized
 - `PLAN.md` §Navigation — Analytics is Cross-Project and Telemetry is its sub-tab
-- `.specs/dashboard-metrics/spec.md` — source queries and definitions that remain valid
+- the legacy metrics spec — source queries and definitions that remain valid
 - `.specs/telemetry/spec.md` — event persistence and capture source
 - `docs/UI_MOCKUP_REVIEW.md` — Analytics and Analytics → Telemetry
 
@@ -86,8 +86,8 @@ Id`; status is one of `running`, `stuck n/3`, `waiting: gate`, `idle Nm`, `hande
 
 | Existing feature | Replacement |
 | --- | --- |
-| `dashboard-metrics` — screen contract | this spec's global and project overview plus Telemetry sub-tab; its existing event-derived metric definitions stand |
-| `screens-dashboard` | this spec; Dashboard is retired in favor of Analytics |
+| legacy metrics screen contract | this spec's global and project overview plus Telemetry sub-tab; its existing event-derived metric definitions stand |
+| historical global screen contract | this spec; the old global-metrics surface is retired in favor of Analytics |
 | `desktop-knowledge-review` — telemetry viewer only | this spec's Analytics → Telemetry sub-tab |
 
 Each replaced spec carries a pointer line to this spec, scoped as above.
@@ -108,7 +108,7 @@ Each replaced spec carries a pointer line to this spec, scoped as above.
 12. A nonzero permission-request count renders as an alarm, not a success metric.
 13. Tools derive from the allowlist and carry anomaly notes.
 14. Sessions render the stated columns and closed status vocabulary.
-15. `dashboard-metrics`, `screens-dashboard`, and the telemetry portion of `desktop-knowledge-review` carry scoped supersession pointers.
+15. The legacy metrics, historical global screen, and telemetry contracts carry scoped supersession pointers.
 
 ## Open
 

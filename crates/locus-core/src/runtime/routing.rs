@@ -74,7 +74,13 @@ impl From<&str> for RoutingEffort {
 }
 impl PartialEq<&str> for RoutingEffort {
     fn eq(&self, other: &&str) -> bool {
-        self.to_string() == *other
+        matches!(
+            (self, *other),
+            (Self::Low, "low")
+                | (Self::Medium, "medium")
+                | (Self::High, "high")
+                | (Self::Xhigh, "xhigh")
+        )
     }
 }
 

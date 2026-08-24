@@ -114,6 +114,7 @@ pub enum WikiError {
 }
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod wiki {
     use super::*;
     fn page(kind: PageKind) -> WikiPage {

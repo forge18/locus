@@ -129,8 +129,8 @@ gate, and a `discarded` session has nothing left to end:
 
 ## Supersedes
 
-This spec supersedes nothing — it is new. The surface it occupies is the one `.specs/screens-develop`
-drew (view `develop`, already historical per `design-desktop`): the project's hands-on git-review
+This spec supersedes nothing — it is new. The surface it occupies is the project's hands-on git-review
+surface from the historical desktop iteration:
 screen. Interact renames that slot per `design-revision` and rebuilds it around board-less sessions
 that talk to an agent directly, rather than a screen that assumes a task and a branch already exist.
 

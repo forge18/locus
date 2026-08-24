@@ -607,7 +607,11 @@ pub fn widen_misconfigured_schedule(
     interval_minutes: u32,
 ) -> Option<u32> {
     if total_firings > 0 && missed_firings.saturating_mul(2) >= total_firings {
-        Some(interval_minutes.saturating_mul(2).max(interval_minutes.saturating_add(1)))
+        Some(
+            interval_minutes
+                .saturating_mul(2)
+                .max(interval_minutes.saturating_add(1)),
+        )
     } else {
         None
     }
@@ -717,9 +721,18 @@ mod autorun {
     }
     #[test]
     fn schedule_modes_and_overlap() {
-        assert!(super::schedule_modes_and_overlap(ScheduleMode::Scheduled, false));
-        assert!(!super::schedule_modes_and_overlap(ScheduleMode::Scheduled, true));
-        assert!(!super::schedule_modes_and_overlap(ScheduleMode::Hold, false));
+        assert!(super::schedule_modes_and_overlap(
+            ScheduleMode::Scheduled,
+            false
+        ));
+        assert!(!super::schedule_modes_and_overlap(
+            ScheduleMode::Scheduled,
+            true
+        ));
+        assert!(!super::schedule_modes_and_overlap(
+            ScheduleMode::Hold,
+            false
+        ));
     }
     #[test]
     fn schedule_guardrail_fallthrough() {
@@ -1074,6 +1087,31 @@ mod stop_all_restores {
             select_to_start(&policy, [newer, older]),
             vec![RunId::new(Uuid::from_u128(1))]
         );
+    }
+
+    #[test]
+    fn stop_all_writes_handoffs_when_requested() {
+        let snapshot = StopAllSnapshot {
+            id: Uuid::new_v4(),
+            run_ids: vec![RunId::generate()],
+        };
+        assert!(snapshot.preserves_durable_work());
+        assert!(!snapshot.is_empty());
+    }
+
+    #[test]
+    fn stop_all_immediate_without_handoffs() {
+        let snapshot = StopAllSnapshot {
+            id: Uuid::new_v4(),
+            run_ids: Vec::new(),
+        };
+        assert!(snapshot.is_empty());
+        assert!(snapshot.preserves_durable_work());
+    }
+
+    #[test]
+    fn restore_stop_all_snapshot() {
+        assert_eq!(StopAllSnapshot::restore_window_minutes(), 10);
     }
 
     #[tokio::test]

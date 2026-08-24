@@ -28,7 +28,9 @@ impl Store {
             query("INSERT INTO core.qa_check_runs (id, project_id, check_source_id, trigger, started_at, skipped_at) VALUES ($1, $2, $3, $4, to_timestamp($5), to_timestamp($5))")
                 .bind(Uuid::new_v4()).bind(project_id).bind(&source.id).bind(match trigger { CheckTrigger::Manual => "manual", CheckTrigger::Push => "push", CheckTrigger::Hourly => "hourly", CheckTrigger::Daily => "daily" }).bind(now)
                 .execute(self.pool()).await.context("record skipped QA check")?;
-            return Err(anyhow::anyhow!("QA check source is already running; firing skipped"));
+            return Err(anyhow::anyhow!(
+                "QA check source is already running; firing skipped"
+            ));
         };
         Ok(CheckRun {
             id: row.try_get("id")?,

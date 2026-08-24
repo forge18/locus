@@ -109,7 +109,7 @@ never merely 'finished'," which `workflows.executions` already enforces via its 
 ### Runs
 
 The flat ledger: search, sort, date range, and three KPIs — spec-gap rate, noise reclassified, tokens
-per passing run — which `.specs/dashboard-metrics` already computes as queries over existing columns;
+per passing run — which the metrics spec already computes as queries over existing columns;
 this surface composes them rather than adding a metric. Table columns:
 `When · Harness · Project · repo · Agent · role · Model resolved · Events · Errors · Tokens · Verify ·
 Id`. The verify vocabulary is `running`, `passed`, `failed`, `failed ×n`, `waiting: gate`, `n/a`,
@@ -181,7 +181,7 @@ already guarantees; this spec only needs the save path to not touch a running ru
 
 - **The verify-pass-rate window.** "Falls to 44%" implies a rolling measure but PLAN.md and
   `.specs/guardrails` name no window size or run count. This spec assumes the same window as agent
-  trust's "last 20 runs" from `.specs/dashboard-metrics` until decided otherwise.
+  trust's "last 20 runs" from the metrics spec until decided otherwise.
 - **Project archival is out of scope here.** This spec adds only the `archived_at` column dispatch
   needs to lock autorun off; a full archive/unarchive feature (who can archive, what else locks) is
   not this spec's to design.

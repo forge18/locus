@@ -9,7 +9,7 @@ import {
   WIKI_GRAPH_COPY,
   WIKI_INGEST_COPY,
   WIKI_KIND_CHIPS,
-} from '../fixtures/knowledge'
+} from "../fixtures/knowledge";
 
 export {
   COMPACTED_CONTEXT,
@@ -22,25 +22,31 @@ export {
   WIKI_GRAPH_COPY,
   WIKI_INGEST_COPY,
   WIKI_KIND_CHIPS,
-}
-export type { CompactedContext, FactConfidence, KnowledgeFact, ResidentLayer, ResidentTag } from '../fixtures/knowledge'
+};
+export type {
+  CompactedContext,
+  FactConfidence,
+  KnowledgeFact,
+  ResidentLayer,
+  ResidentTag,
+} from "../fixtures/knowledge";
 
-/** Future seam: invoke('memory_short_term') */
+/** Becomes: invoke('memory_short_term') */
 export function useResidentLayers() {
-  return RESIDENT_LAYERS
+  return RESIDENT_LAYERS;
 }
 
-/** Future seam: invoke('memory_compacted_artifacts') */
+/** Becomes: invoke('memory_compacted_artifacts') */
 export function useCompactedContext() {
-  return COMPACTED_CONTEXT
+  return COMPACTED_CONTEXT;
 }
 
-/** Future seam: invoke('memory_facts', { projectId }) */
+/** Becomes: invoke('memory_facts', { projectId }) */
 export function useLongTermFacts() {
-  return LONG_TERM_FACTS
+  return LONG_TERM_FACTS;
 }
 
 /** Every contradicted fact intentionally has no score. */
 export function factScore(factId: string): number | null {
-  return LONG_TERM_FACTS.find((fact) => fact.id === factId)?.score ?? null
+  return LONG_TERM_FACTS.find((fact) => fact.id === factId)?.score ?? null;
 }

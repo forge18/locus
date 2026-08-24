@@ -10,14 +10,14 @@ describe("nav/project-is-filter", () => {
     const { getByTestId } = render(() => (
       <ProjectRail selectedProject="tapestry" projects={PROJECTS} />
     ));
-    expect(getByTestId("selected-project-card").textContent).toContain(
-      "tapestry",
-    );
+    expect(
+      getByTestId("project-switcher-option-tapestry").textContent,
+    ).toContain("tapestry");
     expect(getByTestId("project-switcher-results").children).toHaveLength(2);
   });
 
   it("filters project choices without changing the current route", () => {
-    const nav = createNavStore({ view: "board" });
+    const nav = createNavStore({ view: "sessions" });
     const { getByTestId } = render(() => (
       <ProjectRail selectedProject="tapestry" projects={PROJECTS} />
     ));
@@ -25,11 +25,11 @@ describe("nav/project-is-filter", () => {
       target: { value: "weaver" },
     });
     expect(getByTestId("project-switcher-results").textContent).toBe("weaver");
-    expect(nav.view()).toBe("board");
+    expect(nav.view()).toBe("sessions");
   });
 
   it("keeps an explicitly addressed project in its locator", () => {
-    const nav = createNavStore({ project: "weaver", view: "board" });
-    expect(nav.locator()).toBe("locus://weaver/board");
+    const nav = createNavStore({ project: "weaver", view: "sessions" });
+    expect(nav.locator()).toBe("locus://weaver/view/sessions");
   });
 });

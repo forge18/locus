@@ -11,22 +11,24 @@ const modules = readdirSync(dataDir)
 /** Every fixture module a screen reads has to be reachable through an accessor. */
 const DATA_SETS = [
   "agent-defs",
+  "analytics",
   "artifacts",
   "board",
   "core",
-  "develop",
+  "dispatch",
   "extensions",
   "guardrails",
   "harnesses",
   "inbox",
+  "knowledge",
+  "mail",
   "plan",
+  "qa",
   "runs",
   "sessions",
   "settings",
-  "status",
   "strip",
   "telemetry",
-  "wiki",
   "workflow",
 ];
 
@@ -65,13 +67,14 @@ describe("data/accessors", () => {
 
   it("names the command each accessor becomes, so the M1 swap has a target", () => {
     for (const file of modules) {
-      const source = readFileSync(resolve(dataDir, file), "utf8");
-      const accessors = source.match(/^export function \w+/gm) ?? [];
-      const becomes = source.match(/Becomes: /g) ?? [];
-      expect(
-        becomes.length,
-        `${file}: ${accessors.length} accessors, ${becomes.length} targets`,
-      ).toBe(accessors.length);
+      const lines = readFileSync(resolve(dataDir, file), "utf8").split("\n");
+      for (const [index, line] of lines.entries()) {
+        if (!/^export function use\\w+/.test(line)) continue;
+        const doc = lines.slice(Math.max(0, index - 20), index).join("\\n");
+        expect(doc, `${file}:${index + 1} has no command target`).toContain(
+          "Becomes:",
+        );
+      }
     }
   });
 

@@ -55,6 +55,7 @@ pub fn task_outcomes(
 }
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod board {
     use super::*;
     use crate::{

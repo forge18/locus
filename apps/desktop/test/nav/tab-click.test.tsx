@@ -16,13 +16,13 @@ const mount = () => {
 };
 
 describe("nav/current-view-context", () => {
-  it("shows a Review context for every review view", () => {
+  it("shows the owning context for title-bar routes", () => {
     const { nav, getByTestId } = mount();
     nav.go("runs");
-    expect(getByTestId("title-category").textContent).toBe("Review");
+    expect(getByTestId("title-category").textContent).toBe("Inbox");
     expect(getByTestId("title-view").textContent).toBe("runs");
     nav.go("artifact");
-    expect(getByTestId("title-category").textContent).toBe("Review");
+    expect(getByTestId("title-category").textContent).toBe("Memory");
     expect(getByTestId("title-view").textContent).toBe("artifact");
   });
 

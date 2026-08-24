@@ -123,7 +123,7 @@ here."
 
 | Existing feature | Replacement |
 | --- | --- |
-| `desktop-knowledge-review` | this spec, for the Memory group (Short-term, Long-term, Artifacts, Wiki); the Inbox half moves to `shell-revision`, the Develop half is replaced by `interact-sessions` |
+| `desktop-knowledge-review` | this spec, for the Memory group (Short-term, Long-term, Artifacts, Wiki); the Inbox half moves to `shell-revision`, the hands-on half is replaced by `interact-sessions` |
 | `screens-wiki` | this spec — `screens-wiki` already points at `design-desktop`, itself superseded by `design-revision` |
 
 Mail as a screen has no predecessor: `.specs/mail` covers the CLI and the fold, never a view.

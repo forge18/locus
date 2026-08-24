@@ -140,7 +140,7 @@ mapping is per-band and per-harness, set in the Harnesses band table, never fixe
 - **Right rail** — a selector preview; harnesses using this provider, with the removal contract stated
   verbatim: "Removing this provider unsets the model on each of them rather than failing their next
   run." — this is a behavior `ProjectHarnessPolicy` and the harness record must implement, not only
-  describe; and a 30-day spend figure, read from the telemetry aggregate `dashboard-metrics` computes,
+  describe; and a 30-day spend figure, read from the telemetry aggregate the metrics spec computes,
   not computed here.
 
 ### CLI
@@ -248,7 +248,7 @@ Every spec superseded by an M0.7 feature carries a pointer line to its replaceme
   not carry today (it holds `verified_at` and a two-state `status`, not an expiry). This feature adds
   the signal; the exact staleness window (mirroring the mockup's "6 days") is a product default set
   during implementation, not fixed by this spec.
-- The 30-day spend figure on Providers reads an aggregate `dashboard-metrics` computes. This spec
+- The 30-day spend figure on Providers reads an aggregate the metrics spec computes. This spec
   defines only its consumption on the Providers right rail, not the aggregate itself.
 - Adapter config (`Key · Value · Type`) has no `locus-core` struct today; this feature ships it as a
   JSONB blob read by the adapter. Whether it earns a typed schema is deferred until a second adapter

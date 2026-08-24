@@ -1,6 +1,8 @@
 import { cleanup, render } from "@solidjs/testing-library";
 import { afterEach, describe, expect, it } from "vitest";
-import { DesktopDashboardView, DesktopInboxView } from "../../src/screens/desktop-dashboard";
+import { InboxView } from "../../src/screens/inbox/InboxView";
+import { AnalyticsView } from "../../src/screens/analytics/AnalyticsView";
+import { createNavStore } from "../../src/nav";
 import { INSTALLED_THEMES } from "../../src/styles/theme";
 
 afterEach(cleanup);
@@ -10,23 +12,21 @@ describe("theme/fixtures", () => {
     it(`renders the desktop fixture inventory in ${theme}`, () => {
       const inbox = render(() => (
         <div data-theme={theme}>
-          <DesktopInboxView />
+          <InboxView nav={createNavStore({ view: "inbox" })} />
         </div>
       ));
       expect(
-        inbox.getByTestId("desktop-inbox").closest(`[data-theme="${theme}"]`),
+        inbox.getByTestId("inbox").closest(`[data-theme="${theme}"]`),
       ).toBeTruthy();
       inbox.unmount();
 
-      const dashboard = render(() => (
+      const analytics = render(() => (
         <div data-theme={theme}>
-          <DesktopDashboardView />
+          <AnalyticsView />
         </div>
       ));
       expect(
-        dashboard
-          .getByTestId("desktop-dashboard")
-          .closest(`[data-theme="${theme}"]`),
+        analytics.getByTestId("analytics").closest(`[data-theme="${theme}"]`),
       ).toBeTruthy();
     });
   }

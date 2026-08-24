@@ -1,14 +1,17 @@
 import { fireEvent, render } from "@solidjs/testing-library";
 import { describe, expect, it } from "vitest";
 import { createNavStore } from "../../src/nav";
-import { formatDesktopLocator, resolveDesktopLocator } from "../../src/nav/desktop-locator";
+import {
+  formatDesktopLocator,
+  resolveDesktopLocator,
+} from "../../src/nav/desktop-locator";
 import { Shell } from "../../src/shell/Shell";
 
 describe("nav/desktop-locator", () => {
   it("formats and resolves global and project scoped desktop locators", () => {
-    expect(formatDesktopLocator("inbox")).toBe("locus://global/inbox");
-    expect(resolveDesktopLocator("locus://project/locus/develop")).toEqual({
-      route: "develop",
+    expect(formatDesktopLocator("inbox")).toBe("locus://all/view/inbox");
+    expect(resolveDesktopLocator("locus://locus/view/plan")).toEqual({
+      route: "plan",
       scope: { kind: "project", project: "locus" },
     });
   });

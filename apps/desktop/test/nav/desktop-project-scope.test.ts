@@ -7,45 +7,45 @@ import {
 } from "../../src/nav";
 
 describe("nav/desktop-project-scope", () => {
-  it("formats global routes with an explicit global scope", () => {
-    expect(formatDesktopLocator("inbox")).toBe("locus://global/inbox");
-    expect(resolveDesktopLocator("locus://global/dispatch-runs")).toEqual({
-      route: "dispatch-runs",
-      scope: { kind: "global" },
+  it("formats all-project routes with an explicit all scope", () => {
+    expect(formatDesktopLocator("inbox")).toBe("locus://all/view/inbox");
+    expect(resolveDesktopLocator("locus://all/view/runs")).toEqual({
+      route: "runs",
+      scope: { kind: "all" },
     });
   });
 
   it("formats project routes with an explicit project scope and project segment", () => {
-    expect(formatDesktopLocator("plan-conversation", "tapestry")).toBe(
-      "locus://project/tapestry/plan-conversation",
+    expect(formatDesktopLocator("plan", "tapestry")).toBe(
+      "locus://tapestry/view/plan",
     );
-    expect(
-      resolveDesktopLocator("locus://project/loom-db/review-telemetry"),
-    ).toEqual({
-      route: "review-telemetry",
+    expect(resolveDesktopLocator("locus://loom-db/view/plan")).toEqual({
+      route: "plan",
       scope: { kind: "project", project: "loom-db" },
     });
   });
 
   it("rejects routes addressed with the wrong scope or an implicit v1 scope", () => {
     expect(() => formatDesktopLocator("inbox", "tapestry")).toThrow(/scope:/);
-    expect(() => formatDesktopLocator("plan-conversation")).toThrow(/project:/);
-    expect(() => resolveDesktopLocator("locus://global/plan-conversation")).toThrow(
+    expect(() => formatDesktopLocator("plan")).toThrow(/project:/);
+    expect(() => resolveDesktopLocator("locus://all/view/plan")).toThrow(
       /scope:/,
     );
-    expect(() => resolveDesktopLocator("locus://project/tapestry/inbox")).toThrow(
+    expect(() => resolveDesktopLocator("locus://tapestry/view/inbox")).toThrow(
       /scope:/,
     );
-    expect(() => resolveDesktopLocator("locus://tapestry/inbox")).toThrow(/scope:/);
+    expect(() => resolveDesktopLocator("locus://tapestry/inbox")).toThrow(
+      /locator:/,
+    );
   });
 
-  it("preserves the v1 fixture resolver during the migration", () => {
+  it("uses the same canonical view grammar through the fixture resolver", () => {
     expect(format("inbox", { project: "tapestry" })).toBe(
-      "locus://tapestry/inbox",
+      "locus://all/view/inbox",
     );
-    expect(resolve("locus://tapestry/inbox")).toEqual({
+    expect(resolve("locus://all/view/inbox")).toEqual({
       view: "inbox",
-      params: { project: "tapestry" },
+      params: {},
     });
   });
 });

@@ -321,6 +321,7 @@ pub fn median(values: impl IntoIterator<Item = u64>) -> Option<u64> {
 }
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod manage {
     use super::*;
     use super::{

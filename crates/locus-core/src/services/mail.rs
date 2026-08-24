@@ -103,6 +103,7 @@ pub const WAITING_NOT_IDLE: &str =
     "State is `waiting`, not idle. The idle guardrail will not fire.";
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod mail {
     use super::*;
     fn thread() -> MailThread {

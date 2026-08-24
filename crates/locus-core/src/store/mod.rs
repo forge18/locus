@@ -22,6 +22,9 @@ pub mod routing;
 pub mod schedules;
 pub mod wiki;
 
+#[cfg(test)]
+include!("m07_schema_tests.rs");
+
 use crate::ids::{EventId, RunId};
 use std::{
     future::Future,

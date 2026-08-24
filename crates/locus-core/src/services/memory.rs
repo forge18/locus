@@ -202,6 +202,7 @@ pub enum MemoryError {
 }
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod memory {
     use super::*;
     #[test]

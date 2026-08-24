@@ -120,6 +120,7 @@ impl ChangedSessionNote {
 }
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod interact {
     use super::*;
 
@@ -191,8 +192,12 @@ mod interact {
 
     #[test]
     fn reconciliation_skips_discarded_session() {
-        assert!(super::reconciliation_skips_discarded_session(InteractState::Discarded));
-        assert!(!super::reconciliation_skips_discarded_session(InteractState::Open));
+        assert!(super::reconciliation_skips_discarded_session(
+            InteractState::Discarded
+        ));
+        assert!(!super::reconciliation_skips_discarded_session(
+            InteractState::Open
+        ));
     }
 
     #[test]

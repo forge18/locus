@@ -20,7 +20,7 @@ this spec states the contract and its invariants and does not restate pixel geom
   §Decisions already made (`Navigation` row)
 - `docs/UI_MOCKUP_REVIEW.md` — Navigation and Inbox sections
 - `.specs/design-revision/spec.md` — the retired-category invariant, the 29-view inventory, the
-  `locus://<project|all|app>/<kind>/<id>` locator scheme, and the seven-stage plan pipeline this
+  `locus://<project|all|app>/view/<route>` locator scheme, and the seven-stage plan pipeline this
   shell's Plan category link points at
 
 ## Contract
@@ -58,8 +58,8 @@ Tray icon, count badge. Opens a quick-preview popover listing items that need a 
   Long-term, Artifacts, Wiki**. Workshop expands to **Agents, CLI, Commands, Harnesses, Hooks,
   Linters, Output styles, Providers, Rules, Skills, Workflows**.
 
-`Develop`, `Automate`, `Dashboard`, and `Projects`-as-a-view — retired under `design-revision` — never
-reappear as a rail label, route id, or fixture name in this or any feature this spec governs.
+Retired project, task, metrics, and project-list labels never reappear as a rail label, route id,
+or fixture name in this or any feature this spec governs.
 
 ### Category → landing view
 
@@ -83,7 +83,7 @@ through the rail.
 
 ### Locators
 
-Every view in scope carries a `locus://<project|all|app>/<kind>/<id>` locator. The rail, the two
+Every view in scope carries a `locus://<project|all|app>/view/<route>` locator. The rail, the two
 pills, the palette, and every in-shell link resolve through one shared resolver; no component may
 navigate by constructing a route string itself.
 
@@ -121,8 +121,7 @@ per-view project filter ("Filters this list only. Every other screen keeps its o
 `aria-live` log.
 
 Three item types — **Gate**, **locus ask**, **Guardrail** — each documenting the response it wants.
-Footer: "Every item type documents the response it wants. An item with no response is a notification,
-and notifications go to Activity."
+Footer: "Every item type documents the response it wants. Items without a response belong in Activity."
 
 **Completed** groups resolved items by day with time-to-resolve: "Kept so the resolution is
 auditable — what you decided, and how long a loop waited on you for it."
@@ -151,8 +150,8 @@ that made it"); then **Approve & release the loop** / **Send back with comment**
 4. The Inbox pill's popover footer renders Open Inbox, which resolves to `inbox`.
 5. The rail renders exactly two groups — Project and Cross-Project — with the categories and
    expander contents listed in this spec, and no others.
-6. No rendered rail item, route id, or fixture under this feature's scope is named `Develop`,
-   `Automate`, `Dashboard`, or a view-level `Projects`.
+6. No rendered rail item, route id, or fixture under this feature's scope uses a retired category
+   label or a view-level `Projects`.
 7. Every rail category resolves to the landing view named in the category→landing-view table on
    first click.
 8. Dispatch and Inbox views are unreachable from the rail and reachable only via their pill, the ⌘K

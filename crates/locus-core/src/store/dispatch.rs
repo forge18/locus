@@ -9,8 +9,9 @@ use uuid::Uuid;
 
 use crate::{
     runtime::dispatch::{
-        select_to_start, DispatchPolicy, DispatchPriority, GuardrailDefaults, PreemptionHandoff,
-        NetworkTier, PriorityMethod, ProjectAutorunPolicy, QueuedRun, RunState, StopAllSnapshot, TieBreak,
+        select_to_start, DispatchPolicy, DispatchPriority, GuardrailDefaults, NetworkTier,
+        PreemptionHandoff, PriorityMethod, ProjectAutorunPolicy, QueuedRun, RunState,
+        StopAllSnapshot, TieBreak,
     },
     store::Store,
 };
@@ -162,19 +163,36 @@ impl Store {
         row.try_get("enabled").context("decode project autorun")
     }
 
-    pub async fn project_autorun_policy(&self, project_id: ProjectId) -> Result<ProjectAutorunPolicy> {
+    pub async fn project_autorun_policy(
+        &self,
+        project_id: ProjectId,
+    ) -> Result<ProjectAutorunPolicy> {
         let row = query("SELECT review_pause_threshold, inbox_budget_per_hour, change_lines_ceiling, change_files_ceiling FROM core.project_autorun_policy WHERE project_id = $1")
             .bind(project_id).fetch_optional(self.pool()).await.context("read project autorun policy")?;
-        let Some(row) = row else { return Ok(ProjectAutorunPolicy::default()); };
+        let Some(row) = row else {
+            return Ok(ProjectAutorunPolicy::default());
+        };
         Ok(ProjectAutorunPolicy {
-            review_pause_threshold: u32::try_from(row.try_get::<i32, _>("review_pause_threshold")?)?,
+            review_pause_threshold: u32::try_from(
+                row.try_get::<i32, _>("review_pause_threshold")?,
+            )?,
             inbox_budget_per_hour: u32::try_from(row.try_get::<i32, _>("inbox_budget_per_hour")?)?,
-            change_lines_ceiling: row.try_get::<Option<i32>, _>("change_lines_ceiling")?.map(u32::try_from).transpose()?,
-            change_files_ceiling: row.try_get::<Option<i32>, _>("change_files_ceiling")?.map(u32::try_from).transpose()?,
+            change_lines_ceiling: row
+                .try_get::<Option<i32>, _>("change_lines_ceiling")?
+                .map(u32::try_from)
+                .transpose()?,
+            change_files_ceiling: row
+                .try_get::<Option<i32>, _>("change_files_ceiling")?
+                .map(u32::try_from)
+                .transpose()?,
         })
     }
 
-    pub async fn set_project_autorun_policy(&self, project_id: ProjectId, policy: ProjectAutorunPolicy) -> Result<()> {
+    pub async fn set_project_autorun_policy(
+        &self,
+        project_id: ProjectId,
+        policy: ProjectAutorunPolicy,
+    ) -> Result<()> {
         query("INSERT INTO core.project_autorun_policy (project_id, review_pause_threshold, inbox_budget_per_hour, change_lines_ceiling, change_files_ceiling) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (project_id) DO UPDATE SET review_pause_threshold = EXCLUDED.review_pause_threshold, inbox_budget_per_hour = EXCLUDED.inbox_budget_per_hour, change_lines_ceiling = EXCLUDED.change_lines_ceiling, change_files_ceiling = EXCLUDED.change_files_ceiling, updated_at = now()")
             .bind(project_id).bind(i32::try_from(policy.review_pause_threshold)?).bind(i32::try_from(policy.inbox_budget_per_hour)?).bind(policy.change_lines_ceiling.map(i32::try_from).transpose()?).bind(policy.change_files_ceiling.map(i32::try_from).transpose()?).execute(self.pool()).await.context("persist project autorun policy")?;
         Ok(())
@@ -388,7 +406,9 @@ impl Store {
         autorun_runs_last_hour: u32,
     ) -> Result<()> {
         use crate::runtime::dispatch::{autorun_exclusions, review_debt_pauses_autorun};
-        if self.project_autorun_state(project_id).await? != crate::runtime::dispatch::AutorunState::On {
+        if self.project_autorun_state(project_id).await?
+            != crate::runtime::dispatch::AutorunState::On
+        {
             bail!("project autorun is not on");
         }
         let policy = self.project_autorun_policy(project_id).await?;

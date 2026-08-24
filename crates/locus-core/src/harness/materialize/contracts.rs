@@ -159,6 +159,7 @@ pub enum ExtensionContractError {
 }
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod contracts {
     use super::project_context_singleton as one_context;
     use super::*;

@@ -68,12 +68,26 @@ impl ConditionOperand {
     }
 }
 
+fn contains_goal_node(value: &serde_json::Value) -> bool {
+    match value {
+        serde_json::Value::Array(values) => values.iter().any(contains_goal_node),
+        serde_json::Value::Object(fields) => {
+            fields
+                .get("kind")
+                .and_then(serde_json::Value::as_str)
+                .is_some_and(|kind| kind.eq_ignore_ascii_case("goal"))
+                || fields.values().any(contains_goal_node)
+        }
+        _ => false,
+    }
+}
+
 /// Reject the authoring-only graph if it contains the retired Goal node or runtime state.
 pub fn validate_authoring_graph(graph: &serde_json::Value) -> Result<(), WorkflowError> {
     if graph.get("execution").is_some() || graph.get("results").is_some() {
         return Err(WorkflowError::ExecutionStateInAuthoring);
     }
-    if graph.to_string().to_ascii_lowercase().contains("goal") {
+    if contains_goal_node(graph) {
         return Err(WorkflowError::GoalNodeNotAllowed);
     }
     Ok(())
@@ -158,6 +172,15 @@ pub enum SuccessCriterionKind {
 fn goal_is_governance_not_node() {
     assert!(validate_authoring_graph(&serde_json::json!({"nodes": [{"kind": "Goal"}]})).is_err());
     assert!(validate_authoring_graph(&serde_json::json!({"nodes": [{"kind": "Agent"}]})).is_ok());
+}
+
+#[cfg(test)]
+#[test]
+fn goal_text_is_allowed_when_no_goal_node_exists() {
+    assert!(validate_authoring_graph(&serde_json::json!({
+        "nodes": [{"kind": "Agent", "label": "goal"}]
+    }))
+    .is_ok());
 }
 
 #[cfg(test)]

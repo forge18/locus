@@ -5,13 +5,16 @@ import { ProjectRail } from "./ProjectRail";
 import { LocatorPalette } from "../nav/LocatorPalette";
 import { Sheet } from "../ui/Sheet";
 import { ToastRegion } from "../ui/Toast";
-import { MergeModal } from "./MergeModal";
 import { useRunningCount, useStripCards } from "../data/strip";
+import { useInboxItems } from "../data/inbox";
 import type { ActiveSession } from "./RunningPill";
 import type { NavStore, View } from "../nav";
 import { destinationDesktop, navigateDesktop } from "../nav/desktop-navigation";
 import type { DesktopNavTarget, DesktopRouteId } from "../nav/desktop-locator";
-import { Desktop_PROJECT_ROUTE_KINDS, Desktop_ROUTE_KINDS } from "../nav/desktop-route-kinds";
+import {
+    Desktop_PROJECT_ROUTE_KINDS,
+    Desktop_ROUTE_KINDS,
+} from "../nav/desktop-route-kinds";
 
 const Desktop_ROUTE_IDS = Desktop_ROUTE_KINDS.map((route) => route.id);
 
@@ -47,6 +50,7 @@ export function desktopLocatorFor(view: View, project: string): string {
 export function Shell(props: ShellProps) {
     const [paletteOpen, setPaletteOpen] = createSignal(false);
     const [dispatchOpen, setDispatchOpen] = createSignal(false);
+    const inboxItems = useInboxItems();
     const activeSessions: ActiveSession[] = useStripCards()
         .filter((card) => card.kind === "agent")
         .map((card) => ({
@@ -54,7 +58,12 @@ export function Shell(props: ShellProps) {
             label: `${card.project} · ${card.agent}`,
             needsAttention:
                 card.status === "waiting" || card.status === "stuck",
-            lastActivityAt: -card.idleMinutes,
+            lastActivityAt: card.idleMinutes,
+            project: card.project,
+            role: card.role ?? undefined,
+            elapsed:
+                card.idleMinutes === 0 ? "now" : `${card.idleMinutes}m ago`,
+            meta: card.status ?? card.tool ?? "running",
         }));
     const needsYou = activeSessions.filter(
         (session) => session.needsAttention,
@@ -93,9 +102,17 @@ export function Shell(props: ShellProps) {
                 running={useRunningCount()}
                 needsYou={needsYou}
                 sessions={activeSessions}
-                inboxCount={needsYou}
-                onOpenDispatch={() => openDesktopLocator(destinationDesktop("autorun"))}
-                onOpenInbox={() => openDesktopLocator(destinationDesktop("inbox"))}
+                inboxCount={inboxItems.length}
+                inboxItems={inboxItems}
+                onOpenDispatch={() =>
+                    openDesktopLocator(destinationDesktop("autorun"))
+                }
+                onStopAll={() =>
+                    openDesktopLocator(destinationDesktop("autorun"))
+                }
+                onOpenInbox={() =>
+                    openDesktopLocator(destinationDesktop("inbox"))
+                }
                 onDispatchOpenChange={setDispatchOpen}
             />
             <div class="body">
@@ -110,8 +127,9 @@ export function Shell(props: ShellProps) {
                 </div>
             </div>
 
-            <Show when={props.nav.view() !== "interact" && !dispatchOpen()}><ToastRegion /></Show>
-            <MergeModal open={false} />
+            <Show when={props.nav.view() !== "interact" && !dispatchOpen()}>
+                <ToastRegion />
+            </Show>
             <LocatorPalette
                 open={paletteOpen()}
                 onOpenChange={setPaletteOpen}

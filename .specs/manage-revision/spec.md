@@ -4,7 +4,7 @@
 
 ## Purpose
 
-Manage is the current mockup's name for the task board — Kanban and List renamed from Automate, plus
+Manage is the current mockup's name for the task board — Kanban and List replace the prior task surface, plus
 two new views, Graph and Timeline, over one toolbar. `task-orchestration` already settled that Manage
 is task-centric: a task owns its workflow execution and root session, and there is no peer-level
 Agents list. This spec carries that constraint into four views instead of two, states where Graph and

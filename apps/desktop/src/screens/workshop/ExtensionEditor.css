@@ -2,7 +2,7 @@
 .extension-editor { display:grid; grid-template-columns:220px minmax(420px,1fr) 258px; height:100%; min-height:0; color:var(--text-primary); }
 .extension-list-rail { display:flex; flex-direction:column; min-width:0; border-right:1px solid var(--border-subtle); background:var(--surface-chrome); }
 .extension-list-rail header { padding:16px 14px 13px; border-bottom:1px solid var(--border-subtle); }
-.extension-rail-icon { color:var(--action-primary); font-size:18px; }
+.extension-rail-icon { color:var(--action-primary); font-size:var(--t-title); }
 .extension-list-rail h1 { display:inline; margin:0; font-size:var(--t-title); font-weight:500; }
 .extension-list-rail header > span { float:right; color:var(--text-muted); font-family:var(--fm); font-size:var(--t-meta); }
 .extension-list-rail header p { margin:6px 0 12px; color:var(--text-muted); font-size:var(--t-meta); line-height:1.45; }

@@ -10,7 +10,7 @@ import {
   PALETTE,
   PRESETS,
   WORKFLOW,
-} from '../fixtures/workflow'
+} from "../fixtures/workflow";
 import type {
   CanvasEdge,
   CanvasNode,
@@ -18,8 +18,8 @@ import type {
   Guardrail,
   PaletteNode,
   Preset,
-} from '../fixtures/workflow'
-import type { GuardrailTrip, WorkflowDef } from '../types/workflows'
+} from "../fixtures/workflow";
+import type { GuardrailTrip, WorkflowDef } from "../types/workflows";
 
 export {
   ARROW_MARKERS,
@@ -30,54 +30,64 @@ export {
   NO_MODEL_NOTE,
   OPERAND_NOTE,
   PRESET_NOTE,
-  SAVE_LABEL,
-  VALIDATE_LABEL,
   WAITING_NOTE,
   ZOOM,
-} from '../fixtures/workflow'
-export type { CanvasEdge, CanvasNode, Clause, Guardrail, PaletteNode, Preset } from '../fixtures/workflow'
+} from "../fixtures/workflow";
+export type {
+  CanvasEdge,
+  CanvasNode,
+  Clause,
+  Guardrail,
+  PaletteNode,
+  Preset,
+} from "../fixtures/workflow";
 
 /** Becomes: invoke("workflow_node_vocabulary") */
 export function usePalette(): PaletteNode[] {
-  return PALETTE
+  return PALETTE;
 }
 
 /** Becomes: invoke("workflow_presets") */
 export function usePresets(): Preset[] {
-  return PRESETS
+  return PRESETS;
 }
 
 /** Becomes: invoke("workflow_def", { id }) */
 export function useWorkflow(): WorkflowDef {
-  return WORKFLOW
+  return WORKFLOW;
 }
 
 /** Becomes: invoke("workflow_graph", { id }) */
 export function useCanvas(): {
-  nodes: CanvasNode[]
-  edges: CanvasEdge[]
-  loop: typeof LOOP_GROUP
-  markers: readonly string[]
+  nodes: CanvasNode[];
+  edges: CanvasEdge[];
+  loop: typeof LOOP_GROUP;
+  markers: readonly string[];
 } {
-  return { nodes: CANVAS_NODES, edges: CANVAS_EDGES, loop: LOOP_GROUP, markers: ARROW_MARKERS }
+  return {
+    nodes: CANVAS_NODES,
+    edges: CANVAS_EDGES,
+    loop: LOOP_GROUP,
+    markers: ARROW_MARKERS,
+  };
 }
 
 /** Becomes: invoke("condition_expression", { nodeId }) */
 export function useExpression(): Clause[] {
-  return EXPRESSION
+  return EXPRESSION;
 }
 
 /** Becomes: invoke("condition_operands") — every one is a column. */
 export function useOperands(): readonly string[] {
-  return OPERANDS
+  return OPERANDS;
 }
 
 /** Becomes: invoke("workflow_guardrails", { id }) */
 export function useGuardrails(): Guardrail[] {
-  return GUARDRAILS
+  return GUARDRAILS;
 }
 
 /** Becomes: emit("guardrail_tripped") */
 export function useGuardrailTrips(): GuardrailTrip[] {
-  return GUARDRAIL_TRIPS
+  return GUARDRAIL_TRIPS;
 }

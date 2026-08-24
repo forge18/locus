@@ -103,6 +103,7 @@ pub struct Finding {
 }
 
 impl Finding {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: impl Into<String>,
         severity: FindingSeverity,
@@ -139,7 +140,7 @@ impl Finding {
         self.sent_to_inbox = true;
         FindingInboxLink {
             finding_id: self.id.clone(),
-            locator: format!("locus://{}/view/qa", self.project_id),
+            locator: format!("locus://project/{}/qa/finding/{}", self.project_id, self.id),
         }
     }
 }
@@ -281,11 +282,7 @@ pub fn unit_tests_adapter(
         .map(|(index, result)| {
             Finding::new(
                 format!("test-{index}"),
-                if result.failed {
-                    FindingSeverity::Fail
-                } else {
-                    FindingSeverity::Fail
-                },
+                FindingSeverity::Fail,
                 result.title,
                 project_id,
                 result.location,
@@ -405,6 +402,7 @@ pub enum QaError {
 }
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod qa {
     use super::*;
     use super::{

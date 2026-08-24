@@ -180,7 +180,10 @@ export function PlanTasksView() {
                 {count()} {count() === 1 ? "card" : "cards"}
               </span>
               <span>{cardSummary()}</span>
-              <span class="plan-task-approval-note" data-testid="task-card-approval-note">
+              <span
+                class="plan-task-approval-note"
+                data-testid="task-card-approval-note"
+              >
                 Approval happens once in Recommendation.
               </span>
             </footer>

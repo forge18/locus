@@ -726,13 +726,23 @@ pub struct TelemetryStatProjection {
 }
 
 pub fn telemetry_stat_projection(events: &[TelemetryRecord]) -> TelemetryStatProjection {
-    let sessions = events.iter().map(|event| event.run_id.as_str()).collect::<BTreeSet<_>>().len();
+    let sessions = events
+        .iter()
+        .map(|event| event.run_id.as_str())
+        .collect::<BTreeSet<_>>()
+        .len();
     TelemetryStatProjection {
         sessions,
         events: events.len(),
-        tool_errors: events.iter().filter(|event| event.verb == TelemetryVerb::ToolError).count(),
+        tool_errors: events
+            .iter()
+            .filter(|event| event.verb == TelemetryVerb::ToolError)
+            .count(),
         output_tokens: events.iter().filter_map(|event| event.output_tokens).sum(),
-        permission_requests: events.iter().filter(|event| event.verb == TelemetryVerb::PermissionRequest).count(),
+        permission_requests: events
+            .iter()
+            .filter(|event| event.verb == TelemetryVerb::PermissionRequest)
+            .count(),
     }
 }
 
@@ -741,7 +751,14 @@ pub fn action_vocabulary_projection(events: &[&TelemetryRecord]) -> BTreeMap<&'s
 }
 
 pub fn telemetry_facets() -> [&'static str; 6] {
-    ["harness", "agent", "role", "model_tier", "verify", "arbiter_class"]
+    [
+        "harness",
+        "agent",
+        "role",
+        "model_tier",
+        "verify",
+        "arbiter_class",
+    ]
 }
 
 pub fn reset_filters(filters: &mut TelemetryFilters) {
@@ -906,26 +923,80 @@ mod analytics_tests {
     #[test]
     fn trend_tracks_selected_measure() {
         let project = ProjectId::generate();
-        let run = RunRecord { project_id: project, timestamp: 9_000, model: "m".into(), harness: "h".into(), agent: "a".into(), role: "r".into(), workflow: "w".into(), tokens: Some(20), cache_read: Some(3), spend_micros: Some(7), duration_seconds: None, iterations: 1, verified: None };
+        let run = RunRecord {
+            project_id: project,
+            timestamp: 9_000,
+            model: "m".into(),
+            harness: "h".into(),
+            agent: "a".into(),
+            role: "r".into(),
+            workflow: "w".into(),
+            tokens: Some(20),
+            cache_read: Some(3),
+            spend_micros: Some(7),
+            duration_seconds: None,
+            iterations: 1,
+            verified: None,
+        };
         let query = AnalyticsQuery::new(AnalyticsScope::All, AnalyticsRange::All, 10_000);
-        assert!(trend(&query, &[run.clone()], AnalyticsMeasure::Tokens).iter().any(|point| point.value == Some(20)));
-        assert!(trend(&query, &[run], AnalyticsMeasure::Spend).iter().any(|point| point.value == Some(7)));
+        assert!(
+            trend(&query, std::slice::from_ref(&run), AnalyticsMeasure::Tokens)
+                .iter()
+                .any(|point| point.value == Some(20))
+        );
+        assert!(
+            trend(&query, std::slice::from_ref(&run), AnalyticsMeasure::Spend)
+                .iter()
+                .any(|point| point.value == Some(7))
+        );
     }
 
     #[test]
     fn breakdown_dimensions() {
         let project = ProjectId::generate();
-        let run = RunRecord { project_id: project, timestamp: 9_000, model: "m".into(), harness: "h".into(), agent: "a".into(), role: "r".into(), workflow: "w".into(), tokens: Some(1), cache_read: None, spend_micros: None, duration_seconds: None, iterations: 1, verified: None };
+        let run = RunRecord {
+            project_id: project,
+            timestamp: 9_000,
+            model: "m".into(),
+            harness: "h".into(),
+            agent: "a".into(),
+            role: "r".into(),
+            workflow: "w".into(),
+            tokens: Some(1),
+            cache_read: None,
+            spend_micros: None,
+            duration_seconds: None,
+            iterations: 1,
+            verified: None,
+        };
         let query = AnalyticsQuery::new(AnalyticsScope::All, AnalyticsRange::All, 10_000);
-        for dimension in [BreakdownDimension::Model, BreakdownDimension::Harness, BreakdownDimension::Agent, BreakdownDimension::Role, BreakdownDimension::Workflow] {
-            assert_eq!(breakdown(&query, &[run.clone()], dimension).len(), 1);
+        for dimension in [
+            BreakdownDimension::Model,
+            BreakdownDimension::Harness,
+            BreakdownDimension::Agent,
+            BreakdownDimension::Role,
+            BreakdownDimension::Workflow,
+        ] {
+            assert_eq!(
+                breakdown(&query, std::slice::from_ref(&run), dimension).len(),
+                1
+            );
         }
     }
 
     #[test]
     fn task_outcomes_and_cost() {
         let project = ProjectId::generate();
-        let records = [TaskAnalyticsRecord { project_id: project, landed: true, abandoned: false, reworked: true, role: "builder".into(), cost_micros: Some(10), iterations: 2, title: "task".into() }];
+        let records = [TaskAnalyticsRecord {
+            project_id: project,
+            landed: true,
+            abandoned: false,
+            reworked: true,
+            role: "builder".into(),
+            cost_micros: Some(10),
+            iterations: 2,
+            title: "task".into(),
+        }];
         let (totals, roles) = super::task_outcomes_and_cost(AnalyticsScope::All, &records);
         assert_eq!(totals.landed_after_rework, 1);
         assert_eq!(roles[0].cost_micros, Some(10));
@@ -934,7 +1005,16 @@ mod analytics_tests {
     #[test]
     fn project_rework_outcome() {
         let project = ProjectId::generate();
-        let record = TaskAnalyticsRecord { project_id: project, landed: true, abandoned: false, reworked: true, role: "builder".into(), cost_micros: None, iterations: 2, title: "task".into() };
+        let record = TaskAnalyticsRecord {
+            project_id: project,
+            landed: true,
+            abandoned: false,
+            reworked: true,
+            role: "builder".into(),
+            cost_micros: None,
+            iterations: 2,
+            title: "task".into(),
+        };
         assert_eq!(super::project_rework_outcome(project, &[record]), 1);
     }
 
@@ -942,16 +1022,46 @@ mod analytics_tests {
     fn workflow_duration_projection() {
         let project = ProjectId::generate();
         let query = AnalyticsQuery::new(AnalyticsScope::All, AnalyticsRange::All, 10_000);
-        let run = RunRecord { project_id: project, timestamp: 9_000, model: "m".into(), harness: "h".into(), agent: "a".into(), role: "r".into(), workflow: "release".into(), tokens: None, cache_read: None, spend_micros: None, duration_seconds: Some(10), iterations: 2, verified: Some(true) };
-        assert_eq!(super::workflow_duration_projection(&query, &[run])[0].verified, 1);
+        let run = RunRecord {
+            project_id: project,
+            timestamp: 9_000,
+            model: "m".into(),
+            harness: "h".into(),
+            agent: "a".into(),
+            role: "r".into(),
+            workflow: "release".into(),
+            tokens: None,
+            cache_read: None,
+            spend_micros: None,
+            duration_seconds: Some(10),
+            iterations: 2,
+            verified: Some(true),
+        };
+        assert_eq!(
+            super::workflow_duration_projection(&query, &[run])[0].verified,
+            1
+        );
     }
 
     #[test]
     fn memory_retrieval_projection() {
         let project = ProjectId::generate();
         let query = AnalyticsQuery::new(AnalyticsScope::All, AnalyticsRange::All, 10_000);
-        let record = RetrievalRecord { project_id: project, timestamp: 9_000, tier: RetrievalTier::LongTerm, tokens: Some(12), feedback: RetrievalFeedback { useful: Some(true), changed_answer: None }, fact_written: true, promoted: true, key: "f".into() };
-        let projection = super::memory_retrieval_projection(&query, &[record], RetrievalTier::LongTerm);
+        let record = RetrievalRecord {
+            project_id: project,
+            timestamp: 9_000,
+            tier: RetrievalTier::LongTerm,
+            tokens: Some(12),
+            feedback: RetrievalFeedback {
+                useful: Some(true),
+                changed_answer: None,
+            },
+            fact_written: true,
+            promoted: true,
+            key: "f".into(),
+        };
+        let projection =
+            super::memory_retrieval_projection(&query, &[record], RetrievalTier::LongTerm);
         assert_eq!(projection.hits, 1);
         assert_eq!(projection.useful_percentage, Some(100));
     }
@@ -960,33 +1070,137 @@ mod analytics_tests {
     fn extension_usage_projection() {
         let project = ProjectId::generate();
         let query = AnalyticsQuery::new(AnalyticsScope::All, AnalyticsRange::All, 10_000);
-        let record = ExtensionUsageRecord { project_id: project, timestamp: 9_000, kind: ExtensionKind::Skill, name: "review".into(), materialized: false, invoked: true, failed: false };
-        assert_eq!(super::extension_usage_projection(&query, &[record], Some(ExtensionKind::Skill))[0].hits, 1);
+        let record = ExtensionUsageRecord {
+            project_id: project,
+            timestamp: 9_000,
+            kind: ExtensionKind::Skill,
+            name: "review".into(),
+            materialized: false,
+            invoked: true,
+            failed: false,
+        };
+        assert_eq!(
+            super::extension_usage_projection(&query, &[record], Some(ExtensionKind::Skill))[0]
+                .hits,
+            1
+        );
     }
 
     #[test]
     fn telemetry_facets_are_acp_only() {
-        assert_eq!(super::telemetry_facets(), ["harness", "agent", "role", "model_tier", "verify", "arbiter_class"]);
+        assert_eq!(
+            super::telemetry_facets(),
+            [
+                "harness",
+                "agent",
+                "role",
+                "model_tier",
+                "verify",
+                "arbiter_class"
+            ]
+        );
         assert_eq!(TelemetryVerb::ALL.len(), 12);
     }
 
     #[test]
     fn telemetry_stat_projection() {
-        let event = TelemetryRecord { project_id: ProjectId::generate(), timestamp: 1, run_id: "r".into(), verb: TelemetryVerb::ToolError, text: "error".into(), tool: None, output_tokens: Some(4), harness: "h".into(), agent: "a".into(), role: "r".into(), model_tier: "low".into(), verify: "n/a".into(), arbiter_class: None, branch: "b".into() };
+        let event = TelemetryRecord {
+            project_id: ProjectId::generate(),
+            timestamp: 1,
+            run_id: "r".into(),
+            verb: TelemetryVerb::ToolError,
+            text: "error".into(),
+            tool: None,
+            output_tokens: Some(4),
+            harness: "h".into(),
+            agent: "a".into(),
+            role: "r".into(),
+            model_tier: "low".into(),
+            verify: "n/a".into(),
+            arbiter_class: None,
+            branch: "b".into(),
+        };
         let stats = super::telemetry_stat_projection(&[event]);
-        assert_eq!((stats.sessions, stats.events, stats.tool_errors, stats.output_tokens), (1, 1, 1, 4));
+        assert_eq!(
+            (
+                stats.sessions,
+                stats.events,
+                stats.tool_errors,
+                stats.output_tokens
+            ),
+            (1, 1, 1, 4)
+        );
     }
 
     #[test]
     fn action_vocabulary_projection() {
-        let event = TelemetryRecord { project_id: ProjectId::generate(), timestamp: 1, run_id: "r".into(), verb: TelemetryVerb::ToolCall, text: "".into(), tool: None, output_tokens: None, harness: "h".into(), agent: "a".into(), role: "r".into(), model_tier: "low".into(), verify: "n/a".into(), arbiter_class: None, branch: "b".into() };
-        assert_eq!(super::action_vocabulary_projection(&[&event]).get("tool_call"), Some(&1));
+        let event = TelemetryRecord {
+            project_id: ProjectId::generate(),
+            timestamp: 1,
+            run_id: "r".into(),
+            verb: TelemetryVerb::ToolCall,
+            text: "".into(),
+            tool: None,
+            output_tokens: None,
+            harness: "h".into(),
+            agent: "a".into(),
+            role: "r".into(),
+            model_tier: "low".into(),
+            verify: "n/a".into(),
+            arbiter_class: None,
+            branch: "b".into(),
+        };
+        assert_eq!(
+            super::action_vocabulary_projection(&[&event]).get("tool_call"),
+            Some(&1)
+        );
     }
 
     #[test]
     fn tool_projection() {
-        let event = TelemetryRecord { project_id: ProjectId::generate(), timestamp: 1, run_id: "r".into(), verb: TelemetryVerb::ToolResult, text: "".into(), tool: Some("rg".into()), output_tokens: Some(8), harness: "h".into(), agent: "a".into(), role: "r".into(), model_tier: "low".into(), verify: "n/a".into(), arbiter_class: None, branch: "b".into() };
+        let event = TelemetryRecord {
+            project_id: ProjectId::generate(),
+            timestamp: 1,
+            run_id: "r".into(),
+            verb: TelemetryVerb::ToolResult,
+            text: "".into(),
+            tool: Some("rg".into()),
+            output_tokens: Some(8),
+            harness: "h".into(),
+            agent: "a".into(),
+            role: "r".into(),
+            model_tier: "low".into(),
+            verify: "n/a".into(),
+            arbiter_class: None,
+            branch: "b".into(),
+        };
         let allowlisted = BTreeSet::from(["rg".into()]);
-        assert_eq!(super::tool_payload_projection(&[event], &allowlisted)[0].payload_tokens, Some(8));
+        assert_eq!(
+            super::tool_payload_projection(&[event], &allowlisted)[0].payload_tokens,
+            Some(8)
+        );
+    }
+
+    #[test]
+    fn session_table_projection() {
+        let event = TelemetryRecord {
+            project_id: ProjectId::generate(),
+            timestamp: 1,
+            run_id: "r".into(),
+            verb: TelemetryVerb::Aborted,
+            text: "".into(),
+            tool: None,
+            output_tokens: Some(8),
+            harness: "h".into(),
+            agent: "a".into(),
+            role: "r".into(),
+            model_tier: "low".into(),
+            verify: "aborted".into(),
+            arbiter_class: None,
+            branch: "b".into(),
+        };
+        let rows = super::session_table_projection(&[event]);
+        assert_eq!(rows[0].status, SessionTelemetryStatus::Aborted);
+        assert_eq!(rows[0].tokens, Some(8));
     }
 }

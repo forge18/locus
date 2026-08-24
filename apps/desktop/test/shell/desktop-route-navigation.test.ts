@@ -8,9 +8,9 @@ describe("shell/desktop-route-navigation", () => {
   it("maps every registered desktop locator to an explicit shared surface", () => {
     for (const route of Desktop_ROUTE_KINDS) {
       const locator =
-        route.scope === "global"
-          ? `locus://global/${route.id}`
-          : `locus://project/locus/${route.id}`;
+        route.scope === "project"
+          ? `locus://locus/view/${route.id}`
+          : `locus://${route.scope}/view/${route.id}`;
       expect(desktopViewFor(resolveDesktopLocator(locator))).toBeTruthy();
     }
   });

@@ -5,6 +5,10 @@ export interface ActiveSession {
   label: string;
   needsAttention: boolean;
   lastActivityAt: number;
+  project?: string;
+  role?: string;
+  elapsed?: string;
+  meta?: string;
 }
 
 export interface RunningPillProps {

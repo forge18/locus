@@ -93,8 +93,8 @@ Project name, locator, a three-way segmented control **Settings / Persistence / 
 | `desktop-project-operations` — planning half (tasks 15–26, 46–47: nine-stage planning, spec editor, task decomposition, card modes) | `plan-revision` |
 | `desktop-project-operations` — dispatch half (tasks 27–40: parallel caps, priority policy, autorun, schedules, queue/runs, Stop all) | `dispatch-revision` |
 
-`desktop-project-operations` tasks 48–52 (Automate/board rendering) belong to neither this spec nor
-`plan-revision`/`dispatch-revision`; the "Automate" rail category itself is retired by
+`desktop-project-operations` tasks 48–52 (prior board rendering) belong to neither this spec nor
+`plan-revision`/`dispatch-revision`; the prior task rail category itself is retired by
 `design-revision`, and its replacement is out of scope here.
 
 ## Acceptance

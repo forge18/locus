@@ -4,7 +4,7 @@ import { registerThemes, type ThemeRegistration } from "../../src/styles/theme";
 const testTheme: ThemeRegistration = {
   id: "high-contrast",
   label: "High contrast",
-  fixture: "desktop-dashboard",
+  fixture: "desktop-shell",
   values: {
     "--surface-ground": "#000000",
     "--surface-chrome": "#101010",

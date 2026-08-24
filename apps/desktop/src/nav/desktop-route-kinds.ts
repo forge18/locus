@@ -28,7 +28,9 @@ export const Desktop_ALL_ROUTE_KINDS = Object.freeze(
   Desktop_ROUTE_KINDS.filter((route) => route.scope === "all"),
 );
 /** Kept as an empty compatibility export; `all` is the canonical cross-project scope. */
-export const Desktop_GLOBAL_ROUTE_KINDS = Object.freeze([] as DesktopRouteKind[]);
+export const Desktop_GLOBAL_ROUTE_KINDS = Object.freeze(
+  [] as DesktopRouteKind[],
+);
 
 export const Desktop_APP_ROUTE_KINDS = Object.freeze(
   Desktop_ROUTE_KINDS.filter((route) => route.scope === "app"),

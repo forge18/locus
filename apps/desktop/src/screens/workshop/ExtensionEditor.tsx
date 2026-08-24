@@ -1,4 +1,4 @@
-import { For, Show } from "solid-js";
+import { createSignal, For, Show } from "solid-js";
 import { Button } from "../../ui/Button";
 import { Input } from "../../ui/Input";
 import { Tag } from "../../ui/Tag";
@@ -334,6 +334,7 @@ function Frontmatter(props: { type: ExtensionEditorType }) {
 }
 
 function HarnessDetails() {
+    const [autorouting, setAutorouting] = createSignal(true);
     return (
         <>
             <section
@@ -356,40 +357,63 @@ function HarnessDetails() {
                     <span>
                         six complexity bands · effort is one of four values
                     </span>
+                    <button
+                        type="button"
+                        class="ws-toggle"
+                        aria-label="Toggle autorouting"
+                        aria-pressed={autorouting()}
+                        data-testid="autorouting-toggle"
+                        data-on={autorouting() ? "true" : "false"}
+                        onClick={() => setAutorouting((value) => !value)}
+                    >
+                        <span />
+                    </button>
                 </header>
-                <div class="routing-table">
-                    <div>
-                        <span>Complexity</span>
-                        <span>Model</span>
-                        <span>Effort</span>
-                        <span>Approval</span>
+                <Show
+                    when={autorouting()}
+                    fallback={
+                        <p data-testid="autoroute-disabled">
+                            Off — every task uses the harness default model and
+                            effort.
+                        </p>
+                    }
+                >
+                    <div class="routing-table">
+                        <div>
+                            <span>Complexity</span>
+                            <span>Model</span>
+                            <span>Effort</span>
+                            <span>Approval</span>
+                        </div>
+                        <For each={BANDS}>
+                            {(band, index) => (
+                                <div data-testid={`autoroute-band-${band}`}>
+                                    <strong>{band}</strong>
+                                    <span>
+                                        {index() === 4 ? "—" : "sonnet"}
+                                    </span>
+                                    <select
+                                        aria-label={`${band} effort`}
+                                        value={EFFORTS[Math.min(index(), 3)]}
+                                    >
+                                        <For each={EFFORTS}>
+                                            {(effort) => (
+                                                <option value={effort}>
+                                                    {effort}
+                                                </option>
+                                            )}
+                                        </For>
+                                    </select>
+                                    <span>{index() > 3 ? "✓" : "—"}</span>
+                                </div>
+                            )}
+                        </For>
                     </div>
-                    <For each={BANDS}>
-                        {(band, index) => (
-                            <div data-testid={`autoroute-band-${band}`}>
-                                <strong>{band}</strong>
-                                <span>{index() === 4 ? "—" : "sonnet"}</span>
-                                <select
-                                    aria-label={`${band} effort`}
-                                    value={EFFORTS[Math.min(index(), 3)]}
-                                >
-                                    <For each={EFFORTS}>
-                                        {(effort) => (
-                                            <option value={effort}>
-                                                {effort}
-                                            </option>
-                                        )}
-                                    </For>
-                                </select>
-                                <span>{index() > 3 ? "✓" : "—"}</span>
-                            </div>
-                        )}
-                    </For>
-                </div>
-                <p id="autoroute-fallback" data-testid="autoroute-fallback">
-                    A band with no model set never receives work: the task falls
-                    to the next band up.
-                </p>
+                    <p id="autoroute-fallback" data-testid="autoroute-fallback">
+                        A band with no model set never receives work: the task
+                        falls upward to the next band up.
+                    </p>
+                </Show>
             </section>
             <section class="extension-config" data-testid="adapter-config">
                 <header>

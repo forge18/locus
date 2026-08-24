@@ -109,7 +109,7 @@ export function MemoryShortTermFixture() {
   return (
     <MemoryFrame
       testId="desktop-memory-short-term"
-      route="memory-short-term"
+      route="short"
       contextLayers="resident"
       compaction="artifact-handles"
       contextBudget="120k"
@@ -227,7 +227,7 @@ export function MemoryLongTermFixture() {
   return (
     <MemoryFrame
       testId="desktop-memory-long-term"
-      route="memory-long-term"
+      route="memory"
       factFixture="long-term"
       factState="provenance-confidence-decay-contradiction"
     >
@@ -361,7 +361,7 @@ export function MemoryArtifactsFixture() {
   return (
     <MemoryFrame
       testId="desktop-memory-artifacts"
-      route="memory-artifacts"
+      route="artifact"
       artifactGroups="review-reference"
       artifactPreview="comments-review"
     >
@@ -433,7 +433,7 @@ export function MemoryWikiFixture() {
   return (
     <MemoryFrame
       testId="desktop-memory-wiki"
-      route="memory-wiki"
+      route="wiki"
       wikiFixture="typed-page"
       wikiViewer="outline-links-provenance-graph"
     >
