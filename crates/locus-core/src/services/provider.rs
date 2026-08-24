@@ -163,6 +163,15 @@ pub struct ProviderVerificationMetadata {
     pub verified_at: String,
     pub model_count: u32,
     pub status: VerificationStatus,
+    #[serde(default)]
+    pub expires_at: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ProviderUiStatus {
+    Ok,
+    Warn,
+    Off,
 }
 
 impl ProviderVerificationMetadata {
@@ -178,7 +187,32 @@ impl ProviderVerificationMetadata {
             verified_at,
             model_count,
             status,
+            expires_at: None,
         })
+    }
+
+    pub fn with_expiry(mut self, expires_at: impl Into<String>) -> Result<Self> {
+        let expires_at = expires_at.into();
+        OffsetDateTime::parse(&expires_at, &Rfc3339)
+            .map_err(|_| anyhow!("provider expiry timestamp must be RFC 3339"))?;
+        self.expires_at = Some(expires_at);
+        Ok(self)
+    }
+
+    pub fn ui_status(&self, now: &str) -> Result<ProviderUiStatus> {
+        if self.status == VerificationStatus::Failed {
+            return Ok(ProviderUiStatus::Off);
+        }
+        let now = OffsetDateTime::parse(now, &Rfc3339)
+            .map_err(|_| anyhow!("provider status timestamp must be RFC 3339"))?;
+        if self.expires_at.as_deref().is_some_and(|expires| {
+            OffsetDateTime::parse(expires, &Rfc3339)
+                .map(|value| value <= now)
+                .unwrap_or(true)
+        }) {
+            return Ok(ProviderUiStatus::Warn);
+        }
+        Ok(ProviderUiStatus::Ok)
     }
 }
 
@@ -323,6 +357,24 @@ fn provider_egress_error(
 /// Exact replacement remains a defense-in-depth scrub for trusted host diagnostics.
 fn redact(message: &str, secret: &str) -> String {
     message.replace(secret, "[REDACTED]")
+}
+
+#[cfg(test)]
+#[test]
+fn status_projection() {
+    let metadata =
+        ProviderVerificationMetadata::new("2026-01-01T00:00:00Z", 1, VerificationStatus::Verified)
+            .unwrap()
+            .with_expiry("2026-01-02T00:00:00Z")
+            .unwrap();
+    assert_eq!(
+        metadata.ui_status("2026-01-01T12:00:00Z").unwrap(),
+        ProviderUiStatus::Ok
+    );
+    assert_eq!(
+        metadata.ui_status("2026-01-03T00:00:00Z").unwrap(),
+        ProviderUiStatus::Warn
+    );
 }
 
 #[cfg(test)]

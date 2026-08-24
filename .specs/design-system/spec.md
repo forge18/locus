@@ -14,7 +14,7 @@ which is how a dense professional tool ends up looking like fourteen different a
 
 ## Governed by
 
-- `docs/design_handoff_locus_desktop/README.md` §Design tokens, §Interactions
+- `docs/UI_MOCKUP_REVIEW.md` §Navigation, §Screens
 - `.specs/design-desktop/spec.md` and `.specs/theme-system/spec.md`
 - PLAN.md §Frontend and IPC constraints — the component library is deliberately small
 

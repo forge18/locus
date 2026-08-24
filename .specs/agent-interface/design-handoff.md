@@ -5,7 +5,7 @@
 This is a **requirements + research transfer** for designing the **Locus agent panel** — the primary
 surface a user interacts with for a single running agent session. It is NOT a design; the visual and
 layout decisions are yours. Your deliverable is a high-fidelity HTML mockup of the agent panel that
-matches the depth and conventions of the existing `docs/design_handoff_locus_desktop/` handoff, using the
+matches the depth and conventions of the existing `docs/UI_MOCKUP_REVIEW.md` handoff, using the
 same design tokens and shell vocabulary. This document gives you the requirements, the surfaces, the states, the copy vocabulary, and the
 research that justifies each decision — so you design it, not me.
 
@@ -15,8 +15,8 @@ agent over **ACP** (Agent Client Protocol) — the wire protocol. The agent pane
 types (Agent Pane = typed event stream, Editor Pane = CodeMirror). This handoff covers the **agent
 panel only**, as it appears in the pane manager, running alongside an editor pane.
 
-Read, before designing: `docs/design_handoff_locus_desktop/README.md` (the tokens, shell, and interaction
-conventions the whole app shares), `docs/design_handoff_locus_desktop_ui/README.md` (v1, for the
+Read, before designing: `docs/UI_MOCKUP_REVIEW.md` (the tokens, shell, and interaction
+conventions the whole app shares), `docs/UI_MOCKUP_REVIEW.md` (v1, for the
 screens desktop does not supersede), `src/panes/README.md`, `src/ui/README.md`.
 
 ## The one principle everything else serves

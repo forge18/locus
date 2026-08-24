@@ -1,5 +1,7 @@
 # task-orchestration
 
+> Superseded by `manage-revision` for the current four-view Manage surface; task ownership remains authoritative.
+
 **Milestone** M5 · **Depends on** `board`, `workflow-engine`, `run-supervisor`, `screens-automate`
 
 ## Purpose

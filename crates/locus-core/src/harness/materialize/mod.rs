@@ -3,6 +3,7 @@
 //! The registry describes where a harness consumes an extension. This module applies those
 //! declarations to an authored extension set without naming any individual harness.
 
+pub mod contracts;
 pub mod extensions;
 pub mod plugin;
 pub mod report;

@@ -1,5 +1,7 @@
 # workflow-canvas
 
+> Superseded by `workshop-revision` for the Workflows Visual node vocabulary; graph validation and execution overlays remain authoritative.
+
 **Milestone** M4 · **Depends on** `spike-workflow-canvas`, `screens-workshop`, `workflow-engine`
 
 ## Purpose
@@ -25,7 +27,6 @@ node carries a role, and the edges are the dependencies.
 
 | Node | Contributes |
 | --- | --- |
-| `Goal` | what the loop is *for*. **This is the approval gate** — a person approves it before the loop runs — and it is also the termination condition |
 | `Agent` | an agent definition pinned by version, **plus a `role`**. Carries this role's permission narrowing: a `tools` subset, a `network` tier, `write` scope |
 | `Task` | a unit of work, optionally sourced from the board |
 | `Loop` | what repeats, and what resets between passes |
@@ -34,7 +35,7 @@ node carries a role, and the edges are the dependencies.
 | `Verify` | the runnable success criterion. **Required** |
 
 **Graph validation refuses**, at save time and not at run time: cycles, unresolved handles, missing
-`verify`, an unreachable goal, a loop with no termination, and **role contamination**.
+`verify`, a loop with no termination, and **role contamination**. Governance holds the one required goal.
 
 **Role contamination is refused at compile time**, and belongs in validation rather than in a convention
 someone follows. One agent definition may not hold both the builder and the tester role in one
@@ -57,7 +58,7 @@ working; the canvas is the map. **Both read the same normalized events** — one
 
 ## Acceptance
 
-1. All seven node types render with typed props and typed handles.
+1. All six executable node types render with typed props and typed handles.
 2. A graph round-trips through JSONB **exactly** — reopening reproduces what was authored, positions
    included.
 3. Validation refuses each of the six invalid graphs, naming the offending node.

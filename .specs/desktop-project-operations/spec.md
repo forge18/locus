@@ -1,5 +1,7 @@
 # desktop-project-operations
 
+> Superseded by `setup-revision`, `plan-revision`, and `dispatch-revision` for the three current desktop contracts.
+
 **Milestone** M0.6 · **Depends on** `desktop-application-shell` · **Blocks** M1/M3/M5 project runtime work.
 
 ## Purpose

@@ -18,6 +18,7 @@ const BODY_LABEL: Record<InboxItem['kind'], string> = {
   ask: 'Question',
   guardrail: 'What happened',
 }
+const age = (minutes: number) => minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h`
 
 export function InboxDetail(props: InboxDetailProps) {
   const [comment, setComment] = createSignal('')
@@ -38,6 +39,7 @@ export function InboxDetail(props: InboxDetailProps) {
             class="inbox-detail-locator"
             data-testid="inbox-detail-locator"
             data-open-work="true"
+            data-locator={props.item.opensAt}
             onClick={() => props.onOpenWork(props.item.opensAt)}
           >
             {props.item.opensAt}
@@ -78,6 +80,20 @@ export function InboxDetail(props: InboxDetailProps) {
             placeholder="Optional"
             onInput={(e) => setComment(e.currentTarget.value)}
           />
+        </div>
+        <div class="inbox-explanations" data-testid="inbox-explanations">
+          <p data-testid="inbox-why">
+            <strong>Why this is here</strong>
+            The Gate node in workflow <code>wf-12</code> is human for
+            irreversible steps. The agent has written nothing and is blocked,
+            not idle.
+          </p>
+          <p data-testid="inbox-cost">
+            <strong>Cost of waiting</strong>
+            One loop held for {age(props.item.ageMinutes)}.
+            <br />
+            No tokens burn while blocked.
+          </p>
         </div>
       </div>
 

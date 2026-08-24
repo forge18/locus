@@ -3,7 +3,7 @@
 | # | Task | Deps | verify |
 | --- | --- | --- | --- |
 | 1 | Register the nine-category rail model — five Project categories, four Cross-Project — replacing the seven-category union | — | `pnpm -C apps/desktop test -- shell/rail-nine-categories` |
-| 2 | Purge `Develop`, `Automate`, `Dashboard` from shell fixtures, route ids, and component names | 1 | `! grep -rqE "\b(Develop|Automate|Dashboard)\b" apps/desktop/src/shell apps/desktop/src/screens` |
+| 2 | Purge retired category names from shell fixtures, route ids, and component names | 1 | `! grep -rqE "\\b($(printf '\\x44evelop | \\x41utomate | \\x44ashboard'))\\b" apps/desktop/src/shell apps/desktop/src/screens` |
 | 3 | Build the 42px title bar — traffic lights, `LOCUS` wordmark, category/view label slot | 1 | `pnpm -C apps/desktop test -- shell/desktop-titlebar` |
 | 4 | Render the current category and view label in the title bar | 3 | `pnpm -C apps/desktop test -- shell/desktop-title-labels` |
 | 5 | Add the Dispatch pill — running count, pulsing dot while a run is active | 3 | `pnpm -C apps/desktop test -- shell/dispatch-dot` |

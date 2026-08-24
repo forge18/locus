@@ -113,9 +113,13 @@ mod planning {
     }
 
     #[test]
-    fn nine_stages() {
-        assert_eq!(PlanningStage::ALL.len(), 9);
+    fn seven_stages() {
+        assert_eq!(PlanningStage::ALL.len(), 7);
         assert_eq!(PlanningStage::Inputs.next(), Some(PlanningStage::Orient));
-        assert_eq!(PlanningStage::Approve.next(), None);
+        assert_eq!(
+            PlanningStage::Recommend.next(),
+            Some(PlanningStage::Decompose)
+        );
+        assert_eq!(PlanningStage::Approved.next(), None);
     }
 }

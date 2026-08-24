@@ -40,6 +40,10 @@ pub enum AgentSocketVerb {
     MemoryWrite,
     #[serde(rename = "memory.forget")]
     MemoryForget,
+    #[serde(rename = "memory.adjudicate")]
+    MemoryAdjudicate,
+    #[serde(rename = "memory.explain")]
+    MemoryExplain,
     #[serde(rename = "mail.send")]
     MailSend,
     #[serde(rename = "mail.list")]

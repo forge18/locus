@@ -2,7 +2,7 @@
 
 ## Target
 
-`docs/design_handoff_acp_agent_panel/` and the new `agent-interface` contract: a single ACP-session
+`docs/UI mockups for PLAN.md/AgentPanel.dc.html` and the new `agent-interface` contract: a single ACP-session
 surface with a docked permission/elicitation blocker, plan dock, composer, checkpoint timeline, and
 per-session research pane.
 

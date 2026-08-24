@@ -9,11 +9,18 @@ pub mod audits;
 pub mod backup;
 pub mod bus;
 pub mod dispatch;
+pub mod interact;
+pub mod mail;
+pub mod memory;
 pub mod model_tiers;
+pub mod planning;
 pub mod projects;
 pub mod providers;
+pub mod qa;
 pub mod restore;
 pub mod routing;
+pub mod schedules;
+pub mod wiki;
 
 use crate::ids::{EventId, RunId};
 use std::{

@@ -2,6 +2,7 @@
 
 use std::collections::BTreeSet;
 
+use crate::runtime::routing::RoutingEffort;
 use anyhow::{bail, Result};
 
 /// The ordered durable states of a planning conversation.
@@ -10,30 +11,38 @@ pub enum PlanningStage {
     Inputs,
     Orient,
     Converse,
-    Synthesise,
-    Audit,
+    Synthesis,
     Recommend,
-    Override,
     Decompose,
-    Approve,
+    Approved,
 }
 
 impl PlanningStage {
-    pub const ALL: [Self; 9] = [
+    pub const ALL: [Self; 7] = [
         Self::Inputs,
         Self::Orient,
         Self::Converse,
-        Self::Synthesise,
-        Self::Audit,
+        Self::Synthesis,
         Self::Recommend,
-        Self::Override,
         Self::Decompose,
-        Self::Approve,
+        Self::Approved,
     ];
 
     pub fn next(self) -> Option<Self> {
         let index = Self::ALL.iter().position(|stage| *stage == self)?;
         Self::ALL.get(index + 1).copied()
+    }
+
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Inputs => "Inputs",
+            Self::Orient => "Orient",
+            Self::Converse => "Converse",
+            Self::Synthesis => "Synthesis",
+            Self::Recommend => "Recommend",
+            Self::Decompose => "Decompose",
+            Self::Approved => "Approved",
+        }
     }
 }
 
@@ -124,6 +133,57 @@ impl EditableSpec {
             .iter()
             .find(|requirement| requirement.id == id)
     }
+
+    pub fn requirements(&self) -> &[Requirement] {
+        &self.requirements
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OpenGap {
+    pub id: String,
+    pub detail: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SynthesisResult {
+    pub requirements: Vec<Requirement>,
+    pub open_gaps: Vec<OpenGap>,
+    pub pass_one_complete: bool,
+    pub pass_two_complete: bool,
+}
+
+pub fn two_pass_synthesis(
+    requirements: impl IntoIterator<Item = Requirement>,
+    unsupported_ids: impl IntoIterator<Item = String>,
+) -> SynthesisResult {
+    let requirements = requirements.into_iter().collect::<Vec<_>>();
+    let unsupported_ids = unsupported_ids.into_iter().collect::<BTreeSet<_>>();
+    let unsupported = requirements
+        .iter()
+        .filter(|requirement| unsupported_ids.contains(requirement.id()))
+        .map(|requirement| OpenGap {
+            id: requirement.id().into(),
+            detail: format!("{} needs evidence", requirement.body()),
+        })
+        .collect::<Vec<_>>();
+    let kept = requirements
+        .into_iter()
+        .filter(|requirement| !unsupported_ids.contains(requirement.id()))
+        .collect();
+    SynthesisResult {
+        requirements: kept,
+        open_gaps: unsupported,
+        pass_one_complete: true,
+        pass_two_complete: true,
+    }
+}
+
+pub fn resynthesise_changed(
+    spec: &EditableSpec,
+    unsupported_ids: impl IntoIterator<Item = String>,
+) -> SynthesisResult {
+    two_pass_synthesis(spec.changed_requirements().cloned(), unsupported_ids)
 }
 
 /// The approved planning inputs available for decomposition.
@@ -158,6 +218,27 @@ impl CardMode {
             Self::SelectedCarveOuts => selected_tasks + 1,
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct DecompositionRouting {
+    pub workflow: Option<String>,
+    pub harness: Option<String>,
+    pub model: Option<String>,
+    pub effort: Option<RoutingEffort>,
+}
+impl DecompositionRouting {
+    pub fn model_is_auto_route(&self) -> bool {
+        self.harness.is_none() && self.model.is_none()
+    }
+    pub fn effort_is_auto_route(&self) -> bool {
+        self.harness.is_none() && self.effort.is_none()
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TaskRoutingOverride {
+    pub task_id: String,
+    pub routing: DecompositionRouting,
 }
 
 /// A task in an approved plan that can become its own board-card draft.
@@ -530,4 +611,93 @@ fn approval_commits_cards() {
     assert!(decomposition
         .approve()
         .is_ok_and(|cards| cards.iter().any(|card| card.id == "task:routing")));
+}
+
+#[cfg(test)]
+mod revision_tests {
+    use super::two_pass_synthesis as synthesize;
+    use super::*;
+
+    #[test]
+    fn seven_stages() {
+        assert_eq!(
+            PlanningStage::ALL.map(PlanningStage::label),
+            [
+                "Inputs",
+                "Orient",
+                "Converse",
+                "Synthesis",
+                "Recommend",
+                "Decompose",
+                "Approved"
+            ]
+        );
+        assert_eq!(
+            PlanningStage::Recommend.next(),
+            Some(PlanningStage::Decompose)
+        );
+    }
+    #[test]
+    fn orient_before_converse() {
+        assert_eq!(PlanningStage::Orient.next(), Some(PlanningStage::Converse));
+    }
+    #[test]
+    fn two_pass_synthesis() {
+        let result = synthesize(
+            [
+                Requirement::new("R-1", "supported").unwrap(),
+                Requirement::new("R-2", "uncertain").unwrap(),
+            ],
+            ["R-2".into()],
+        );
+        assert_eq!(result.requirements.len(), 1);
+        assert_eq!(result.open_gaps[0].id, "R-2");
+    }
+    #[test]
+    fn synthesis_carries_open_gaps() {
+        assert_eq!(
+            synthesize([Requirement::new("R-1", "x").unwrap()], ["R-1".into()])
+                .open_gaps
+                .len(),
+            1
+        );
+    }
+    #[test]
+    fn resynthesises_changed_requirements() {
+        let mut spec = EditableSpec::new([
+            Requirement::new("R-1", "x").unwrap(),
+            Requirement::new("R-2", "y").unwrap(),
+        ])
+        .unwrap();
+        spec.edit("R-2", "changed").unwrap();
+        assert_eq!(resynthesise_changed(&spec, []).requirements[0].id(), "R-2");
+    }
+    #[test]
+    fn card_mode_count() {
+        assert_eq!(CardMode::SpecOnly.card_count(100), 1);
+        assert_eq!(CardMode::EveryTask.card_count(3), 3);
+        assert_eq!(CardMode::SelectedCarveOuts.card_count(3), 4);
+    }
+    #[test]
+    fn decomposition_routing_defaults() {
+        let defaults = DecompositionRouting::default();
+        assert!(defaults.model_is_auto_route());
+        assert!(defaults.effort_is_auto_route());
+    }
+    #[test]
+    fn decomposition_task_overrides() {
+        let value = TaskRoutingOverride {
+            task_id: "T-1".into(),
+            routing: DecompositionRouting {
+                harness: Some("claude".into()),
+                ..Default::default()
+            },
+        };
+        assert!(!value.routing.model_is_auto_route());
+    }
+    #[test]
+    fn stage_migration_preserves_plan_artifacts() {
+        let plan = ApprovedPlan::new("plan", vec![PlanTask::new("T-1", "task")]);
+        assert_eq!(Decomposition::spec_only(plan).approve().unwrap().len(), 1);
+    }
 }

@@ -396,7 +396,7 @@ boundary, and the network is the enforcement.
 **Providers are where a credential is configured, and they hold a reference, not a key.** A provider
 record carries an identifier, an authentication method, an **OS-keychain reference**, an optional
 `base_url`, verification metadata, and a curated model catalog whose aliases are what every model
-selector displays. Postgres stores the reference; the key itself never enters a row, a repository, an
+selector displays. Postgres stores the `keychain_reference`; the key itself never enters a row, a repository, an
 artifact, a log line, or a container. That is the whole of the claim that Locus holds no credential:
 it holds the name of one, and the operating system holds the secret.
 
@@ -1858,7 +1858,7 @@ props, and handles. Chosen over Rete.js, whose renderers target React, Vue, and 
 
 The canvas authors one artifact: a **Workflow**.
 
-**Node vocabulary.** A workflow is **a loop toward a goal**, not a one-shot pipeline. The shape the field converged on
+**Executable vocabulary.** A workflow is **a loop toward a goal**, not a one-shot pipeline. The shape the field converged on
 (Huntley and Carson's "Ralph loop") is: pick → act → validate → commit → reset, iterating with a fresh
 context each pass so confusion does not accumulate. Locus has a real advantage there — the four
 ad-hoc memory channels that pattern relies on (commit history, a progress log, a task file, a context
@@ -1873,17 +1873,17 @@ file) are one queryable, scoped store here.
 | `Gate` | a checkpoint: human, or another agent acting as reviewer |
 | `Verify` | the runnable success criterion. Required |
 
-**Six executable nodes, and the goal is not one of them.** A workflow is a graph plus **Governance**,
-and Governance owns the three things that belong to the workflow rather than to any node in it: the
-**goal** — the guiding statement every node is judged against, and also the termination condition; the
-**guardrails**, each a title and a prompt body read by the run while it is in flight and re-injected
+**Six executable nodes; Governance owns the workflow-level policy.** A workflow is a graph plus **Governance**,
+and Governance owns the three things that belong to the workflow rather than to executable graph data:
+the **goal** — the guiding statement applied to each executable step, and also the termination condition;
+the **guardrails**, each a title and a prompt body read by the run while it is in flight and re-injected
 after any reset; and the **success criteria**, each with a kind — `command`, `assertion`, or `human` —
 and a named checker. A criterion the core cannot check itself becomes a gate: it reaches your inbox
 with the evidence attached rather than being marked passed on the agent's word. Results land on the
 run; the authoring surface holds no execution state at all.
 
-A goal drawn as a node was a goal that could be wired, duplicated, or left unconnected — three ways to
-express something a workflow has exactly one of.
+Governance's goal is one statement, so it is not duplicated in executable graph data or left
+unconnected by an authoring mistake.
 
 **Where `Verify` runs.** In a **fresh container from the agent's own image, on the run's branch** —
 never in the agent's container. Two reasons, and both are the same reason: the agent's container may
@@ -2154,7 +2154,7 @@ another.
 | **Interact** | sessions that are yours alone — a container, a branch, and an agent you talk to directly | the hands-on work, mine |
 | **Review** | tests, linters, diagnostics, and agent reviews for this project | what is wrong right now |
 
-**The cross-project group** — what does not belong to one project:
+**Cross-Project** — what does not belong to one project:
 
 | Category | Holds | The question it answers |
 | --- | --- | --- |

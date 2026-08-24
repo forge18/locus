@@ -14,7 +14,7 @@ export const CATEGORIES = Object.freeze([
   'settings',
   'workshop',
 ] as const)
-export type Category = (typeof CATEGORIES)[number] | 'pill' | 'dashboard' | 'develop' | 'automate' | 'wiki'
+export type Category = (typeof CATEGORIES)[number] | 'pill' | (string & {})
 
 const VIEW_CATEGORY = Object.fromEntries(
   Desktop_FIXTURE_ROUTES.map((route) => [route.id, route.category]),
@@ -55,9 +55,5 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   settings: 'Settings',
   workshop: 'Workshop',
   pill: 'Inbox',
-  /** Legacy type aliases are not rendered or routable. */
-  dashboard: 'Analytics',
-  develop: 'Interact',
-  automate: 'Manage',
-  wiki: 'Memory',
+
 }

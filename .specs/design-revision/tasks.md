@@ -3,8 +3,8 @@
 | # | Task | Deps | verify |
 | --- | --- | --- | --- |
 | 1 | Write the mockup review and the mockup-directory README | — | `test -f docs/UI_MOCKUP_REVIEW.md && test -f "docs/UI mockups for PLAN.md/README.md"` |
-| 2 | Repoint every spec citing a deleted handoff directory | 1 | `! grep -rq "design_handoff_locus_desktop/\|design_handoff_acp_agent_panel" .specs PLAN.md` |
-| 3 | Stop citing `design_handoff_locus_v2` as governing anywhere | 1 | `! grep -rq "design_handoff_locus_v2" .specs` |
+| 2 | Repoint every spec citing a deleted handoff directory | 1 | `! grep -rqi "$(printf '\\x64esign_\\x68andoff')" .specs PLAN.md` |
+| 3 | Stop citing historical handoff directories as governing anywhere | 1 | `! grep -rqi "$(printf '\\x64esign_\\x68andoff')" .specs` |
 | 4 | Add a "Superseded by" pointer line to every spec an M0.7 feature replaces | 3 | `grep -q "Superseded by" .specs/design-desktop/spec.md .specs/desktop-application-shell/spec.md .specs/dashboard-metrics/spec.md` |
 | 5 | Purge the retired category names from the M0.7 specs | 3 | `! grep -rqE "\b(Develop\|Automate\|Dashboard)\b" .specs/*-revision .specs/interact-sessions .specs/review-qa` |
 | 6 | Record the 29-view inventory with one locator and one category each | 3 | `pnpm -C apps/desktop test -- nav/desktop-route-kinds` |

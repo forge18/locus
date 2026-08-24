@@ -31,7 +31,7 @@ impl Store {
         .bind(&decision.model_id)
         .bind(band_name(decision.requested_band))
         .bind(decision.selected_band.map(band_name))
-        .bind(&decision.effort)
+        .bind(decision.effort.to_string())
         .bind(decision.approval_required)
         .execute(self.pool())
         .await?;

@@ -2,7 +2,7 @@
 
 #[cfg(test)]
 use crate::ids::{AgentDefId, ProjectId, RunId, SessionId};
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, fmt};
 
 use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
@@ -34,18 +34,62 @@ impl ComplexityBand {
     }
 }
 
+/// The one effort vocabulary shared by routing, Harnesses, and Plan → Decompose.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum RoutingEffort {
+    Low,
+    Medium,
+    High,
+    Xhigh,
+}
+
+impl RoutingEffort {
+    pub const ALL: [Self; 4] = [Self::Low, Self::Medium, Self::High, Self::Xhigh];
+    pub fn parse(value: &str) -> Result<Self> {
+        match value {
+            "low" => Ok(Self::Low),
+            "medium" => Ok(Self::Medium),
+            "high" => Ok(Self::High),
+            "xhigh" => Ok(Self::Xhigh),
+            value => bail!("unsupported routing effort `{value}`"),
+        }
+    }
+}
+
+impl fmt::Display for RoutingEffort {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Low => "low",
+            Self::Medium => "medium",
+            Self::High => "high",
+            Self::Xhigh => "xhigh",
+        })
+    }
+}
+impl From<&str> for RoutingEffort {
+    fn from(value: &str) -> Self {
+        Self::parse(value).unwrap_or_else(|error| panic!("{error}"))
+    }
+}
+impl PartialEq<&str> for RoutingEffort {
+    fn eq(&self, other: &&str) -> bool {
+        self.to_string() == *other
+    }
+}
+
 /// The model and effort selected whenever autorouting is disabled.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct RoutingDefaults {
     pub model_id: String,
-    pub effort: String,
+    pub effort: RoutingEffort,
 }
 
 /// Settings for one complexity band. A missing `model_id` deliberately falls upward.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct RoutingBand {
     pub model_id: Option<String>,
-    pub effort: String,
+    pub effort: RoutingEffort,
     pub approval_required: bool,
     pub when_to_use: String,
 }
@@ -63,7 +107,7 @@ pub struct RoutingDecision {
     pub requested_band: ComplexityBand,
     pub selected_band: Option<ComplexityBand>,
     pub model_id: String,
-    pub effort: String,
+    pub effort: RoutingEffort,
     pub approval_required: bool,
 }
 
@@ -76,12 +120,13 @@ impl AutoroutingPolicy {
     ) -> Result<RoutingDecision> {
         if !self.enabled {
             require_nonempty("default model", &defaults.model_id)?;
-            require_nonempty("default effort", &defaults.effort)?;
+            let _ = defaults.effort;
+
             return Ok(RoutingDecision {
                 requested_band,
                 selected_band: None,
                 model_id: defaults.model_id.clone(),
-                effort: defaults.effort.clone(),
+                effort: defaults.effort,
                 approval_required: false,
             });
         }
@@ -94,13 +139,13 @@ impl AutoroutingPolicy {
                 continue;
             };
             require_nonempty("band model", model_id)?;
-            require_nonempty("band effort", &band.effort)?;
+            let _ = band.effort;
             require_nonempty("band when-to-use prose", &band.when_to_use)?;
             return Ok(RoutingDecision {
                 requested_band,
                 selected_band: Some(selected_band),
                 model_id: model_id.clone(),
-                effort: band.effort.clone(),
+                effort: band.effort,
                 approval_required: band.approval_required,
             });
         }

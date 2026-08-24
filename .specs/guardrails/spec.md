@@ -1,5 +1,7 @@
 # guardrails
 
+> Superseded by `dispatch-revision` for Settings → Guardrails; engine defaults and enforcement remain authoritative.
+
 **Milestone** M3 · **Depends on** `run-supervisor`, `mail` · **Blocks** `handoffs`, `workflow-engine`
 
 ## Purpose

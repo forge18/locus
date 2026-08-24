@@ -1,11 +1,13 @@
 # design-desktop
 
+> Superseded by `design-revision` for the current desktop authority; this file records M0.6 history.
+
 **Milestone** M0.6 · **Depends on** M0.5 · **Blocks** M1 runtime settings and every future desktop
 surface that consumes their state.
 
 ## Purpose
 
-Adopt `docs/design_handoff_locus_desktop/` without porting its HTML, standalone bundle, or `support.js`.
+Adopt the reviewed current mockup in `docs/UI mockups for PLAN.md/` without porting its HTML or authoring runtime.
 The implementation remains SolidJS/TypeScript in `apps/desktop` and Rust in `locus-core`. This feature
 replaces v1 fixture contracts with desktop fixtures and makes the architectural changes explicit before
 runtime work depends on them.
@@ -14,7 +16,7 @@ runtime work depends on them.
 
 - `PLAN.md` §Decisions and §desktop desktop revision
 - `DESIGN.md`
-- `docs/design_handoff_locus_desktop/README.md`, its HTML reference, standalone bundle, `support.js`, and
+- `docs/UI_MOCKUP_REVIEW.md` and the current HTML references under `docs/UI mockups for PLAN.md/`;
   all 31 screenshots
 
 ## Contract

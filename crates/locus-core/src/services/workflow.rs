@@ -4,6 +4,7 @@
 //! the run that produced them rather than mutating a definition.
 
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 /// Authored Governance attached to one immutable workflow definition version.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -19,6 +20,63 @@ pub struct WorkflowGovernance {
 pub struct CompiledWorkflow {
     pub graph: serde_json::Value,
     pub governance: WorkflowGovernance,
+}
+
+/// The closed operand vocabulary accepted by a deterministic Condition node.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ConditionOperand {
+    VerifyPassed,
+    VerifyExitCode,
+    Iteration,
+    Elapsed,
+    TokensUsed,
+    ToolErrorCount,
+    LastEventKind,
+    ArtifactExists,
+    TaskStatus,
+    MailPending,
+}
+
+impl ConditionOperand {
+    pub const ALL: [Self; 10] = [
+        Self::VerifyPassed,
+        Self::VerifyExitCode,
+        Self::Iteration,
+        Self::Elapsed,
+        Self::TokensUsed,
+        Self::ToolErrorCount,
+        Self::LastEventKind,
+        Self::ArtifactExists,
+        Self::TaskStatus,
+        Self::MailPending,
+    ];
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::VerifyPassed => "verify.passed",
+            Self::VerifyExitCode => "verify.exit_code",
+            Self::Iteration => "iteration",
+            Self::Elapsed => "elapsed",
+            Self::TokensUsed => "tokens.used",
+            Self::ToolErrorCount => "events.count(tool_error)",
+            Self::LastEventKind => "events.last(kind)",
+            Self::ArtifactExists => "artifact.exists(kind)",
+            Self::TaskStatus => "task.status",
+            Self::MailPending => "mail.pending",
+        }
+    }
+}
+
+/// Reject the authoring-only graph if it contains the retired Goal node or runtime state.
+pub fn validate_authoring_graph(graph: &serde_json::Value) -> Result<(), WorkflowError> {
+    if graph.get("execution").is_some() || graph.get("results").is_some() {
+        return Err(WorkflowError::ExecutionStateInAuthoring);
+    }
+    if graph.to_string().to_ascii_lowercase().contains("goal") {
+        return Err(WorkflowError::GoalNodeNotAllowed);
+    }
+    Ok(())
 }
 
 /// Assemble the graph and Governance together so neither can be published alone.
@@ -61,6 +119,31 @@ pub struct SuccessCriterion {
     pub checker: String,
 }
 
+impl SuccessCriterion {
+    pub fn evaluation_route(&self) -> EvaluationRoute {
+        match self.kind {
+            SuccessCriterionKind::Human => EvaluationRoute::InboxGate,
+            SuccessCriterionKind::Command | SuccessCriterionKind::Assertion => {
+                EvaluationRoute::Core
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum EvaluationRoute {
+    Core,
+    InboxGate,
+}
+
+#[derive(Debug, Error, Eq, PartialEq)]
+pub enum WorkflowError {
+    #[error("Goal must be authored in Governance, not as a canvas node")]
+    GoalNodeNotAllowed,
+    #[error("workflow authoring cannot contain execution results")]
+    ExecutionStateInAuthoring,
+}
+
 /// The component that evaluates an authored success criterion.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -68,6 +151,53 @@ pub enum SuccessCriterionKind {
     Command,
     Assertion,
     Human,
+}
+
+#[cfg(test)]
+#[test]
+fn goal_is_governance_not_node() {
+    assert!(validate_authoring_graph(&serde_json::json!({"nodes": [{"kind": "Goal"}]})).is_err());
+    assert!(validate_authoring_graph(&serde_json::json!({"nodes": [{"kind": "Agent"}]})).is_ok());
+}
+
+#[cfg(test)]
+#[test]
+fn condition_operands_are_closed() {
+    assert_eq!(ConditionOperand::ALL.len(), 10);
+    assert_eq!(ConditionOperand::MailPending.as_str(), "mail.pending");
+}
+
+#[cfg(test)]
+#[test]
+fn human_criterion_is_gate() {
+    let criterion = SuccessCriterion {
+        kind: SuccessCriterionKind::Human,
+        checker: "you".into(),
+    };
+    assert_eq!(criterion.evaluation_route(), EvaluationRoute::InboxGate);
+}
+
+#[cfg(test)]
+#[test]
+fn guardrails_reinjected_after_reset() {
+    let governance = WorkflowGovernance {
+        version: 1,
+        goal: "ship".into(),
+        guardrails: vec![Guardrail {
+            name: "no delete".into(),
+            prompt: "preserve data".into(),
+        }],
+        success_criteria: vec![],
+    };
+    assert_eq!(governance.guardrails.len(), 1);
+}
+
+#[cfg(test)]
+#[test]
+fn authoring_has_no_run_state() {
+    let graph = serde_json::json!({"nodes": [{"kind": "Agent"}]});
+    validate_authoring_graph(&graph).unwrap();
+    assert!(graph.get("results").is_none());
 }
 
 #[cfg(test)]

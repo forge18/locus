@@ -82,6 +82,7 @@ impl Store {
              SET verification_at = $2::text::timestamptz,
                  verification_model_count = $3,
                  verification_status = $4,
+                 verification_expires_at = $5::text::timestamptz,
                  updated_at = now()
              WHERE id = $1",
         )
@@ -89,6 +90,7 @@ impl Store {
         .bind(&metadata.verified_at)
         .bind(i32::try_from(metadata.model_count).map_err(|_| anyhow!("model count is too large"))?)
         .bind(metadata.status.as_str())
+        .bind(metadata.expires_at.as_deref())
         .execute(self.pool())
         .await?;
         if updated.rows_affected() != 1 {

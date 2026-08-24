@@ -7,15 +7,19 @@
 //! The rule this enforces: a capability never gets a per-harness implementation.
 
 pub mod agents;
+pub mod analytics;
 pub mod artifact;
 pub mod ask;
 pub mod board;
+pub mod interact;
 pub mod lint;
 pub mod mail;
+pub mod manage;
 pub mod memory;
 pub mod planning;
 pub mod project;
 pub mod provider;
+pub mod qa;
 pub mod telemetry;
 pub mod tools;
 pub mod wiki;

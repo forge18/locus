@@ -27,6 +27,7 @@ export interface ProjectRailProps {
   inboxCount?: number
   dispatchState?: 'ready' | 'working' | 'blocked'
   projects?: readonly string[]
+  projectDetails?: readonly { id: string; running: number; spend: string }[]
   onNavigate?: (locator: string) => void
 }
 
@@ -64,9 +65,27 @@ export function ProjectRail(props: ProjectRailProps) {
           }}
         />
         <div data-testid="project-switcher-results">
-          <For each={projects()}>{(project, index) => (
-            <button type="button" data-testid={`project-switcher-option-${project}`} aria-selected={activeProject() === index()} onClick={() => props.onNavigate?.(destinationDesktop('projects', project))}>{project}</button>
-          )}</For>
+          <For each={projects()}>{(project, index) => {
+            const detail = () => props.projectDetails?.find((entry) => entry.id === project)
+            const selected = () => project === props.selectedProject
+            return (
+              <button
+                type="button"
+                data-testid={`project-switcher-option-${project}`}
+                data-selected-project={selected() ? 'true' : 'false'}
+                data-project-running={detail()?.running ?? 0}
+                data-project-spend={detail()?.spend ?? ''}
+                aria-selected={activeProject() === index()}
+                aria-current={selected() ? 'true' : undefined}
+                onClick={() => props.onNavigate?.(destinationDesktop('projects', project))}
+              >
+                <span>{project}</span>
+                <small data-testid={`project-meta-${project}`}>
+                  {detail() ? `${detail()!.running} running · ${detail()!.spend}` : selected() ? 'selected' : ''}
+                </small>
+              </button>
+            )
+          }}</For>
         </div>
         <button type="button" class="new-project" onClick={() => props.onNavigate?.(destinationDesktop('projects', props.selectedProject))}>+ New project</button>
         <div data-testid="project-rail-routes">

@@ -1,5 +1,7 @@
 # screens-dashboard
 
+> Superseded by `analytics-revision` for the current Analytics surface; this file records the historical screen.
+
 > **Historical M0.5 contract.** Desktop replaces this surface's screen geometry and scope in
 > `.specs/design-desktop/spec.md`.
 

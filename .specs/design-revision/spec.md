@@ -6,7 +6,7 @@ every desktop surface built after it.
 ## Purpose
 
 Adopt the current mockup — `docs/UI mockups for PLAN.md/Locus v2.dc.html` and `AgentPanel.dc.html`.
-M0.6 was written from an earlier iteration in `design_handoff_locus_v2/`, which renames four rail
+M0.6 was written from an earlier desktop iteration, which renames four rail
 categories, keeps a nine-stage plan pipeline, and knows nothing of six surfaces the current design
 draws in full. This feature settles the vocabulary, the screen inventory, and the three decisions the
 rest of M0.7 depends on. It changes no implementation on its own.
@@ -25,9 +25,9 @@ this spec does not restate it.
 
 ### Authority
 
-`Locus v2.dc.html` at the top of `docs/UI mockups for PLAN.md/` is the design. `design_handoff_locus_v2/`
+`Locus v2.dc.html` at the top of `docs/UI mockups for PLAN.md/` is the design. The earlier v2 handoff
 and its README are superseded and must not be cited by any spec. `Locus UI mockups.html` is a bundle
-of the same file. `Locus.dc.html` and `design_handoff_locus_desktop_ui/` are v1.
+of the same file. `Locus.dc.html` and the earlier desktop handoff are v1.
 
 ### Vocabulary
 
@@ -75,8 +75,7 @@ spec cannot be mistaken for a current one.
 
 ## Acceptance
 
-1. No file under `.specs/` or `PLAN.md` cites `design_handoff_locus_desktop/`,
-   `design_handoff_acp_agent_panel/`, or `design_handoff_locus_v2/` as governing.
+1. No file under `.specs/` or `PLAN.md` cites an earlier handoff directory as governing.
 2. No M0.7 spec, fixture, route id, or component names a rail category `Develop`, `Automate`, or `Dashboard`; the M0.6 specs retain the historical labels they implemented.
 3. Every one of the 29 views is named by exactly one M0.7 spec and carries one locator.
 4. Every spec this milestone supersedes carries a pointer line naming its replacement.

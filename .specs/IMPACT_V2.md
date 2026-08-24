@@ -2,7 +2,7 @@
 
 ## Target
 
-`docs/design_handoff_locus_desktop/` supersedes the removed v1 handoff. It changes the application shell,
+`docs/UI_MOCKUP_REVIEW.md` supersedes the earlier desktop handoff. It changes the application shell,
 project scope model, planning-to-board handoff, dispatch control, runtime policy, credential ownership,
 tool installation, harness routing, and workflow authoring.
 

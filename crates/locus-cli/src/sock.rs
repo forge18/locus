@@ -54,6 +54,14 @@ pub const VERB_DISPATCHES: &[VerbDispatch] = &[
         verb: AgentSocketVerb::MemoryForget,
     },
     VerbDispatch {
+        command: &["memory", "adjudicate"],
+        verb: AgentSocketVerb::MemoryAdjudicate,
+    },
+    VerbDispatch {
+        command: &["memory", "explain"],
+        verb: AgentSocketVerb::MemoryExplain,
+    },
+    VerbDispatch {
         command: &["mail", "send"],
         verb: AgentSocketVerb::MailSend,
     },
@@ -699,6 +707,27 @@ mod run {
         assert!(VERB_DISPATCHES
             .iter()
             .any(|entry| entry.verb == dispatch.verb));
+    }
+}
+
+#[cfg(test)]
+mod memory {
+    use super::{resolve_verb, AgentSocketVerb};
+
+    #[test]
+    fn adjudicate() {
+        let command = ["memory".into(), "adjudicate".into(), "fact-1".into()];
+        let (dispatch, args) = resolve_verb(&command).expect("memory adjudicate dispatches");
+        assert_eq!(dispatch.verb, AgentSocketVerb::MemoryAdjudicate);
+        assert_eq!(args, ["fact-1"]);
+    }
+
+    #[test]
+    fn explain() {
+        let command = ["memory".into(), "explain".into(), "fact-1".into()];
+        let (dispatch, args) = resolve_verb(&command).expect("memory explain dispatches");
+        assert_eq!(dispatch.verb, AgentSocketVerb::MemoryExplain);
+        assert_eq!(args, ["fact-1"]);
     }
 }
 

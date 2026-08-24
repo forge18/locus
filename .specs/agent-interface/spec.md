@@ -8,7 +8,7 @@
 
 The agent panel surface — how a single agent session renders, and what the user controls and
 sees. It consolidates the agent-interface research and the delivered
-[`ACP Agent Panel` handoff](../../docs/design_handoff_acp_agent_panel/README.md). This is a
+[`AgentPanel.dc.html` and reviewed contract](../../docs/UI_MOCKUP_REVIEW.md). This is a
 *surfacing* contract over existing machinery, not a second agent protocol: the panel renders the ACP
 v2 event stream, permission mode rides the run, thinking rides `agent_thought`, and research rides
 `finding` artifacts.
@@ -20,7 +20,7 @@ v2 event stream, permission mode rides the run, thinking rides `agent_thought`, 
 - PLAN.md §Permissions — the declared allowlist / container-enforced posture
 - PLAN.md §Memory — finding promotion crosses into the long-term store
 - `pane-manager` §Contract — Agent Pane renders normalized events; the IPC discipline
-- `docs/design_handoff_acp_agent_panel/README.md` — visual and interaction contract; its HTML is a
+- `docs/UI_MOCKUP_REVIEW.md` and `docs/UI mockups for PLAN.md/AgentPanel.dc.html` — visual and interaction contract; the HTML is a
   reference, never production code
 
 ## Governing principle: transparent by default, everything settings-driven

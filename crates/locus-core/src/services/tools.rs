@@ -143,6 +143,35 @@ impl ProjectToolScope {
     pub fn permits(&self, tool: &str) -> bool {
         !self.disabled_tools.contains(tool)
     }
+    pub fn add(&mut self, tool: impl Into<String>) {
+        self.disabled_tools.remove(&tool.into());
+    }
+    pub fn remove(&mut self, tool: impl Into<String>) {
+        self.disabled_tools.insert(tool.into());
+    }
+    pub fn disabled_tools(&self) -> &BTreeSet<String> {
+        &self.disabled_tools
+    }
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct ImageRebuildLedger {
+    last_scope: Option<ProjectToolScope>,
+    rebuild_count: u32,
+}
+
+impl ImageRebuildLedger {
+    pub fn apply_scope_change(&mut self, scope: ProjectToolScope) -> bool {
+        if self.last_scope.as_ref() == Some(&scope) {
+            return false;
+        }
+        self.last_scope = Some(scope);
+        self.rebuild_count += 1;
+        true
+    }
+    pub fn rebuild_count(&self) -> u32 {
+        self.rebuild_count
+    }
 }
 
 /// Workflow roles may further remove tools from the project's effective set.
@@ -366,6 +395,25 @@ fn minisign_verification_rejects_unsigned_and_untrusted_uploads_before_admission
         catalog.enabled_image_set(),
         vec![ImageTool::new("linty", "1.2.3")]
     );
+}
+
+#[test]
+fn project_scope_add_remove() {
+    let mut scope = ProjectToolScope::new(["rg"]);
+    assert!(!scope.permits("rg"));
+    scope.add("rg");
+    assert!(scope.permits("rg"));
+    scope.remove("sqlx");
+    assert!(!scope.permits("sqlx"));
+}
+
+#[test]
+fn image_rebuild_once_per_tool_change() {
+    let mut ledger = ImageRebuildLedger::default();
+    let scope = ProjectToolScope::default();
+    assert!(ledger.apply_scope_change(scope.clone()));
+    assert!(!ledger.apply_scope_change(scope));
+    assert_eq!(ledger.rebuild_count(), 1);
 }
 
 #[test]

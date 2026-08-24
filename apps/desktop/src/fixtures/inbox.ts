@@ -32,7 +32,7 @@ export const INBOX_ITEMS: InboxItem[] = [
     agent: 'planner@3',
     role: 'planner',
     branch: 'agent/8f21-notify',
-    opensAt: 'locus://tapestry/plan',
+    opensAt: 'locus://tapestry/view/plan',
     ageMinutes: 26,
     artifactKind: 'plan',
     body: [
@@ -51,7 +51,7 @@ export const INBOX_ITEMS: InboxItem[] = [
     agent: 'builder@4',
     role: 'builder',
     branch: 'agent/3c04-index',
-    opensAt: 'locus://loom-db/develop',
+    opensAt: 'locus://loom-db/view/interact',
     ageMinutes: 12,
     artifactKind: null,
     body: [
@@ -68,7 +68,7 @@ export const INBOX_ITEMS: InboxItem[] = [
     agent: 'builder@4',
     role: 'builder',
     branch: 'agent/5a71-parser',
-    opensAt: 'locus://weaver/session/5a71/run/9c02',
+    opensAt: 'locus://all/view/runs',
     ageMinutes: 4,
     artifactKind: 'report',
     body: [
@@ -83,11 +83,53 @@ export interface ResolvedItem {
   id: string
   kind: InboxKind
   title: string
+  project: string
+  /** How long the item waited for a human response. */
+  resolutionMinutes: number
+  /** Stable fixture day label; the runtime will provide the calendar day. */
+  resolvedDay: string
+  /** Retained for the compact resolved preview in the To do tab. */
   ageMinutes: number
 }
 
+export interface InboxThroughput {
+  resolvedThisHour: number
+  hourlyBudget: number
+  periodLabel: string
+}
+
+export const INBOX_THROUGHPUT: InboxThroughput = {
+  resolvedThisHour: 3,
+  hourlyBudget: 6,
+  periodLabel: 'per hour',
+}
+
 export const RESOLVED_TODAY: ResolvedItem[] = [
-  { id: 'rs-1', kind: 'gate', title: 'Gate — approve plan for texere ingest', ageMinutes: 94 },
-  { id: 'rs-2', kind: 'ask', title: 'locus ask — keep the old column?', ageMinutes: 141 },
-  { id: 'rs-3', kind: 'guardrail', title: 'Guardrail — budget warning, tapestry', ageMinutes: 200 },
+  {
+    id: 'rs-1',
+    kind: 'gate',
+    title: 'Gate — approve plan for texere ingest',
+    project: 'texere',
+    resolutionMinutes: 18,
+    resolvedDay: 'Today',
+    ageMinutes: 94,
+  },
+  {
+    id: 'rs-2',
+    kind: 'ask',
+    title: 'locus ask — keep the old column?',
+    project: 'loom-db',
+    resolutionMinutes: 41,
+    resolvedDay: 'Today',
+    ageMinutes: 141,
+  },
+  {
+    id: 'rs-3',
+    kind: 'guardrail',
+    title: 'Guardrail — budget warning, tapestry',
+    project: 'tapestry',
+    resolutionMinutes: 82,
+    resolvedDay: 'Yesterday',
+    ageMinutes: 200,
+  },
 ]

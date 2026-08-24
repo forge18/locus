@@ -12,7 +12,7 @@ CSS, fixture data, or behavior.
 
 - `DESIGN.md` §Visual rules
 - `.specs/design-desktop/spec.md` §Shell and screen inventory
-- `docs/design_handoff_locus_desktop/README.md` §Design tokens
+- `docs/UI_MOCKUP_REVIEW.md` §Navigation and §Screens
 
 ## Contract
 

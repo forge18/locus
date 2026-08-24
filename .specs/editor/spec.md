@@ -16,7 +16,7 @@ in an agent-first IDE.
 
 - PLAN.md §Editor — CodeMirror direct, two zoom levels, the accepted gaps
 - PLAN.md §The git model — the editor opens an ordinary clone
-- `docs/design_handoff_locus_desktop/README.md` screenshot 08 · Develop
+- `docs/UI_MOCKUP_REVIEW.md` · Interact
 
 ## Contract
 

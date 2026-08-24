@@ -1,5 +1,7 @@
 # dashboard-metrics
 
+> Superseded by `analytics-revision` for the current Analytics surface; its metric definitions remain valid.
+
 **Milestone** M6 · **Depends on** `telemetry`, `workflow-engine`, `screens-dashboard`, `screens-review`
 
 ## Purpose

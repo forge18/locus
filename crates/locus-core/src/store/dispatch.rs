@@ -9,8 +9,8 @@ use uuid::Uuid;
 
 use crate::{
     runtime::dispatch::{
-        select_to_start, DispatchPolicy, DispatchPriority, PreemptionHandoff, PriorityMethod,
-        QueuedRun, RunState, StopAllSnapshot, TieBreak,
+        select_to_start, DispatchPolicy, DispatchPriority, GuardrailDefaults, PreemptionHandoff,
+        NetworkTier, PriorityMethod, ProjectAutorunPolicy, QueuedRun, RunState, StopAllSnapshot, TieBreak,
     },
     store::Store,
 };
@@ -59,13 +59,51 @@ impl Store {
         Ok(())
     }
 
+    pub async fn guardrail_defaults(&self) -> Result<GuardrailDefaults> {
+        let row = query("SELECT max_iterations, token_budget, stuck_iterations, change_lines_ceiling, change_files_ceiling, kill_and_reassign, network_tier, block_system_changes, autopilot FROM core.guardrail_defaults WHERE singleton = TRUE").fetch_one(self.pool()).await.context("read guardrail defaults")?;
+        Ok(GuardrailDefaults {
+            max_iterations: u32::try_from(row.try_get::<i32, _>("max_iterations")?)?,
+            token_budget: row
+                .try_get::<Option<i64>, _>("token_budget")?
+                .map(|value| value as u64),
+            stuck_iterations: u32::try_from(row.try_get::<i32, _>("stuck_iterations")?)?,
+            change_lines: row
+                .try_get::<Option<i32>, _>("change_lines_ceiling")?
+                .map(|value| value as u32),
+            change_files: row
+                .try_get::<Option<i32>, _>("change_files_ceiling")?
+                .map(|value| value as u32),
+            kill_and_reassign: row.try_get("kill_and_reassign")?,
+            network_tier: match row.try_get::<String, _>("network_tier")?.as_str() {
+                "closed" => NetworkTier::Closed,
+                "internal" => NetworkTier::Internal,
+                _ => NetworkTier::Open,
+            },
+            block_system_changes: row.try_get("block_system_changes")?,
+            autopilot: row.try_get("autopilot")?,
+        })
+    }
+
+    pub async fn set_guardrail_defaults(
+        &self,
+        defaults: &GuardrailDefaults,
+        explicit_looser_override: bool,
+    ) -> Result<()> {
+        let current = self.guardrail_defaults().await?;
+        defaults.validate_change(&current, explicit_looser_override)?;
+        query("UPDATE core.guardrail_defaults SET max_iterations = $1, token_budget = $2, stuck_iterations = $3, change_lines_ceiling = $4, change_files_ceiling = $5, kill_and_reassign = $6, network_tier = $7, block_system_changes = $8, autopilot = $9, updated_at = now() WHERE singleton = TRUE")
+            .bind(i32::try_from(defaults.max_iterations)?).bind(defaults.token_budget.map(|value| value as i64)).bind(i32::try_from(defaults.stuck_iterations)?).bind(defaults.change_lines.map(|value| value as i32)).bind(defaults.change_files.map(|value| value as i32)).bind(defaults.kill_and_reassign).bind(match defaults.network_tier { NetworkTier::Closed => "closed", NetworkTier::Internal => "internal", NetworkTier::Open => "open" }).bind(defaults.block_system_changes).bind(defaults.autopilot).execute(self.pool()).await.context("persist guardrail defaults")?;
+        Ok(())
+    }
+
     /// Set whether a project may automatically start dispatchable work.
     pub async fn set_project_autorun(&self, project_id: ProjectId, enabled: bool) -> Result<()> {
         query(
-            "INSERT INTO core.project_autorun (project_id, enabled)
-             VALUES ($1, $2)
+            "INSERT INTO core.project_autorun (project_id, enabled, state)
+             VALUES ($1, $2, CASE WHEN $2 THEN 'on' ELSE 'off' END)
              ON CONFLICT (project_id) DO UPDATE SET
                  enabled = EXCLUDED.enabled,
+                 state = EXCLUDED.state,
                  updated_at = now()",
         )
         .bind(project_id)
@@ -74,6 +112,39 @@ impl Store {
         .await
         .context("set project autorun")?;
         Ok(())
+    }
+
+    /// Replace the tri-state autorun posture, refusing to arm an archived project.
+    pub async fn set_project_autorun_state(
+        &self,
+        project_id: ProjectId,
+        state: crate::runtime::dispatch::AutorunState,
+    ) -> Result<()> {
+        if state == crate::runtime::dispatch::AutorunState::On
+            && self.project_archived(project_id).await?
+        {
+            bail!("autorun cannot be turned on for an archived project");
+        }
+        let state_name = match state {
+            crate::runtime::dispatch::AutorunState::On => "on",
+            crate::runtime::dispatch::AutorunState::Off => "off",
+            crate::runtime::dispatch::AutorunState::Suspended => "suspended",
+        };
+        query("INSERT INTO core.project_autorun (project_id, enabled, state) VALUES ($1, $2, $3) ON CONFLICT (project_id) DO UPDATE SET enabled = EXCLUDED.enabled, state = EXCLUDED.state, updated_at = now()")
+            .bind(project_id).bind(state == crate::runtime::dispatch::AutorunState::On).bind(state_name).execute(self.pool()).await.context("set tri-state project autorun")?;
+        Ok(())
+    }
+
+    pub async fn project_autorun_state(
+        &self,
+        project_id: ProjectId,
+    ) -> Result<crate::runtime::dispatch::AutorunState> {
+        let row = query("SELECT COALESCE((SELECT state FROM core.project_autorun WHERE project_id = $1), 'off') AS state").bind(project_id).fetch_one(self.pool()).await.context("read tri-state project autorun")?;
+        match row.try_get::<&str, _>("state")? {
+            "on" => Ok(crate::runtime::dispatch::AutorunState::On),
+            "suspended" => Ok(crate::runtime::dispatch::AutorunState::Suspended),
+            _ => Ok(crate::runtime::dispatch::AutorunState::Off),
+        }
     }
 
     /// Read a project's autorun state; projects without a setting default to disabled.
@@ -91,11 +162,34 @@ impl Store {
         row.try_get("enabled").context("decode project autorun")
     }
 
+    pub async fn project_autorun_policy(&self, project_id: ProjectId) -> Result<ProjectAutorunPolicy> {
+        let row = query("SELECT review_pause_threshold, inbox_budget_per_hour, change_lines_ceiling, change_files_ceiling FROM core.project_autorun_policy WHERE project_id = $1")
+            .bind(project_id).fetch_optional(self.pool()).await.context("read project autorun policy")?;
+        let Some(row) = row else { return Ok(ProjectAutorunPolicy::default()); };
+        Ok(ProjectAutorunPolicy {
+            review_pause_threshold: u32::try_from(row.try_get::<i32, _>("review_pause_threshold")?)?,
+            inbox_budget_per_hour: u32::try_from(row.try_get::<i32, _>("inbox_budget_per_hour")?)?,
+            change_lines_ceiling: row.try_get::<Option<i32>, _>("change_lines_ceiling")?.map(u32::try_from).transpose()?,
+            change_files_ceiling: row.try_get::<Option<i32>, _>("change_files_ceiling")?.map(u32::try_from).transpose()?,
+        })
+    }
+
+    pub async fn set_project_autorun_policy(&self, project_id: ProjectId, policy: ProjectAutorunPolicy) -> Result<()> {
+        query("INSERT INTO core.project_autorun_policy (project_id, review_pause_threshold, inbox_budget_per_hour, change_lines_ceiling, change_files_ceiling) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (project_id) DO UPDATE SET review_pause_threshold = EXCLUDED.review_pause_threshold, inbox_budget_per_hour = EXCLUDED.inbox_budget_per_hour, change_lines_ceiling = EXCLUDED.change_lines_ceiling, change_files_ceiling = EXCLUDED.change_files_ceiling, updated_at = now()")
+            .bind(project_id).bind(i32::try_from(policy.review_pause_threshold)?).bind(i32::try_from(policy.inbox_budget_per_hour)?).bind(policy.change_lines_ceiling.map(i32::try_from).transpose()?).bind(policy.change_files_ceiling.map(i32::try_from).transpose()?).execute(self.pool()).await.context("persist project autorun policy")?;
+        Ok(())
+    }
+
     /// Snapshot and stop all active dispatch work, autorun settings, and schedules.
     ///
     /// Queued and running runs become `stopped`; branches, artifacts, memory, queue entries, and
     /// all other durable work remain untouched. The returned snapshot is restorable for ten minutes.
     pub async fn stop_all(&self) -> Result<StopAllSnapshot> {
+        self.stop_all_with_handoffs(false).await
+    }
+
+    /// Stop all with an optional bounded handoff write before each run is stopped.
+    pub async fn stop_all_with_handoffs(&self, write_handoffs: bool) -> Result<StopAllSnapshot> {
         let mut transaction = self.pool().begin().await.context("begin stop all")?;
         query("SELECT singleton FROM core.dispatch_policy WHERE singleton = TRUE FOR UPDATE")
             .fetch_one(&mut *transaction)
@@ -139,6 +233,10 @@ impl Store {
             .map(|row| row.try_get::<RunId, _>("run_id").map_err(Into::into))
             .collect::<Result<Vec<_>>>()
             .context("decode stopped run ids")?;
+        if write_handoffs {
+            query("INSERT INTO core.stop_all_handoffs (snapshot_id, run_id, payload) SELECT $1, run_id, jsonb_build_object('done', '[]'::jsonb, 'remaining', '[]'::jsonb, 'attempted', '[]'::jsonb, 'open', '[]'::jsonb) FROM core.stop_all_run_snapshots WHERE snapshot_id = $1")
+                .bind(id).execute(&mut *transaction).await.context("write stop all handoffs")?;
+        }
         query(
             "UPDATE agents.runs AS runs
              SET status = 'stopped'
@@ -153,14 +251,14 @@ impl Store {
         .context("stop active runs")?;
 
         query(
-            "INSERT INTO core.stop_all_autorun_snapshots (snapshot_id, project_id, enabled)
-             SELECT $1, project_id, enabled FROM core.project_autorun",
+            "INSERT INTO core.stop_all_autorun_snapshots (snapshot_id, project_id, enabled, state)
+             SELECT $1, project_id, enabled, state FROM core.project_autorun",
         )
         .bind(id)
         .execute(&mut *transaction)
         .await
         .context("snapshot autorun state")?;
-        query("UPDATE core.project_autorun SET enabled = FALSE, updated_at = now() WHERE enabled")
+        query("UPDATE core.project_autorun SET enabled = FALSE, state = 'off', updated_at = now() WHERE enabled OR state <> 'off'")
             .execute(&mut *transaction)
             .await
             .context("disable autorun")?;
@@ -244,12 +342,13 @@ impl Store {
         .await
         .context("restore stopped runs")?;
         query(
-            "INSERT INTO core.project_autorun (project_id, enabled)
-             SELECT project_id, enabled
+            "INSERT INTO core.project_autorun (project_id, enabled, state)
+             SELECT project_id, enabled, state
              FROM core.stop_all_autorun_snapshots
              WHERE snapshot_id = $1
              ON CONFLICT (project_id) DO UPDATE SET
                  enabled = EXCLUDED.enabled,
+                 state = EXCLUDED.state,
                  updated_at = now()",
         )
         .bind(snapshot_id)
@@ -279,6 +378,32 @@ impl Store {
     }
 
     /// Add a queued run to the durable dispatch queue. Its project is derived from the run session.
+    pub async fn enqueue_autorun_dispatch(
+        &self,
+        project_id: ProjectId,
+        run_id: RunId,
+        priority: DispatchPriority,
+        request: &crate::runtime::dispatch::AutorunRequest,
+        unread_landed: u32,
+        autorun_runs_last_hour: u32,
+    ) -> Result<()> {
+        use crate::runtime::dispatch::{autorun_exclusions, review_debt_pauses_autorun};
+        if self.project_autorun_state(project_id).await? != crate::runtime::dispatch::AutorunState::On {
+            bail!("project autorun is not on");
+        }
+        let policy = self.project_autorun_policy(project_id).await?;
+        if review_debt_pauses_autorun(policy, unread_landed) {
+            bail!("autorun paused by review debt");
+        }
+        if !policy.permits_inbox_run(autorun_runs_last_hour) {
+            bail!("autorun hourly inbox budget exhausted");
+        }
+        if !autorun_exclusions(request).is_empty() {
+            bail!("autorun request is excluded");
+        }
+        self.enqueue_dispatch(run_id, priority).await
+    }
+
     pub async fn enqueue_dispatch(&self, run_id: RunId, priority: DispatchPriority) -> Result<()> {
         let inserted = query(
             "INSERT INTO agents.dispatch_queue (

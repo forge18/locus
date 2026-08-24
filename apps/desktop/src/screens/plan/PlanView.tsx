@@ -30,6 +30,16 @@ import {
       usePlans,
 } from "../../data/plan";
 
+export const PLAN_STAGE_LABELS = [
+      "Inputs",
+      "Orient",
+      "Converse",
+      "Synthesis",
+      "Recommend",
+      "Decompose",
+      "Approved",
+] as const;
+
 /**
  * A guided conversation that produces a reviewable plan. Nothing reaches the board
  * until one approval at the end, which is why the recommendation has to be legible
@@ -46,6 +56,15 @@ export function PlanView() {
       const selected = createMemo(
             () => plans.find((p) => p.id === selectedId()) ?? plans[0],
       );
+      const [stage, setStage] = createSignal<
+            (typeof PLAN_STAGE_LABELS)[number]
+      >(selected().step);
+      const stageIndex = () => PLAN_STAGE_LABELS.indexOf(stage());
+      const moveStage = (delta: -1 | 1) => {
+            const next = stageIndex() + delta;
+            if (next >= 0 && next < PLAN_STAGE_LABELS.length)
+                  setStage(PLAN_STAGE_LABELS[next]);
+      };
 
       const [messages, setMessages] = createSignal(usePlanConversation());
       const [streamError, setStreamError] = createSignal<string | null>(null);
@@ -151,6 +170,55 @@ export function PlanView() {
                         <span>{selected().project} · started 09:14</span>
                         <Breadcrumb current={selected().step} />
                   </div>
+                  <div
+                        class="plan-stage-stepper"
+                        data-testid="plan-stage-stepper"
+                  >
+                        <button
+                              type="button"
+                              data-testid="plan-stage-back"
+                              disabled={stageIndex() === 0}
+                              onClick={() => moveStage(-1)}
+                        >
+                              Back
+                        </button>
+                        <span data-testid="plan-stage-step">
+                              Step {stageIndex() + 1} of 7 · {stage()}
+                        </span>
+                        <button
+                              type="button"
+                              data-testid="plan-stage-next"
+                              disabled={
+                                    stageIndex() ===
+                                    PLAN_STAGE_LABELS.length - 1
+                              }
+                              onClick={() => moveStage(1)}
+                        >
+                              Next
+                        </button>
+                  </div>
+                  <nav
+                        class="plan-stage-strip"
+                        data-testid="plan-stage-strip"
+                        aria-label="Plan stages"
+                  >
+                        <For each={PLAN_STAGE_LABELS}>
+                              {(entry, index) => (
+                                    <button
+                                          type="button"
+                                          data-stage={entry}
+                                          aria-current={
+                                                stage() === entry
+                                                      ? "step"
+                                                      : undefined
+                                          }
+                                          onClick={() => setStage(entry)}
+                                    >
+                                          {index() + 1} {entry}
+                                    </button>
+                              )}
+                        </For>
+                  </nav>
 
                   <div class="plan">
                         <Show when={plansOpen()}>
@@ -173,10 +241,10 @@ export function PlanView() {
                                                       class="plan-stage-label"
                                                       data-testid="plan-stage-progress"
                                                 >
-                                                      Stage 5 of 9
+                                                      Step 3 of 7
                                                 </span>
                                                 <span class="plan-convo-title">
-                                                      Audit
+                                                      Converse
                                                 </span>
                                                 <span class="plan-convo-running">
                                                       <span class="live-dot pulse" />

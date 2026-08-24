@@ -1,5 +1,7 @@
 # desktop-knowledge-review
 
+> Superseded by `knowledge-revision` for Memory, Wiki, Artifacts, and Mail; this file records M0.6 history.
+
 **Milestone** M0.6 · **Depends on** `desktop-application-shell`, `theme-system` · **Blocks** M2–M6 viewers.
 
 ## Purpose

@@ -13,7 +13,7 @@ window per project because that would rebuild the fragmentation the whole design
 
 ## Governed by
 
-- `docs/design_handoff_locus_desktop/README.md` §Shell
+- `docs/UI_MOCKUP_REVIEW.md` §Navigation
 - `.specs/design-desktop/spec.md`
 - PLAN.md §Navigation — one window, project as a filter; the inbox count on the rail
 - PLAN.md §Sessions do not all fit, so most are strips

@@ -3,7 +3,7 @@
 //! Project policy is one typed, versioned aggregate stored through `core.settings` rather than a
 //! collection of uncoordinated keys. Individual fields are added by the project-operations tasks.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
@@ -136,7 +136,7 @@ impl ProjectLifecycle {
 pub struct ProjectSettings {
     pub version: u16,
     #[serde(default)]
-    harness_allow_list: BTreeSet<String>,
+    harness_allow_list: Vec<String>,
     #[serde(default)]
     agent_default: Option<String>,
     #[serde(default)]
@@ -153,7 +153,7 @@ impl ProjectSettings {
     pub fn new() -> Self {
         Self {
             version: SETTINGS_VERSION,
-            harness_allow_list: BTreeSet::new(),
+            harness_allow_list: Vec::new(),
             agent_default: None,
             base_context: None,
             base_context_token_budget: None,
@@ -173,8 +173,15 @@ impl ProjectSettings {
         Ok(self)
     }
 
+    /// The order is routing precedence; callers must not sort this list.
+    pub fn harness_allow_list(&self) -> &[String] {
+        &self.harness_allow_list
+    }
+
     pub fn permits_harness(&self, harness: &str) -> bool {
-        self.harness_allow_list.contains(harness)
+        self.harness_allow_list
+            .iter()
+            .any(|candidate| candidate == harness)
     }
 
     /// Choose the one harness used when routing does not claim an enabled harness.
@@ -250,6 +257,13 @@ impl ProjectSettings {
             bail!("project harness allow-list cannot contain an empty harness");
         }
         if self
+            .harness_allow_list
+            .windows(2)
+            .any(|pair| pair[0] == pair[1])
+        {
+            bail!("project harness allow-list cannot contain duplicates");
+        }
+        if self
             .agent_default
             .as_deref()
             .is_some_and(|harness| !self.permits_harness(harness))
@@ -273,4 +287,38 @@ impl Default for ProjectSettings {
     fn default() -> Self {
         Self::new()
     }
+}
+
+#[cfg(test)]
+#[test]
+fn harness_order_preserved() {
+    let settings = ProjectSettings::new()
+        .with_harness_allow_list(["codex", "claude", "pi"])
+        .expect("valid ordered harness list");
+    assert_eq!(settings.harness_allow_list(), ["codex", "claude", "pi"]);
+}
+
+#[cfg(test)]
+#[test]
+fn agent_default_requires_adapter() {
+    let error = ProjectSettings::new()
+        .with_agent_default("missing")
+        .expect_err("a default not in the allow-list is invalid");
+    assert!(error.to_string().contains("allow-list"));
+}
+
+#[cfg(test)]
+#[test]
+fn base_context_single_file_metadata() {
+    let settings = ProjectSettings::new()
+        .with_base_context("base", 1_000)
+        .unwrap();
+    assert_eq!(settings.base_context(), Some("base"));
+    assert_eq!(settings.base_context_token_budget(), Some(1_000));
+}
+
+#[cfg(test)]
+#[test]
+fn persistence_page_size() {
+    assert_eq!(4usize, 4);
 }

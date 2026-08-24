@@ -1,5 +1,7 @@
 # screens-develop
 
+> Superseded by `interact-sessions` for the current hands-on surface; this file records the historical fixture.
+
 > **Historical M0.5 contract.** Desktop replaces this fixture's shell and geometry; new work follows
 > `.specs/design-desktop/spec.md`.
 

@@ -24,10 +24,6 @@ const CATEGORY_TABS: Record<Category, CategoryTab[]> = {
   settings: [],
   workshop: [],
   pill: [],
-  dashboard: [],
-  develop: [],
-  automate: [],
-  wiki: [],
 }
 
 export function tabsFor(category: Category): CategoryTab[] { return CATEGORY_TABS[category] }

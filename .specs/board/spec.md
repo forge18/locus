@@ -1,5 +1,7 @@
 # board
 
+> Superseded by `manage-revision` for the current Manage rendering; the fold and gating rules remain authoritative.
+
 **Milestone** M5 · **Depends on** `store`, `event-store`, `workflow-engine`, `screens-automate`
 
 ## Purpose

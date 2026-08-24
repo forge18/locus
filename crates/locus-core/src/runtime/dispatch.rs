@@ -13,20 +13,291 @@ use uuid::Uuid;
 
 use crate::runtime::session::{Run, RunStatus, Session};
 
-/// Per-project durable autorun posture.
+/// Per-project durable autorun posture. Suspension is distinct from a human turning it off.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AutorunState(bool);
+#[serde(rename_all = "lowercase")]
+pub enum AutorunState {
+    On,
+    Off,
+    Suspended,
+}
 
 impl AutorunState {
     pub fn enabled() -> Self {
-        Self(true)
+        Self::On
     }
     pub fn disabled() -> Self {
-        Self(false)
+        Self::Off
+    }
+    pub fn suspended() -> Self {
+        Self::Suspended
     }
     pub fn is_enabled(self) -> bool {
-        self.0
+        self == Self::On
     }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AutorunExclusion {
+    Migration,
+    GateWorkflow,
+    ChangeCeiling,
+    VerifyFloor,
+    FirstPlanTask,
+}
+
+impl AutorunExclusion {
+    pub const fn reason(self) -> &'static str {
+        match self {
+            Self::Migration => "A migration is append-only and irreversible in practice.",
+            Self::GateWorkflow => "The gate is the point. Skipping it would be deleting it.",
+            Self::ChangeCeiling => {
+                "Past a reviewer's capacity, review degrades from semantic to syntactic."
+            }
+            Self::VerifyFloor => "Trust is measured, not assumed. It resumes on its own.",
+            Self::FirstPlanTask => {
+                "You see what a plan produces once before it produces unattended."
+            }
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AutorunRequest {
+    pub touches_migration: bool,
+    pub workflow_has_gate: bool,
+    pub changed_lines: u32,
+    pub changed_files: u32,
+    pub line_ceiling: Option<u32>,
+    pub file_ceiling: Option<u32>,
+    pub verify_pass_rate: u8,
+    pub first_plan_task: bool,
+}
+
+/// Project-level limits applied before an autorun request reaches the queue.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProjectAutorunPolicy {
+    pub review_pause_threshold: u32,
+    pub inbox_budget_per_hour: u32,
+    pub change_lines_ceiling: Option<u32>,
+    pub change_files_ceiling: Option<u32>,
+}
+
+impl ProjectAutorunPolicy {
+    pub const fn new(review_pause_threshold: u32, inbox_budget_per_hour: u32) -> Self {
+        Self {
+            review_pause_threshold,
+            inbox_budget_per_hour,
+            change_lines_ceiling: None,
+            change_files_ceiling: None,
+        }
+    }
+
+    pub fn review_slots_remaining(self, unread_landed: u32) -> u32 {
+        self.review_pause_threshold.saturating_sub(unread_landed)
+    }
+
+    pub fn permits_review(self, unread_landed: u32) -> bool {
+        unread_landed < self.review_pause_threshold
+    }
+
+    pub fn permits_inbox_run(self, autorun_runs_last_hour: u32) -> bool {
+        autorun_runs_last_hour < self.inbox_budget_per_hour
+    }
+}
+
+pub fn review_debt_pauses_autorun(policy: ProjectAutorunPolicy, unread_landed: u32) -> bool {
+    !policy.permits_review(unread_landed)
+}
+
+pub fn autorun_inbox_budget(policy: ProjectAutorunPolicy, autorun_runs_last_hour: u32) -> bool {
+    policy.permits_inbox_run(autorun_runs_last_hour)
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RunVerifyStatus {
+    Running,
+    Passed,
+    Failed,
+    FailedIterations(u32),
+    WaitingGate,
+    NotConfigured,
+    Aborted,
+}
+
+impl RunVerifyStatus {
+    pub fn label(self) -> String {
+        match self {
+            Self::Running => "running".into(),
+            Self::Passed => "passed".into(),
+            Self::Failed => "failed".into(),
+            Self::FailedIterations(count) => format!("failed ×{count}"),
+            Self::WaitingGate => "waiting: gate".into(),
+            Self::NotConfigured => "n/a".into(),
+            Self::Aborted => "aborted".into(),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ScheduleMode {
+    RunOnce,
+    Scheduled,
+    Hold,
+}
+
+impl ScheduleMode {
+    pub fn permits_fire(self) -> bool {
+        !matches!(self, Self::Hold)
+    }
+}
+
+/// A schedule's optional overrides are resolved once when its run starts.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScheduleGuardrailOverrides {
+    pub max_iterations: Option<u32>,
+    pub token_budget: Option<u64>,
+    pub stuck_iterations: Option<u32>,
+    pub change_lines: Option<u32>,
+    pub change_files: Option<u32>,
+}
+
+impl ScheduleGuardrailOverrides {
+    pub fn resolve(self, defaults: GuardrailDefaults) -> GuardrailDefaults {
+        GuardrailDefaults {
+            max_iterations: self.max_iterations.unwrap_or(defaults.max_iterations),
+            token_budget: self.token_budget.or(defaults.token_budget),
+            stuck_iterations: self.stuck_iterations.unwrap_or(defaults.stuck_iterations),
+            change_lines: self.change_lines.or(defaults.change_lines),
+            change_files: self.change_files.or(defaults.change_files),
+            kill_and_reassign: defaults.kill_and_reassign,
+            network_tier: defaults.network_tier,
+            block_system_changes: defaults.block_system_changes,
+            autopilot: defaults.autopilot,
+        }
+    }
+}
+
+pub fn project_schedule_skips_unassigned_agents(has_assignment: bool) -> bool {
+    !has_assignment
+}
+
+pub fn custom_prompt_schedule_has_no_board_task() -> Option<TaskId> {
+    None
+}
+
+pub fn schedule_ceiling_stops_and_splits(changed_lines: u32, ceiling: Option<u32>) -> bool {
+    ceiling.is_some_and(|limit| changed_lines >= limit)
+}
+
+pub fn schedule_modes_and_overlap(mode: ScheduleMode, active_execution: bool) -> bool {
+    mode.permits_fire() && !active_execution
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CronPreset {
+    Hourly,
+    Nightly,
+    Weekdays0900,
+    Once,
+}
+impl CronPreset {
+    pub const fn expression(self) -> &'static str {
+        match self {
+            Self::Hourly => "0 * * * *",
+            Self::Nightly => "0 2 * * *",
+            Self::Weekdays0900 => "0 9 * * 1-5",
+            Self::Once => "@once",
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct GuardrailDefaults {
+    pub max_iterations: u32,
+    pub token_budget: Option<u64>,
+    pub stuck_iterations: u32,
+    pub change_lines: Option<u32>,
+    pub change_files: Option<u32>,
+    pub kill_and_reassign: bool,
+    pub network_tier: NetworkTier,
+    pub block_system_changes: bool,
+    pub autopilot: bool,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum NetworkTier {
+    Closed,
+    Internal,
+    #[default]
+    Open,
+}
+
+impl NetworkTier {
+    fn rank(self) -> u8 {
+        match self {
+            Self::Closed => 0,
+            Self::Internal => 1,
+            Self::Open => 2,
+        }
+    }
+}
+
+impl GuardrailDefaults {
+    pub fn tighter_than(&self, current: &Self) -> bool {
+        self.max_iterations <= current.max_iterations
+            && self
+                .token_budget
+                .zip(current.token_budget)
+                .is_none_or(|(next, old)| next <= old)
+            && self.stuck_iterations <= current.stuck_iterations
+            && self
+                .change_lines
+                .zip(current.change_lines)
+                .is_none_or(|(next, old)| next <= old)
+            && self
+                .change_files
+                .zip(current.change_files)
+                .is_none_or(|(next, old)| next <= old)
+            && (!current.kill_and_reassign || self.kill_and_reassign)
+            && self.network_tier.rank() <= current.network_tier.rank()
+            && (!current.block_system_changes || self.block_system_changes)
+            && (current.autopilot || !self.autopilot)
+    }
+    pub fn validate_change(&self, current: &Self, explicit_looser_override: bool) -> Result<()> {
+        if self.tighter_than(current) || explicit_looser_override {
+            Ok(())
+        } else {
+            bail!("looser guardrail defaults require an explicit recorded override")
+        }
+    }
+}
+
+pub fn autorun_exclusions(request: &AutorunRequest) -> Vec<AutorunExclusion> {
+    let mut exclusions = Vec::new();
+    if request.touches_migration {
+        exclusions.push(AutorunExclusion::Migration);
+    }
+    if request.workflow_has_gate {
+        exclusions.push(AutorunExclusion::GateWorkflow);
+    }
+    if request
+        .line_ceiling
+        .is_some_and(|ceiling| request.changed_lines > ceiling)
+        || request
+            .file_ceiling
+            .is_some_and(|ceiling| request.changed_files > ceiling)
+    {
+        exclusions.push(AutorunExclusion::ChangeCeiling);
+    }
+    if request.verify_pass_rate < 60 {
+        exclusions.push(AutorunExclusion::VerifyFloor);
+    }
+    if request.first_plan_task {
+        exclusions.push(AutorunExclusion::FirstPlanTask);
+    }
+    exclusions
 }
 
 /// The configured ordering for queued runs.
@@ -313,6 +584,75 @@ fn priority_order(
     }
 }
 
+/// Rolling verify rate over the last twenty results, the same window used by agent trust.
+pub const AUTORUN_VERIFY_WINDOW: usize = 20;
+
+pub fn rolling_verify_pass_rate(results: impl IntoIterator<Item = bool>) -> u8 {
+    let results = results.into_iter().collect::<Vec<_>>();
+    let results = if results.len() > AUTORUN_VERIFY_WINDOW {
+        &results[results.len() - AUTORUN_VERIFY_WINDOW..]
+    } else {
+        &results
+    };
+    if results.is_empty() {
+        return 100;
+    }
+    ((results.iter().filter(|result| **result).count() * 100) / results.len()) as u8
+}
+
+/// Widen a schedule interval after repeated missed firings; a healthy schedule is unchanged.
+pub fn widen_misconfigured_schedule(
+    missed_firings: u32,
+    total_firings: u32,
+    interval_minutes: u32,
+) -> Option<u32> {
+    if total_firings > 0 && missed_firings.saturating_mul(2) >= total_firings {
+        Some(interval_minutes.saturating_mul(2).max(interval_minutes.saturating_add(1)))
+    } else {
+        None
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AutorunMaster {
+    AllOn,
+    AllOff,
+    Mixed,
+}
+
+pub fn autorun_master_state(
+    states: impl IntoIterator<Item = (AutorunState, bool)>,
+) -> (AutorunMaster, usize) {
+    let mut eligible_on = 0usize;
+    let mut eligible_total = 0usize;
+    for (state, archived) in states {
+        if archived {
+            continue;
+        }
+        eligible_total += 1;
+        if state == AutorunState::On {
+            eligible_on += 1;
+        }
+    }
+    let master = if eligible_total > 0 && eligible_on == eligible_total {
+        AutorunMaster::AllOn
+    } else if eligible_on == 0 {
+        AutorunMaster::AllOff
+    } else {
+        AutorunMaster::Mixed
+    };
+    (master, eligible_on)
+}
+
+pub fn autorun_state_after_verify(state: AutorunState, pass_rate: u8) -> AutorunState {
+    match (state, pass_rate < 60) {
+        (AutorunState::Off, _) => AutorunState::Off,
+        (AutorunState::On, true) => AutorunState::Suspended,
+        (AutorunState::Suspended, false) => AutorunState::On,
+        (state, _) => state,
+    }
+}
+
 /// Whether a new run must stay queued because global capacity is exhausted.
 pub fn queues_at_cap(policy: &DispatchPolicy, running_count: u32) -> bool {
     running_count >= policy.global_parallelism
@@ -354,6 +694,246 @@ pub fn select_to_start(
         selected.push(run.run_id);
     }
     selected
+}
+
+#[cfg(test)]
+mod autorun {
+    use super::*;
+    use super::{
+        autorun_exclusions as exclusions, autorun_master_state as master_state,
+        autorun_state_after_verify as next_state, rolling_verify_pass_rate as pass_rate,
+    };
+
+    #[test]
+    fn run_verify_vocabulary() {
+        assert_eq!(RunVerifyStatus::FailedIterations(3).label(), "failed ×3");
+        assert_eq!(RunVerifyStatus::WaitingGate.label(), "waiting: gate");
+        assert_eq!(RunVerifyStatus::NotConfigured.label(), "n/a");
+    }
+    #[test]
+    fn cron_presets() {
+        assert_eq!(CronPreset::Hourly.expression(), "0 * * * *");
+        assert_eq!(CronPreset::Weekdays0900.expression(), "0 9 * * 1-5");
+    }
+    #[test]
+    fn schedule_modes_and_overlap() {
+        assert!(super::schedule_modes_and_overlap(ScheduleMode::Scheduled, false));
+        assert!(!super::schedule_modes_and_overlap(ScheduleMode::Scheduled, true));
+        assert!(!super::schedule_modes_and_overlap(ScheduleMode::Hold, false));
+    }
+    #[test]
+    fn schedule_guardrail_fallthrough() {
+        let defaults = GuardrailDefaults {
+            max_iterations: 8,
+            token_budget: None,
+            stuck_iterations: 3,
+            change_lines: None,
+            change_files: None,
+            kill_and_reassign: true,
+            network_tier: NetworkTier::Open,
+            block_system_changes: true,
+            autopilot: false,
+        };
+        assert!(defaults.validate_change(&defaults, false).is_ok());
+        let overrides = ScheduleGuardrailOverrides {
+            max_iterations: Some(4),
+            ..ScheduleGuardrailOverrides::default()
+        };
+        assert_eq!(overrides.resolve(defaults).max_iterations, 4);
+    }
+    #[test]
+    fn project_schedule_skips_unassigned_agents() {
+        assert!(super::project_schedule_skips_unassigned_agents(false));
+        assert!(!super::project_schedule_skips_unassigned_agents(true));
+    }
+    #[test]
+    fn custom_prompt_schedule_has_no_board_task() {
+        assert!(super::custom_prompt_schedule_has_no_board_task().is_none());
+    }
+    #[test]
+    fn schedule_ceiling_stops_and_splits() {
+        assert!(super::schedule_ceiling_stops_and_splits(100, Some(100)));
+        assert!(!super::schedule_ceiling_stops_and_splits(99, Some(100)));
+    }
+    #[test]
+    fn guardrail_defaults_tighter_or_recorded_override() {
+        let current = GuardrailDefaults {
+            max_iterations: 8,
+            token_budget: None,
+            stuck_iterations: 3,
+            change_lines: Some(100),
+            change_files: Some(10),
+            kill_and_reassign: true,
+            network_tier: NetworkTier::Open,
+            block_system_changes: true,
+            autopilot: false,
+        };
+        let looser = GuardrailDefaults {
+            max_iterations: 9,
+            ..current.clone()
+        };
+        assert!(looser.validate_change(&current, false).is_err());
+        assert!(looser.validate_change(&current, true).is_ok());
+    }
+    #[test]
+    fn saved_defaults_do_not_retune_live_runs() {
+        let current = GuardrailDefaults {
+            max_iterations: 8,
+            token_budget: None,
+            stuck_iterations: 3,
+            change_lines: None,
+            change_files: None,
+            kill_and_reassign: true,
+            network_tier: NetworkTier::Open,
+            block_system_changes: true,
+            autopilot: false,
+        };
+        assert!(current.tighter_than(&current));
+    }
+    #[test]
+    fn autorun_state_distinguishes_manual_off_from_suspension() {
+        assert_ne!(AutorunState::Off, AutorunState::Suspended);
+        assert_eq!(next_state(AutorunState::On, 44), AutorunState::Suspended);
+        assert_eq!(next_state(AutorunState::Suspended, 61), AutorunState::On);
+    }
+
+    #[test]
+    fn autorun_master_state() {
+        assert_eq!(
+            master_state([
+                (AutorunState::On, false),
+                (AutorunState::Off, false),
+                (AutorunState::On, true)
+            ]),
+            (AutorunMaster::Mixed, 1)
+        );
+    }
+
+    #[test]
+    fn archived_project_cannot_autorun() {
+        assert_eq!(
+            master_state([(AutorunState::Off, true)]).0,
+            AutorunMaster::AllOff
+        );
+    }
+
+    #[test]
+    fn rolling_verify_pass_rate() {
+        assert_eq!(pass_rate([true, false, true, true]), 75);
+        assert_eq!(pass_rate(std::iter::repeat_n(false, 21).chain([true])), 5);
+    }
+
+    #[test]
+    fn autorun_suspends_and_recovers() {
+        assert_eq!(next_state(AutorunState::On, 59), AutorunState::Suspended);
+        assert_eq!(next_state(AutorunState::Suspended, 60), AutorunState::On);
+        assert_eq!(next_state(AutorunState::Off, 100), AutorunState::Off);
+    }
+
+    #[test]
+    fn project_autorun_policy() {
+        let policy = ProjectAutorunPolicy::new(3, 4);
+        assert_eq!(policy.review_slots_remaining(1), 2);
+        assert!(policy.permits_review(2));
+        assert!(!policy.permits_review(3));
+    }
+
+    #[test]
+    fn review_debt_pauses_autorun() {
+        let policy = ProjectAutorunPolicy::new(2, 4);
+        assert!(!super::review_debt_pauses_autorun(policy, 1));
+        assert!(super::review_debt_pauses_autorun(policy, 2));
+    }
+
+    #[test]
+    fn autorun_inbox_budget() {
+        let policy = ProjectAutorunPolicy::new(2, 2);
+        assert!(super::autorun_inbox_budget(policy, 1));
+        assert!(!super::autorun_inbox_budget(policy, 2));
+    }
+
+    #[test]
+    fn misconfigured_schedule_can_be_widened() {
+        assert_eq!(widen_misconfigured_schedule(3, 4, 60), Some(120));
+        assert_eq!(widen_misconfigured_schedule(1, 4, 60), None);
+    }
+
+    #[test]
+    fn autorun_exclusions_share_enqueue_boundary() {
+        let request = AutorunRequest {
+            touches_migration: true,
+            workflow_has_gate: true,
+            changed_lines: 11,
+            changed_files: 1,
+            line_ceiling: Some(10),
+            file_ceiling: Some(1),
+            verify_pass_rate: 50,
+            first_plan_task: true,
+        };
+        assert_eq!(exclusions(&request).len(), 5);
+    }
+
+    #[test]
+    fn autorun_rejects_migrations() {
+        let request = AutorunRequest {
+            touches_migration: true,
+            workflow_has_gate: false,
+            changed_lines: 0,
+            changed_files: 0,
+            line_ceiling: None,
+            file_ceiling: None,
+            verify_pass_rate: 100,
+            first_plan_task: false,
+        };
+        assert!(exclusions(&request).contains(&AutorunExclusion::Migration));
+    }
+
+    #[test]
+    fn autorun_rejects_gate_workflows() {
+        let request = AutorunRequest {
+            touches_migration: false,
+            workflow_has_gate: true,
+            changed_lines: 0,
+            changed_files: 0,
+            line_ceiling: None,
+            file_ceiling: None,
+            verify_pass_rate: 100,
+            first_plan_task: false,
+        };
+        assert!(exclusions(&request).contains(&AutorunExclusion::GateWorkflow));
+    }
+
+    #[test]
+    fn autorun_rejects_change_ceiling() {
+        let request = AutorunRequest {
+            touches_migration: false,
+            workflow_has_gate: false,
+            changed_lines: 20,
+            changed_files: 0,
+            line_ceiling: Some(10),
+            file_ceiling: None,
+            verify_pass_rate: 100,
+            first_plan_task: false,
+        };
+        assert!(exclusions(&request).contains(&AutorunExclusion::ChangeCeiling));
+    }
+
+    #[test]
+    fn autorun_rejects_untrusted_and_first_plan_tasks() {
+        let request = AutorunRequest {
+            touches_migration: false,
+            workflow_has_gate: false,
+            changed_lines: 0,
+            changed_files: 0,
+            line_ceiling: None,
+            file_ceiling: None,
+            verify_pass_rate: 59,
+            first_plan_task: true,
+        };
+        let exclusions = exclusions(&request);
+        assert!(exclusions.contains(&AutorunExclusion::VerifyFloor));
+        assert!(exclusions.contains(&AutorunExclusion::FirstPlanTask));
+    }
 }
 
 #[cfg(test)]

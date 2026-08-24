@@ -1,20 +1,20 @@
-import { For, Show } from 'solid-js'
-import { Icon } from '../ui/Icon'
-import { CATEGORY_LABELS, activeTabFor, categoryOf, tabsFor } from '../nav'
-import type { View } from '../nav'
+import { For, Show } from "solid-js";
+import { Icon } from "../ui/Icon";
+import { CATEGORY_LABELS, activeTabFor, categoryOf, tabsFor } from "../nav";
+import type { View } from "../nav";
 
 export interface TabBarProps {
-  view: View
-  onNavigate: (view: View) => void
+  view: View;
+  onNavigate: (view: View) => void;
   /** The mono locator for the current view, without the scheme. */
-  locator: string
-  onDetach?: () => void
+  locator: string;
+  onDetach?: () => void;
 }
 
-/** Only the current category's tabs. Plan, Develop and Wiki have none. */
+/** Only the current category's tabs. single-view categories have none. */
 export function TabBar(props: TabBarProps) {
-  const tabs = () => tabsFor(categoryOf(props.view))
-  const lit = () => activeTabFor(props.view)
+  const tabs = () => tabsFor(categoryOf(props.view));
+  const lit = () => activeTabFor(props.view);
 
   return (
     <div class="tabbar" data-testid="tabbar">
@@ -28,7 +28,7 @@ export function TabBar(props: TabBarProps) {
               type="button"
               class="tab"
               data-testid={`tab-${tab.view}`}
-              data-selected={lit() === tab.view ? '' : undefined}
+              data-selected={lit() === tab.view ? "" : undefined}
               onClick={() => props.onNavigate(tab.view)}
             >
               {tab.label}
@@ -44,12 +44,12 @@ export function TabBar(props: TabBarProps) {
             class="btn btn-ghost"
             aria-label="Detach"
             onClick={props.onDetach}
-            style={{ padding: '0' }}
+            style={{ padding: "0" }}
           >
             <Icon name="arrows-out-simple" size={12} />
           </button>
         </Show>
       </div>
     </div>
-  )
+  );
 }

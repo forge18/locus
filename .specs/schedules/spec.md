@@ -1,5 +1,7 @@
 # schedules
 
+> Superseded by `dispatch-revision` for the current Schedules screen and builder; cron execution and overlap rules remain authoritative.
+
 **Milestone** M6 · **Depends on** `workflow-engine`, `run-supervisor`
 
 ## Purpose

@@ -17,5 +17,5 @@ SolidJS components in `apps/desktop`, never port the markup.
 
 **Read [`../UI_MOCKUP_REVIEW.md`](../UI_MOCKUP_REVIEW.md) before working from these files.** It
 carries the screen-by-screen contract, the navigation model, and the gaps against `.specs/` and the
-code. `design_handoff_locus_v2/README.md` is the only prose description of a mockup in this
-directory, and it describes the superseded one.
+code. The review is the prose authority; the historical handoff directories below are reference
+material only.

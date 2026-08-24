@@ -1,17 +1,17 @@
-import { For, Show } from 'solid-js'
-import { Icon } from '../ui/Icon'
-import type { StripCard } from '../data/strip'
+import { For, Show } from "solid-js";
+import { Icon } from "../ui/Icon";
+import type { StripCard } from "../data/strip";
 
 export interface StripProps {
-  cards: StripCard[]
+  cards: StripCard[];
 }
 
 const tokens = (n: number | null) =>
   // Unknown is not zero. A harness that reports nothing gets the word, not a number.
-  n === null ? 'unknown' : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n)
+  n === null ? "unknown" : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
 
 /**
- * The running-agent footer. It persists across categories: leaving Automate is not
+ * The running-agent footer. It persists across categories: leaving Manage is not
  * a reason to lose sight of what is running.
  */
 export function Strip(props: StripProps) {
@@ -25,28 +25,32 @@ export function Strip(props: StripProps) {
           {(card) => (
             <div
               class={[
-                'strip-card',
-                card.status === 'stuck' ? 'strip-card-stuck' : '',
-                card.kind === 'shell' ? 'strip-card-shell' : '',
+                "strip-card",
+                card.status === "stuck" ? "strip-card-stuck" : "",
+                card.kind === "shell" ? "strip-card-shell" : "",
               ]
                 .filter(Boolean)
-                .join(' ')}
+                .join(" ")}
               data-testid={`strip-card-${card.id}`}
               data-kind={card.kind}
               data-status={card.status ?? undefined}
             >
               <div class="strip-card-top">
-                <Show when={card.kind === 'shell'}>
-                  <Icon name="terminal-window" size={10} style={{ 'margin-right': '4px' }} />
+                <Show when={card.kind === "shell"}>
+                  <Icon
+                    name="terminal-window"
+                    size={10}
+                    style={{ "margin-right": "4px" }}
+                  />
                 </Show>
-                {card.kind === 'shell'
+                {card.kind === "shell"
                   ? `${card.project} · your shell`
                   : `${card.project} · ${card.agent} · ${card.role}`}
               </div>
               <div class="strip-card-bottom">
-                {card.kind === 'shell'
-                  ? 'no agent · no cost'
-                  : `${card.status} · ${card.tool ?? 'no tool'} · ${tokens(card.tokens)}`}
+                {card.kind === "shell"
+                  ? "no agent · no cost"
+                  : `${card.status} · ${card.tool ?? "no tool"} · ${tokens(card.tokens)}`}
               </div>
             </div>
           )}
@@ -54,5 +58,5 @@ export function Strip(props: StripProps) {
       </div>
       <span class="strip-note">sorted by needs-attention, then activity</span>
     </footer>
-  )
+  );
 }

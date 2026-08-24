@@ -1,5 +1,7 @@
 # planning-module
 
+> Superseded by `plan-revision` for the stage list only; the agent roles, synthesis, ratchet, and traceability remain authoritative.
+
 **Milestone** M5 · **Depends on** `acp-client`, `board`, `wiki`, `screens-plan`
 
 ## Purpose

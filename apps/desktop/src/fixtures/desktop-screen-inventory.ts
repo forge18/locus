@@ -1,4 +1,4 @@
-export type FixtureScope = 'all' | 'app' | 'project' | 'global'
+export type FixtureScope = 'all' | 'app' | 'project' | (string & {})
 
 export interface DesktopFixtureRoute {
   /** Stable route identity consumed by the shared desktop resolver. */

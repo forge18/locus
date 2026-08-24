@@ -18,7 +18,7 @@ callers.
 - PLAN.md §One address space, so there is one resolver — the locator grammar
 - PLAN.md §Navigation — seven categories; operate versus author; project as a filter
 - PLAN.md §Three rules that keep it from sprawling
-- `docs/design_handoff_locus_desktop/README.md` §Shell
+- `docs/UI_MOCKUP_REVIEW.md` §Navigation
 - `.specs/design-desktop/spec.md`
 
 ## Contract

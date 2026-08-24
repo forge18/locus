@@ -1,5 +1,7 @@
 # desktop-workshop-runtime
 
+> Superseded by `workshop-revision` for the current Workshop contract; this file records M0.6 history.
+
 **Milestone** M0.6 · **Depends on** `desktop-application-shell`, `theme-system` · **Blocks** M1 runtime
 configuration and M4 workflow execution.
 

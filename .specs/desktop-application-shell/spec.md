@@ -1,5 +1,7 @@
 # desktop-application-shell
 
+> Superseded by `shell-revision` for the current shell contract; this file records M0.6 history.
+
 **Milestone** M0.6 · **Depends on** `design-desktop`, `theme-system` · **Blocks** all desktop views.
 
 ## Purpose

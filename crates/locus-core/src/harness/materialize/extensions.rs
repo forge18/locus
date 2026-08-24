@@ -77,6 +77,19 @@ impl ProjectExtensionScope {
         self.disabled_extensions.insert(extension.into());
     }
 
+    pub fn can_disable_default_style(active: &str, replacement: Option<&str>) -> bool {
+        replacement.is_some_and(|replacement| replacement != active)
+    }
+
+    pub fn is_disabled(&self, extension: &str, entry: Option<&str>) -> bool {
+        self.disabled_extensions.contains(extension)
+            || entry.is_some_and(|entry| {
+                self.disabled_entries
+                    .get(extension)
+                    .is_some_and(|entries| entries.contains(entry))
+            })
+    }
+
     pub fn disable_entry(&mut self, extension: impl Into<String>, entry: impl Into<String>) {
         self.disabled_entries
             .entry(extension.into())
@@ -130,5 +143,34 @@ impl ExtensionSet {
         let mut entries = self.entries(extension).iter().collect::<Vec<_>>();
         entries.sort_by(|left, right| left.name.cmp(&right.name));
         entries
+    }
+}
+
+#[cfg(test)]
+mod extension_scope_tests {
+    use super::*;
+
+    #[test]
+    fn default_style_guard() {
+        assert!(!ProjectExtensionScope::can_disable_default_style(
+            "brief", None
+        ));
+        assert!(ProjectExtensionScope::can_disable_default_style(
+            "brief",
+            Some("terse")
+        ));
+    }
+
+    #[test]
+    fn disable_does_not_delete_definition() {
+        let mut set = ExtensionSet::default();
+        set.insert(
+            "skills",
+            vec![ExtensionEntry::new("verify", serde_json::json!({}), "body")],
+        );
+        let mut scope = ProjectExtensionScope::default();
+        scope.disable_entry("skills", "verify");
+        assert_eq!(set.entries("skills").len(), 1);
+        assert!(set.project_scoped(&scope).entries("skills").is_empty());
     }
 }
