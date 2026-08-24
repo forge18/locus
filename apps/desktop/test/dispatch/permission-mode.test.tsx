@@ -9,15 +9,19 @@ describe("dispatch permission mode", () => {
     ));
     const mode = getByTestId("dispatch-permission-mode");
 
-    expect((mode.querySelector('input[value="bypass"]') as HTMLInputElement).checked).toBe(true);
-    expect(getByTestId("dispatch-permission-consequence").textContent).toContain(
-      "bypass alarm",
-    );
+    expect(
+      (mode.querySelector('input[value="bypass"]') as HTMLInputElement).checked,
+    ).toBe(true);
+    expect(
+      getByTestId("dispatch-permission-consequence").textContent,
+    ).toContain("bypass alarm");
 
     await fireEvent.click(getByLabelText("Gated approval"));
-    expect((mode.querySelector('input[value="gated"]') as HTMLInputElement).checked).toBe(true);
-    expect(getByTestId("dispatch-permission-consequence").textContent).toContain(
-      "wait for a human action",
-    );
+    expect(
+      (mode.querySelector('input[value="gated"]') as HTMLInputElement).checked,
+    ).toBe(true);
+    expect(
+      getByTestId("dispatch-permission-consequence").textContent,
+    ).toContain("wait for a human action");
   });
 });
