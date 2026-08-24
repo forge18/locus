@@ -1,5 +1,4 @@
 import { For, Show } from 'solid-js'
-import { Button } from '../../ui/Button'
 import { Icon } from '../../ui/Icon'
 import {
   ARROW_MARKERS,
@@ -9,8 +8,6 @@ import {
   NO_MODEL_NOTE,
   OPERAND_NOTE,
   PRESET_NOTE,
-  SAVE_LABEL,
-  VALIDATE_LABEL,
   WAITING_NOTE,
   ZOOM,
   useCanvas,
@@ -281,12 +278,7 @@ export function WorkflowView() {
         </div>
 
         <footer class="wf-inspector-foot" data-testid="wf-inspector-foot">
-          <Button variant="secondary" data-testid="wf-validate">
-            {VALIDATE_LABEL}
-          </Button>
-          <Button variant="primary" data-testid="wf-save">
-            {SAVE_LABEL}
-          </Button>
+          <span data-testid="wf-autosave">saved 2s ago</span>
         </footer>
       </aside>
     </div>

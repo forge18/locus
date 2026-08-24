@@ -41,7 +41,8 @@
 .ws-provider-row:hover, .ws-provider-row[aria-selected='true'] { background: var(--surface-selected); }
 .ws-provider-row[aria-selected='true'] { box-shadow: var(--ring-sel); }
 .ws-provider-row i { width: 7px; height: 7px; border-radius: 50%; background: var(--status-success); }
-.ws-provider-row i[data-state='unconfigured'] { background: var(--text-muted); }
+.ws-provider-row i[data-state='warn'] { background: var(--action-attention); }
+.ws-provider-row i[data-state='off'], .ws-provider-row i[data-state='unconfigured'] { background: var(--text-muted); }
 .ws-provider-row small { color: var(--text-muted); font-family: var(--fm); font-size: var(--t-meta); }
 .ws-provider-list footer { margin-top: auto; padding: 12px; border-top: 1px solid var(--border-subtle); color: var(--text-muted); font-size: var(--t-meta); line-height: 1.5; }
 .ws-provider-main { min-width: 0; padding: 0 18px 22px; overflow: auto; }

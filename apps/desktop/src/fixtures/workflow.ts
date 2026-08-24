@@ -8,13 +8,12 @@ export interface PaletteNode {
   kind: string
   label: string
   icon: string
-  /** native | condition | goal — decides the tint. */
-  tone: 'default' | 'goal' | 'condition'
+  /** native | condition — decides the tint. */
+  tone: 'default' | 'condition'
   required: boolean
 }
 
 export const PALETTE: PaletteNode[] = [
-  { kind: 'goal', label: 'Goal', icon: 'flag', tone: 'goal', required: false },
   { kind: 'agent', label: 'Agent', icon: 'robot', tone: 'default', required: false },
   { kind: 'task', label: 'Task', icon: 'check-square', tone: 'default', required: false },
   { kind: 'loop', label: 'Loop', icon: 'infinity', tone: 'default', required: false },
@@ -47,11 +46,10 @@ export interface CanvasNode {
   state: string
   x: number
   y: number
-  tone: 'default' | 'goal' | 'condition'
+  tone: 'default' | 'condition'
 }
 
 export const CANVAS_NODES: CanvasNode[] = [
-  { id: 'n-goal', kind: 'goal', label: 'Bound the notify channel', state: 'set', x: 40, y: 40, tone: 'goal' },
   { id: 'n-plan', kind: 'agent', label: 'planner@3', state: 'done', x: 40, y: 150, tone: 'default' },
   { id: 'n-gate', kind: 'gate', label: 'Approve plan', state: 'passed', x: 250, y: 150, tone: 'default' },
   { id: 'n-build', kind: 'agent', label: 'builder@4', state: 'running', x: 460, y: 100, tone: 'default' },
@@ -69,7 +67,6 @@ export interface CanvasEdge {
 }
 
 export const CANVAS_EDGES: CanvasEdge[] = [
-  { from: 'n-goal', to: 'n-plan', label: null, dashed: false },
   { from: 'n-plan', to: 'n-gate', label: null, dashed: false },
   { from: 'n-gate', to: 'n-build', label: 'approved', dashed: false },
   { from: 'n-build', to: 'n-verify', label: null, dashed: false },
@@ -106,14 +103,14 @@ export const COMPILED_NOTE = 'total · evaluable in the core · reproducible fro
 export const OPERANDS = [
   'verify.passed',
   'verify.exit_code',
-  'iteration.index',
-  'run.tokens',
-  'run.duration_s',
-  'task.column',
+  'iteration',
+  'elapsed',
+  'tokens.used',
+  'events.count(tool_error)',
+  'events.last(kind)',
+  'artifact.exists(kind)',
   'task.status',
-  'artifact.count',
-  'guardrail.stuck_count',
-  'events.tool_error_count',
+  'mail.pending',
 ]
 
 export const OPERAND_NOTE =

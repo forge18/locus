@@ -4,11 +4,13 @@ import { Input } from '../../ui/Input'
 import { Segmented } from '../../ui/Segmented'
 import { Tag } from '../../ui/Tag'
 import './workshop-fixtures.css'
+import { ExtensionEditor, type ExtensionEditorType } from './ExtensionEditor'
 
 export const WORKSHOP_FIXTURES = [
   'agents',
   'cli',
   'commands',
+  'context',
   'harnesses',
   'hooks',
   'linters',
@@ -16,6 +18,7 @@ export const WORKSHOP_FIXTURES = [
   'providers',
   'rules',
   'skills',
+  'styles',
   'workflows-list',
   'workflows-visual',
   'workflows-governance',
@@ -27,21 +30,12 @@ export interface WorkshopFixtureViewProps {
   fixture: WorkshopFixture
 }
 
-const EXTENSIONS = {
-  commands: ['check-pr', 'handoff', 'release-notes'],
-  hooks: ['session-start', 'before-tool', 'session-end'],
-  linters: ['no-secrets', 'no-todo-comments', 'typed-boundaries'],
-  'output-styles': ['brief-bright-gone', 'technical-review', 'release-notes'],
-  rules: ['no-secrets', 'rust-style', 'desktop-patterns'],
-  skills: ['verify-loop', 'incident-response', 'spec-decomposition'],
-} as const
-
 const CLI_GROUPS = [
   { id: 'source-control', label: 'Source control', tools: ['git', 'gh', 'delta'] },
   { id: 'search-files', label: 'Search & files', tools: ['rg', 'fd', 'jq'] },
   { id: 'rust', label: 'Rust', tools: ['cargo', 'rustfmt', 'clippy'] },
   { id: 'database', label: 'Database', tools: ['psql', 'sqlx'] },
-  { id: 'network', label: 'Network', tools: ['curl', 'httpie'] },
+  { id: 'network', label: 'Web & network', tools: ['curl', 'httpie'] },
 ] as const
 
 function Toggle(props: { on: boolean; onClick: () => void; label: string; testId?: string }) {
@@ -60,44 +54,13 @@ function Toggle(props: { on: boolean; onClick: () => void; label: string; testId
   )
 }
 
-function ExtensionFixture(props: { fixture: keyof typeof EXTENSIONS }) {
-  const label = props.fixture === 'output-styles' ? 'Output styles' : props.fixture[0].toUpperCase() + props.fixture.slice(1)
-  return (
-    <div class="ws-fixture ws-extension" data-testid={`workshop-${props.fixture}`}>
-      <header class="ws-fixture-head">
-        <div>
-          <h1>{label}</h1>
-          <p>Authored once in Workshop and materialized fresh into every runtime at run start.</p>
-        </div>
-        <div class="ws-actions"><Input placeholder={`Search ${props.fixture}`} /><Button variant="primary">New {label.slice(0, -1)}</Button></div>
-      </header>
-      <section class="ws-list-card">
-        <For each={EXTENSIONS[props.fixture]}>
-          {(entry, index) => (
-            <article class="ws-entry" data-testid={`workshop-${props.fixture}-${entry}`}>
-              <div><strong>{entry}</strong><p>{index() === 0 ? 'Project default · versioned' : 'Shared extension · versioned'}</p></div>
-              <Tag variant="neutral">v{4 - index()}</Tag>
-              <Button variant="ghost">Edit</Button>
-            </article>
-          )}
-        </For>
-      </section>
-      <p class="ws-footnote">Changes affect the next run only; the existing materialized trees remain immutable.</p>
-    </div>
-  )
+function ExtensionFixture(props: { fixture: Extract<WorkshopFixture, 'commands' | 'context' | 'hooks' | 'linters' | 'output-styles' | 'rules' | 'skills' | 'styles'> }) {
+  const type: ExtensionEditorType = props.fixture === 'output-styles' ? 'styles' : props.fixture
+  return <div data-testid={`workshop-${props.fixture}`} class="ws-fixture"><ExtensionEditor type={type} /></div>
 }
 
 function AgentsFixture() {
-  return (
-    <div class="ws-fixture" data-testid="workshop-agents">
-      <header class="ws-fixture-head"><div><h1>Agents</h1><p>Markdown plus a tool list. Agent definitions are versioned documents, not a canvas.</p></div><Button variant="primary">New agent</Button></header>
-      <section class="ws-list-card">
-        <For each={['builder', 'reviewer', 'researcher', 'auditor']}>
-          {(agent, index) => <article class="ws-entry"><div><strong>{agent}@{4 - index()}</strong><p>high tier · scoped tools · project memory</p></div><Tag variant="neutral">active</Tag><Button variant="ghost">Open</Button></article>}
-        </For>
-      </section>
-    </div>
-  )
+  return <div data-testid="workshop-agents" class="ws-fixture"><ExtensionEditor type="agents" /></div>
 }
 
 function CliFixture() {
@@ -117,7 +80,7 @@ function CliFixture() {
         <main>
           <p class="ws-intro">A tool switched on here can be added to any project. Off means it is not in the image at all.</p>
           <For each={CLI_GROUPS}>{(group) => <section class="ws-tool-group" data-testid={`cli-group-${group.id}`} data-state={groupState(group)}><header><span>{group.label}</span><code>{group.tools.filter((tool) => enabled()[tool]).length} / {group.tools.length}</code><Toggle label={`Toggle ${group.label}`} testId={`cli-group-toggle-${group.id}`} on={groupState(group) === 'on'} onClick={() => toggleGroup(group)} /></header><For each={group.tools}>{(tool) => <div class="ws-tool"><code>{tool}</code><span>{tool === 'git' ? 'version control' : 'available in enabled images'}</span><Toggle label={`Toggle ${tool}`} on={enabled()[tool]} onClick={() => setEnabled((current) => ({ ...current, [tool]: !current[tool] }))} /></div>}</For></section>}</For>
-          <section class="ws-tool-group"><header><span>Your own</span><span /></header><div class="ws-tool"><code>repo-audit</code><span>unsigned · inspect repository policy</span><Tag variant="outline">unsigned</Tag></div><div class="ws-drop-zone">Drop a binary, a script, or a <code>tool.toml</code><small>Install and verify fields are recorded before an image build.</small></div><div class="ws-install-fields"><Input mono placeholder="install" value="cargo install --git …" readOnly /><Input mono placeholder="verify it landed" value="<tool> --version" readOnly /></div><p id="cli-unsigned-note" data-testid="cli-unsigned-note">An unsigned tool is available to read-only roles only.</p><p data-testid="cli-upload-verification">Rejected — Minisign signature required before catalog admission.</p></section>
+          <section class="ws-tool-group"><header><span>Your own</span><span /></header><div class="ws-tool"><code>repo-audit</code><span>unsigned · inspect repository policy</span><Tag variant="outline">unsigned</Tag></div><div class="ws-drop-zone">Drop a binary, a script, or a <code>tool.toml</code><small>Install and verify fields are recorded before an image build.</small></div><div class="ws-install-fields"><Input mono placeholder="install" value="cargo install --git …" readOnly /><Input mono placeholder="verify it landed" value="<tool> --version" readOnly /></div><p id="cli-unsigned-note" data-testid="cli-unsigned-note">Unsigned tools are rejected for every role. Sign it before catalog admission.</p><p data-testid="cli-upload-verification">Rejected — a valid trusted Minisign signature is required before catalog or image admission.</p></section>
         </main>
         <aside class="ws-side-cards"><section><h2>Image</h2><p>Enabled tools are baked into the base image, not installed per run.</p><strong class="mono">1.9 GB</strong><small>rebuilt 2h ago</small></section><section><h2>Most reached for</h2><For each={['git · 2,481', 'rg · 1,920', 'cargo · 864']}>
           {(tool) => <div class="ws-usage"><span>{tool}</span><i /></div>}
@@ -132,7 +95,7 @@ function ProvidersFixture() {
   const providers = ['Anthropic', 'OpenRouter', 'OpenAI', 'Gemini', 'Local']
   return (
     <div class="ws-providers" data-testid="workshop-providers">
-      <aside class="ws-provider-list"><header><h1>Providers</h1><p>Credentials and the short list of models you actually use.</p><Button variant="primary">Add provider</Button></header><For each={providers}>{(provider, index) => <button type="button" class="ws-provider-row" aria-selected={selected() === provider} onClick={() => setSelected(provider)}><i data-state={index() < 3 ? 'ok' : 'unconfigured'} />{provider}<small>{index() === 0 ? '3 preferred' : 'not configured'}</small></button>}</For><footer id="provider-keychain-note" data-testid="provider-keychain-note">Secrets live in the OS keychain. Locus stores the reference and the model list, never the key.</footer></aside>
+      <aside class="ws-provider-list"><header><h1>Providers</h1><p>Credentials and the short list of models you actually use.</p><Button variant="primary">Add provider</Button></header><For each={providers}>{(provider, index) => <button type="button" class="ws-provider-row" aria-selected={selected() === provider} onClick={() => setSelected(provider)}><i data-state={index() < 3 ? 'ok' : index() === 3 ? 'warn' : 'off'} />{provider}<small>{index() === 0 ? '3 preferred · ok' : index() === 3 ? 'warn · verify soon' : 'off · not configured'}</small></button>}</For><footer id="provider-keychain-note" data-testid="provider-keychain-note">Secrets live in the OS keychain. Locus stores the reference and the model list, never the key.</footer></aside>
       <main class="ws-provider-main"><header class="ws-fixture-head"><div><h1>{selected()}</h1><p class="mono">provider/{selected().toLowerCase()}</p></div><div class="ws-actions"><Button variant="secondary">Test connection</Button><Button variant="primary">Save</Button></div></header><section><h2>Authentication</h2><div class="ws-settings-card"><div><span>method</span><Segmented label="Authentication method" value="api-key" onChange={() => undefined} options={[{ value: 'oauth', label: 'OAuth' }, { value: 'api-key', label: 'API key' }, { value: 'none', label: 'None' }]} /></div><div><span>API key</span><code id="provider-secret" data-testid="provider-secret">••••••••••••••••</code><Button variant="ghost">Reveal</Button><Button variant="ghost">Replace</Button><small>keychain</small></div><div><span>base_url</span><Input mono value="https://api.anthropic.com" readOnly /><small>optional override</small></div><p id="provider-verification" data-testid="provider-verification">verified 11m ago · 327 models listed</p></div></section><section><h2>Preferred models</h2><p>Aliases are what every model selector shows from then on, for every harness using this provider.</p><div class="ws-model-table"><div class="ws-model-head"><span>Model</span><span>Alias</span><span>Context</span><span>In / out per M</span><span>In selector</span></div><For each={[['claude-opus-4-6', 'opus', '200k', '$15 / $75'], ['claude-sonnet-4-5', 'sonnet', '200k', '$3 / $15'], ['claude-haiku-4-5', 'haiku', '200k', '$1 / $5']]}>{([id, alias, context, price]) => <div class="ws-model-row"><code>{id}</code><strong id={`provider-model-alias-${alias}`} data-testid={`provider-model-alias-${alias}`}>{alias}</strong><code>{context}</code><code>{price}</code><Toggle label={`Include ${alias}`} on={true} onClick={() => undefined} /></div>}</For><Input class="ws-catalog-search" placeholder="Search catalogue — 4 of 327 match" /></div></section></main>
       <aside class="ws-provider-preview"><h2>Selector preview</h2><div id="provider-selector-preview" data-testid="provider-selector-preview"><strong>opus</strong><span>Anthropic · 200k context</span></div><h2>Used by</h2><Tag variant="neutral">claude</Tag><Tag variant="neutral">cursor</Tag><h2>30-day spend</h2><strong class="mono">$418.20</strong></aside>
     </div>
@@ -140,14 +103,7 @@ function ProvidersFixture() {
 }
 
 function HarnessesFixture() {
-  const bands = ['xtra-low', 'low', 'medium', 'high', 'xtra-high', 'max']
-  const [autorouting, setAutorouting] = createSignal(true)
-  return (
-    <div class="ws-fixture" data-testid="workshop-harnesses">
-      <header class="ws-fixture-head"><div><h1>Harnesses</h1><p>One record per harness: providers, defaults, and adapter configuration.</p></div><Button variant="primary">Register a harness</Button></header>
-      <div class="ws-fixture-columns"><main><section class="ws-settings-card"><div><span>identifier</span><code>claude</code></div><div id="harness-adapter-gate" data-testid="harness-adapter-gate"><span>adapter</span><strong>built-in · v3</strong><small>no adapter, no selection — anywhere</small></div><div><span>providers</span><Tag variant="neutral">Anthropic</Tag><Tag variant="neutral">OpenRouter</Tag></div><div><span>default model</span><strong>opus · Anthropic</strong></div><div><span>default effort</span><strong>high</strong></div></section><section class="ws-routing"><header><h2>Autorouting</h2><Toggle label="Enable autorouting" on={autorouting()} onClick={() => setAutorouting(!autorouting())} /></header><Show when={autorouting()}><div class="ws-band-table"><div><span>Band</span><span>Model</span><span>Effort</span><span>Approval</span><span>When to use</span></div><For each={bands}>{(band, index) => <div data-testid={`autoroute-band-${band}`}><strong>{band}</strong><span>{index() === 4 ? '—' : index() > 3 ? 'opus' : 'sonnet'}</span><span>{index() > 3 ? 'high' : 'medium'}</span><span>{index() === 5 ? '✓' : '—'}</span><small>{index() === 5 ? 'irreversible or production work' : 'routine implementation'}</small></div>}</For></div><p id="autoroute-fallback" data-testid="autoroute-fallback">A missing model falls upward to the next configured band.</p></Show></section></main><aside class="ws-side-cards"><section><h2>Adapter config</h2><div class="ws-kv"><code>permission-mode</code><span>bypass</span><Tag variant="neutral">string</Tag></div><Button variant="ghost">Add config key</Button></section></aside></div>
-    </div>
-  )
+  return <div data-testid="workshop-harnesses" class="ws-fixture"><ExtensionEditor type="harnesses" /></div>
 }
 
 function WorkflowsListFixture() {
