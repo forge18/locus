@@ -17,9 +17,11 @@
 
 pub mod bus;
 pub mod core;
+pub mod editor;
 pub mod harness;
 pub mod ids;
 pub mod ipc;
+pub mod repo;
 pub mod runtime;
 pub mod sandbox;
 pub mod services;

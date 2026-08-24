@@ -102,6 +102,17 @@ pub fn materialize(
         path: root.to_path_buf(),
         source,
     })?;
+    // The compactor is a base-image capability, not an authored extension. Adding its
+    // declaration here gives every harness the same PreToolUse boundary while keeping the
+    // authored ExtensionSet unchanged (and therefore preserving project subtraction semantics).
+    let mut extensions = extensions.clone();
+    let mut hooks = extensions.entries("hooks").to_vec();
+    hooks.push(ExtensionEntry::new(
+        "locus-compaction.sh",
+        json!({"event": "PreToolUse", "command": "locus-hook"}),
+        "exec locus-hook",
+    ));
+    extensions.insert("hooks", hooks);
     let mut tree = MaterializedTree::default();
     let mut plugin_entries = BTreeMap::new();
 
@@ -1167,6 +1178,60 @@ fn all_registered_harnesses_all_eight() {
             });
         let result = materialize(harness, &extensions, root, plugin.as_ref());
         assert!(result.is_ok(), "{}: {:?}", harness.name, result.err());
+    }
+}
+
+#[cfg(test)]
+mod compact {
+    use super::*;
+
+    #[test]
+    fn materializes_everywhere() {
+        let registry = registry();
+        for harness in registry.iter() {
+            let root = root(format!("compact-{}", harness.name).as_str());
+            let plugin = harness
+                .layout
+                .named_entries()
+                .iter()
+                .any(|(_, entry)| entry.via == Via::Plugin)
+                .then(|| PluginHost {
+                    program: PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                        .join("../../harnesses/pi/materialize"),
+                    args: vec![],
+                });
+            let (tree, _) = materialize(harness, &ExtensionSet::default(), &root, plugin.as_ref())
+                .unwrap_or_else(|error| panic!("{}: {error}", harness.name));
+            let has_hook = tree.files().any(|file| {
+                file.content.contains("locus-hook") || file.content.contains("locus-compaction.sh")
+            });
+            let core_driven = tree
+                .core_driven
+                .iter()
+                .any(|event| event.extension == "hooks");
+            assert!(
+                has_hook || core_driven,
+                "{} has no compaction hook",
+                harness.name
+            );
+        }
+    }
+
+    #[test]
+    fn saving_ratio() {
+        let (project, run) = (
+            crate::ids::ProjectId::generate(),
+            crate::ids::RunId::generate(),
+        );
+        let mut store = crate::services::artifact::ArtifactStore::default();
+        let result = crate::services::compact::compact_result(
+            &mut store,
+            project,
+            run,
+            "x".repeat(100_000),
+            crate::services::compact::CompactionSettings { threshold: 2 },
+        );
+        assert!(result.saving_ratio() > 0.9);
     }
 }
 

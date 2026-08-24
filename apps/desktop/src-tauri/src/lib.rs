@@ -4,6 +4,7 @@ use locus_core::{
     core::Core,
     harness::materialize::report::{reports_for_registry, MaterializationReport},
     ids::{ArtifactId, ProjectId, RunId},
+    repo::GitState,
     services::{
         agents::{seeded_definitions, AgentDefinition},
         artifact::{ArtifactComment, ArtifactContent, ArtifactKind, ArtifactRow, ArtifactStore},
@@ -320,6 +321,13 @@ fn linter_count(root: String) -> Result<usize, IpcError> {
 }
 
 #[tauri::command]
+fn repo_git_state(path: String) -> Result<GitState, IpcError> {
+    locus_core::repo::RepoManager::default()
+        .git_state(path)
+        .map_err(IpcError::internal)
+}
+
+#[tauri::command]
 fn materialization_report(
     core: State<'_, Arc<Core>>,
 ) -> Result<Vec<MaterializationReport>, IpcError> {
@@ -416,7 +424,8 @@ pub fn run() {
             linter_count,
             artifacts_list,
             artifact_comments,
-            materialization_report
+            materialization_report,
+            repo_git_state
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

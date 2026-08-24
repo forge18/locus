@@ -79,6 +79,7 @@ mod own_state_only {
             session_id: SessionId::generate(),
             resolved_model_id: model.into(),
             status: RunStatus::Running,
+            permission_posture: Default::default(),
             events: vec![],
             usage: None,
             exit_code: None,
@@ -527,6 +528,7 @@ mod native_session_id {
             session_id: SessionId::generate(),
             resolved_model_id: "test-model".into(),
             status: RunStatus::Running,
+            permission_posture: Default::default(),
             events: vec![],
             usage: None,
             exit_code: None,
@@ -538,6 +540,107 @@ mod native_session_id {
         record_native_session_id(&mut run, "harness-session-42").expect("store harness id");
 
         assert_eq!(run.native_session_id.as_deref(), Some("harness-session-42"));
+    }
+}
+
+#[cfg(test)]
+mod permission_posture {
+    use super::*;
+    use crate::runtime::session::{PermissionPosture, Run};
+
+    #[test]
+    fn dispatch_pins_bypass_or_gated_posture() {
+        let mut run = Run {
+            id: RunId::generate(),
+            session_id: SessionId::generate(),
+            resolved_model_id: "test-model".into(),
+            status: RunStatus::Queued,
+            permission_posture: PermissionPosture::default(),
+            events: vec![],
+            usage: None,
+            exit_code: None,
+            cancel_reason: None,
+            native_session_id: None,
+            artifacts: vec![],
+        };
+        run.set_permission_posture(PermissionPosture::Gated)
+            .unwrap();
+        assert_eq!(run.permission_posture, PermissionPosture::Gated);
+        run.status = RunStatus::Running;
+        assert!(run
+            .set_permission_posture(PermissionPosture::Bypass)
+            .is_err());
+        assert_eq!(run.permission_posture, PermissionPosture::Gated);
+    }
+}
+
+#[cfg(test)]
+mod permission_request_by_posture {
+    use super::*;
+    use crate::runtime::session::PermissionPosture;
+    use crate::services::telemetry::{AcpAdapter, Adapter, EventCollector};
+    use serde_json::json;
+
+    #[test]
+    fn bypass_alarms_but_gated_waits_for_a_human() {
+        let captured = AcpAdapter
+            .normalize(json!({"method": "session/request_permission", "id": "p1"}))
+            .unwrap()
+            .pop()
+            .unwrap();
+        let collector = EventCollector::new(4);
+        let mut alarms = collector.subscribe_alarms();
+        let mut gates = collector.subscribe_gates();
+        collector.capture_with_posture(
+            RunId::generate(),
+            PermissionPosture::Bypass,
+            captured.clone(),
+        );
+        collector.capture_with_posture(RunId::generate(), PermissionPosture::Gated, captured);
+        assert!(alarms.try_recv().is_ok());
+        assert!(gates.try_recv().is_ok());
+    }
+}
+
+#[cfg(test)]
+mod checkpoints {
+    use super::*;
+    use crate::runtime::controls::{CheckpointLedger, WorkspaceSnapshot};
+    use crate::services::telemetry::{Event, EventVerb};
+    use serde_json::json;
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn restore_and_undo_keep_the_transcript() {
+        let run_id = RunId::generate();
+        let event = Event {
+            run_id,
+            seq: 0,
+            ts: "2026-01-01T00:00:00Z".into(),
+            verb: EventVerb::Assistant,
+            text: Some("before edit".into()),
+            tool: None,
+            args: None,
+            usage: None,
+            raw: json!({"text": "before edit"}),
+        };
+        let mut files = BTreeMap::new();
+        files.insert("src/lib.rs".into(), "old".into());
+        let mut ledger = CheckpointLedger::default();
+        let checkpoint = ledger.snapshot_before_edit(
+            run_id,
+            WorkspaceSnapshot {
+                branch: "agent/test".into(),
+                files,
+            },
+        );
+        let restored = ledger
+            .restore(checkpoint.id, std::slice::from_ref(&event))
+            .unwrap();
+        assert_eq!(restored.transcript, vec![event.clone()]);
+        assert_eq!(restored.workspace.files["src/lib.rs"], "old");
+        let undone = ledger.undo(std::slice::from_ref(&event)).unwrap();
+        assert_eq!(undone.transcript, vec![event]);
     }
 }
 
@@ -554,6 +657,7 @@ mod pause_holds_not_freezes {
             session_id: SessionId::generate(),
             resolved_model_id: "test-model".into(),
             status: RunStatus::Running,
+            permission_posture: Default::default(),
             events: vec![],
             usage: None,
             exit_code: None,
@@ -617,6 +721,7 @@ mod cancels {
             session_id: SessionId::generate(),
             resolved_model_id: "test-model".into(),
             status: RunStatus::Running,
+            permission_posture: Default::default(),
             events: vec![],
             usage: None,
             exit_code: None,
@@ -797,6 +902,7 @@ mod spawns {
             session_id: SessionId::generate(),
             resolved_model_id: "test-model".into(),
             status: RunStatus::Queued,
+            permission_posture: Default::default(),
             events: vec![],
             usage: None,
             exit_code: None,
@@ -945,6 +1051,7 @@ mod spawns {
             session_id: SessionId::generate(),
             resolved_model_id: "test-model".into(),
             status: RunStatus::Queued,
+            permission_posture: Default::default(),
             events: vec![],
             usage: None,
             exit_code: None,

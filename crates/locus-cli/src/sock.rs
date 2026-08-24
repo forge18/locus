@@ -190,6 +190,10 @@ pub const VERB_DISPATCHES: &[VerbDispatch] = &[
         verb: AgentSocketVerb::BrowseFill,
     },
     VerbDispatch {
+        command: &["browse", "press"],
+        verb: AgentSocketVerb::BrowsePress,
+    },
+    VerbDispatch {
         command: &["browse", "assert"],
         verb: AgentSocketVerb::BrowseAssert,
     },
@@ -684,6 +688,74 @@ mod json {
 }
 
 #[cfg(test)]
+mod mail {
+    use super::*;
+
+    fn command(parts: &[&str]) -> Vec<String> {
+        parts.iter().map(|part| (*part).into()).collect()
+    }
+
+    #[test]
+    fn send() {
+        let input = command(&["mail", "send", "reviewer", "body"]);
+        let (dispatch, args) = allowed_verb(&input).expect("mail send is allowlisted");
+        assert_eq!(dispatch.verb, AgentSocketVerb::MailSend);
+        assert_eq!(args, ["reviewer", "body"]);
+    }
+
+    #[test]
+    fn list_read() {
+        for (parts, expected) in [
+            (&["mail", "list"][..], AgentSocketVerb::MailList),
+            (&["mail", "read", "thread-1"][..], AgentSocketVerb::MailRead),
+        ] {
+            let (dispatch, _) = allowed_verb(&command(parts)).expect("mail read/list allowlisted");
+            assert_eq!(dispatch.verb, expected);
+        }
+    }
+
+    #[test]
+    fn reply_threads() {
+        let input = command(&["mail", "reply", "thread-1", "answer"]);
+        let (dispatch, args) = allowed_verb(&input).expect("mail reply is allowlisted");
+        assert_eq!(dispatch.verb, AgentSocketVerb::MailReply);
+        assert_eq!(args, ["thread-1", "answer"]);
+    }
+
+    #[test]
+    fn drain() {
+        let input = command(&["mail", "drain", "thread-1"]);
+        let (dispatch, args) = allowed_verb(&input).expect("mail drain is allowlisted");
+        assert_eq!(dispatch.verb, AgentSocketVerb::MailDrain);
+        assert_eq!(args, ["thread-1"]);
+    }
+
+    #[test]
+    fn wait_times_out() {
+        let input = command(&["mail", "wait"]);
+        let (dispatch, args) = allowed_verb(&input).expect("mail wait is allowlisted");
+        assert_eq!(dispatch.verb, AgentSocketVerb::MailWait);
+        assert!(args.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod ask {
+    use super::*;
+
+    #[test]
+    fn blocks_and_reaches_inbox() {
+        let input: Vec<String> = ["ask", "Which deployment window?"]
+            .into_iter()
+            .map(String::from)
+            .collect();
+        let (dispatch, args) = allowed_verb(&input).expect("ask is allowlisted");
+        assert_eq!(dispatch.verb, AgentSocketVerb::Ask);
+        assert_eq!(args, ["Which deployment window?"]);
+    }
+}
+
+#[cfg(test)]
 mod run {
     use super::{resolve_verb, AgentSocketVerb, VERB_DISPATCHES};
 
@@ -728,6 +800,36 @@ mod memory {
         let (dispatch, args) = resolve_verb(&command).expect("memory explain dispatches");
         assert_eq!(dispatch.verb, AgentSocketVerb::MemoryExplain);
         assert_eq!(args, ["fact-1"]);
+    }
+
+    #[test]
+    fn note_verbs() {
+        for command in [
+            ["memory", "note", "add"],
+            ["memory", "note", "replace"],
+            ["memory", "note", "remove"],
+        ] {
+            let args: Vec<String> = command.iter().map(ToString::to_string).collect();
+            assert!(
+                resolve_verb(&args).is_some(),
+                "note verb is allowlisted: {command:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn store_verbs() {
+        for command in [
+            ["memory", "recall"],
+            ["memory", "write"],
+            ["memory", "forget"],
+        ] {
+            let args: Vec<String> = command.iter().map(ToString::to_string).collect();
+            assert!(
+                resolve_verb(&args).is_some(),
+                "store verb is allowlisted: {command:?}"
+            );
+        }
     }
 }
 

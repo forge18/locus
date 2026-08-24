@@ -108,6 +108,8 @@ pub enum AgentSocketVerb {
     BrowseClick,
     #[serde(rename = "browse.fill")]
     BrowseFill,
+    #[serde(rename = "browse.press")]
+    BrowsePress,
     #[serde(rename = "browse.assert")]
     BrowseAssert,
     #[serde(rename = "browse.screenshot")]

@@ -20,7 +20,7 @@ export {
   VERIFY_VOCABULARY,
   autorunMasterState,
 };
-export type { AutorunState } from "../fixtures/dispatch";
+export type { AutorunState, PermissionPosture } from "../fixtures/dispatch";
 
 /** Becomes: invoke('dispatch_runs', { query }) */
 export function useDispatchRuns() {

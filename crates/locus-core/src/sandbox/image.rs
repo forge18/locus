@@ -51,7 +51,7 @@ fn base_dockerfile(image: &Image, binary: &str, detect: &[String]) -> String {
         .join(" ");
     let environment = (!image.env.is_empty()).then(|| format!("ENV {}\n", image.env.join(" ")));
     format!(
-        "FROM {}\n{}RUN {}\nRUN command -v {} && {}\n",
+        "FROM {}\n{}RUN {}\nCOPY locus-hook /usr/local/bin/locus-hook\nRUN chmod 0755 /usr/local/bin/locus-hook && command -v locus-hook\nRUN command -v {} && {}\n",
         image.base,
         environment.unwrap_or_default(),
         image.install.join(" && "),

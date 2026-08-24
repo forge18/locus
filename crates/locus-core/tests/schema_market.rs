@@ -164,3 +164,39 @@ async fn schema_market() {
         "a tool-set pin must use the snapshot's tool name"
     );
 }
+
+mod market {
+    use locus_core::store::Store;
+
+    #[tokio::test]
+    async fn persists() {
+        let (container, _cleanup) =
+            locus_core::testkit::postgres::start_postgres_named("locus-postgres-market-persist")
+                .await;
+        let store = Store::connect(&container.database_url())
+            .await
+            .expect("connect the store pool");
+        store
+            .run_migrations(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations"),
+                &locus_core::testkit::postgres::NoopMigrationBackup,
+                &locus_core::testkit::postgres::test_backup_config(),
+            )
+            .await
+            .expect("run the market migration");
+        let manifest = locus_core::services::market::Manifest::parse(
+        "name = 'rg'\nsummary = 'Fast search'\ninstall = { brew = 'rg' }\nverify = 'rg --version'\ndocs = 'rg.md'\n",
+    )
+    .expect("parse manifest");
+        let first = store
+            .persist_market_manifest(&manifest)
+            .await
+            .expect("persist manifest");
+        let second = store
+            .persist_market_manifest(&manifest)
+            .await
+            .expect("persist idempotently");
+        assert_eq!(first.id, second.id);
+        assert_eq!(store.market_manifest("rg").await.unwrap().unwrap(), first);
+    }
+}

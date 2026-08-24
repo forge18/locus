@@ -6,6 +6,8 @@ use serde_json::Value;
 
 use crate::services::telemetry::{Event, Usage};
 
+pub use super::controls::PermissionPosture;
+
 /// A durable thread of work for one versioned agent definition.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Session {
@@ -44,6 +46,7 @@ pub fn start_next_run(session: &Session, resolved_model_id: impl Into<String>) -
             session_id: session.id,
             resolved_model_id: resolved_model_id.into(),
             status: RunStatus::Queued,
+            permission_posture: PermissionPosture::default(),
             events: vec![],
             usage: None,
             exit_code: None,
@@ -84,6 +87,9 @@ pub struct Run {
     pub session_id: SessionId,
     pub resolved_model_id: String,
     pub status: RunStatus,
+    /// Immutable dispatch choice for permission requests in this run.
+    #[serde(default)]
+    pub permission_posture: PermissionPosture,
     /// Normalized records emitted during this container lifetime.
     pub events: Vec<Event>,
     /// Harness-reported token counts; absent means unknown, never zero.
@@ -96,6 +102,20 @@ pub struct Run {
     pub native_session_id: Option<String>,
     /// Reviewable or reference deliverables produced by this run.
     pub artifacts: Vec<Artifact>,
+}
+
+impl Run {
+    /// Dispatch pins the permission posture before a run starts; it cannot change mid-run.
+    pub fn set_permission_posture(
+        &mut self,
+        posture: PermissionPosture,
+    ) -> Result<(), &'static str> {
+        if self.status != RunStatus::Queued {
+            return Err("permission posture is immutable after dispatch");
+        }
+        self.permission_posture = posture;
+        Ok(())
+    }
 }
 
 /// A run-produced deliverable tracked independently from terminal output.
@@ -143,7 +163,9 @@ pub struct Turn {
 
 #[cfg(test)]
 mod model {
-    use super::{Artifact, ArtifactKind, Run, RunStatus, Session, SessionStatus, Turn};
+    use super::{
+        Artifact, ArtifactKind, PermissionPosture, Run, RunStatus, Session, SessionStatus, Turn,
+    };
     use crate::ids::{AgentDefId, ArtifactId, EventId, ProjectId, RunId, SessionId, TurnId};
 
     use sqlx::query_scalar;
@@ -172,6 +194,7 @@ mod model {
             session_id: session.id,
             resolved_model_id: "test-model".into(),
             status: RunStatus::Queued,
+            permission_posture: PermissionPosture::default(),
             events: vec![],
             usage: None,
             exit_code: None,
@@ -371,6 +394,35 @@ mod survives_reset {
 }
 
 #[cfg(test)]
+mod panel_replay {
+    use super::SessionId;
+    use crate::ids::RunId;
+    use crate::runtime::controls::replay_panel;
+    use crate::services::telemetry::{Event, EventVerb};
+    use serde_json::json;
+
+    #[test]
+    fn attaches_a_new_panel_without_rerunning_the_agent() {
+        let session_id = SessionId::generate();
+        let event = Event {
+            run_id: RunId::generate(),
+            seq: 0,
+            ts: "2026-01-01T00:00:00Z".into(),
+            verb: EventVerb::Assistant,
+            text: Some("replayed".into()),
+            tool: None,
+            args: None,
+            usage: None,
+            raw: json!({"text": "replayed"}),
+        };
+        let replay = replay_panel(session_id, [event.clone()]);
+        assert_eq!(replay.session_id, session_id);
+        assert_eq!(replay.events, vec![event]);
+        assert_eq!(replay.event_count(), 1);
+    }
+}
+
+#[cfg(test)]
 mod holds {
     use crate::ids::{AgentDefId, ProjectId, SessionId, TaskId};
     use serde_json::json;
@@ -410,7 +462,7 @@ mod run {
         use serde_json::json;
 
         use crate::{
-            runtime::session::{Artifact, ArtifactKind, Run, RunStatus},
+            runtime::session::{Artifact, ArtifactKind, PermissionPosture, Run, RunStatus},
             services::telemetry::{Event, EventVerb, Usage},
         };
 
@@ -444,6 +496,7 @@ mod run {
                 session_id: SessionId::generate(),
                 resolved_model_id: "claude-opus-4-6".into(),
                 status: RunStatus::Completed,
+                permission_posture: PermissionPosture::default(),
                 events: events.clone(),
                 usage: Some(usage.clone()),
                 exit_code: Some(0),

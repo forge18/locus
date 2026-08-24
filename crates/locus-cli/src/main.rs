@@ -9,7 +9,10 @@ use std::{env, path::PathBuf, process::Command};
 use anyhow::{bail, Context, Result};
 use locus_core::{
     harness::registry::load_from_directory,
-    services::lint::{run as run_linters, verify as verify_linters, LintRequest},
+    services::{
+        browse::{assertion_json, parse_assert_args, AssertionResult},
+        lint::{run as run_linters, verify as verify_linters, LintRequest},
+    },
     store::backup::{Backup, RetainedBackupConfig, SystemBackupFilesystem, SystemProcessRunner},
 };
 
@@ -44,6 +47,10 @@ fn dispatch(arguments: &[String]) -> Result<()> {
     let runtime = tokio::runtime::Runtime::new().context("start socket client runtime")?;
     let nonce =
         env::var("LOCUS_RUN_NONCE").context("LOCUS_RUN_NONCE is required for daemon requests")?;
+    if verb.verb == locus_core::runtime::daemon::AgentSocketVerb::BrowseAssert {
+        parse_assert_args(args).context("invalid browse assert arguments")?;
+        return dispatch_assert(&runtime, &nonce, verb, args);
+    }
     let response = runtime.block_on(sock::dispatch(
         sock::DEFAULT_SOCKET_PATH,
         &nonce,
@@ -52,6 +59,37 @@ fn dispatch(arguments: &[String]) -> Result<()> {
     ))?;
     println!("{}", sock::compact_json(&sock::key_pack(response))?);
     Ok(())
+}
+
+fn dispatch_assert(
+    runtime: &tokio::runtime::Runtime,
+    nonce: &str,
+    verb: &sock::VerbDispatch,
+    args: &[String],
+) -> Result<()> {
+    match runtime.block_on(sock::dispatch(sock::DEFAULT_SOCKET_PATH, nonce, verb, args)) {
+        Ok(response) => {
+            let failed = response.get("passed").is_some_and(|passed| passed == false);
+            println!("{}", sock::compact_json(&sock::key_pack(response))?);
+            if failed {
+                bail!("browse assertion failed")
+            }
+            Ok(())
+        }
+        Err(error) => {
+            let result = AssertionResult {
+                passed: false,
+                failure: Some(locus_core::services::browse::AssertionFailure {
+                    selector: args.first().cloned().unwrap_or_default(),
+                    reason: error.to_string(),
+                    expected: parse_assert_args(args)?,
+                    actual: None,
+                }),
+            };
+            println!("{}", sock::compact_json(&assertion_json(&result))?);
+            bail!("browse assertion failed")
+        }
+    }
 }
 
 fn lint(arguments: &[String]) -> Result<()> {
@@ -182,6 +220,28 @@ mod artifact {
 }
 
 #[cfg(test)]
+mod tools {
+    use super::sock;
+    use locus_core::runtime::daemon::AgentSocketVerb;
+
+    #[test]
+    fn list() {
+        let command = vec!["tools".into(), "list".into()];
+        let (dispatch, args) = sock::allowed_verb(&command).expect("tools list is allowlisted");
+        assert_eq!(dispatch.verb, AgentSocketVerb::ToolsList);
+        assert!(args.is_empty());
+    }
+
+    #[test]
+    fn docs() {
+        let command = vec!["tools".into(), "docs".into(), "rg".into()];
+        let (dispatch, args) = sock::allowed_verb(&command).expect("tools docs is allowlisted");
+        assert_eq!(dispatch.verb, AgentSocketVerb::ToolsDocs);
+        assert_eq!(args, ["rg"]);
+    }
+}
+
+#[cfg(test)]
 mod lint {
     use super::*;
     use locus_core::runtime::daemon::AgentSocketVerb;
@@ -223,5 +283,99 @@ mod lint {
     fn prints_the_rule() {
         let report = locus_core::services::lint::LintReport::default();
         assert!(report.evidence().is_empty());
+    }
+}
+
+#[cfg(test)]
+mod browse {
+    use super::*;
+    use locus_core::runtime::daemon::AgentSocketVerb;
+    use locus_core::services::browse::{
+        assert_page, parse_assert_args, AssertOptions, Element, Page,
+    };
+
+    #[test]
+    fn open_waits_for_ready() {
+        let command = ["browse".into(), "open".into(), "/".into()];
+        assert_eq!(
+            sock::allowed_verb(&command).unwrap().0.verb,
+            AgentSocketVerb::BrowseOpen
+        );
+    }
+
+    #[test]
+    fn open() {
+        let command = ["browse".into(), "open".into(), "/settings".into()];
+        assert_eq!(sock::allowed_verb(&command).unwrap().1, ["/settings"]);
+    }
+
+    #[test]
+    fn interactions() {
+        for command in [
+            vec!["browse", "click", "#save"],
+            vec!["browse", "fill", "#name", "Locus"],
+            vec!["browse", "press", "#name", "Enter"],
+        ] {
+            let command = command.into_iter().map(String::from).collect::<Vec<_>>();
+            assert!(sock::allowed_verb(&command).is_ok());
+        }
+    }
+
+    #[test]
+    fn assert() {
+        let args = ["#save", "--text", "Saved", "--visible", "--count", "1"]
+            .into_iter()
+            .map(String::from)
+            .collect::<Vec<_>>();
+        let options = parse_assert_args(&args).unwrap();
+        let page = Page::default().element(
+            "#save",
+            Element {
+                text: "Saved".into(),
+                visible: true,
+                count: 1,
+            },
+        );
+        assert!(assert_page(&page, &options).passed);
+    }
+
+    #[test]
+    fn assert_exit_code() {
+        let options = AssertOptions {
+            selector: "#missing".into(),
+            ..Default::default()
+        };
+        let result = assert_page(&Page::default(), &options);
+        assert!(!result.passed);
+        assert!(assertion_json(&result).get("failure").is_some());
+    }
+
+    #[test]
+    fn screenshot() {
+        assert_eq!(
+            sock::allowed_verb(&["browse".into(), "screenshot".into()])
+                .unwrap()
+                .0
+                .verb,
+            AgentSocketVerb::BrowseScreenshot
+        );
+    }
+
+    #[test]
+    fn record() {
+        assert_eq!(
+            sock::allowed_verb(&["browse".into(), "record".into(), "start".into()])
+                .unwrap()
+                .0
+                .verb,
+            AgentSocketVerb::BrowseRecord
+        );
+    }
+
+    #[test]
+    fn console_network() {
+        for name in ["console", "network"] {
+            assert!(sock::allowed_verb(&["browse".into(), name.into()]).is_ok());
+        }
     }
 }

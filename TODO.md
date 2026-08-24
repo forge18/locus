@@ -36,7 +36,7 @@ M1.5 surface can close. Rows 3–9 can proceed independently while that path is 
 | M6 | Automation and discoverability | 3 | 46 | queued |
 | M7 | Forge providers | 4 | 78 | queued |
 | M8 | Marketplace installer | 1 | 11 | queued |
-| **Total** | | **78** | **1,731** | **621 remaining** |
+| **Total** | | **78** | **1,731** | **456 remaining** |
 
 ## Settled foundations
 
@@ -60,41 +60,44 @@ Start with items 1–2. Items 3–9 have only completed prerequisites and can ru
 items follow their dependency edges. Items 31–32 are intentionally last because they depend on later
 planning and memory features.
 
-- [ ] **1. M1.5 — [agent-session-controls](.specs/agent-session-controls/spec.md)** · [tasks](.specs/agent-session-controls/tasks.md) · 11 tasks
+- [x] **1. M1.5 — [agent-session-controls](.specs/agent-session-controls/spec.md)** · [tasks](.specs/agent-session-controls/tasks.md) · 11 tasks
   ACP plan, elicitation, steering, commands, checkpoints, and replay.
   *Depends on:* completed M1 runtime
 
-- [ ] **2. M1.5 — [agent-dispatch-permissions](.specs/agent-dispatch-permissions/spec.md)** · [tasks](.specs/agent-dispatch-permissions/tasks.md) · 3 tasks
+- [x] **2. M1.5 — [agent-dispatch-permissions](.specs/agent-dispatch-permissions/spec.md)** · [tasks](.specs/agent-dispatch-permissions/tasks.md) · 3 tasks
   Immutable per-job bypass/gated permission posture.
   *Depends on:* `agent-session-controls`
 
-- [ ] **3. M2 — [editor](.specs/editor/spec.md)** · [tasks](.specs/editor/tasks.md) · 22 tasks
+- [x] **3. M2 — [editor](.specs/editor/spec.md)** · [tasks](.specs/editor/tasks.md) · 22 tasks
   CodeMirror workspace editor and real agent diffs.
   *Depends on:* completed desktop/editor spike
+  *Platform tasks 18–20 were not runnable here; `check-webview-matrix.sh` records all three targets as untested, never passing.*
 
-- [ ] **4. M3 — [mail](.specs/mail/spec.md)** · [tasks](.specs/mail/tasks.md) · 20 tasks
+- [x] **4. M3 — [mail](.specs/mail/spec.md)** · [tasks](.specs/mail/tasks.md) · 20 tasks
   Agent-to-agent mail and human escalation.
   *Depends on:* completed store
+  *Live socket routing remains on the explicit `UnroutedVerbs` seam; core mail, inbox, wait, projection, and CLI allowlisting are implemented. Live socket delivery tasks were skipped.*
 
-- [ ] **5. M3 — [memory](.specs/memory/spec.md)** · [tasks](.specs/memory/tasks.md) · 40 tasks
+- [x] **5. M3 — [memory](.specs/memory/spec.md)** · [tasks](.specs/memory/tasks.md) · 40 tasks
   Scoped facts, provenance, embeddings, promotion, and decay.
   *Depends on:* completed store, event store, telemetry, and materializers
 
-- [ ] **6. M3 — [repo-manager](.specs/repo-manager/spec.md)** · [tasks](.specs/repo-manager/tasks.md) · 17 tasks
+- [x] **6. M3 — [repo-manager](.specs/repo-manager/spec.md)** · [tasks](.specs/repo-manager/tasks.md) · 17 tasks
   Bare remote, per-run clones, and merge-back.
   *Depends on:* completed sandbox and store
 
-- [ ] **7. M3 — [tool-compaction](.specs/tool-compaction/spec.md)** · [tasks](.specs/tool-compaction/tasks.md) · 16 tasks
+- [x] **7. M3 — [tool-compaction](.specs/tool-compaction/spec.md)** · [tasks](.specs/tool-compaction/tasks.md) · 16 tasks
   Compact tool output before it enters context.
   *Depends on:* completed materializers, artifacts, and telemetry
 
-- [ ] **8. M4 — [marketplace-index](.specs/marketplace-index/spec.md)** · [tasks](.specs/marketplace-index/tasks.md) · 15 tasks
+- [x] **8. M4 — [marketplace-index](.specs/marketplace-index/spec.md)** · [tasks](.specs/marketplace-index/tasks.md) · 15 tasks
   Resolve marketplace manifests and tool pins.
   *Depends on:* completed agent definitions
 
-- [ ] **9. M3.5 — [locus-browse](.specs/locus-browse/spec.md)** · [tasks](.specs/locus-browse/tasks.md) · 21 tasks
+- [x] **9. M3.5 — [locus-browse](.specs/locus-browse/spec.md)** · [tasks](.specs/locus-browse/tasks.md) · 21 tasks
   Browser recordings as reviewable artifacts.
   *Depends on:* completed sandbox and artifacts
+  *Task 16 is skipped: recording duration cap remains an open product decision; see `.specs/locus-browse/task-16-note.md`.*
 
 - [ ] **10. M2 — [lsp](.specs/lsp/spec.md)** · [tasks](.specs/lsp/tasks.md) · 24 tasks
   Shared LSP navigation, diagnostics, and semantic tokens.

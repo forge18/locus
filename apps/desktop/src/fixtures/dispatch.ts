@@ -2,6 +2,7 @@
 // replaced by: invoke("dispatch_snapshot")
 
 export type AutorunState = 'on' | 'off' | 'suspended' | 'archived'
+export type PermissionPosture = 'bypass' | 'gated'
 export const AUTORUN_STATES = Object.freeze(['on', 'off', 'suspended', 'archived'] as const)
 export const VERIFY_VOCABULARY = Object.freeze(['running', 'passed', 'failed', 'failed ×n', 'waiting: gate', 'n/a', 'aborted'] as const)
 export const NEVER_AUTORUN_EXCLUSIONS = Object.freeze([
@@ -87,15 +88,17 @@ export interface ScheduleFixture {
   last: string
   skipped: number
   enabled: boolean
+  /** Per-job permission choice; bypass is the safe unattended default. */
+  permissionPosture: PermissionPosture
 }
 
 export const SCHEDULES: readonly ScheduleFixture[] = Object.freeze([
-  { id: 'wiki', name: 'Nightly wiki reconcile', cron: '0 2 * * *', cadence: 'every day at 02:00', workflow: 'wf-04 · keeper → contradiction sweep', last: 'skipped · 6h ago', skipped: 11, enabled: true },
-  { id: 'audit', name: 'Dependency audit', cron: '0 6 * * 1', cadence: 'Mondays at 06:00', workflow: 'wf-09 · auditor → spec gap report', last: 'passed · 2d ago', skipped: 0, enabled: true },
-  { id: 'bisect', name: 'Flaky-test bisect', cron: '*/30 * * * *', cadence: 'every 30 minutes', workflow: 'wf-11 · builder → bisect-verify', last: 'passed · 12m ago', skipped: 3, enabled: true },
-  { id: 'decay', name: 'Memory decay sweep', cron: '0 4 * * *', cadence: 'every day at 04:00', workflow: 'wf-02 · keeper → decay + promote', last: 'passed · 8h ago', skipped: 1, enabled: true },
-  { id: 'probe', name: 'Harness capability probe', cron: '0 3 * * 0', cadence: 'Sundays at 03:00', workflow: 'wf-14 · probe all registered', last: 'paused 5d ago', skipped: 0, enabled: false },
-  { id: 'babysitter', name: 'PR babysitter', cron: '*/15 * * * *', cadence: 'every 15 minutes', workflow: 'wf-07 · ci-babysitter → retry green', last: 'passed · 3m ago', skipped: 2, enabled: true },
+  { id: 'wiki', name: 'Nightly wiki reconcile', cron: '0 2 * * *', cadence: 'every day at 02:00', workflow: 'wf-04 · keeper → contradiction sweep', last: 'skipped · 6h ago', skipped: 11, enabled: true, permissionPosture: 'bypass' },
+  { id: 'audit', name: 'Dependency audit', cron: '0 6 * * 1', cadence: 'Mondays at 06:00', workflow: 'wf-09 · auditor → spec gap report', last: 'passed · 2d ago', skipped: 0, enabled: true, permissionPosture: 'bypass' },
+  { id: 'bisect', name: 'Flaky-test bisect', cron: '*/30 * * * *', cadence: 'every 30 minutes', workflow: 'wf-11 · builder → bisect-verify', last: 'passed · 12m ago', skipped: 3, enabled: true, permissionPosture: 'bypass' },
+  { id: 'decay', name: 'Memory decay sweep', cron: '0 4 * * *', cadence: 'every day at 04:00', workflow: 'wf-02 · keeper → decay + promote', last: 'passed · 8h ago', skipped: 1, enabled: true, permissionPosture: 'bypass' },
+  { id: 'probe', name: 'Harness capability probe', cron: '0 3 * * 0', cadence: 'Sundays at 03:00', workflow: 'wf-14 · probe all registered', last: 'paused 5d ago', skipped: 0, enabled: false, permissionPosture: 'bypass' },
+  { id: 'babysitter', name: 'PR babysitter', cron: '*/15 * * * *', cadence: 'every 15 minutes', workflow: 'wf-07 · ci-babysitter → retry green', last: 'passed · 3m ago', skipped: 2, enabled: true, permissionPosture: 'bypass' },
 ])
 
 export interface ScheduleExecution {
