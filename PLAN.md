@@ -91,7 +91,7 @@ the strongest available argument that skipping VSCodium costs less than it would
 | Editor | CodeMirror 6, used directly — no abstraction seam. **One editor at two zoom levels**: a side pane beside an agent, and a full-window module. No second editor, no VSCodium. |
 | Debug | A **DAP client in Rust**, because agents need to debug. **No debug UI at all** — the whole surface is `locus debug` in a container, and a human debugs in their own editor. |
 | Harness I/O | **ACP is the only agent-session transport.** One container hosts one ACP conversation and the UI renders its normalized events. Human terminals remain available for hand work only; they are never agent sessions. |
-| Agent panel | **One session surface, not a monitor.** The ACP stream, steering composer, docked human-action gates, plan, checkpoints, and session research feed live together; the delivered ACP panel handoff is its visual contract. |
+| Agent panel | **One session surface, not a monitor.** The ACP stream, steering composer, docked human-action gates, plan, checkpoints, and session research feed live together; `AgentPanel.dc.html` in the mockup directory is its visual contract. |
 | `local-dx` relationship | Inspiration, not dependency. Locus owns its own registry and schema. |
 | Sandbox | One container per agent run. The workspace is a **clone from a local bare remote**, not a mount. Credential handling must be easy and secure; the mechanism is Spike 1's to settle. |
 | Projects | A Locus project holds **one or more repos** and owns the board, wiki, and memory across all of them. **Unrelated to GitHub Projects** — the name collision is unfortunate and means nothing. |
@@ -107,25 +107,27 @@ the strongest available argument that skipping VSCodium costs less than it would
 | Review surface | **Artifacts**, not transcripts. Plans, diffs, diagrams, screenshots, recordings, and a walkthrough on completion — all commentable, and a comment steers the agent that made it. |
 | Harness contract | **Declaration plus materialization.** A TOML file says where each of the eight extensions goes; a **materializer** puts it there. Four strategies are generic and parameterized by that TOML; the fifth is a plugin, for the harnesses whose config is code. A harness needing code is a directory, one that does not is a file. |
 | Tokens | **A design constraint, not a bill.** Prefix stability is a rule the materializer obeys, tool output is compacted before it reaches context, and every surface hands an agent a summary with a handle rather than a body. Cache rate and payload-by-tool are dashboard metrics because both are already columns. |
-| Navigation | **A project-scoped rail**. Global views are Inbox, Dashboard, Projects, Dispatch, Memory, Settings, and Workshop. Plan, Develop, Automate, and Review live inside the selected project's card. A selected project scopes those views; global views retain their explicit scope. One locator scheme addresses everything. |
+| Navigation | **A project-scoped rail, in two groups.** The selected project owns Setup, Plan, Manage, Interact, and Review. Analytics, Memory, Settings, and Workshop are cross-project. Inbox and Dispatch are title-bar pills, each opening a popover, because "does anything need me?" and "is anything happening?" are questions you ask from every screen. One locator scheme addresses everything. |
 | Handoffs | **Ownership transfers with a payload, never a transcript.** `done`, `remaining`, `attempted`, `decisions`, `open` — the successor reads that, not the predecessor's history. Kill-and-reassign already existed; this is what it hands over. |
 | Tools | **Just-in-time documentation, eager installation.** The enabled CLI catalog is baked into the image; project and workflow roles only narrow it. A one-line catalog per allowlisted tool arrives only when an agent asks for it. |
 | Filesystem | **No virtual filesystem.** Docker layers and `git clone --reference` already give copy-on-write; exposing Locus state as files is the thing the store exists to stop. |
 | Artifacts on disk | **Text in Postgres, media as files the row points at.** Media is stored once for you and **derived on demand for a model** — OCR before pixels, keyframes before clips. Two representations, because a human and a model want opposite things. |
 | Plugins | **One manifest + one executable speaking JSON-RPC 2.0 over stdio**, in any language. Core services stay internal and are never plugins. **Data-driven: a plugin declares and returns data; the first-party UI knows how to render it.** No third-party UI code, ever. |
 | Board | **Fixed columns across every project**, not configurable: Ready → In Progress → Testing → Reviewing → Waiting For Approval → Done. **`blocked` is a status, not a column.** Two gating rules only. |
-| Planning | **Three agents** — interviewer, researcher, auditor — over ACP. Goal is an input, not an output. The approved spec is decomposed into board cards explicitly: spec-only, every task, or spec plus selected carve-outs. Nothing reaches the board until the single final approval. |
+| Planning | **Three agents** — interviewer, researcher, auditor — over ACP, across **seven stages**: Inputs, Orient, Converse, Synthesis, Recommend, Decompose, Approved. Goal is an input, not an output. Requirement ids are stable, so a card keeps pointing at the requirement it came from. The approved spec is decomposed into board cards explicitly: spec-only, every task, or spec plus selected carve-outs. Nothing reaches the board until the single final approval. |
 | Testing Locus | **Event-based.** Every run normalizes into `memory.event`, so a test is "run this, assert these events appeared" — identical across all eleven harnesses, no test-only instrumentation. |
 | Permissions | **Bypass is the default; a job may explicitly opt into gated approval.** What an agent may do is *declared* — the tool allowlist on the agent definition, narrowed per role by the workflow's `Agent` node — and enforced by the container. A gated request blocks as a visible human action; an unexpected bypass request is an alarm. |
 | UI components | **Kobalte** headless primitives + **shadcn-solid** components copied into the repo + **Tailwind**. Headless, because an IDE's chrome is small and its large surfaces are all bespoke or bring their own DOM. |
 
 ### desktop desktop revision
 
-`docs/design_handoff_locus_desktop/` is the adopted desktop-design reference. Its HTML and JavaScript are
-reference material only: production code remains SolidJS and Rust. It replaces the removed v1 handoff
-for shell geometry, palette, screen inventory, and interaction copy.
+`docs/UI mockups for PLAN.md/Locus v2.dc.html` and its `AgentPanel.dc.html` are the adopted
+desktop-design reference; [`docs/UI_MOCKUP_REVIEW.md`](docs/UI_MOCKUP_REVIEW.md) is the reviewed
+contract for all twenty-nine views. The HTML and JavaScript are reference material only: production
+code remains SolidJS and Rust. Earlier handoff directories in that folder are superseded and must not
+be cited.
 
-Four product changes are architecture, not paint:
+Eight product changes are architecture, not paint:
 
 1. **Providers own credential configuration.** A provider stores an OS-keychain reference, optional
    `base_url`, verification metadata, and a curated model catalog. The broker resolves the reference
@@ -145,11 +147,25 @@ Four product changes are architecture, not paint:
    manifest and its binary must verify before entering the enabled catalog or an image. An unsigned or
    untrusted upload is rejected; read-only access is not a meaningful containment boundary for code
    executed during an image build.
+6. **A session need not have a card.** Interact runs sessions that are a container, a branch and an
+   agent you talk to directly — no card, no plan, no gate. A session is `open`, `promoted`, or
+   `discarded`; promotion attaches a card and from then on its diff takes the normal gate, and
+   discarding destroys the container and branch while the transcript stays.
+7. **Autorun is rate-limited by review, not by agents.** A project switch is not enough: a review slot
+   is one change you have not read yet, and autorun drains at the rate you absorb. Five classes never
+   autorun whatever the switch says — migrations, any workflow containing a Gate node, anything over
+   the change ceiling, a project under the verify-pass floor, and the first task of any plan. A
+   project under the floor suspends itself and resumes when the number recovers.
+8. **Findings are aggregated, not streamed.** Review is a scheduled or manual pass over tests,
+   linters, LSP diagnostics, and agent reviews. Sending a finding to the inbox tracks it as a to-do
+   and leaves it listed where it was found.
 
-The reconciliation contract and runnable work live in `.specs/design-desktop/`. The desktop Dark theme and a cool-neutral Light theme are implemented as semantic roles under a root
-`data-theme` contract in `.specs/theme-system/`, so later themes add values and fixtures rather than
-component forks. These specs supersede the conflicting
-v1-derived portions of the M0.5 screen contracts without changing their historical completion record.
+The reconciliation contracts and runnable work live in the M0.7 `*-revision` specs, with
+`.specs/design-revision/` as their keystone; `.specs/design-desktop/` remains the record of what M0.6
+built. The desktop Dark theme and a cool-neutral Light theme are implemented as semantic roles under a
+root `data-theme` contract in `.specs/theme-system/`, so later themes add values and fixtures rather
+than component forks. These specs supersede the conflicting portions of earlier screen contracts
+without changing their historical completion record.
 
 ### Deliberately deferred
 
@@ -367,12 +383,22 @@ and secure.** The container should not hold a long-lived secret, and setting one
 per-project chore.
 
 Docker's sandbox product arrived at a host proxy that injects the real credential into outbound calls
-so the container only ever holds a sentinel. That is one way to satisfy the requirement, and Spike 1
-is where the approach gets chosen — it is the highest-risk unknown in the design and deserves an
-experiment rather than a decision made on paper.
+so the container only ever holds a sentinel. Spike 1 settled on that shape, and it is what is built:
+the container receives a sentinel string and a proxy URL, the proxy binds a per-run nonce and an
+egress tier, and the real secret is attached only on the host-to-upstream leg. Every attempt, allowed
+or refused, is audited before it is forwarded.
 
-Egress control belongs wherever that lands: per-agent network policy tiers and an audit row per
-outbound call, since the same chokepoint serves both.
+Egress control lives at the same chokepoint: per-agent network policy tiers and an audit row per
+outbound call. The agent container is attached only to a Docker-`internal` network with no route out,
+so a process that ignores the proxy environment still has nowhere to go — the proxy is the credential
+boundary, and the network is the enforcement.
+
+**Providers are where a credential is configured, and they hold a reference, not a key.** A provider
+record carries an identifier, an authentication method, an **OS-keychain reference**, an optional
+`base_url`, verification metadata, and a curated model catalog whose aliases are what every model
+selector displays. Postgres stores the reference; the key itself never enters a row, a repository, an
+artifact, a log line, or a container. That is the whole of the claim that Locus holds no credential:
+it holds the name of one, and the operating system holds the secret.
 
 **Agents get no Docker socket.** A container that needs a service — the project's Postgres, a Redis —
 asks the core for it: `locus svc up postgres` starts it on the project network. This avoids
@@ -657,7 +683,7 @@ rules = { via = "merged-into", target = "context", strip_frontmatter = true,
           weaker_than_native = "always-on; path scoping is lost" }
 ```
 
-Thirty-three of the entries across the eleven harnesses are downgrades. That number is
+Twenty-nine of the eighty-eight entries across the eleven harnesses are downgrades. That number is
 the honest measure of how uneven the field is, and it is only visible because the files say it.
 
 **Both figures are computed from the registry, never maintained by hand** — eleven harnesses times
@@ -1447,6 +1473,48 @@ elicitation, not its audit, is where the quality actually comes from.
 Everything else is unrestricted. You can drag anything anywhere; the constraints exist to stop an
 agent asserting completion, not to stop you working.
 
+### Dispatch — a durable queue, and the rate a human can absorb
+
+A card being ready is not the same as a card being started. **Dispatch** is the queue between them,
+and it is supervisor state rather than UI state: parallelism caps, ordering, autorun, schedules, and
+the kill switch all survive a restart because a queue that forgets is a queue that double-starts.
+
+**Caps come in pairs.** A global cap on parallel agents and a per-project cap counted against the same
+pool, never in addition to it. A run that would exceed either waits rather than starting thin —
+twelve agents at a third of the tokens each finish nothing. Ordering is a named **priority method**:
+plan order, manual, unblocks-most, or shortest-first, with longest-waiting as the tie-break.
+Preemption is off by default; when on, the lowest-priority run is paused **at its next iteration
+boundary** and keeps its handoff, not its context.
+
+**Autorun is throttled by review, not by agents.** Turning it on for a project means agents there pick
+up their own work without you starting anything — there is no third setting and no per-task
+exception. But the constraint is not how many agents can run, it is how many changes you can read: a
+**review slot** is one change you have not looked at yet. The median developer reviews four changes a
+week and eight concurrent agents produce thirty-one, so autorun drains at the rate you absorb or it is
+just a faster way of generating a backlog. Review debt has a threshold at which autorun pauses itself,
+the inbox has a budget per hour, and both are visible next to the switch.
+
+**Five classes never autorun**, whatever the switch says:
+
+| Excluded | Because |
+| --- | --- |
+| anything touching `migrations/**` | a migration is append-only and irreversible in practice |
+| any workflow containing a `Gate` node | the gate is the point; skipping it would be deleting it |
+| anything over the change ceiling | past a reviewer's capacity, review degrades from semantic to syntactic |
+| a project under the verify-pass floor | trust is measured, not assumed — and it resumes on its own |
+| the first task of any plan | you see what a plan produces once before it produces unattended |
+
+The fourth is the one that acts without being asked: a project whose verify-pass rate falls below the
+floor **suspends its own autorun** and restores it when the number recovers. A quality signal that
+only produced a chart would be a quality signal nobody acts on.
+
+**Stop all is the kill switch, and it is reversible.** It names its exact scope before it runs — how
+many agents, autorun in how many projects, how many schedules — kills at the next iteration boundary,
+optionally lets each agent spend up to thirty seconds writing its handoff first, and leaves branches,
+artifacts, and memory untouched. For ten minutes afterwards the previous state can be restored,
+because the thing you press when something is badly wrong should not also be the thing you cannot
+undo.
+
 ### The planning module
 
 A guided conversation that produces a reviewable plan. It runs over **ACP**, because it is a
@@ -1486,23 +1554,30 @@ this.
                   └─ drop                 answered or irrelevant          │
                 ←────────────────────────────────────────────────────────┘
                      ↓  nothing relevant left unanswered
-4  SYNTHESISE   pass 1  completeness — make the implicit explicit: types, state
+4  SYNTHESIS    pass 1  completeness — make the implicit explicit: types, state
                         transitions, edge cases, trust boundaries, error conditions
                 pass 2  reduction — cut what is unsupported, rewrite what is
                         ambiguous, so nothing downstream reads as mandatory by accident
                 → spec · tasks · tool list · proposed workflow
                      ↓
-5  AUDIT        auditor, fresh context: ISO/IEC/IEEE 29148 + the two-reader test
-                  ├─ finding is a missed question → back to 3, ONCE
-                  └─ residual → recommendation.open[] and confidence
+5  RECOMMEND    the spec, editable, with the recommendation beside it
+                  stable requirement ids · open[] · confidence
+                  ├─ auditor finding is a missed question → back to 3, ONCE
+                  └─ you edit; saving re-synthesises the changed requirements only
                      ↓
-6  RECOMMEND    the recommendation object, shown
+6  DECOMPOSE    what becomes a card: the spec · every task · spec plus carve-outs
+                  each task carries its workflow, harness, model and effort
                      ↓
-7  OVERRIDE     you change anything
-                     ↓
-8  APPROVE  →   tasks land on the board
+7  APPROVED →   the cards land on the board
    REJECT   →   the draft stays here
 ```
+
+**Seven stages, and the auditor is not one of them.** Audit and override were stages in an earlier
+design. Audit became continuous — the auditor grades the draft it did not write and its findings
+arrive as `open[]` against the requirements they belong to, so a gap is attached to the clause that
+has it rather than reported at a checkpoint. Override became editing: stage 5 *is* the spec, and
+stage 6 *is* the mapping onto cards, both of them yours to change. A stage that only said "now you
+may change something" was describing the two stages either side of it.
 
 **Synthesis is two passes, and the second one subtracts.** A completeness pass alone over-specifies,
 and the failure that follows is specific: **downstream agents treat an unsupported requirement as
@@ -1520,6 +1595,16 @@ where scope quietly triples.
 question was missed", which belongs back in the loop rather than in a report. But clarification quality
 *degrades* as ambiguity density rises, so a third pass rarely helps where the second did not. Whatever
 survives becomes a named weakness in the recommendation, not a blocker.
+
+**Requirement ids are stable.** Each requirement carries an id (`R-05`) that survives a rewrite, so a
+card already on the board keeps pointing at the requirement it came from. Saving re-runs synthesis
+over the changed requirements only, and a requirement a card already carries is marked — you can see
+what a rewrite is about to contradict before you commit it.
+
+**Decomposition is a choice with three answers**, not a fixed rule: the spec as one card and the agent
+decomposes at run time; one card per task; or the spec plus the carve-outs you want to watch
+separately — usually the long ones and the ones you expect to get stuck. The card set is editable
+until approval and durable after it.
 
 #### Human inputs
 
@@ -1781,14 +1866,24 @@ file) are one queryable, scoped store here.
 
 | Node | Contributes |
 | --- | --- |
-| `Goal` | what the loop is *for*. **This is the approval gate** — a person approves the goal before the loop runs — and it is also the termination condition |
 | `Agent` | an agent definition, pinned by version, **plus a `role`** — the definition is reusable, the role is per-workflow. Carries this role's permission narrowing: a `tools` subset, a `network` tier, `write` scope |
 | `Task` | a unit of work, optionally sourced from the board |
 | `Loop` | the iteration construct: what repeats, and what resets between passes |
 | `Condition` | deterministic routing. **No model in the orchestration path** — the graph decides, not an LLM |
 | `Gate` | a checkpoint: human, or another agent acting as reviewer |
 | `Verify` | the runnable success criterion. Required |
-| `Guardrails` | the limits below, attached to the workflow |
+
+**Six executable nodes, and the goal is not one of them.** A workflow is a graph plus **Governance**,
+and Governance owns the three things that belong to the workflow rather than to any node in it: the
+**goal** — the guiding statement every node is judged against, and also the termination condition; the
+**guardrails**, each a title and a prompt body read by the run while it is in flight and re-injected
+after any reset; and the **success criteria**, each with a kind — `command`, `assertion`, or `human` —
+and a named checker. A criterion the core cannot check itself becomes a gate: it reaches your inbox
+with the evidence attached rather than being marked passed on the agent's word. Results land on the
+run; the authoring surface holds no execution state at all.
+
+A goal drawn as a node was a goal that could be wired, duplicated, or left unconnected — three ways to
+express something a workflow has exactly one of.
 
 **Where `Verify` runs.** In a **fresh container from the agent's own image, on the run's branch** —
 never in the agent's container. Two reasons, and both are the same reason: the agent's container may
@@ -1813,8 +1908,8 @@ to say, a decision that deserved a person or an agent rather than an operator.
 
 **The Ralph loop is a preset, not the only shape.** *pick → act → validate → commit → reset* is the
 pattern the field converged on, and it is expressible in these nodes already — a `Loop` whose reset
-starts a fresh run in the same session, a `Verify` as the validate step, a `Goal` as the termination
-condition. Because it is a shape people want often, it ships as a **template**: `locus ralph --goal
+starts a fresh run in the same session, a `Verify` as the validate step, and Governance's goal as the
+termination condition. Because it is a shape people want often, it ships as a **template**: `locus ralph --goal
 … --verify …` runs one without opening the canvas, and dropping a Ralph preset onto the canvas
 expands into the ordinary nodes so it can be edited rather than configured.
 
@@ -2043,58 +2138,55 @@ lands at M4; image baking and install land at M8.
 pinned, and who is trusted to publish into it are questions the installer makes real and the resolver
 does not — so they are answered then, not now.
 
-### Navigation — seven categories, one address space
+### Navigation — two groups, one address space
 
-Seven top-level categories, on a rail. The split is **by what you are doing**, not by what the data is —
-which is why agents and workflows appear twice: operated in one place, authored in another.
+A rail in two groups, and two pills in the title bar. The split is **by what you are doing**, not by
+what the data is — which is why agents and workflows appear twice: operated in one place, authored in
+another.
+
+**The project group** — what you do to one project, under a switcher that names it:
 
 | Category | Holds | The question it answers |
 | --- | --- | --- |
-| **Dashboard** | **Inbox** — my queue; **Status** — the numbers, at a glance | what I need to do, and what I need to know |
-| **Plan** | the planning module — interviewer, researcher, auditor; specs and the recommendation | what should we build, and is it understood |
-| **Develop** | editor, diff review, file tree, search, git — branches, PRs, merge-back, and terminals I drive myself | the hands-on work, mine |
-| **Automate** | agents and their sessions, the board, running workflows, schedules | what is assigned, and what is running |
-| **Review** | telemetry, run history, cost, verify and spec-gap rates, artifacts and walkthroughs | what happened, and was it any good |
-| **Workshop** | settings, harnesses and model tiers, the eight extension types, agent definitions, the workflow canvas, the marketplace | the tools themselves |
-| **Wiki** | typed pages, ingest, contradictions, the wikilink graph | what do we already know, and what disagrees |
+| **Setup** | harnesses, repos, extensions, CLI tools, base context; what this project has kept; its own numbers | how is this project configured, and what does it know |
+| **Plan** | the planning module — interviewer, researcher, auditor; the spec and the recommendation | what should we build, and is it understood |
+| **Manage** | the board and its sessions, as kanban, list, dependency graph, or timeline | what is assigned, and what is running |
+| **Interact** | sessions that are yours alone — a container, a branch, and an agent you talk to directly | the hands-on work, mine |
+| **Review** | tests, linters, diagnostics, and agent reviews for this project | what is wrong right now |
 
-**Dashboard is the category; `Inbox` is what the rail calls it.** The category holds two views and the
-rail cannot show both, so it is labelled by the one that carries the badge. Internally the category key
-stays `dashboard`, because a category called Dashboard containing a view called Dashboard is exactly the
-blur the two view names exist to prevent.
+**The cross-project group** — what does not belong to one project:
 
-**A session lives with the thing it belongs to.** A session is one agent's thread of work, so its home
-is Automate, beside the agent it belongs to and the board task it serves. Dashboard is where you find
-out that something needs you; Automate is where you go and watch it. The same rule places the other
-two session kinds without argument: the planning conversation lives in **Plan**, because its purpose
-is the spec, and a terminal you drive yourself lives in **Develop**, because it is not an agent's
-session at all.
+| Category | Holds | The question it answers |
+| --- | --- | --- |
+| **Analytics** | spend, tokens, cache, run times, task outcomes, memory and extension usage; telemetry as its query half | what happened, and was it any good |
+| **Memory** | short-term, long-term, artifacts, and the wiki | what do we already know, and what disagrees |
+| **Settings** | guardrails and everything else that is per install | what are the defaults |
+| **Workshop** | harnesses, providers, CLI tools, the eight extension types, agent definitions, workflows | the tools themselves |
 
-**Dashboard is the category defined by whose it is, not by what it holds.** The other five are named
-for an activity; Dashboard is *mine* — the things I need to do, and the information I need in order to
-do them. That is why Inbox and Status sit together despite looking like different kinds of thing: one
-is my queue, the other is my context for working it.
+**Two questions you ask from everywhere, so they are not rail items.** *Does anything need me?* and
+*is anything happening?* do not belong to a screen — they belong to every screen. So the inbox count
+and the running count are pills in the title bar, each opening a popover that answers in place. A rail
+entry would have made the answer somewhere you travel to.
 
-Its two views are named separately for a reason. **Status is the at-a-glance half** — is anything on
-fire, what is running, what did today cost — and it deliberately does not grow a query tool, because
-that is Review's job. A category called Dashboard containing a view called Dashboard would guarantee
-the two blur.
+**A session lives with the thing it belongs to.** A session is one agent's thread of work, so a
+board-driven one lives in Manage, beside the task it serves. The same rule places the others: the
+planning conversation lives in **Plan**, because its purpose is the spec, and a session with no card
+at all lives in **Interact**, because it belongs to you rather than to the board.
 
-Which sets the rule for how much happens there. **A decision resolves in place; work routes out.**
-Approving a goal, accepting or rejecting a proposed learning, answering a `locus ask`, waving through
-a `Gate` — those are answers, and making me travel to give one is the cost this category exists to
-remove. Anything that is *work* — editing the spec the gate was about, fixing the code the review
-found — opens where that work lives, and Dashboard hands me the locator rather than growing a second
-copy of the surface.
+**Interact is where work happens that the board never sees.** No card, no plan, no gate — a container,
+a branch, and an agent, so you can try something without first deciding it is worth tracking. That is
+the escape hatch every plan-driven system needs, and it is honest about its cost: nothing there is
+reviewed, so nothing reaches `main` from it until you promote it or land the branch yourself.
 
-**Dashboard is now; Review is after.** Status says whether the system is healthy at a glance; Review is
-where you dig into a run that was not. Keeping them apart stops Status growing into a query tool and
-stops the history growing a live view that nobody watches.
+**Review is now; Analytics is after.** Review says what is broken in this project — a failing test, a
+diagnostic, a reviewer's finding. Analytics is where you dig into what a run cost and whether the
+system is healthy. Keeping them apart stops Review growing into a query tool and stops the history
+growing a live view nobody watches.
 
-**Automate operates; Workshop authors.** An agent you are assigning work to and an agent definition
-you are editing are different activities on the same object — one is a thing doing work, the other is
-a document under version control. Same for workflows: the canvas is Workshop, a running execution with
-its live overlay is Automate.
+**Manage operates; Workshop authors.** An agent you are assigning work to and an agent definition you
+are editing are different activities on the same object — one is a thing doing work, the other is a
+document under version control. Same for workflows: the canvas is Workshop, a running execution is
+Manage.
 
 **Workshop is where the meta-harness actually lives.** Skills, rules, commands, hooks, output-styles,
 linters, agents, base-context — authored once, materialized into every runtime. That is the product's
@@ -2102,28 +2194,33 @@ central claim, and it deserves a place rather than a settings page.
 
 #### The inbox
 
-Its home is Dashboard, and **its count is on the rail**, so silence is legible without navigating. That
-is the whole property worth protecting: a session working normally puts nothing in it, and you should
-be able to see that from anywhere.
+Its count is a title-bar pill, so silence is legible without navigating. That is the whole property
+worth protecting: a session working normally puts nothing in it, and you should be able to see that
+from anywhere.
 
 Every item resolves to something — a `Gate` opens the artifact it waits on, a `locus ask` opens that
-session's chat, a contradiction opens both wiki pages. An item that only reports that something
-happened is a notification, not inbox work.
+session's chat, a contradiction opens both wiki pages. **An item that documents no response is a
+notification, not inbox work**, and notifications go to the activity feed behind the other pill.
 
-#### One window. Project is a filter, not a boundary
+The inbox also keeps what it resolved. A queue that empties leaves no record of how long a loop waited
+on you for a decision, which is the one number that says whether the human is the constraint.
+
+#### One window. A selected project, and views that ignore it
 
 A window per project would rebuild the thing this design exists to remove: one inbox per window, one
 board per window, one place per window to notice an agent has been idle for an hour. Every layer
 beneath the UI was built to be a single surface across every runtime; sharding at the last layer
 throws that away.
 
-So **project is a scope control, defaulting to all**. You filter, never switch — switching means
-leaving somewhere that was still running. Cross-project questions are the useful ones: everything in
-Reviewing, every idle agent, every guardrail trip today.
+So there is **one window, one selected project, and a group of views that are explicitly not scoped to
+it**. The five project views follow the switcher. Analytics ignores it entirely — cross-project
+questions are the useful ones, and a spend chart that silently showed one project would be worse than
+no chart. Memory and Workshop are cross-project because their contents are: definitions are global and
+what varies per project is which of them that project gets.
 
-The cost, stated: every project-scoped surface carries a scope control, and every cross-project row
-shows which project it belongs to. That is real work in the board and in Status, and it is cheaper
-than a window per project.
+Where a list would be more useful filtered — the inbox above all — the filter is **per view and
+remembered per view**, not a global mode. A single global scope control means every screen changes
+underneath you when you touch it on one of them.
 
 Additional windows still exist for detaching a pane onto a second monitor. That is a display choice,
 not the organising principle.
@@ -2131,10 +2228,10 @@ not the organising principle.
 #### Sessions do not all fit, so most are strips
 
 One ACP conversation per run is chosen for observability, which creates the obvious problem at ten
-sessions. **Automate** holds **one to four focused panes**; everything else is a strip entry — the
-minimize-to-tile behaviour already specified, made the default rather than the exception. The strip
-persists across categories, because walking away from Automate is not a reason to lose sight of what
-is running.
+sessions. **Manage** holds **one to four focused panes**; everything else is a strip entry — the
+minimize-to-tile behaviour already specified, made the default rather than the exception. The running
+pill's popover carries the same list from any screen, because walking away from Manage is not a reason
+to lose sight of what is running.
 
 A strip entry carries what you need to decide whether to look: project, agent and role, its task,
 status, the tool it is running, tokens so far, and an **idle icon** when the guardrail says so. Sorted
@@ -2161,20 +2258,20 @@ links, and a detached window's identity are otherwise seven navigation paths tha
 one locator they are one resolver with seven callers. `Cmd-K` resolves a locator, `Cmd-P` searches for
 one, and back/forward per window is a stack of them.
 
-A locator also crosses categories cleanly, which the seven-way split needs: the same session opens as a
-pane in Automate, as the source of an Inbox item, and as a row in Review — one object, three contexts,
-no duplicated navigation.
+A locator also crosses categories cleanly, which a two-group rail needs: the same session opens as a
+pane in Manage, as the source of an Inbox item, and as a row in Analytics — one object, three
+contexts, no duplicated navigation.
 
 #### Three rules that keep it from sprawling
 
 - **Detail opens in place.** A task, an artifact, a page opens as a sheet over the current category,
   not as a new category or a new window. You came from somewhere and you are going back there.
-- **One viewer per kind, several entry points.** An artifact looks the same in Automate, in Review,
-  and reached from the inbox — one component, because a diff that renders differently depending on how
-  you got to it is two components that will disagree.
-- **The category list is closed.** Seven, and a new surface joins one of them rather than adding an
-  eighth. A rail that grows is a rail nobody reads. The count was six until the Wiki was given its own
-  entry; the rule is what stopped it becoming eight at the same time.
+- **One viewer per kind, several entry points.** An artifact looks the same in Manage, in Memory, and
+  reached from the inbox — one component, because a diff that renders differently depending on how you
+  got to it is two components that will disagree.
+- **The category list is closed.** Nine, in two groups, and a new surface joins one of them rather
+  than adding a tenth. A rail that grows is a rail nobody reads — which is why the two questions asked
+  from every screen became pills instead of entries.
 
 ### Frontend and IPC constraints
 
@@ -2493,7 +2590,8 @@ authorable, and where the product's character arrives.
 - **Loop execution**: pick → act → validate → commit → reset, with memory carrying across resets
 - **The Ralph preset** — `locus ralph --goal … --verify …` for a loop without opening the canvas, and
   the same preset droppable onto the canvas where it expands into ordinary nodes
-- **Goal as approval gate** — a person approves the goal before the loop is allowed to run
+- **Governance** — the goal as guiding statement and termination condition, named guardrail prompts
+  read in flight, and success criteria whose uncheckable half escalates to a gate
 - **Guardrails**: `max_iterations`, forced reflection before retry, kill-and-reassign, idle detection,
   optional wall-clock ceiling, optional token budget with auto-pause at 85%
 - **Deterministic routing** — `Condition` nodes decide, never a model. No LLM in the orchestration path

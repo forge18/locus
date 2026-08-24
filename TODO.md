@@ -1,6 +1,6 @@
 # TODO
 
-63 features, 1393 tasks, across twelve milestones. Every task carries a runnable
+74 features, 1731 tasks, across thirteen milestones. Every task carries a runnable
 `verify:`; a task with none is not a task.
 
 **How this fits together.** [PLAN.md](PLAN.md) is the architecture and the authority.
@@ -26,6 +26,7 @@ of those blocks the shell or the other twelve screens. It can run alongside M0.
 | **M0** | Spikes — these gate M1 · **closed** | 3 | 39 | 39 |
 | **M0.5** | Desktop UI on fixtures · **closed** | 12 | 268 | 268 |
 | **M0.6** | desktop reconciliation · **closed** | 6 | 195 | 195 |
+| **M0.7** | Current desktop mockup reconciliation | 11 | 338 | 0 |
 | **M1** | Core runtime · **closed** | 14 | 270 | 270 |
 | **M1.5** | ACP agent panel and controls | 4 | 44 | 0 |
 | **M2** | Workspace | 3 | 57 | 0 |
@@ -36,7 +37,7 @@ of those blocks the shell or the other twelve screens. It can run alongside M0.
 | **M6** | Automation and discoverability | 3 | 46 | 0 |
 | **M7** | Forge providers | 4 | 78 | 0 |
 | **M8** | Marketplace installer | 1 | 11 | 0 |
-| | | **63** | **1393** | **772** |
+| | | **74** | **1731** | **772** |
 
 ---
 
@@ -237,6 +238,48 @@ below; it is short and it is load-bearing.
 - [x] **[desktop-workshop-runtime](.specs/desktop-workshop-runtime/spec.md)** · 53 tasks · **complete** · [tasks](.specs/desktop-workshop-runtime/tasks.md)
   Build Providers, Minisign tool verification, adapter-gated harness routing, and Workflow Governance.
   *Depends on:* `desktop-application-shell`, `theme-system`
+
+## M0.7 — Current desktop mockup reconciliation
+
+11 features · 338 tasks
+
+The current desktop reference is `docs/UI mockups for PLAN.md/Locus v2.dc.html` plus
+`AgentPanel.dc.html`; `docs/UI_MOCKUP_REVIEW.md` is its reviewed contract. These revision specs supersede conflicting screen contracts without rewriting M0.6's
+historical completion record.
+
+- [ ] **[analytics-revision](.specs/analytics-revision/spec.md)** · 34 tasks · [tasks](.specs/analytics-revision/tasks.md)
+  The global and project-scoped Analytics overview, and its queryable Telemetry sub-tab over normalized events.
+  *Depends on:* `design-revision`, `shell-revision`, `telemetry`
+- [ ] **[design-revision](.specs/design-revision/spec.md)** · 14 tasks · [tasks](.specs/design-revision/tasks.md)
+  The current visual authority, vocabulary, view inventory, and reconciliation decisions that every other M0.7 feature inherits.
+  *Depends on:* M0.6 (`design-desktop`)
+- [ ] **[dispatch-revision](.specs/dispatch-revision/spec.md)** · 42 tasks · [tasks](.specs/dispatch-revision/tasks.md)
+  Dispatch's Autorun, Schedules, Runs, and Settings → Guardrails contracts over the durable queue.
+  *Depends on:* `design-revision`, `shell-revision`, `setup-revision`
+- [ ] **[interact-sessions](.specs/interact-sessions/spec.md)** · 24 tasks · [tasks](.specs/interact-sessions/tasks.md)
+  Board-less sessions: `open`, `promoted`, and `discarded`, with commit-to-branch and discard semantics.
+  *Depends on:* `design-revision`, `shell-revision`, `agent-interface`
+- [ ] **[knowledge-revision](.specs/knowledge-revision/spec.md)** · 38 tasks · [tasks](.specs/knowledge-revision/tasks.md)
+  Current Memory, Wiki, Artifacts, and Mail screens, including curated fact revisions and contradiction handling.
+  *Depends on:* `design-revision`, `shell-revision`
+- [ ] **[manage-revision](.specs/manage-revision/spec.md)** · 29 tasks · [tasks](.specs/manage-revision/tasks.md)
+  Manage's Kanban, List, Graph, and Timeline views over task and session projections.
+  *Depends on:* `design-revision`, `shell-revision`, `plan-revision`
+- [ ] **[plan-revision](.specs/plan-revision/spec.md)** · 34 tasks · [tasks](.specs/plan-revision/tasks.md)
+  The seven-stage Plan pipeline, stable requirements, and card decomposition routing controls.
+  *Depends on:* `design-revision`, `shell-revision`
+- [ ] **[review-qa](.specs/review-qa/spec.md)** · 23 tasks · [tasks](.specs/review-qa/tasks.md)
+  Scheduled or manual QA aggregation of tests, linters, LSP diagnostics, and agent reviews.
+  *Depends on:* `design-revision`, `shell-revision`
+- [ ] **[setup-revision](.specs/setup-revision/spec.md)** · 28 tasks · [tasks](.specs/setup-revision/tasks.md)
+  Project Settings, Persistence, and scoped Analytics with ordered harnesses, repo reassignment, and extension/tool controls.
+  *Depends on:* `design-revision`, `shell-revision`
+- [ ] **[shell-revision](.specs/shell-revision/spec.md)** · 32 tasks · [tasks](.specs/shell-revision/tasks.md)
+  The project/cross-project rail, title-bar Dispatch and Inbox pills, locator palette, merge modal, and Inbox.
+  *Depends on:* `design-revision`
+- [ ] **[workshop-revision](.specs/workshop-revision/spec.md)** · 40 tasks · [tasks](.specs/workshop-revision/tasks.md)
+  The shared extension editor and the Harnesses, Providers, CLI, and Workflows contracts.
+  *Depends on:* `design-revision`, `shell-revision`, `setup-revision`
 
 ## M1 — Core runtime
 
