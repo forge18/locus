@@ -2,31 +2,25 @@ import { For, type JSX } from 'solid-js'
 import { Button } from '../../ui/Button'
 import { Tag } from '../../ui/Tag'
 import { ARTIFACT_LOCATOR } from '../../data/artifacts'
+import {
+  COMPACTED_CONTEXT,
+  CURATION_COPY,
+  LONG_TERM_FACTS,
+  RESIDENT_LAYERS,
+  SHORT_TERM_COPY,
+  WIKI_CONTRADICTION_COPY,
+  WIKI_GRAPH_COPY,
+  WIKI_INGEST_COPY,
+  WIKI_KIND_CHIPS,
+} from '../../data/knowledge'
+import { MailView } from '../mail/MailView'
 
-const resident = [
-  ['base-context', '14%', '1.2k', 'cached'],
-  ['rules in scope', '9%', '0.8k', 'cached'],
-  ['skills loaded', '21%', '1.8k', 'cached'],
-  ['the live plan', '7%', '0.6k', 're-read'],
-  ['recalled facts', '11%', '0.9k', '4 from long-term'],
-  ['tool results', '76%', '31.4k', 'volatile'],
-  ['assistant turns', '11%', '4.5k', 'volatile'],
-] as const
 
 const sessions = [
   ['tapestry · builder@4', 'r-9f21 · iteration 3 · 41.2k resident'],
   ['weaver · builder@4', '102.3k · near the ceiling'],
   ['loom-db · builder@4', '88.6k resident'],
   ['loom-db · auditor@2', '9.4k · fresh context by design'],
-] as const
-
-const facts = [
-  ['NOTIFY payload caps at 8000 bytes', '0.94', 'verified · recalled 31×'],
-  ['Partition key must be in the primary key', '0.88', 'verified · recalled 12×'],
-  ['AppKit eats the cmd-chord before JS sees it', '0.61', 'asserted · recalled 4×'],
-  ['Port range is 43000–43999', '—', 'contradicted'],
-  ['sqlx offline mode needs a prepared cache', '0.44', 'decaying · last recall 19d'],
-  ['Verify runs in a fresh container, never the agent’s', '0.91', 'verified · recalled 22×'],
 ] as const
 
 const artifacts = [
@@ -53,12 +47,12 @@ function Label(props: { children: string }) {
 function FactList() {
   return (
     <div class="desktop-memory-list" aria-label="Memory facts">
-      <For each={facts}>
-        {([title, confidence, status], index) => (
-          <div class="desktop-memory-list-item" data-selected={index() === 0 ? 'true' : undefined}>
-            <div>{title}</div>
-            <small class={status === 'contradicted' ? 'desktop-memory-bad' : ''}>
-              <span>{confidence}</span> {status}
+      <For each={LONG_TERM_FACTS}>
+        {(fact, index) => (
+          <div class="desktop-memory-list-item" data-selected={index() === 0 ? 'true' : undefined} data-confidence={fact.confidence}>
+            <div>{fact.title}</div>
+            <small class={fact.confidence === 'contradicted' ? 'desktop-memory-bad' : ''}>
+              <span>{fact.score === null ? '—' : fact.score.toFixed(2)}</span> {fact.confidence} · {fact.recall}
             </small>
           </div>
         )}
@@ -82,7 +76,7 @@ export function MemoryShortTermFixture() {
       <aside class="desktop-memory-left">
         <header class="desktop-memory-pane-head">
           <h1>Short-term</h1>
-          <p>The context window. Nothing here is stored — it is rebuilt from scratch every iteration.</p>
+          <p>{SHORT_TERM_COPY.intro}</p>
         </header>
         <div class="desktop-memory-list" aria-label="Active contexts">
           <For each={sessions}>
@@ -108,32 +102,30 @@ export function MemoryShortTermFixture() {
         <div class="desktop-memory-scroll">
           <section>
             <Label>Resident now</Label>
-            <p class="desktop-memory-note">in prefix order — the order is the cache, so it never varies</p>
+            <p class="desktop-memory-note">{SHORT_TERM_COPY.residentNote}</p>
             <div class="desktop-memory-rows">
-              <For each={resident}>
-                {([name, width, amount, state]) => (
-                  <div class="desktop-memory-row">
-                    <span>{name}</span>
-                    <span class="desktop-memory-bar"><span style={{ width }} /></span>
-                    <code>{amount}</code>
-                    <small>{state}</small>
+              <For each={RESIDENT_LAYERS}>
+                {(layer) => (
+                  <div class="desktop-memory-row" data-resident-tag={layer.tag}>
+                    <span>{layer.name}</span>
+                    <span class="desktop-memory-bar"><span style={{ width: layer.percent }} /></span>
+                    <code>{layer.size}</code>
+                    <small>{layer.tag}</small>
                   </div>
                 )}
               </For>
             </div>
-            <p class="desktop-memory-copy">
-              Four fifths of the window is tool output. Everything authored stays under 4k, which keeps the prefix cached.
-            </p>
+            <p class="desktop-memory-copy">{SHORT_TERM_COPY.residentReading}</p>
           </section>
           <section>
             <Label>Compacted out</Label>
-            <p class="desktop-memory-note">written to an artifact, replaced by one line naming it</p>
+            <p class="desktop-memory-note">{SHORT_TERM_COPY.compactedNote}</p>
             <ul class="desktop-memory-compacted">
-              <li><code>web_fetch</code> agentclientprotocol.com/protocol <span>62.4kB → a-7802</span></li>
-              <li><code>bash</code> cargo build — full output <span>18.1kB → a-7811</span></li>
-              <li><code>read_file</code> store/mod.rs — whole file <span>9.7kB → a-7815</span></li>
+              <For each={COMPACTED_CONTEXT}>
+                {(item) => <li data-artifact-id={item.artifactId}><code>{item.tool}</code> {item.description} <span>{item.size} → {item.artifactId}</span></li>}
+              </For>
             </ul>
-            <p class="desktop-memory-copy">Nothing is lost, only moved: short-term drops it and an artifact can fetch it again by name.</p>
+            <p class="desktop-memory-copy">{SHORT_TERM_COPY.compactedReading}</p>
           </section>
         </div>
       </section>
@@ -142,7 +134,7 @@ export function MemoryShortTermFixture() {
         <section class="desktop-memory-side-card">
           <Label>Prefix cache</Label>
           <strong>84%</strong> <span>read today</span>
-          <p>Stable while the materialized tree is stable. A reordered extension invalidates the prefix for every run that follows.</p>
+          <p>{SHORT_TERM_COPY.cacheNote}</p>
         </section>
         <section class="desktop-memory-side-card">
           <Label>What survives the iteration</Label>
@@ -150,7 +142,7 @@ export function MemoryShortTermFixture() {
             <li>Facts written to long-term</li>
             <li>Anything put as an artifact</li>
             <li>The plan, and its checked steps</li>
-            <li class="desktop-memory-bad">Everything else, including the reasoning</li>
+            <li class="desktop-memory-bad">{SHORT_TERM_COPY.survivesReasoning}</li>
           </ul>
         </section>
         <section class="desktop-memory-side-card">
@@ -200,7 +192,14 @@ export function MemoryLongTermFixture() {
             </div>
             <p class="desktop-memory-note">asserted 0.38 → verified 0.94 · the jump is the verify, not repetition</p>
           </section>
-          <p class="desktop-memory-callout">Editing this makes it yours, not the agent’s. The page keeps both the fact and the correction.</p>
+          <section class="desktop-memory-callout" data-testid="memory-curation">
+            <p>{CURATION_COPY}</p>
+            <div class="desktop-memory-revisions" aria-label="Fact revisions">
+              <span data-revision="1">Written fact · revision 1 · unchanged</span>
+              <span data-revision="2">Your correction · revision 2 · recalled now</span>
+            </div>
+            <Button data-testid="edit-recalled-fact">Edit recalled fact</Button>
+          </section>
         </div>
       </section>
 
@@ -246,14 +245,22 @@ export function MemoryArtifactsFixture() {
 }
 
 /** Curated wiki prose remains separate from agent recall. */
+export function MemoryMailFixture() {
+  return <MailView />
+}
+
 export function MemoryWikiFixture() {
   return (
     <MemoryFrame testId="desktop-memory-wiki" route="memory-wiki" wikiFixture="typed-page" wikiViewer="outline-links-provenance-graph">
       <aside class="desktop-memory-left">
         <header class="desktop-memory-pane-head"><h1>All <code>153</code></h1><p>Curated project knowledge derived from sources, then reviewed by people.</p><Button variant="primary" block>Ingest a document</Button></header>
-        <div class="desktop-memory-kinds"><span>All 153</span><span>Decisions 14</span><span>Concepts 31</span><span>Entities 42</span></div>
+        <div class="desktop-memory-kinds" aria-label="Wiki kinds">
+          <For each={WIKI_KIND_CHIPS}>
+            {(chip) => <button type="button" data-kind={chip.kind}>{chip.label} {chip.count}</button>}
+          </For>
+        </div>
         <div class="desktop-memory-list"><For each={pages}>{(page, index) => <div class="desktop-memory-list-item" data-selected={index() === 1 ? 'true' : undefined}>{page}</div>}</For></div>
-        <footer class="desktop-memory-pane-foot">Derived, then curated — a path or a URL, never a blank page.</footer>
+        <footer class="desktop-memory-pane-foot">{WIKI_INGEST_COPY}</footer>
       </aside>
       <section class="desktop-memory-main">
         <header class="desktop-memory-title-row desktop-memory-stacked"><div><Tag>decision</Tag><h2>Clone from a local bare remote, never a mount</h2></div><p>locus://tapestry/page/clone-not-mount · rev 7 · 3 assertions · 2 sources</p></header>
@@ -262,12 +269,16 @@ export function MemoryWikiFixture() {
           <p>Isolation is real because the working copy was never there to escape into. Reviewing the work stays ordinary git, so Locus stays out of your editor and merge tool.</p>
           <p>Cost, stated: clones take disk and time, mitigated by <code>git clone --reference</code> against a shared object store.</p>
           <Label>Links out</Label><p class="desktop-memory-links">[[bare local remote]] [[locus-agent container]] [[git invariant: never main]]</p>
+          <Label>Kind definitions</Label>
+          <dl class="desktop-memory-definitions">
+            <For each={WIKI_KIND_CHIPS}>{(chip) => <><dt>{chip.label}</dt><dd>{chip.definition}</dd></>}</For>
+          </dl>
           <Label>Provenance</Label><p>PLAN.md — “The git model — a local remote, not shared worktrees”, ingested 4d ago</p><p>PR #491 body — repo manager, merge-back path</p>
         </article>
       </section>
       <aside class="desktop-memory-right">
-        <section class="desktop-memory-side-card"><Label>Graph</Label><div class="desktop-memory-graph" aria-label="Wiki links graph"><span>bare remote</span><strong>clone-not-mount</strong><span>locusd</span><span>determinism</span></div><p>Pages are nodes, wikilinks are edges — the canvas renderer, repointed.</p></section>
-        <section class="desktop-memory-side-card"><Label>Contradictions</Label><p>Port range disagrees across two sources.</p><p><code>43000–43999</code> — PLAN.md<br /><code>44000–44999</code> — ADR-007</p><Button variant="primary">Adjudicate</Button> <Button>Board card</Button></section>
+        <section class="desktop-memory-side-card"><Label>Graph</Label><div class="desktop-memory-graph" aria-label="Wiki links graph"><span>bare remote</span><strong>clone-not-mount</strong><span>locusd</span><span>determinism</span></div><p>{WIKI_GRAPH_COPY}</p></section>
+        <section class="desktop-memory-side-card" data-contradiction-timing="ingest"><Label>Contradictions</Label><p>{WIKI_CONTRADICTION_COPY}</p><p>Port range disagrees across two sources.</p><p><code>43000–43999</code> — PLAN.md<br /><code>44000–44999</code> — ADR-007</p><Button variant="primary">Adjudicate</Button> <Button>Board card</Button></section>
         <section class="desktop-memory-side-card"><Label>locus wiki lint</Label><p>2 orphan pages — credential broker, canary token</p><p>1 broken link — <code>[[egress tiers]]</code></p><p class="desktop-memory-ok">153 pages otherwise clean</p><p>The wiki is curated prose a human reads. Memory is what an agent recalls — they share pgvector and nothing else.</p></section>
       </aside>
     </MemoryFrame>

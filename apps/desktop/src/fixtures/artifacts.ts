@@ -70,6 +70,47 @@ export const ARTIFACTS: Artifact[] = [
   },
 ]
 
+// Compaction handles are first-class artifacts: short-term can drop a result
+// without making it unreachable from a later entry point.
+ARTIFACTS.push(
+  {
+    id: 'a-7802',
+    runId: 'r-9f21',
+    kind: 'payload',
+    title: 'agentclientprotocol.com/protocol',
+    body: null,
+    blobPath: null,
+    mediaType: 'text/plain',
+    sha256: '7802',
+    derivedText: 'Compacted web_fetch result for agentclientprotocol.com/protocol.',
+    createdAt: '2026-08-20T14:20:00Z',
+  },
+  {
+    id: 'a-7811',
+    runId: 'r-9f21',
+    kind: 'log',
+    title: 'cargo build — full output',
+    body: null,
+    blobPath: null,
+    mediaType: 'text/plain',
+    sha256: '7811',
+    derivedText: 'Compacted cargo build output.',
+    createdAt: '2026-08-20T14:21:00Z',
+  },
+  {
+    id: 'a-7815',
+    runId: 'r-9f21',
+    kind: 'payload',
+    title: 'store/mod.rs — whole file',
+    body: null,
+    blobPath: null,
+    mediaType: 'text/plain',
+    sha256: '7815',
+    derivedText: 'Compacted read_file result for store/mod.rs.',
+    createdAt: '2026-08-20T14:22:00Z',
+  },
+)
+
 export const SELECTED_ARTIFACT_ID = 'a-1'
 
 export const ARTIFACT_LOCATOR = 'locus://tapestry/artifact/a-1'
