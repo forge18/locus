@@ -3,7 +3,7 @@
 | # | Task | Deps | verify |
 | --- | --- | --- | --- |
 | 1 | TOML schema types for `[launch]`, `[telemetry]`, `[models]`, `[layout]`, `[config]`, `[auth]` | — | `cargo test -p locus-core registry::schema_parses` |
-| 2 | Loader reading `harnesses/*.toml` and `harnesses/*/`-with-a-plugin | 1 | `cargo test -p locus-core registry::loads_all_twelve` |
+| 2 | Loader reading the Pi descriptor and trusted user-plugin descriptors | 1 | `cargo test -p locus-core registry::loads_first_party_and_user_plugin` |
 | 3 | Validate: all eight extensions declared | 2 | `cargo test -p locus-core registry::rejects_missing_extension` |
 | 4 | Validate: `via` strategy is one of the six known | 2 | `cargo test -p locus-core registry::rejects_unknown_strategy` |
 | 5 | Validate: `tui = true` refused at registration | 2 | `cargo test -p locus-core registry::rejects_tui_true` |
@@ -18,5 +18,5 @@
 | 14 | Unset tier passes no `flag` and the run still starts | 11 | `cargo test -p locus-core models::unset_uses_harness_default` |
 | 15 | Record the resolved model id on the run row | 12 | `cargo test -p locus-core models::resolved_id_on_run` |
 | 16 | `list_argv` discovery, with free text where absent | 11 | `cargo test -p locus-core models::list_argv_discovery` |
-| 17 | Settings → Harnesses grid reading 11-16 over IPC | 16 | `pnpm -C apps/desktop test -- settings/harness-tiers` |
-| 18 | Compute the registry-wide entry and downgrade counts the UI reads | 2,7 | `cargo test -p locus-core registry::counts_are_96_and_33` |
+| 17 | Settings → Harnesses grid reading 11-16 over IPC for registered plugins | 16 | `pnpm -C apps/desktop test -- settings/harness-tiers` |
+| 18 | Compute registry-wide entry and downgrade counts for registered plugins | 2,7 | `cargo test -p locus-core registry::counts_are_dynamic` |

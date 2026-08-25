@@ -4,23 +4,28 @@
 
 ## Purpose
 
-Load `harnesses/*`, validate them, and resolve a model tier into an actual model. This is where
-PLAN.md's first carried-over rule lives: **nothing in core names a harness.** Adding one is a TOML
-file, plus a materializer plugin only where that harness's config is code.
+Load first-party and user-supplied harness plugin descriptors, validate them, and resolve a model tier
+into an actual model. This is where PLAN.md's first carried-over rule lives: **nothing in core names a
+harness**. Adding one is a trusted plugin manifest and executable, plus a materializer capability where
+that harness's config is code.
 
-The eleven TOMLs are already written. This feature is the loader, the validator, and the tier policy.
-(`hermes` was removed from the set: ACP-only support, and it ships no first-class ACP mode.)
+The only first-party harness is `pi`. Other harnesses are user plugins, not built-in integrations. The
+registry remains generic so a user-written harness can declare its own launch, ACP, layout, and optional
+capabilities without a core source change.
 
 ## Governed by
 
-- PLAN.md §Harness contract — every entry complete, nothing inherited
+- PLAN.md §Harness contract — every plugin entry complete, nothing inherited
+- PLAN.md §Plugins — common JSON-RPC capability contract
 - PLAN.md §Model routing — mechanism in the file, policy in the UI
 - PLAN.md §Containers — the registry enforces `tui = false`, not the harness
 
 ## Contract
 
-**Schema.** `name`, `binary`, `detect`, `[launch]`, `[telemetry]`, `[models]`, `[layout]`, and where
-present `[config]` and `[auth]`.
+**Descriptor schema.** A plugin manifest supplies the common identity and capability envelope. The
+harness descriptor supplies `name`, `binary`, `detect`, `[launch]`, `[telemetry]`, `[models]`, `[layout]`,
+and where present `[config]` and `[auth]`. Descriptor fields are data; launch/session/materialization
+behavior is exposed through the harness plugin's namespaced capabilities.
 
 **`[layout]` must declare all eight extensions.** An omitted extension is refused — PLAN.md names the
 worst failure as a file present, plausible, and loaded by nobody, and an undeclared extension is how a
@@ -55,19 +60,22 @@ a tier means is a setting.
 
 ## Acceptance
 
-1. All eleven TOMLs load and pass `locus harness lint`.
+1. The first-party `pi` descriptor and a user-plugin fixture load and pass `locus harness lint`.
 2. A file with an omitted extension is refused, with a message naming the extension.
 3. A file with `tui = true` is refused at registration.
 4. A downgrade without `weaker_than_native` is refused.
 5. `grep -rn` over `crates/locus-core/src` finds **no harness name** outside the registry loader's
-   tests and fixtures.
+tests and fixtures; adding a user harness requires no new core match.
 6. Tier resolution falls back up; a test asserts `xhigh → high` and that no path ever falls down.
 7. An unset tier passes no `flag`, and the run still starts.
 8. The resolved model id lands on the run row.
 9. `list_argv` populates the tier combobox; a harness without it accepts free text.
+10. Pi is the only first-party harness; a non-Pi descriptor is classified as a user plugin and never
+    silently added to the built-in catalog.
 
 ## Open
 
-- `dsh` is UNVERIFIED against a running binary and its file says so. Confirming it is Spike 1's
-  other half; until then the registry loads it and the lint passes on declaration alone. `hermes` was
-  removed under ACP-only for having no first-class ACP mode.
+- The exact trust-store UX for user harness plugins is owned by `workshop-plugins` and the marketplace
+  installer. The registry only loads trusted descriptors.
+- User harnesses may use native ACP, an ACP adapter, or a materializer capability; the minimum required
+  session capability and optional capability negotiation are defined in `workshop-plugins`.

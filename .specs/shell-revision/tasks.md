@@ -19,7 +19,7 @@
 | 15 | Render the Setup / Plan / Manage / Interact / Review project links | 12 | `pnpm -C apps/desktop test -- shell/project-rail-links` |
 | 16 | Render the Analytics and Settings Cross-Project links | 12 | `pnpm -C apps/desktop test -- shell/global-rail-items` |
 | 17 | Add the Memory expander — Short-term, Long-term, Artifacts, Wiki | 12 | `pnpm -C apps/desktop test -- shell/memory-expander` |
-| 18 | Add the Workshop expander — eleven items, Agents first | 12 | `pnpm -C apps/desktop test -- shell/workshop-expander` |
+| 18 | Add the Workshop expander with Plugins and Extensions subgroups | 12 | `pnpm -C apps/desktop test -- shell/workshop-expander` |
 | 19 | Persist rail expansion state across restart | 17,18 | `pnpm -C apps/desktop test -- shell/rail-expansion-persists` |
 | 20 | Route every rail category to its landing view on first click | 15,16,17,18 | `pnpm -C apps/desktop test -- nav/category-landing-view` |
 | 21 | Assert Dispatch and Inbox views are unreachable from the rail | 20 | `pnpm -C apps/desktop test -- nav/pill-only-views` |

@@ -13,6 +13,6 @@
 | 9 | Move Goal off the canvas in `PLAN.md` and `.specs/workflow-canvas` | 8 | `! grep -qi "goal.*node\|node.*goal" PLAN.md .specs/workflow-canvas/spec.md` |
 | 10 | Reconcile `PLAN.md` §Credentials and the ADR with Providers | 9 | `grep -q "keychain_reference" PLAN.md` |
 | 11 | Correct the downgrade count in `PLAN.md` to the registry value | 10 | `cargo test -p locus-core --lib harness::registry` |
-| 12 | Correct the harness count in `PLAN.md` and `AGENTS.md` to eleven | 11 | `! grep -q "twelve harnesses" PLAN.md AGENTS.md` |
-| 13 | Add the M0.7 milestone and its eleven feature rows to `TODO.md` | 12 | `grep -q "^## M0.7" TODO.md` |
+| 12 | Replace the fixed harness roster with Pi plus trusted user plugins | 11 | `grep -q "first-party.*Pi\|Pi.*first-party" PLAN.md .specs/harness-registry/spec.md` |
+| 13 | Add the M0.7 milestone and its feature rows to `TODO.md` | 12 | `grep -q "Workshop scope reduction" TODO.md` |
 | 14 | Add the M0.7 row to the `TODO.md` progress table and update the totals | 13 | `grep -qE '^\| \*\*M0\.7\*\*' TODO.md` |

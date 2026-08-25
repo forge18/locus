@@ -38,10 +38,9 @@ Three rules that make the guess cheap to correct:
 
 2. **One accessor per data set.** Screens never import a fixture directly; they call `useSessions()`,
    `useInboxItems()`, and so on. Swapping in `invoke` is one edit inside the accessor.
-3. **Two fixture sets are computed, not authored.** Workshop Harnesses and Workshop Extensions read
-   `harnesses/*.toml` at build time. Those two screens are therefore correct on the first day and stay
-   correct — and this is what fixes the stale "27 of 88" the handoff copy carries, without anyone
-   editing a number.
+3. **Two fixture sets are computed, not authored.** Workshop Plugins and Workshop Extensions read
+   the registry and trusted plugin manifests at build time. Those screens are therefore correct on the
+   first day and stay correct without anyone editing a number.
 
 **Events carry the real vocabulary.** Fixture event streams use only the twelve canonical verbs, and
 `usage` is `{input, output, cache_read, cache_write}` or **null** — never zero. PLAN.md is explicit
@@ -56,10 +55,10 @@ rather than presenting invented data as real.
 1. Every type in `src/types/` traces to a named schema in PLAN.md §Data model; none is screen-shaped.
 2. Every module in `src/fixtures/` has the two-line header naming its schema and its future command.
 3. No screen imports from `src/fixtures/` directly — only through an accessor.
-4. Harnesses and Extensions fixtures are generated from `harnesses/*.toml`; regenerating after adding a
-   harness changes the counts with no hand edit.
-5. Those two screens report **11 harnesses and 29 downgrades**, computed — not the handoff's literal
-   27 of 88.
+4. Plugins and Extensions fixtures are generated from the registry and trusted plugin manifests;
+   regenerating after adding a user plugin changes the counts with no hand edit.
+5. Those screens report the first-party Pi plugin plus any trusted user plugins, with counts computed —
+   never a hardcoded roster or downgrade total.
 6. Fixture event streams use only the twelve canonical verbs; a thirteenth fails the test.
 7. At least one fixture session has `usage: null` so the *unknown* path is exercised.
 

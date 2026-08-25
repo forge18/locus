@@ -55,8 +55,8 @@ Tray icon, count badge. Opens a quick-preview popover listing items that need a 
   per-project running/spend note, and a **+ New project** row; then the project-scoped categories
   **Setup, Plan, Manage, Interact, Review**.
 - **Cross-Project** — **Analytics, Memory, Settings, Workshop**. Memory expands to **Short-term,
-  Long-term, Artifacts, Wiki**. Workshop expands to **Agents, CLI, Commands, Harnesses, Hooks,
-  Linters, Output styles, Providers, Rules, Skills, Workflows**.
+  Long-term, Artifacts, Wiki**. Workshop expands into **Plugins** (CLI Tool, Harness, Provider) and
+  **Extensions** (Agents, Commands, Hooks, Linters, Output styles, Rules, Skills, Workflows).
 
 Retired project, task, metrics, and project-list labels never reappear as a rail label, route id,
 or fixture name in this or any feature this spec governs.

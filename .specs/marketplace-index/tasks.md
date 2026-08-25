@@ -16,4 +16,4 @@
 | 12 | `locus tools docs <name>` returning the full page on demand | 4 | `cargo test -p locus-cli tools::docs` |
 | 13 | Assert docs are injected only for allowlisted tools | 12 | `cargo test -p locus-core market::docs_only_when_allowlisted` |
 | 14 | Assert a non-allowlisted tool is unreachable even when indexed | 5 | `cargo test -p locus-core market::allowlist_is_a_boundary` |
-| 15 | Seed the index with the tools the agent CLI depends on | 4 | `cargo test -p locus-core market::seeded` |
+| 15 | Seed the built-in index with `gh`; core-image dependencies are not Workshop plugins | 4 | `cargo test -p locus-core market::seeded` |

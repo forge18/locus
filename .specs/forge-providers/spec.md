@@ -8,6 +8,10 @@ Connect Locus to GitHub, GitLab, Codeberg, Bitbucket Cloud, and Bitbucket Data C
 change requests, CI, and explicitly linked issues. Locus projects remain unrelated to provider project
 features.
 
+This is the remote-forge integration boundary, not a Workshop model-provider plugin. The Workshop
+provider roster (`openai`, `anthropic`, and `openrouter`) and its plugin contract are defined in
+`.specs/workshop-plugins/`; this feature's provider-neutral forge port remains separate.
+
 ## Governed by
 
 - PLAN.md §M7 — version control, CI/CD, and agent-authored PRs

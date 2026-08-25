@@ -28,12 +28,12 @@ Five panels, each with its own persistence root and footer copy; none of the fiv
   cannot route to it. Exactly one row carries the agent default, and it must already be in the
   allow-list. The allow-list is an **ordered** list, not a set: "enabled harnesses are offered to the
   router in the order listed; anything the router does not claim runs on the agent default." Add
-  harness draws only from harnesses configured in Workshop and not yet added here ("Configured in
-  Workshop, not yet added here."); the empty state for an already-complete table is "Every harness
+  harness draws only from harness plugins configured in Workshop → Plugins and not yet added here
+  ("Configured in Workshop → Plugins, not yet added here."); the empty state for an already-complete table is "Every harness
   with a working adapter is already here."; the empty state for the allow-list itself is "No
   harnesses here yet — unattended agents in this project have nothing to run on." The routing logic
-  named in the footer is authored once per harness, under Workshop → Harnesses — this panel only
-  toggles membership and order.
+  named in the footer is authored once per harness plugin, under Workshop → Plugins → Harness — this
+  panel only toggles membership and order.
 - **Repos.** A repo belongs to exactly one project. Reassigning a repo re-tags every run, artifact,
   and memory fact that came from it to the new project; the old project tag is kept on the historical
   record rather than overwritten, so history does not silently change project. Each row carries

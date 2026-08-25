@@ -32,12 +32,13 @@ callers.
 | `develop` | `develop` | Develop |
 | `board`, `tasks` | `automate` | Automate |
 | `telemetry`, `runs`, `artifact` | `review` | Review |
-| `extensions`, `agents`, `canvas`, `harnesses` | `workshop` | Workshop |
+| `extensions`, `agents`, `canvas`, `plugins` | `workshop` | Workshop |
 | `wiki` | `wiki` | Wiki |
 
 **Tabs per category** — Dashboard `[Inbox, Status]`; Automate `[Kanban, List]` **in that order**;
-Review `[Telemetry, Runs, Artifacts]`; Workshop `[Extensions, Workflow, Harnesses]`. Plan, Develop and
-Wiki have none.
+Review `[Telemetry, Runs, Artifacts]`; Workshop `[Extensions, Workflow, Plugins]`. Plugins groups
+CLI Tool, Harness, and Provider; Extensions groups the eight extension types and Workflows. Plan,
+Develop and Wiki have none.
 
 **Rail click lands on the category's first view:** Inbox→`inbox`, Automate→`board`, Review→`telemetry`,
 Workshop→`extensions`.

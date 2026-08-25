@@ -35,8 +35,8 @@ CI and cache rate is on the dashboard, so a regression shows up as a number rath
 nobody attributes.
 
 **Tests assert on the event stream.** Unit tests cover the pure parts; everything above them is "run
-this, assert these events appeared", which works identically across all eleven harnesses and needs no
-test-only instrumentation.
+this, assert these events appeared", which works identically across the first-party Pi harness and
+trusted user harness plugins and needs no test-only instrumentation.
 
 ## Acceptance
 
@@ -52,6 +52,6 @@ test-only instrumentation.
 
 ## Open
 
-- Whether CI runs the container-dependent tests on every push or on a schedule. Twelve harness smoke
-  tests each starting a container is not free, and the tradeoff is real — but skipping them silently is
-  the failure this feature exists to prevent, so the split has to be explicit either way.
+- Whether CI runs the container-dependent tests on every push or on a schedule. Each harness-plugin smoke
+test starts a container, so the tradeoff is real — but skipping them silently is the failure this feature
+exists to prevent, so the split has to be explicit either way.

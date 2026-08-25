@@ -6,7 +6,8 @@
 
 The resolver, not the installer. Agents need the *index* long before they need image baking: reading
 manifests to validate an agent's `tools` list and inject docs is cheap and lands here; baking and
-install land at M8.
+install land at M8. Workshop ships only the GitHub CLI (`gh`) as a first-party tool plugin; the index
+remains open to trusted user-authored tool plugins.
 
 The whole point is **just-in-time knowledge**: a one-line catalog per allowlisted tool, with the page
 arriving only when an agent asks.
@@ -19,14 +20,18 @@ arriving only when an agent asks.
 ## Contract
 
 A git repo of manifests, one per CLI:
+
 ```toml
-name    = "amq"
-summary = "File-backed message queue between agents"
-install = { brew = "amq", cargo = "agent-message-queue" }
-verify  = "amq --version"
-docs    = "docs/amq.md"
-caps    = ["agent-messaging"]
+name    = "gh"
+summary = "GitHub's official command-line interface"
+install = { brew = "gh" }
+verify  = "gh --version"
+docs    = "docs/gh.md"
+caps    = ["source-control", "github"]
 ```
+
+User-authored manifests use the same schema and trust boundary. A manifest is not first-party merely
+because it parses; only `gh` is seeded in the built-in catalog.
 
 **Until M8 the index is a local directory of manifests**, read from disk. Where it is hosted, how it is
 pinned, and who is trusted to publish are questions the installer makes real and the resolver does not.
@@ -54,7 +59,8 @@ would be measured against.
 
 ## Acceptance
 
-1. Manifests parse from a local directory and validate against the schema.
+1. The built-in manifest parses as `gh`; trusted user manifests parse from a local directory and
+   validate against the same schema.
 2. An agent's `tools` list resolves against the index; an unresolvable name fails at save with the name.
 3. The injected catalog is **name plus one line only** — no flags, no examples, no schema.
 4. Catalog cost is measured: fifteen tools land near 225 tokens, asserted rather than assumed.

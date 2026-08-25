@@ -13,7 +13,7 @@
 | 9 | Reject a cross-project `memory.scope` | 1 | `cargo test -p locus-core agents::memory_scope_never_cross_project` |
 | 10 | Export to `.md` | 4 | `cargo test -p locus-core agents::export_md` |
 | 11 | Import round-trips to an identical definition | 10 | `cargo test -p locus-core agents::import_export_roundtrip` |
-| 12 | Materialize a definition into all eleven harness layouts | 4 | `cargo test -p locus-core agents::materializes_everywhere` |
+| 12 | Materialize a definition into the Pi layout and a trusted user harness layout | 4 | `cargo test -p locus-core agents::materializes_everywhere` |
 | 13 | Nesting bounds: depth 3, fan-out 4, enforced in core | 4 | `cargo test -p locus-core agents::nesting_bounds` |
 | 14 | A workflow may lower the bounds and never raise them | 13 | `cargo test -p locus-core agents::workflow_narrows_only` |
 | 15 | Seed the six definitions the UI draws: builder, reviewer, interviewer, researcher, auditor, keeper | 4 | `cargo test -p locus-core agents::seeded_six` |

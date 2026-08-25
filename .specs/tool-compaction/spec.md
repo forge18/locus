@@ -45,7 +45,7 @@ model call, no synchronous socket write, and the same 100ms discipline the memor
 
 ## Acceptance
 
-1. The hook materializes into all eleven harnesses and fires on tool calls in each.
+1. The hook materializes into the first-party Pi harness and trusted user harness plugins and fires on tool calls in each.
 2. A verbose command is rewritten before it runs, and the rewrite is visible in the event stream.
 3. A large result is compacted before reaching context, and the saving is measured — a test asserts a
    ratio, not merely that something happened.

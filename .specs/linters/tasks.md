@@ -5,7 +5,7 @@
 | 1 | Linter directory format: `<name>.sh` plus `<name>.md` | — | `cargo test -p locus-core lint::format` |
 | 2 | Refuse a `.sh` with no `.md`, naming the missing rule file | 1 | `cargo test -p locus-core lint::rule_file_required` |
 | 3 | Materialize into `/locus/config/linters/` via the `dir` strategy | 1 | `cargo test -p locus-core lint::materializes` |
-| 4 | Assert all eleven harnesses produce an identical linters tree | 3 | `cargo test -p locus-core lint::identical_across_harnesses` |
+| 4 | Assert Pi and a trusted user harness plugin produce an identical linters tree | 3 | `cargo test -p locus-core lint::identical_across_harnesses` |
 | 5 | Discovery and execution of every linter | 3 | `cargo test -p locus-cli lint::runs_all` |
 | 6 | `--only NAME` running exactly one | 5 | `cargo test -p locus-cli lint::only` |
 | 7 | `--changed` scoping to the run's diff | 5 | `cargo test -p locus-cli lint::changed` |

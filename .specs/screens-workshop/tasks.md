@@ -1,6 +1,6 @@
 # screens-workshop — tasks
 
-Every count on Extensions and Harnesses comes from `harnesses/*.toml` via the `fixtures` generator.
+Every count on Extensions and Plugins comes from the registry and trusted plugin manifests via the `fixtures` generator.
 A literal in the source is a bug, not a shortcut — task 6 and task 26 assert it.
 
 | # | Task | Deps | verify |
@@ -32,14 +32,14 @@ A literal in the source is a bug, not a shortcut — task 6 and task 26 assert i
 | 25 | Inspector: expression builder, compiled-expression card, operand chips | 18 | `pnpm -C apps/desktop test -- workflow/inspector` |
 | 26 | Assert operand chips come from the `Condition` operand list, with the Gate note | 25 | `pnpm -C apps/desktop test -- workflow/operands-are-columns` |
 | 27 | Guardrails block: two steppers, a toggle, idle, wall-clock, budget, the notes | 25 | `pnpm -C apps/desktop test -- workflow/guardrails` |
-| 28 | `<HarnessesView>` header, legend, and Register action | — | `pnpm -C apps/desktop test -- harnesses/header` |
-| 29 | 4-col card grid, one card per registered harness | 28 | `pnpm -C apps/desktop test -- harnesses/grid` |
-| 30 | Assert 11 cards render, from the registry | 29 | `pnpm -C apps/desktop test -- harnesses/eleven` |
-| 31 | Mechanism badges in their three variants | 29 | `pnpm -C apps/desktop test -- harnesses/mechanism-badges` |
-| 32 | 4-row model-tier grid with `high` in accent | 29 | `pnpm -C apps/desktop test -- harnesses/tier-grid` |
-| 33 | `↑ high` up-fallback marker; assert no down-fallback is ever rendered | 32 | `pnpm -C apps/desktop test -- harnesses/fallback-is-up` |
-| 34 | 8-segment capability bar colored per that harness's TOML | 29 | `pnpm -C apps/desktop test -- harnesses/capability-bar` |
-| 35 | Red hairline on heavily downgraded cards; `--bad` count at 4+ | 34 | `pnpm -C apps/desktop test -- harnesses/heavy-downgrade` |
-| 36 | Footer: computed downgrade line and the `tui = false` rule | 28 | `pnpm -C apps/desktop test -- harnesses/footer` |
-| 37 | Assert the footer reports 29 of 88, computed | 36 | `pnpm -C apps/desktop test -- harnesses/computed-29-of-88` |
-| 38 | Visual check against `screenshots/10`, `11`, `12`, `13` | 9,17,27,37 | `pnpm -C apps/desktop test -- visual -- extensions agents canvas harnesses` |
+| 28 | `<PluginsView>` header, subgroup legend, and Register action | — | `pnpm -C apps/desktop test -- plugins/header` |
+| 29 | 4-col card grid, one card per registered plugin | 28 | `pnpm -C apps/desktop test -- plugins/grid` |
+| 30 | Assert Pi and trusted user-plugin cards render, from the registry | 29 | `pnpm -C apps/desktop test -- plugins/dynamic-count` |
+| 31 | Mechanism badges in their three plugin-kind variants | 29 | `pnpm -C apps/desktop test -- plugins/mechanism-badges` |
+| 32 | 4-row model-tier grid with `high` in accent | 29 | `pnpm -C apps/desktop test -- plugins/tier-grid` |
+| 33 | `↑ high` up-fallback marker; assert no down-fallback is ever rendered | 32 | `pnpm -C apps/desktop test -- plugins/fallback-is-up` |
+| 34 | Capability bar colored per the registered plugin descriptor | 29 | `pnpm -C apps/desktop test -- plugins/capability-bar` |
+| 35 | Red hairline on heavily downgraded cards; `--bad` count at 4+ | 34 | `pnpm -C apps/desktop test -- plugins/heavy-downgrade` |
+| 36 | Footer: computed downgrade line and the `tui = false` rule | 28 | `pnpm -C apps/desktop test -- plugins/footer` |
+| 37 | Assert the footer reports dynamic registered-plugin counts, computed | 36 | `pnpm -C apps/desktop test -- plugins/computed-counts` |
+| 38 | Visual check against `screenshots/10`, `11`, `12`, `13` | 9,17,27,37 | `pnpm -C apps/desktop test -- visual -- extensions agents canvas plugins` |
