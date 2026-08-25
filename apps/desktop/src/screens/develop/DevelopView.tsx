@@ -1,4 +1,8 @@
 import { MergeEditor } from "../../editor/MergeEditor";
+import {
+      SearchView,
+      type DevelopSearchResult,
+} from "./SearchView";
 
 export interface DevelopGitState {
       branch: string;
@@ -13,12 +17,23 @@ export interface DevelopViewProps {
       agent?: string;
       /** Populated by the `repo_git_state` Tauri command for a real checkout. */
       gitState?: DevelopGitState;
+      searchResults?: readonly DevelopSearchResult[];
+      searchProject?: string;
+      onSearch?: (query: string) => void;
+      /** The editor host opens the ordinary checkout at this exact location. */
+      onOpenSearchResult?: (result: DevelopSearchResult) => void;
 }
 
 /** Develop's review surface is the real CodeMirror merge view, not a fixture diff. */
 export function DevelopView(props: DevelopViewProps) {
       return (
             <div class="develop" data-testid="develop-real-diff">
+                  <SearchView
+                        results={props.searchResults}
+                        project={props.searchProject}
+                        onSearch={props.onSearch}
+                        onOpenResult={props.onOpenSearchResult}
+                  />
                   <aside
                         class="develop-git-state"
                         data-testid="develop-git-from-core"

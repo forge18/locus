@@ -51,6 +51,9 @@ fn dispatch(arguments: &[String]) -> Result<()> {
         parse_assert_args(args).context("invalid browse assert arguments")?;
         return dispatch_assert(&runtime, &nonce, verb, args);
     }
+    if verb.verb == locus_core::runtime::daemon::AgentSocketVerb::LspSymbols {
+        sock::validate_symbols_args(args)?;
+    }
     let response = runtime.block_on(sock::dispatch(
         sock::DEFAULT_SOCKET_PATH,
         &nonce,

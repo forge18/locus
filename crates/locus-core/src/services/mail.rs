@@ -467,6 +467,15 @@ impl WaitingState {
             detail,
         }
     }
+
+    /// Marks a run as waiting while its debuggee is stopped at a breakpoint.
+    ///
+    /// A debug pause is deliberate work, not an absent event stream, so it must use the
+    /// shared waiting state rather than being represented as idle.
+    pub fn from_debug_breakpoint(run_id: RunId, detail: Value) -> Self {
+        Self::new(run_id, WaitReason::DebugPaused, detail)
+    }
+
     pub fn suppresses_idle(&self) -> bool {
         true
     }
@@ -783,5 +792,25 @@ mod waiting {
         assert_eq!(WaitReason::Mail.as_str(), "mail");
         assert_eq!(WaitReason::DebugPaused.as_str(), "debug-paused");
         assert_eq!(WaitReason::Gate.as_str(), "gate");
+    }
+}
+
+#[cfg(test)]
+mod guard {
+    use super::*;
+
+    #[test]
+    fn waiting_from_debug() {
+        let run_id = RunId::generate();
+        let state = WaitingState::from_debug_breakpoint(
+            run_id,
+            serde_json::json!({"file": "src/main.rs", "line": 42}),
+        );
+
+        assert_eq!(state.run_id, run_id);
+        assert_eq!(state.reason, WaitReason::DebugPaused);
+        assert_eq!(state.detail["line"], 42);
+        assert!(state.suppresses_idle());
+        assert!(!idle_guardrail_applies(Some(&state)));
     }
 }

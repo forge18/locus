@@ -24,6 +24,7 @@ pub mod ipc;
 pub mod repo;
 pub mod runtime;
 pub mod sandbox;
+pub mod search;
 pub mod services;
 pub mod store;
 #[cfg(any(test, feature = "testkit"))]

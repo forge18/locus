@@ -12,6 +12,7 @@ use std::{
 };
 
 use anyhow::{bail, Context, Result};
+use serde::Serialize;
 
 pub const DEFAULT_REMOTE_ROOT: &str = "/var/lib/locus/repos";
 
@@ -72,7 +73,7 @@ pub struct DiskMeasurement {
     pub clone_count: usize,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct GitState {
     pub branch: String,
     pub dirty: bool,

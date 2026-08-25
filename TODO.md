@@ -36,7 +36,7 @@ M1.5 surface can close. Rows 3–9 can proceed independently while that path is 
 | M6 | Automation and discoverability | 3 | 46 | queued |
 | M7 | Forge providers | 4 | 78 | queued |
 | M8 | Marketplace installer | 1 | 11 | queued |
-| **Total** | | **78** | **1,731** | **456 remaining** |
+| **Total** | | **78** | **1,731** | **428 remaining** |
 
 ## Settled foundations
 
@@ -102,14 +102,16 @@ planning and memory features.
 - [ ] **10. M2 — [lsp](.specs/lsp/spec.md)** · [tasks](.specs/lsp/tasks.md) · 24 tasks
   Shared LSP navigation, diagnostics, and semantic tokens.
   *Depends on:* `editor`
+  *Batch slice: CLI `lsp symbols` validation only. End-to-end routing is deferred; see `.specs/lsp/runtime-routing-note.md`.*
 
-- [ ] **11. M2 — [project-search](.specs/project-search/spec.md)** · [tasks](.specs/project-search/tasks.md) · 11 tasks
+- [x] **11. M2 — [project-search](.specs/project-search/spec.md)** · [tasks](.specs/project-search/tasks.md) · 11 tasks
   Search symbols and files across project repos.
   *Depends on:* `editor`
 
 - [ ] **12. M3 — [guardrails](.specs/guardrails/spec.md)** · [tasks](.specs/guardrails/tasks.md) · 23 tasks
   Safe idle detection, retry, reassignment, and gates.
   *Depends on:* `mail`
+  *Batch slice: debug-breakpoint waiting state only. Remaining guardrail tasks are deferred; see `.specs/guardrails/task-scope-note.md`.*
 
 - [ ] **13. M4 — [workflow-engine](.specs/workflow-engine/spec.md)** · [tasks](.specs/workflow-engine/tasks.md) · 30 tasks
   Execute governed workflow graphs.
@@ -122,6 +124,7 @@ planning and memory features.
 - [ ] **15. M3.5 — [media-artifacts](.specs/media-artifacts/spec.md)** · [tasks](.specs/media-artifacts/tasks.md) · 16 tasks
   OCR and keyframe derivation for model review.
   *Depends on:* `locus-browse`
+  *Batch slice complete except the open OCR-confidence default; explicit thresholds and fallback are implemented. See `.specs/media-artifacts/task-7-note.md`.*
 
 - [ ] **16. M3 — [handoffs](.specs/handoffs/spec.md)** · [tasks](.specs/handoffs/tasks.md) · 17 tasks
   Transfer ownership with a bounded handoff payload.

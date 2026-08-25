@@ -342,6 +342,16 @@ pub fn allowed_verb(arguments: &[String]) -> Result<(&'static VerbDispatch, &[St
         .ok_or_else(|| anyhow::anyhow!("command is not allowlisted: {}", arguments.join(" ")))
 }
 
+/// `textDocument/documentSymbol` needs the document it should inspect. Keep the CLI contract
+/// explicit while leaving symbol resolution and server capabilities in the daemon/client layer.
+pub fn validate_symbols_args(args: &[String]) -> anyhow::Result<()> {
+    match args {
+        [path] if !path.trim().is_empty() && !path.starts_with('-') => Ok(()),
+        [] => anyhow::bail!("locus lsp symbols requires a file path"),
+        _ => anyhow::bail!("locus lsp symbols accepts exactly one file path"),
+    }
+}
+
 #[derive(Debug)]
 pub enum DispatchError {
     Daemon {
@@ -603,6 +613,30 @@ async fn all_verbs_are_round_trips() {
 
     server.await.expect("server task completes");
     std::fs::remove_file(path).expect("remove test socket");
+}
+
+#[cfg(test)]
+mod lsp {
+    use super::{allowed_verb, validate_symbols_args, AgentSocketVerb};
+
+    #[test]
+    fn symbols_requires_one_file_path() {
+        let command = ["lsp".into(), "symbols".into(), "src/lib.rs".into()];
+        let (dispatch, args) = allowed_verb(&command).expect("symbols is allowlisted");
+        assert_eq!(dispatch.verb, AgentSocketVerb::LspSymbols);
+        validate_symbols_args(args).expect("file path is accepted");
+    }
+
+    #[test]
+    fn symbols_rejects_missing_or_ambiguous_path() {
+        for args in [
+            Vec::<String>::new(),
+            vec!["src/lib.rs".into(), "extra.rs".into()],
+            vec!["--all".into()],
+        ] {
+            assert!(validate_symbols_args(&args).is_err(), "accepted {args:?}");
+        }
+    }
 }
 
 #[cfg(test)]
