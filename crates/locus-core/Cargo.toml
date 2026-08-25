@@ -25,6 +25,7 @@ thiserror.workspace = true
 tracing.workspace = true
 toml.workspace = true
 agent-client-protocol.workspace = true
+image.workspace = true
 sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "migrate", "macros", "json", "derive", "uuid"] }
 tar = "0.4"
 time = { version = "0.3", features = ["formatting", "parsing"] }

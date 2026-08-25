@@ -217,6 +217,19 @@ mod artifact {
         assert_eq!(dispatch.verb, AgentSocketVerb::ArtifactComments);
         assert!(args.is_empty());
     }
+
+    #[test]
+    fn for_context() {
+        let command = [
+            "artifact".into(),
+            "get".into(),
+            "artifact-id".into(),
+            "--for-context".into(),
+        ];
+        let (dispatch, args) = sock::allowed_verb(&command).expect("artifact context route");
+        assert_eq!(dispatch.verb, AgentSocketVerb::ArtifactGet);
+        assert_eq!(args, ["artifact-id", "--for-context"]);
+    }
 }
 
 #[cfg(test)]

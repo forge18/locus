@@ -19,6 +19,7 @@ pub mod lint;
 pub mod mail;
 pub mod manage;
 pub mod market;
+pub mod media;
 pub mod memory;
 pub mod planning;
 pub mod project;
