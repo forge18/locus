@@ -94,6 +94,10 @@ pub const VERB_DISPATCHES: &[VerbDispatch] = &[
         verb: AgentSocketVerb::MailWait,
     },
     VerbDispatch {
+        command: &["task", "create"],
+        verb: AgentSocketVerb::TaskCreate,
+    },
+    VerbDispatch {
         command: &["task", "list"],
         verb: AgentSocketVerb::TaskList,
     },
@@ -384,9 +388,12 @@ pub fn validate_task_args(verb: AgentSocketVerb, args: &[String]) -> anyhow::Res
         Ok(())
     };
     match verb {
+        AgentSocketVerb::TaskCreate => {
+            required(1)?;
+        }
         AgentSocketVerb::TaskList => {
-            if args.iter().any(|arg| arg.starts_with("--")) {
-                anyhow::bail!("task list takes no options")
+            if !args.is_empty() {
+                anyhow::bail!("task list takes no arguments")
             }
         }
         AgentSocketVerb::TaskShow => {

@@ -42,6 +42,12 @@ export interface Task {
   tools: string
   /** Spend so far, or null where the harness reported none. */
   tokens: string | null
+  /** Selected workflow and owned execution summary, hydrated by Automate. */
+  workflowId?: string
+  rootSessionId?: string
+  childRunIds?: string[]
+  evidenceIds?: string[]
+  externalLink?: string | null
 }
 
 /** @schema board — a task that cannot start until another finishes. */

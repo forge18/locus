@@ -181,9 +181,10 @@ edges. Items 32–33 are intentionally last because they depend on later plannin
   *Depends on:* `workflow-canvas`
   *Completed:* six backend page kinds with hidden Overview, bounded MarkItDown ingest plans, auto entity/concept pages, wikilinks, overview revisions, embeddings/KNN/adjudication/contradictions, memory conflict and seed discovery, event/run attribution, stateless CLI validation, and shared graph rendering. Persistent pgvector execution remains Docker-dependent.
 
-- [ ] **23. M5 — [task-orchestration](.specs/task-orchestration/spec.md)** · [tasks](.specs/task-orchestration/tasks.md) · 18 tasks
+- [x] **23. M5 — [task-orchestration](.specs/task-orchestration/spec.md)** · [tasks](.specs/task-orchestration/tasks.md) · 18 tasks
   Make Automate task-centric.
   *Depends on:* `board` and `workflow-engine`
+  *Completed:* project-scoped workflow confirmation and root-session ownership, task-owned reset/child run trees, detail/control summaries, shared Kanban/List task locators and drafts, and running-strip links.
 
 - [ ] **24. M5 — [planning-module](.specs/planning-module/spec.md)** · [tasks](.specs/planning-module/tasks.md) · 40 tasks
   Guided planning with research, audit, and approval.

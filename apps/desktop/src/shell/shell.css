@@ -447,6 +447,11 @@
   font-size: var(--t-label);
   color: var(--text-muted);
 }
+.strip-task-link {
+  margin-right: var(--g-2);
+  color: var(--action-attention);
+  text-decoration: none;
+}
 .strip-card-stuck {
   border-color: var(--status-danger);
 }

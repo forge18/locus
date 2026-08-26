@@ -2,39 +2,109 @@ import { For, Show, createSignal } from "solid-js";
 import { Button } from "../../ui/Button";
 import { Segmented } from "../../ui/Segmented";
 import { Tag } from "../../ui/Tag";
-import { COLUMN_LABELS, COLUMN_ORDER, useTasksByColumn } from "../../data/board";
-import type { BoardColumn } from "../../types/board";
+import {
+  COLUMN_LABELS,
+  COLUMN_ORDER,
+  MANUAL_TASK_DRAFT,
+  taskLocator,
+  useDependencies,
+  useTasks,
+  useTasksByColumn,
+} from "../../data/board";
+import type { BoardColumn, Task } from "../../types/board";
 import "./manage.css";
 
 type ManageViewKind = "kanban" | "list" | "graph" | "timeline";
-const TASKS = [
-  {
-    id: "t-1184",
-    title: "Add normalized event query",
-    column: "Testing",
-    state: "verify: cargo test",
-    blocked: false,
-  },
-  {
-    id: "t-1185",
-    title: "Reconcile provider aliases",
-    column: "Reviewing",
-    state: "Gate: reviewer agent",
-    blocked: true,
-  },
-  {
-    id: "t-1186",
-    title: "Write QA adapter",
-    column: "In Progress",
-    state: "builder · 41.2k tokens",
-    blocked: false,
-  },
-];
+
+type DraftSource = "kanban" | "list";
+
+function taskStatus(task: Task): string {
+  if (task.status === "stuck") return `stuck · ${task.stuckIterations}/${task.maxIterations}`;
+  if (task.status === "blocked") return "blocked · dependency";
+  return task.assignee ? `${task.assignee} · ${task.tokens ?? "ready"}` : "unassigned";
+}
+
+function TaskDraft(props: { source: DraftSource; onClose: () => void }) {
+  return (
+    <section
+      class="manage-task-draft"
+      data-testid={`automate-create-task-${props.source}`}
+      data-draft-contract="manual-task"
+    >
+      <header>
+        <h2>New task</h2>
+        <span>manual task draft · workflow confirmation required</span>
+      </header>
+      <label>
+        Summary
+        <input placeholder="What should be done?" value={MANUAL_TASK_DRAFT.title} />
+      </label>
+      <p>
+        Workflow: <strong>select and confirm before start</strong>
+      </p>
+      <div>
+        <Button variant="primary">Create draft</Button>
+        <Button variant="ghost" onClick={props.onClose}>Cancel</Button>
+      </div>
+    </section>
+  );
+}
+
+function TaskDetail(props: { task: Task }) {
+  const task = props.task;
+  return (
+    <section
+      class="manage-task-detail"
+      data-testid="automate-task-detail"
+      data-task-locator={taskLocator(task)}
+    >
+      <header>
+        <div>
+          <span class="manage-detail-kicker">Task detail</span>
+          <h2>{task.title}</h2>
+        </div>
+        <code>{taskLocator(task)}</code>
+      </header>
+      <dl>
+        <div><dt>Workflow</dt><dd>{task.workflowId ?? "select and confirm before start"}</dd></div>
+        <div><dt>Root session</dt><dd>{task.rootSessionId ?? "not started"}</dd></div>
+        <div><dt>Workers</dt><dd>{task.childRunIds?.length ?? 0} child runs</dd></div>
+        <div><dt>Evidence</dt><dd>{task.evidenceIds?.length ?? 0} linked items</dd></div>
+      </dl>
+      <Show when={task.childRunIds?.length}>
+        <div class="manage-detail-runs" data-testid="automate-task-runs">
+          <strong>Run tree</strong>
+          <For each={task.childRunIds}>{(runId) => <code>{runId}</code>}</For>
+        </div>
+      </Show>
+      <div class="manage-detail-actions" data-testid="automate-task-controls">
+        <Button variant="secondary">Pause</Button>
+        <Button variant="secondary">Cancel</Button>
+        <Button variant="secondary">Hand off</Button>
+        <Button variant="ghost">Needs attention</Button>
+      </div>
+      <Show when={task.externalLink}>
+        <a href={task.externalLink!}>External work item</a>
+      </Show>
+    </section>
+  );
+}
 
 export function ManageView() {
   const [view, setView] = createSignal<ManageViewKind>("kanban");
   const [hideDone, setHideDone] = createSignal(false);
+  const [selectedTaskId, setSelectedTaskId] = createSignal<string | null>(null);
+  const [draftSource, setDraftSource] = createSignal<DraftSource>();
+  const tasks = useTasks();
   const tasksByColumn = useTasksByColumn();
+  const selectedTask = () =>
+    tasks.find((task) => task.id === selectedTaskId()) ?? tasks[0];
+  const openTask = (task: Task) => setSelectedTaskId(task.id);
+  const openDraft = () => {
+    const current = view();
+    if (current === "kanban" || current === "list") setDraftSource(current);
+  };
+
   return (
     <div class="manage-view" data-testid="manage" data-view={view()}>
       <header class="manage-toolbar">
@@ -51,14 +121,18 @@ export function ManageView() {
         />
         <div>
           <Button variant="secondary">Import task</Button>
-          <Button variant="primary">Add task</Button>
+          <Button variant="primary" onClick={openDraft}>Add task</Button>
         </div>
       </header>
+      <Show when={draftSource()}>
+        {(source) => <TaskDraft source={source()} onClose={() => setDraftSource(undefined)} />}
+      </Show>
+
       <Show when={view() === "kanban"}>
         <main class="manage-kanban">
           <header>
-            <h1>Manage</h1>
-            <span>n cards · 3 in flight per person</span>
+            <h1>Tasks</h1>
+            <span>{tasks.length} tasks · 3 in flight per person</span>
             <label>
               <input
                 type="checkbox"
@@ -68,31 +142,27 @@ export function ManageView() {
               Hide Done
             </label>
           </header>
-          <div class="manage-columns">
+          <div class="manage-columns" data-testid="automate-kanban-tasks">
             <For each={COLUMN_ORDER}>
               {(column: BoardColumn) => (
-                <section
-                  data-column={column}
-                  data-column-label={COLUMN_LABELS[column]}
-                >
-                  <h2>
-                    {COLUMN_LABELS[column]}{" "}
-                    <small>{tasksByColumn[column].length}</small>
-                  </h2>
+                <section data-column={column} data-column-label={COLUMN_LABELS[column]}>
+                  <h2>{COLUMN_LABELS[column]} <small>{tasksByColumn[column].length}</small></h2>
                   <For each={hideDone() && column === "done" ? [] : tasksByColumn[column]}>
                     {(task) => (
-                      <article
+                      <button
+                        type="button"
                         class="manage-task-card"
                         data-testid={`manage-task-${task.id}`}
+                        data-task-locator={taskLocator(task)}
+                        onClick={() => openTask(task)}
                       >
                         <strong>{task.title}</strong>
-                        <small>{task.assignee ?? "unassigned"} · {task.verifyCommand}</small>
+                        <small>{taskStatus(task)}</small>
+                        <small>{task.verifyCommand}</small>
                         <Show when={task.status !== "ok"}>
-                          <Tag variant="neutral">
-                            {task.status}
-                          </Tag>
+                          <Tag variant="neutral">{task.status}</Tag>
                         </Show>
-                      </article>
+                      </button>
                     )}
                   </For>
                 </section>
@@ -100,79 +170,78 @@ export function ManageView() {
             </For>
           </div>
           <footer class="manage-dwell">
-            The two slowest columns are the two that need a human. Agents are
-            not the constraint here — the median card spends thirty-eight
-            minutes being built and seventeen hours waiting to be looked at.
+            Blocked is a status, not a column. Dependencies clear automatically without moving a card.
           </footer>
         </main>
       </Show>
+
       <Show when={view() === "list"}>
         <main class="manage-list">
           <header>
-            <h1>Sessions</h1>
-            <span>Sorted by needs-attention, then activity.</span>
+            <h1>Tasks</h1>
+            <span>Same project-scoped task query as Kanban.</span>
           </header>
-          <section class="manage-session-detail">
-            <h2>Live</h2>
-            <p>
-              Iteration 3/8 · 2 tool errors against baseline · 41.2k tokens ·
-              last file write 2m ago
-            </p>
-            <div class="manage-guardrail">
-              <strong>
-                Guardrail — kill &amp; reassign after 3 stuck iterations
-              </strong>
-              <p>
-                Handoff drafted: 3 done, 2 remaining, 4 attempted, 1 open. The
-                successor reads the payload, never this transcript.
-              </p>
-              <Button variant="primary">Hand off to reviewer@2</Button>
-              <Button variant="secondary">Let it run</Button>
-            </div>
+          <section class="manage-task-list" data-testid="automate-list-tasks">
+            <For each={tasks}>
+              {(task) => (
+                <button
+                  type="button"
+                  class="manage-task-list-row"
+                  data-testid={`manage-list-task-${task.id}`}
+                  data-task-locator={taskLocator(task)}
+                  onClick={() => openTask(task)}
+                >
+                  <strong>{task.title}</strong>
+                  <span>{COLUMN_LABELS[task.column]}</span>
+                  <span>{taskStatus(task)}</span>
+                  <code>{task.verifyCommand}</code>
+                </button>
+              )}
+            </For>
           </section>
         </main>
       </Show>
+
       <Show when={view() === "graph"}>
         <main class="manage-graph">
           <h1>Dependency graph</h1>
           <p>Left to right is dependency depth, not time.</p>
           <div class="manage-graph-edges">
-            <span class="edge-grey">t-1184 ───▶ t-1185</span>
-            <span class="edge-amber">t-1186 ───▶ t-1185</span>
+            <For each={useDependencies()}>
+              {(edge) => <span class="edge-grey">{edge.fromTaskId} ───▶ {edge.toTaskId}</span>}
+            </For>
           </div>
           <aside>
             <h2>Unblocks most</h2>
-            <p>
-              Two of the four cards holding up the most work are waiting on a
-              human, not an agent — the same story the dwell chart tells.
-            </p>
+            <p>Workflow-generated dependencies are the only edge source.</p>
           </aside>
         </main>
       </Show>
+
       <Show when={view() === "timeline"}>
         <main class="manage-timeline">
           <h1>Timeline</h1>
-          <p>grouped by workflow · last 7 days</p>
+          <p>grouped by task · last 7 days</p>
           <div class="manage-axis">Mon · Tue · Wed · Thu · Fri · Sat · Sun</div>
-          <For each={TASKS}>
+          <For each={tasks}>
             {(task) => (
-              <div class="manage-swimlane">
+              <div class="manage-swimlane" data-task-locator={taskLocator(task)}>
                 <strong>{task.title}</strong>
                 <span class="timeline-segment ready" />
                 <span class="timeline-segment working" />
-                <span class="timeline-segment blocked">
-                  {task.column} · wall-clock
-                </span>
+                <span class="timeline-segment blocked">{COLUMN_LABELS[task.column]} · wall-clock</span>
               </div>
             )}
           </For>
-          <footer>
-            Bar length is wall-clock, not agent time. The widest bars are almost
-            entirely amber and slate.
-          </footer>
+          <footer>Bar length is wall-clock, not agent time.</footer>
         </main>
+      </Show>
+
+      <Show when={(view() === "kanban" || view() === "list") && selectedTask()}>
+        {(task) => <TaskDetail task={task()} />}
       </Show>
     </div>
   );
 }
+
 export default ManageView;

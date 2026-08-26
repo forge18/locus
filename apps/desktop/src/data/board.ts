@@ -12,6 +12,10 @@ export {
 } from '../fixtures/board'
 export type { BoardColumn, Task } from '../types/board'
 
+export function taskLocator(task: Pick<Task, 'projectId' | 'id'>): string {
+  return `locus://${task.projectId}/task/${task.id}`
+}
+
 /** Becomes: invoke("board_tasks") + emit("task_moved") */
 export function useTasks(): Task[] {
   return TASKS
@@ -30,6 +34,13 @@ export function useTasksByColumn(): Record<BoardColumn, Task[]> {
 /** Becomes: invoke("board_dependencies") */
 export function useDependencies(): DependencyEdge[] {
   return DEPENDENCIES
+}
+
+/** The one manual-creation shape shared by Kanban and List. */
+export const MANUAL_TASK_DRAFT = {
+  title: '',
+  workflowId: null as string | null,
+  confirmed: false,
 }
 
 /** Becomes: invoke("task_evidence", { taskId }) */
