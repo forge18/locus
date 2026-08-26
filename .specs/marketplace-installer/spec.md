@@ -6,7 +6,8 @@
 
 The half that puts tools in images. The index landed at M4 because agents need to *resolve* tools long
 before they need to *install* them; this is where an agent's `tools` list becomes something in a
-container.
+container. The only first-party Workshop CLI tool is `gh`; the installer remains the extension point for
+trusted user-authored CLI-tool plugins.
 
 ## Governed by
 
@@ -35,7 +36,8 @@ to have with the installer in front of us.
 
 ## Acceptance
 
-1. Adding a tool to an agent installs it in that agent's image, and `verify` confirms it.
+1. Adding `gh` or a trusted user-authored tool plugin to an agent installs it in that agent's image,
+   and `verify` confirms it.
 2. A failing `verify` fails the image build rather than producing an image with a missing tool.
 3. A tool not in the allowlist is **not present in the image** — asserted by looking, not by policy.
 4. Docs for an installed tool appear in the agent's context as a catalog line, with the body on demand.
@@ -43,6 +45,7 @@ to have with the installer in front of us.
 6. Changing one tool's pin rebuilds the image; changing the prose body does not.
 7. The hosting, pinning and trust model is decided and written down before the first non-local index is
    used.
+8. No CLI tool other than `gh` is presented as a first-party Workshop integration.
 
 ## Open
 

@@ -11,7 +11,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::runtime::session::{Run, RunStatus, Session};
+use crate::runtime::{
+    controls::PermissionPosture,
+    session::{Run, RunStatus, Session},
+};
 
 /// Per-project durable autorun posture. Suspension is distinct from a human turning it off.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -136,6 +139,20 @@ impl RunVerifyStatus {
             Self::NotConfigured => "n/a".into(),
             Self::Aborted => "aborted".into(),
         }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PermissionRequestDisposition {
+    Alarm,
+    WaitingHumanAction,
+}
+
+pub fn permission_request_disposition(posture: PermissionPosture) -> PermissionRequestDisposition {
+    if posture.is_gated() {
+        PermissionRequestDisposition::WaitingHumanAction
+    } else {
+        PermissionRequestDisposition::Alarm
     }
 }
 
@@ -701,6 +718,33 @@ pub fn select_to_start(
 }
 
 #[cfg(test)]
+mod permission_posture {
+    use super::*;
+
+    #[test]
+    fn bypass_is_the_default_posture() {
+        assert_eq!(PermissionPosture::default(), PermissionPosture::Bypass);
+    }
+}
+
+#[cfg(test)]
+mod gated_permission_request {
+    use super::*;
+
+    #[test]
+    fn gated_permission_request_is_waiting_human_action() {
+        assert_eq!(
+            permission_request_disposition(PermissionPosture::Gated),
+            PermissionRequestDisposition::WaitingHumanAction
+        );
+        assert_eq!(
+            permission_request_disposition(PermissionPosture::Bypass),
+            PermissionRequestDisposition::Alarm
+        );
+    }
+}
+
+#[cfg(test)]
 mod autorun {
     use super::*;
     use super::{
@@ -999,12 +1043,14 @@ mod preempts_at_boundary {
             memory_base: json!({"decision": "keep the migration additive"}),
             pane_state: json!({}),
             status: SessionStatus::Active,
+            handed_off_from: None,
         };
         let mut run = Run {
             id: RunId::generate(),
             session_id: session.id,
             resolved_model_id: "test-model".into(),
             status: RunStatus::Running,
+            permission_posture: Default::default(),
             events: vec![],
             usage: None,
             exit_code: None,
@@ -1479,25 +1525,40 @@ mod stop_all_restores {
         .execute(store.pool())
         .await
         .expect("insert workflow");
-        query(
-            "INSERT INTO workflows.executions (id, workflow_def_id, status)
-             VALUES ($1, $2, 'running')",
-        )
-        .bind(execution)
-        .bind(workflow)
-        .execute(store.pool())
-        .await
-        .expect("insert execution");
-        query(
-            "INSERT INTO workflows.iterations (id, execution_id, run_id, number, ended_at)
-             VALUES ($1, $2, $3, 1, now())",
-        )
-        .bind(Uuid::new_v4())
-        .bind(execution)
-        .bind(run)
-        .execute(store.pool())
-        .await
-        .expect("complete iteration");
+        store
+            .append_execution_entry(
+                project,
+                crate::services::workflow::ExecutionEntryPayload {
+                    execution_id: execution,
+                    workflow_def_id: workflow,
+                    schedule_id: None,
+                    status: "running".into(),
+                    scheduled_for: None,
+                    started_at: None,
+                    ended_at: None,
+                },
+                "system",
+            )
+            .await
+            .expect("append execution");
+        store
+            .append_iteration_entry(
+                project,
+                crate::services::workflow::IterationEntryPayload {
+                    iteration_id: Uuid::new_v4(),
+                    execution_id: execution,
+                    run_id: Some(run.as_uuid()),
+                    number: 1,
+                    arbiter_class: None,
+                    counts_toward_iteration_budget: true,
+                    started_at: None,
+                    ended_at: Some("now".into()),
+                },
+                "system",
+                None,
+            )
+            .await
+            .expect("append complete iteration");
 
         assert_eq!(
             store

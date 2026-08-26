@@ -1,7 +1,7 @@
 # screens-workshop
 
 > **Historical M0.5 contract.** Desktop expands Workshop and separates workflow Governance; new work
-> follows `.specs/design-desktop/spec.md`.
+> follows `.specs/workshop-revision/spec.md` and `.specs/workshop-plugins/spec.md`.
 
 **Milestone** M0.5 · **Depends on** `app-shell`, `navigation`, `fixtures` · Views `extensions`, `agents`, `canvas`, `harnesses`
 
@@ -11,8 +11,8 @@ Where the meta-harness lives. PLAN.md says this deserves a place rather than a s
 "authored once here, materialized fresh into every runtime" is the product's central claim — and the
 screen that makes the claim inspectable is the one that proves it.
 
-Tabs: `[Extensions, Workflow, Harnesses]`. **Agent definitions is a drill-down of Extensions, not a
-tab** — see `navigation`.
+Tabs: `[Extensions, Workflow, Plugins]`. **Agent definitions is a drill-down of Extensions, not a
+tab** — see `navigation`. Plugins contains CLI Tool, Harness, and Provider.
 
 ## Governed by
 
@@ -40,9 +40,8 @@ Below: `RECENTLY EDITED` (type `.tag-neutral` chip at min-width 82px, file, chan
 `MATERIALIZATION` card with an amber hairline: the byte-determinism note plus three figures — entries,
 downgrades, cache read.
 
-**Those figures are computed from `harnesses/*.toml`, never typed.** The handoff's own copy says
-88/27; the files say 88/29 (eleven harnesses). Anything hardcoded here is wrong the next time a harness
-is registered.
+**Those figures are computed from the registry and trusted plugin manifests, never typed.** Any
+hardcoded first-party roster or downgrade count is wrong the next time a user plugin is registered.
 
 ### Agent definitions (drill-down)
 
@@ -83,7 +82,7 @@ Three panes: **180px palette · 890px canvas · flexible inspector**.
 At M0.5 this is the layout and the inspector on fixture data. Real graph editing, compile, and the live
 overlay are `workflow-canvas` at M4, gated by Spike 3.
 
-### Harnesses
+### Plugins (historical Harnesses surface)
 
 Header: "Registered harnesses **12**" + "Mechanism lives in the file; policy lives here. Every harness
 has every capability — only the mechanism differs." A legend (accent native, `rgba(212,97,79,.55)`
@@ -106,9 +105,9 @@ bad setting.
 ## Acceptance
 
 1. Extensions shows exactly eight type cards.
-2. Every count on Extensions and Harnesses is computed from `harnesses/*.toml` — no literal appears in
-   the source. Adding a thirteenth TOML changes both screens with no edit.
-3. Harnesses reports 11 harnesses and 29 downgrades.
+2. Every count on Extensions and Plugins is computed from the registry and trusted plugin manifests —
+   no literal appears in the source. Adding a user plugin changes both screens with no edit.
+3. Plugins reports Pi plus any trusted user plugins and computes downgrade counts dynamically.
 4. The `agents` card navigates to the drill-down; the Extensions tab stays lit and the back link works.
 5. The agent editor's save action reads "Save as v5" — a new version, never an overwrite.
 6. Each harness card's capability bar has exactly 8 segments and its per-type colors match that

@@ -10,6 +10,7 @@ import {
   autorunMasterState,
   useDispatchRuns,
   type AutorunState,
+  type PermissionPosture,
 } from "../../data/dispatch";
 import { Button } from "../../ui/Button";
 import { Segmented } from "../../ui/Segmented";
@@ -275,6 +276,9 @@ function AutorunView() {
 }
 
 function SchedulesView() {
+  const [permissionPosture, setPermissionPosture] =
+    createSignal<PermissionPosture>("bypass");
+
   return (
     <div class="dispatch-view" data-testid="dispatch-schedules">
       <header class="dispatch-header">
@@ -340,6 +344,38 @@ function SchedulesView() {
               Anything left unset falls through to Settings → Guardrails for
               #project. A ceiling reached here stops the run and splits it; it
               does not fail.
+            </span>
+          </fieldset>
+          <fieldset data-testid="dispatch-permission-mode">
+            <legend>Permissions</legend>
+            <label>
+              <input
+                type="radio"
+                name="dispatch-permission-mode"
+                value="bypass"
+                checked={permissionPosture() === "bypass"}
+                onChange={() => setPermissionPosture("bypass")}
+              />{" "}
+              Bypass (default)
+            </label>
+            <span>
+              The harness gate stays off. An unexpected permission request is
+              recorded as an alarm.
+            </span>
+            <label>
+              <input
+                type="radio"
+                name="dispatch-permission-mode"
+                value="gated"
+                checked={permissionPosture() === "gated"}
+                onChange={() => setPermissionPosture("gated")}
+              />{" "}
+              Gated approval
+            </label>
+            <span data-testid="dispatch-permission-consequence">
+              {permissionPosture() === "gated"
+                ? "Protected requests wait for a human action and can be resolved after replay."
+                : "This job starts unattended; protected requests raise a bypass alarm."}
             </span>
           </fieldset>
           <fieldset>

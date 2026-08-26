@@ -53,6 +53,12 @@ CREATE TABLE memory.store (
 
 COMMENT ON COLUMN memory.store.importance IS
     'No default: the initial importance policy is intentionally undecided.';
+COMMENT ON COLUMN memory.store.embedding IS
+    'carve_out: model output, not reproducible from folded events; rebuild preserves bytes.';
+COMMENT ON COLUMN memory.store.active_days IS
+    'carve_out: wall-clock decay state evaluated at read, never emitted as a tick event.';
+COMMENT ON COLUMN memory.store.strength IS
+    'carve_out: derived decay state evaluated at read from last_active and the category curve.';
 
 ALTER TABLE memory.core
     ADD CONSTRAINT memory_core_source_memory_id_fkey

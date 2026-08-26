@@ -3,11 +3,13 @@
 //! Moved out of `services/project.rs` so every query in the crate lives under `store/`.
 
 use crate::ids::ProjectId;
+use std::collections::BTreeMap;
+
 use anyhow::{Context, Result};
 use sqlx::{query, Row};
 use uuid::Uuid;
 
-use crate::{services::project::ProjectSettings, store::Store};
+use crate::{lsp::DescriptorPin, services::project::ProjectSettings, store::Store};
 
 const SETTINGS_KEY: &str = "project_settings";
 
@@ -45,6 +47,29 @@ impl Store {
             Some(row) => ProjectSettings::from_stored_value(row.try_get("value")?),
             None => Ok(ProjectSettings::default()),
         }
+    }
+
+    pub async fn set_project_lsp_descriptors(
+        &self,
+        project_id: ProjectId,
+        descriptors: impl IntoIterator<Item = DescriptorPin>,
+    ) -> Result<()> {
+        let settings = self
+            .project_settings(project_id)
+            .await?
+            .with_lsp_descriptors(descriptors)?;
+        self.set_project_settings(project_id, &settings).await
+    }
+
+    pub async fn project_lsp_descriptors(
+        &self,
+        project_id: ProjectId,
+    ) -> Result<BTreeMap<String, DescriptorPin>> {
+        Ok(self
+            .project_settings(project_id)
+            .await?
+            .lsp_descriptors()
+            .clone())
     }
 
     pub async fn set_project_archived(&self, project_id: ProjectId, archived: bool) -> Result<()> {

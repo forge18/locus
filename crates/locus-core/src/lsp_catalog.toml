@@ -1,0 +1,17 @@
+[[descriptors]]
+id = "rust"
+version = 1
+extensions = [".rs"]
+root_markers = ["Cargo.toml"]
+command = ["rust-analyzer"]
+capabilities = ["definition", "references", "hover", "rename", "documentSymbol", "diagnostics", "semanticTokens"]
+grammar = "rust"
+
+[[descriptors]]
+id = "typescript"
+version = 1
+extensions = [".ts", ".tsx", ".js", ".jsx"]
+root_markers = ["package.json", "tsconfig.json"]
+command = ["typescript-language-server", "--stdio"]
+capabilities = ["definition", "references", "hover", "rename", "documentSymbol", "diagnostics", "semanticTokens"]
+grammar = "typescript"

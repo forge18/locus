@@ -17,11 +17,16 @@
 
 pub mod bus;
 pub mod core;
+pub mod editor;
 pub mod harness;
 pub mod ids;
 pub mod ipc;
+pub mod lsp;
+pub mod plugin;
+pub mod repo;
 pub mod runtime;
 pub mod sandbox;
+pub mod search;
 pub mod services;
 pub mod store;
 #[cfg(any(test, feature = "testkit"))]

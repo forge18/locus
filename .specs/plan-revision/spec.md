@@ -183,7 +183,7 @@ mistaken for describing the current Plan screen.
 ## Open
 
 - The autorouting effort vocabulary Decompose's "Runs as" bar cycles (`low / medium / high /
-  xhigh`) does not match the six-band vocabulary Workshop → Harnesses lists (which includes
+  xhigh`) does not match the six-band vocabulary Workshop → Plugins → Harness lists (which includes
   `minimal`). `.specs/design-revision` already flags this; the fix lands in `workshop-revision`,
   not here — Decompose adopts whatever vocabulary that spec settles on.
 - `.specs/setup-revision`, `.specs/screens-plan`, and `.specs/design-desktop` still cite the old

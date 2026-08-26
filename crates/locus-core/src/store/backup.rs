@@ -12,7 +12,7 @@ use std::{
 use anyhow::{bail, Context, Result};
 
 /// The Postgres schemas that contain Locus-owned state.
-pub const BACKUP_SCHEMAS: [&str; 8] = [
+pub const BACKUP_SCHEMAS: [&str; 9] = [
     "core",
     "agents",
     "board",
@@ -21,6 +21,7 @@ pub const BACKUP_SCHEMAS: [&str; 8] = [
     "workflows",
     "mail",
     "market",
+    "log",
 ];
 
 /// Parameters for one backup artifact.

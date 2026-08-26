@@ -55,6 +55,7 @@ export interface Session {
 
 /** @schema agents — how a run finished, or that it has not. */
 export type RunStatus = "running" | "passed" | "failed" | "aborted";
+export type PermissionPosture = "bypass" | "gated";
 
 /**
  * @schema agents — one container lifetime, which is one terminal. A run is over
@@ -68,6 +69,8 @@ export interface Run {
  endedAt: string | null;
  /** The actual model id that answered, not the tier that was asked for. */
  resolvedModel: string;
+ /** Immutable per-job dispatch choice; bypass is the default. */
+ permissionPosture: PermissionPosture;
  exitCode: number | null;
  /** Reported by the harness, or null where it reported nothing. */
  usage: Usage | null;

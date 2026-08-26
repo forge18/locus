@@ -1,12 +1,23 @@
 //! The container supervisor: bollard over the Docker Engine API, and the PTY stream.
 
-use std::{collections::HashMap, fs, path::Path};
+use std::{
+    collections::{HashMap, VecDeque},
+    fs,
+    io::{self, Read, Write},
+    path::Path,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        mpsc, Arc, Mutex,
+    },
+    time::Duration,
+};
 
 use crate::bus::InProcessBus;
 use anyhow::{bail, Context, Result};
 use bollard::{
     body_full,
     container::LogOutput,
+    exec::{CreateExecOptions, StartExecOptions, StartExecResults},
     models::{
         ContainerCreateBody, EndpointSettings, HostConfig, NetworkConnectRequest,
         NetworkCreateRequest, NetworkingConfig,
@@ -19,7 +30,10 @@ use bollard::{
     Docker,
 };
 use futures::StreamExt;
-use tokio::sync::broadcast;
+use tokio::{
+    io::AsyncWriteExt,
+    sync::{broadcast, mpsc as tokio_mpsc},
+};
 
 use crate::sandbox::{
     forward_proxy::{
@@ -78,11 +92,55 @@ pub struct ContainerLaunch {
     pub network: String,
 }
 
+/// The command and container identity for one run-owned debug adapter.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DebugAdapterLaunch {
+    pub container: String,
+    pub command: Vec<String>,
+    pub environment: Vec<String>,
+    pub working_directory: Option<String>,
+}
+
+impl DebugAdapterLaunch {
+    pub fn new(container: impl Into<String>, command: Vec<String>) -> Result<Self> {
+        let container = container.into();
+        if container.trim().is_empty() || command.is_empty() {
+            bail!("debug adapter launch requires a container and command")
+        }
+        if command.iter().any(|part| part.trim().is_empty()) {
+            bail!("debug adapter launch command must not contain empty arguments")
+        }
+        Ok(Self {
+            container,
+            command,
+            environment: Vec::new(),
+            working_directory: None,
+        })
+    }
+
+    pub fn with_environment(mut self, environment: Vec<String>) -> Result<Self> {
+        if environment.iter().any(|entry| entry.trim().is_empty()) {
+            bail!("debug adapter environment must not contain empty entries")
+        }
+        self.environment = environment;
+        Ok(self)
+    }
+
+    pub fn with_working_directory(mut self, directory: impl Into<String>) -> Result<Self> {
+        let directory = directory.into();
+        if directory.trim().is_empty() {
+            bail!("debug adapter working directory must not be empty")
+        }
+        self.working_directory = Some(directory);
+        Ok(self)
+    }
+}
+
 /// The narrow container boundary required by run spawning.
 ///
 /// The supplied container adapter owns image caching, container creation, and PTY plumbing; this
 /// supervisor owns their ordering and the run state transition.
-pub trait ContainerRuntime {
+pub trait ContainerRuntime: Send {
     fn build_or_reuse_image(&mut self, image: &str) -> Result<ImageDisposition>;
     fn start_container(&mut self, container: &ContainerLaunch) -> Result<()>;
     fn attach_pty(
@@ -92,6 +150,16 @@ pub trait ContainerRuntime {
         stream: PtyStream,
     ) -> Result<()>;
     fn stop_container(&mut self, container: &str) -> Result<()>;
+
+    /// Launch an adapter through the run container's stdio and return the owned DAP process.
+    /// Lightweight runtimes may omit this capability, but production runtimes must not replace
+    /// it with a host-side executable because the adapter must see the run's clone and image.
+    fn launch_debug_adapter(
+        &mut self,
+        _launch: &DebugAdapterLaunch,
+    ) -> Result<Box<dyn crate::runtime::dap::DebugAdapterProcess>> {
+        bail!("container-backed debug adapters are not supported by this runtime")
+    }
 
     /// Prepare the project-private internal Docker network before an agent joins it.
     /// Default no-ops keep deterministic unit runtimes Docker-free.
@@ -108,12 +176,232 @@ pub trait ContainerRuntime {
     fn release_egress_proxy(&mut self, _proxy: &ForwardProxyLaunch, _run_id: &str) -> Result<()> {
         Ok(())
     }
+
+    /// Fresh verification is optional for lightweight runtimes. Implementations that support
+    /// workflows must create a distinct container from the supplied request; the default keeps
+    /// existing Docker-free test runtimes source-compatible.
+    fn run_verify_container(
+        &mut self,
+        _request: &crate::services::workflow::VerifyContainerRequest,
+    ) -> Result<crate::services::workflow::VerifyEvidence> {
+        bail!("fresh-container verification is not supported by this runtime")
+    }
 }
 
 /// Host-only Bollard adapter. Agents never receive the Docker client or its socket.
 #[derive(Clone)]
 pub struct DockerContainerRuntime {
     docker: Docker,
+}
+
+enum DebugAdapterInput {
+    Bytes(Vec<u8>),
+    Stop,
+}
+
+/// Blocking stdio facade over Docker's asynchronous exec attach stream.
+///
+/// DAP is a synchronous request/response protocol at the core boundary, while Bollard exposes
+/// exec streams asynchronously. The bridge owns one Tokio task, forwards stdout to a bounded
+/// blocking reader, and sends writes to the attached stdin. Dropping it closes the exec stdin;
+/// the run container remains the final lifecycle owner.
+struct DockerExecTransport {
+    incoming: Mutex<mpsc::Receiver<io::Result<Vec<u8>>>>,
+    pending: VecDeque<u8>,
+    outgoing: tokio_mpsc::UnboundedSender<DebugAdapterInput>,
+    stop: Arc<AtomicBool>,
+}
+
+impl DockerExecTransport {
+    fn connect(docker: Docker, launch: DebugAdapterLaunch) -> Result<Self> {
+        let (read_tx, read_rx) = mpsc::sync_channel::<io::Result<Vec<u8>>>(128);
+        let (write_tx, write_rx) = tokio_mpsc::unbounded_channel();
+        let (ready_tx, ready_rx) = mpsc::sync_channel::<std::result::Result<(), String>>(1);
+        let stop = Arc::new(AtomicBool::new(false));
+        let thread_stop = stop.clone();
+        std::thread::Builder::new()
+            .name("locus-dap-exec".into())
+            .spawn(move || {
+                let result = match tokio::runtime::Runtime::new() {
+                    Ok(runtime) => runtime.block_on(run_docker_debug_exec(
+                        docker,
+                        launch,
+                        read_tx.clone(),
+                        write_rx,
+                        ready_tx.clone(),
+                        thread_stop,
+                    )),
+                    Err(error) => Err(format!("create Docker DAP runtime: {error}")),
+                };
+                if let Err(error) = result {
+                    let _ = ready_tx.send(Err(error.clone()));
+                    let _ = read_tx.try_send(Err(io_error(error)));
+                }
+            })
+            .context("start Docker DAP bridge thread")?;
+        match ready_rx
+            .recv_timeout(Duration::from_secs(10))
+            .context("wait for Docker debug adapter")?
+        {
+            Ok(()) => Ok(Self {
+                incoming: Mutex::new(read_rx),
+                pending: VecDeque::new(),
+                outgoing: write_tx,
+                stop,
+            }),
+            Err(error) => Err(anyhow::anyhow!(error)),
+        }
+    }
+}
+
+impl Read for DockerExecTransport {
+    fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+        if buffer.is_empty() {
+            return Ok(0);
+        }
+        while self.pending.is_empty() {
+            let message = self
+                .incoming
+                .lock()
+                .map_err(|_| io_error("Docker DAP reader lock is poisoned"))?
+                .recv()
+                .map_err(|_| io_error("Docker debug adapter closed its output"))?;
+            let bytes = message?;
+            self.pending.extend(bytes);
+        }
+        let count = buffer.len().min(self.pending.len());
+        for slot in &mut buffer[..count] {
+            let Some(byte) = self.pending.pop_front() else {
+                return Err(io_error("Docker DAP buffer underflow"));
+            };
+            *slot = byte;
+        }
+        Ok(count)
+    }
+}
+
+impl Write for DockerExecTransport {
+    fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
+        if buffer.is_empty() {
+            return Ok(0);
+        }
+        self.outgoing
+            .send(DebugAdapterInput::Bytes(buffer.to_vec()))
+            .map_err(|_| io_error("Docker debug adapter stdin is closed"))?;
+        Ok(buffer.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+impl Drop for DockerExecTransport {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::Release);
+        let _ = self.outgoing.send(DebugAdapterInput::Stop);
+    }
+}
+
+fn io_error(message: impl Into<String>) -> io::Error {
+    io::Error::other(message.into())
+}
+
+async fn forward_debug_output(
+    sender: &mpsc::SyncSender<io::Result<Vec<u8>>>,
+    mut message: io::Result<Vec<u8>>,
+    stop: &AtomicBool,
+) -> bool {
+    loop {
+        if stop.load(Ordering::Acquire) {
+            return false;
+        }
+        match sender.try_send(message) {
+            Ok(()) => return true,
+            Err(mpsc::TrySendError::Full(next)) => {
+                message = next;
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+            Err(mpsc::TrySendError::Disconnected(_)) => return false,
+        }
+    }
+}
+
+async fn run_docker_debug_exec(
+    docker: Docker,
+    launch: DebugAdapterLaunch,
+    read_tx: mpsc::SyncSender<io::Result<Vec<u8>>>,
+    mut write_rx: tokio_mpsc::UnboundedReceiver<DebugAdapterInput>,
+    ready_tx: mpsc::SyncSender<std::result::Result<(), String>>,
+    stop: Arc<AtomicBool>,
+) -> std::result::Result<(), String> {
+    let exec = docker
+        .create_exec(
+            &launch.container,
+            CreateExecOptions {
+                attach_stdin: Some(true),
+                attach_stdout: Some(true),
+                attach_stderr: Some(true),
+                tty: Some(false),
+                env: (!launch.environment.is_empty()).then_some(launch.environment),
+                cmd: Some(launch.command),
+                working_dir: launch.working_directory,
+                ..Default::default()
+            },
+        )
+        .await
+        .map_err(|error| format!("create debug adapter exec: {error}"))?;
+    let attached = docker
+        .start_exec(
+            &exec.id,
+            Some(StartExecOptions {
+                detach: false,
+                tty: false,
+                output_capacity: Some(crate::runtime::dap::MAX_DAP_FRAME_BYTES),
+            }),
+        )
+        .await
+        .map_err(|error| format!("start debug adapter exec: {error}"))?;
+    let (mut output, mut input) = match attached {
+        StartExecResults::Attached { output, input } => (output, input),
+        StartExecResults::Detached => {
+            let error = "debug adapter exec unexpectedly detached".to_owned();
+            let _ = ready_tx.send(Err(error.clone()));
+            return Err(error);
+        }
+    };
+    let _ = ready_tx.send(Ok(()));
+    loop {
+        tokio::select! {
+            item = output.next() => {
+                match item {
+                    Some(Ok(output)) => {
+                        if matches!(output, LogOutput::StdOut { .. } | LogOutput::Console { .. }) {
+                            let bytes = output.into_bytes().to_vec();
+                            if !bytes.is_empty()
+                                && !forward_debug_output(&read_tx, Ok(bytes), &stop).await
+                            {
+                                return Ok(());
+                            }
+                        }
+                    }
+                    Some(Err(error)) => {
+                        return Err(format!("read debug adapter output: {error}"));
+                    }
+                    None => return Err("debug adapter output closed".to_owned()),
+                }
+            }
+            command = write_rx.recv() => {
+                match command {
+                    Some(DebugAdapterInput::Bytes(bytes)) => {
+                        input.write_all(&bytes).await.map_err(|error| format!("write debug adapter input: {error}"))?;
+                        input.flush().await.map_err(|error| format!("flush debug adapter input: {error}"))?;
+                    }
+                    Some(DebugAdapterInput::Stop) | None => return Ok(()),
+                }
+            }
+        }
+    }
 }
 
 fn docker_shell_entrypoint(setup: &str) -> Vec<String> {
@@ -285,10 +573,29 @@ impl ContainerRuntime for DockerContainerRuntime {
         })
     }
 
+    fn launch_debug_adapter(
+        &mut self,
+        launch: &DebugAdapterLaunch,
+    ) -> Result<Box<dyn crate::runtime::dap::DebugAdapterProcess>> {
+        let transport = DockerExecTransport::connect(self.docker.clone(), launch.clone())?;
+        Ok(Box::new(crate::runtime::dap::DapClientProcess::new(
+            transport,
+        )))
+    }
+
     fn ensure_agent_network(&mut self, network: &str) -> Result<()> {
         let docker = self.docker.clone();
         let network = network.to_owned();
         Self::block_on(async move { ensure_network(&docker, &network, true).await })
+    }
+
+    fn run_verify_container(
+        &mut self,
+        request: &crate::services::workflow::VerifyContainerRequest,
+    ) -> Result<crate::services::workflow::VerifyEvidence> {
+        let docker = self.docker.clone();
+        let request = request.clone();
+        Self::block_on(async move { run_verify_container(&docker, &request).await })
     }
 
     fn ensure_egress_proxy(&mut self, proxy: &ForwardProxyLaunch) -> Result<()> {
@@ -410,6 +717,96 @@ impl ContainerRuntime for DockerContainerRuntime {
             let _ = fs::remove_dir(&proxy.policy_root);
             Ok(())
         })
+    }
+}
+
+async fn run_verify_container(
+    docker: &Docker,
+    request: &crate::services::workflow::VerifyContainerRequest,
+) -> Result<crate::services::workflow::VerifyEvidence> {
+    let config = ContainerCreateBody {
+        // The verifier is deliberately a second container from the exact image selected for the
+        // agent. It receives no mounts, so success cannot depend on the agent container's dirtied
+        // filesystem.
+        image: Some(request.image.clone()),
+        cmd: Some(vec![request.command_line()]),
+        entrypoint: Some(vec!["/bin/sh".into(), "-lc".into()]),
+        tty: Some(false),
+        open_stdin: Some(false),
+        ..Default::default()
+    };
+    let created = docker
+        .create_container(
+            Some(
+                CreateContainerOptionsBuilder::default()
+                    .name(&request.container_name)
+                    .build(),
+            ),
+            config,
+        )
+        .await
+        .context("create fresh verification container")?;
+    let result = async {
+        docker
+            .start_container(&request.container_name, None::<StartContainerOptions>)
+            .await
+            .context("start fresh verification container")?;
+        let mut wait = docker.wait_container(
+            &request.container_name,
+            None::<bollard::query_parameters::WaitContainerOptions>,
+        );
+        let exit_code = match wait.next().await {
+            Some(Ok(response)) => response.status_code as i32,
+            Some(Err(bollard::errors::Error::DockerContainerWaitError { code, .. })) => code as i32,
+            Some(Err(error)) => return Err(error).context("wait for fresh verification container"),
+            None => bail!("fresh verification container exited without a status"),
+        };
+        let mut logs = docker.logs(
+            &request.container_name,
+            Some(
+                bollard::query_parameters::LogsOptionsBuilder::default()
+                    .stdout(true)
+                    .stderr(true)
+                    .follow(false)
+                    .timestamps(false)
+                    .tail("all")
+                    .build(),
+            ),
+        );
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+        while let Some(output) = logs.next().await {
+            match output.context("read fresh verification output")? {
+                LogOutput::StdOut { message } | LogOutput::Console { message } => {
+                    stdout.extend_from_slice(&message)
+                }
+                LogOutput::StdErr { message } => stderr.extend_from_slice(&message),
+                LogOutput::StdIn { .. } => {}
+            }
+        }
+        Ok(crate::services::workflow::VerifyEvidence {
+            exit_code,
+            stdout: String::from_utf8_lossy(&stdout).into_owned(),
+            stderr: String::from_utf8_lossy(&stderr).into_owned(),
+            passed: exit_code == 0,
+            command: request.command.clone(),
+            container_id: created.id.clone(),
+            verify_node_id: request.verify_node_id.clone(),
+        })
+    }
+    .await;
+    let removal = docker
+        .remove_container(
+            &request.container_name,
+            Some(RemoveContainerOptionsBuilder::default().force(true).build()),
+        )
+        .await
+        .context("remove fresh verification container");
+    match (result, removal) {
+        (Ok(evidence), Ok(())) => Ok(evidence),
+        (Err(error), Ok(())) => Err(error),
+        (Ok(_), Err(error)) => Err(error),
+        (Err(error), Err(_removal_error)) => Err(error),
     }
 }
 

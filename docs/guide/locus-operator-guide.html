@@ -1,0 +1,2479 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Locus — Operator &amp; Analyst Guide</title>
+<style>
+@page { size: A4; margin: 17mm 15mm 16mm 15mm; }
+@page :first { margin: 0; }
+
+:root{
+  --ink:#16181d; --ink2:#2c3038; --mut:#63696f; --line:#d4d8de; --line2:#e8ebef;
+  --ac:#3b5bdb; --ac2:#7048e8; --ok:#2b8a3e; --bad:#c92a2a; --warn:#b26a00;
+  --wash:#f6f7f9; --washa:#eef1fd; --washm:#f4efff;
+}
+*{box-sizing:border-box}
+html{-webkit-print-color-adjust:exact; print-color-adjust:exact;}
+body{
+  margin:0; color:var(--ink);
+  font-family:"Charter","Iowan Old Style",Georgia,"Times New Roman",serif;
+  font-size:9.9pt; line-height:1.52;
+}
+h1,h2,h3,h4,.ui{font-family:"Inter","Helvetica Neue",Helvetica,Arial,system-ui,sans-serif;}
+code,pre,.mono{font-family:"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;}
+
+/* ---------- cover ---------- */
+.cover{height:297mm; padding:34mm 22mm 20mm; display:flex; flex-direction:column; break-after:page;
+  background:linear-gradient(160deg,#101319 0%,#1b2030 46%,#241f3d 100%); color:#eef0f5;}
+.cover .kicker{font-family:Inter,sans-serif; font-size:9pt; letter-spacing:.22em; text-transform:uppercase; color:#98a2c8;}
+.cover h1{font-size:40pt; line-height:1.02; margin:8mm 0 0; font-weight:700; letter-spacing:-0.02em;}
+.cover h1 span{color:#9d8cff;}
+.cover .sub{font-size:13pt; color:#c3c9dc; margin-top:5mm; max-width:120mm; line-height:1.45;}
+.cover .rule{height:2px; width:38mm; background:#7048e8; margin:9mm 0;}
+.cover .meta{margin-top:auto; font-family:Inter,sans-serif; font-size:8.6pt; color:#9aa3bb; line-height:1.7;}
+.cover .meta b{color:#e6e9f2; font-weight:600;}
+.cover .art{margin:10mm 0 0;}
+
+/* ---------- headings ---------- */
+h2{font-size:17pt; margin:0 0 3mm; padding-bottom:2mm; border-bottom:2px solid var(--ink);
+   letter-spacing:-0.01em; break-after:avoid;}
+h3{font-size:11.6pt; margin:7mm 0 2mm; color:var(--ink); break-after:avoid;}
+h4{font-size:9.8pt; margin:5mm 0 1.5mm; color:var(--ink2); text-transform:uppercase; letter-spacing:.08em; break-after:avoid;}
+.part{break-before:page;}
+.eyebrow{font-family:Inter,sans-serif; font-size:8pt; letter-spacing:.18em; text-transform:uppercase;
+  color:var(--ac2); margin:0 0 1.5mm; font-weight:600;}
+p{margin:0 0 2.6mm;}
+.lede{font-size:10.8pt; color:var(--ink2); margin-bottom:4mm;}
+
+/* ---------- structure ---------- */
+ul,ol{margin:0 0 3mm; padding-left:5mm;}
+li{margin-bottom:1.2mm;}
+strong{font-weight:600;}
+a{color:var(--ac); text-decoration:none;}
+hr{border:0; border-top:1px solid var(--line2); margin:6mm 0;}
+
+table{width:100%; border-collapse:collapse; margin:0 0 4mm; font-size:8.7pt; break-inside:auto;}
+thead th{font-family:Inter,sans-serif; font-size:7.6pt; text-transform:uppercase; letter-spacing:.07em;
+  text-align:left; color:var(--mut); border-bottom:1.4px solid var(--ink); padding:1.4mm 2mm; font-weight:600;}
+td{border-bottom:1px solid var(--line2); padding:1.5mm 2mm; vertical-align:top;}
+tr{break-inside:avoid;}
+tbody tr:nth-child(even){background:#fafbfc;}
+td code{font-size:8pt;}
+
+code{background:var(--wash); border:1px solid var(--line2); border-radius:2px; padding:0 1mm; font-size:8.4pt;}
+pre{background:#14171d; color:#e7eaf0; border-radius:3px; padding:3mm 3.5mm; font-size:7.9pt; line-height:1.45;
+  overflow:hidden; white-space:pre-wrap; margin:0 0 3.5mm; break-inside:avoid;}
+pre code{background:none; border:0; padding:0; color:inherit; font-size:inherit;}
+pre .c{color:#8b93a3;} pre .k{color:#c4a2ff;} pre .s{color:#8fd6a0;} pre .n{color:#7fb4ff;}
+
+figure{margin:4mm 0 5mm; break-inside:avoid;}
+figure svg{width:100%; height:auto; display:block;}
+figcaption{font-family:Inter,sans-serif; font-size:7.8pt; color:var(--mut); margin-top:1.8mm;
+  padding-left:2mm; border-left:2px solid var(--line);}
+
+.callout{border-left:3px solid var(--ac); background:var(--washa); padding:2.6mm 3.5mm; margin:0 0 4mm;
+  font-size:9pt; break-inside:avoid;}
+.callout.warn{border-color:var(--warn); background:#fff7ea;}
+.callout.bad{border-color:var(--bad); background:#fdf0ef;}
+.callout.ok{border-color:var(--ok); background:#eff8f1;}
+.callout .t{font-family:Inter,sans-serif; font-weight:600; font-size:8pt; text-transform:uppercase;
+  letter-spacing:.08em; display:block; margin-bottom:1mm; color:var(--ink2);}
+
+.grid2{display:grid; grid-template-columns:1fr 1fr; gap:4mm; margin-bottom:4mm;}
+.card{border:1px solid var(--line); border-radius:3px; padding:3mm; break-inside:avoid;}
+.card h4{margin-top:0;}
+.tag{font-family:Inter,sans-serif; font-size:7pt; font-weight:600; letter-spacing:.06em; text-transform:uppercase;
+  padding:.6mm 1.6mm; border-radius:2px; background:var(--wash); border:1px solid var(--line); color:var(--mut);}
+.tag.ok{background:#eff8f1; border-color:#b7dfc2; color:var(--ok);}
+.tag.act{background:#fff3d9; border-color:#f0d18a; color:var(--warn);}
+.tag.q{background:var(--wash);}
+
+/* toc */
+.toc{column-count:2; column-gap:9mm; font-family:Inter,sans-serif; font-size:8.6pt;}
+.toc .l1{font-weight:600; margin-top:3mm; color:var(--ink); break-after:avoid;}
+.toc .l2{color:var(--mut); padding-left:3mm;}
+
+/* svg shared */
+.b{fill:#fff; stroke:#c3c8d0; stroke-width:1.2;}
+.ba{fill:#eef1fd; stroke:#3b5bdb; stroke-width:1.2;}
+.bm{fill:#f4efff; stroke:#7048e8; stroke-width:1.2;}
+.bg{fill:#f6f7f9; stroke:#d4d8de; stroke-width:1.1;}
+.bo{fill:#eff8f1; stroke:#2b8a3e; stroke-width:1.2;}
+.bd{fill:#fdf0ef; stroke:#c92a2a; stroke-width:1.2;}
+.bw{fill:#fff7ea; stroke:#b26a00; stroke-width:1.2;}
+.dash{stroke-dasharray:4 3;}
+.t{font-family:Inter,Helvetica,sans-serif; font-size:10px; fill:#16181d;}
+.tb{font-family:Inter,Helvetica,sans-serif; font-size:10.5px; font-weight:600; fill:#16181d;}
+.ts{font-family:Inter,Helvetica,sans-serif; font-size:8.5px; fill:#63696f;}
+.tm{font-family:"JetBrains Mono",Menlo,monospace; font-size:8.5px; fill:#2c3038;}
+.tw{font-family:Inter,Helvetica,sans-serif; font-size:9px; font-weight:600; fill:#fff;}
+.ln{stroke:#8b9099; stroke-width:1.2; fill:none;}
+.ln2{stroke:#c3c8d0; stroke-width:1; fill:none;}
+.lna{stroke:#3b5bdb; stroke-width:1.4; fill:none;}
+.lnm{stroke:#7048e8; stroke-width:1.4; fill:none;}
+.lnd{stroke:#c92a2a; stroke-width:1.3; fill:none;}
+.ctr{text-anchor:middle;} .end{text-anchor:end;}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="#8b9099"/></marker>
+  <marker id="ab" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="#3b5bdb"/></marker>
+  <marker id="am" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="#7048e8"/></marker>
+  <marker id="ad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="#c92a2a"/></marker>
+</defs></svg>
+
+<!-- ============================ COVER ============================ -->
+<section class="cover">
+  <div class="kicker">Operator &amp; Analyst Guide</div>
+  <h1>Locus<br><span>one surface,<br>every harness</span></h1>
+  <div class="rule"></div>
+  <div class="sub">How the multi-agent, multi-harness IDE works inside and out — the runtime, the
+  screens, the plugin contract, and the workflows that hold it together.</div>
+
+  <div class="art">
+  <svg viewBox="0 0 430 150" role="img" aria-label="One authored surface materialized into many harness layouts">
+    <rect x="8" y="46" width="96" height="58" rx="4" fill="#241f3d" stroke="#7048e8" stroke-width="1.4"/>
+    <text class="tw ctr" x="56" y="68">Authored once</text>
+    <text class="ts ctr" x="56" y="83" fill="#a9b0c8">8 extension types</text>
+    <text class="ts ctr" x="56" y="95" fill="#a9b0c8">agents · skills · rules</text>
+
+    <path class="ln" d="M108 75 H150" stroke="#7048e8" marker-end="url(#am)"/>
+    <rect x="152" y="52" width="86" height="46" rx="4" fill="#1b2030" stroke="#3b5bdb" stroke-width="1.4"/>
+    <text class="tw ctr" x="195" y="72">Materializer</text>
+    <text class="ts ctr" x="195" y="86" fill="#a9b0c8">per run, deterministic</text>
+
+    <path class="ln" d="M242 75 H278" stroke="#3b5bdb" marker-end="url(#ab)"/>
+    <g>
+      <rect x="282" y="14" width="140" height="26" rx="3" fill="#101319" stroke="#4a5270"/>
+      <text class="ts" x="292" y="31" fill="#c9cee0">/locus/config — harness A layout</text>
+      <rect x="282" y="48" width="140" height="26" rx="3" fill="#101319" stroke="#4a5270"/>
+      <text class="ts" x="292" y="65" fill="#c9cee0">/locus/config — harness B layout</text>
+      <rect x="282" y="82" width="140" height="26" rx="3" fill="#101319" stroke="#4a5270"/>
+      <text class="ts" x="292" y="99" fill="#c9cee0">/locus/config — harness C layout</text>
+      <rect x="282" y="116" width="140" height="26" rx="3" fill="#101319" stroke="#4a5270" stroke-dasharray="4 3"/>
+      <text class="ts" x="292" y="133" fill="#8b93a3">…destroyed when the run ends</text>
+    </g>
+  </svg>
+  </div>
+
+  <div class="meta">
+    <b>Audience</b> — analysts and administrators operating, configuring, and extending Locus<br>
+    <b>Sources</b> — <span class="mono">PLAN.md</span> (the architecture authority) and the 79 feature contracts under <span class="mono">.specs/</span><br>
+    <b>Status</b> — M1 core runtime closed · M1.5 active · 448 tasks remaining of 1,737<br>
+    <b>Generated</b> — 25 August 2026
+  </div>
+</section>
+
+<!-- ============================ TOC ============================ -->
+<section>
+<h2>Contents</h2>
+<div class="toc">
+  <div class="l1">0 · Orientation</div>
+  <div class="l2">What Locus is, and is not</div>
+  <div class="l2">The three lifecycles</div>
+  <div class="l2">Vocabulary you need first</div>
+
+  <div class="l1">Part I · How it works internally</div>
+  <div class="l2">1.1 Process topology</div>
+  <div class="l2">1.2 Containers, images, networks</div>
+  <div class="l2">1.3 The git model</div>
+  <div class="l2">1.4 Credentials and egress</div>
+  <div class="l2">1.5 The one surface</div>
+  <div class="l2">1.6 Materialization</div>
+  <div class="l2">1.7 ACP and the event vocabulary</div>
+  <div class="l2">1.8 Sessions, runs, turns</div>
+  <div class="l2">1.9 The store and the fold</div>
+  <div class="l2">1.10 Memory</div>
+  <div class="l2">1.11 Token discipline</div>
+
+  <div class="l1">Part II · Using Locus</div>
+  <div class="l2">2.1 The shell and the address space</div>
+  <div class="l2">2.2 Setup</div>
+  <div class="l2">2.3 Plan</div>
+  <div class="l2">2.4 Manage</div>
+  <div class="l2">2.5 Interact</div>
+  <div class="l2">2.6 Review, Analytics, Memory</div>
+  <div class="l2">2.7 Dispatch and autorun</div>
+  <div class="l2">2.8 The inbox</div>
+
+  <div class="l1">Part III · Extending Locus</div>
+  <div class="l2">3.1 Extensions versus plugins</div>
+  <div class="l2">3.2 Writing an agent definition</div>
+  <div class="l2">3.3 The other seven extension types</div>
+  <div class="l2">3.4 The plugin contract</div>
+  <div class="l2">3.5 A harness plugin</div>
+  <div class="l2">3.6 A provider plugin</div>
+  <div class="l2">3.7 A CLI-tool plugin</div>
+  <div class="l2">3.8 A materializer</div>
+  <div class="l2">3.9 Trust and admission</div>
+
+  <div class="l1">Part IV · Workflows</div>
+  <div class="l2">4.1 The node vocabulary</div>
+  <div class="l2">4.2 Governance</div>
+  <div class="l2">4.3 Guardrails</div>
+  <div class="l2">4.4 The failure arbiter</div>
+  <div class="l2">4.5 Worked example</div>
+
+  <div class="l1">Part V · Operations</div>
+  <div class="l2">5.1 First-run setup</div>
+  <div class="l2">5.2 Backup and restore</div>
+  <div class="l2">5.3 Reconciliation and Stop all</div>
+  <div class="l2">5.4 Metrics that matter</div>
+  <div class="l2">5.5 Troubleshooting</div>
+
+  <div class="l1">Part VI · Current state</div>
+  <div class="l2">6.1 Milestones</div>
+  <div class="l2">6.2 Open decisions</div>
+  <div class="l2">6.3 Named risks</div>
+
+  <div class="l1">Appendices</div>
+  <div class="l2">A · Agent CLI reference</div>
+  <div class="l2">B · Glossary</div>
+  <div class="l2">C · Spec index</div>
+</div>
+</section>
+
+<!-- ============================ 0 ORIENTATION ============================ -->
+<section class="part">
+<p class="eyebrow">Chapter 0</p>
+<h2>Orientation</h2>
+
+<p class="lede">Locus is a desktop IDE whose primary surface is not an editor. It runs coding agents in
+disposable containers — one session per container — across many agent harnesses, and gives every one of
+them the same memory, the same mail, the same board, and the same tools.</p>
+
+<h3>What Locus is, and is not</h3>
+
+<p>The useful map of the 2026 parallel-agent field has three tiers: <strong>Tier 1</strong> in-process
+subagents, <strong>Tier 2</strong> local orchestrators running agents in isolated workspaces on your
+machine, and <strong>Tier 3</strong> cloud async agents. Locus is <strong>Tier 2, containing Tier 1, and
+deliberately not Tier 3</strong>.</p>
+
+<p>Nearly every Tier 2 tool solved <em>isolation</em>, because git worktrees made isolation easy. Almost
+none solved <em>coordination</em> or <em>shared learning</em>. Locus's bet is exactly there: shared
+memory and agent mail implemented once in Rust and available identically to every harness.</p>
+
+<table>
+<thead><tr><th style="width:32%">Locus is</th><th>Locus is not</th></tr></thead>
+<tbody>
+<tr><td>A single-user local tool</td><td>A hosted platform or a team service</td></tr>
+<tr><td>A control plane; the editor is a pane inside it</td><td>A VS Code fork or an extension host</td></tr>
+<tr><td>One window, one selected project, cross-project views alongside</td><td>A window per project</td></tr>
+<tr><td>Container-per-run, cloning from a bare local remote</td><td>Bind-mounted shared worktrees</td></tr>
+<tr><td>A CLI surface for agents over a Unix socket</td><td>An MCP host. No MCP servers, ever</td></tr>
+<tr><td>Postgres as the single store</td><td>A file tree of memory, mail, and wiki entries</td></tr>
+</tbody></table>
+
+<h3>The three lifecycles</h3>
+
+<p>Independent teams have converged on the same decomposition because the three parts have different
+lifecycles: context changes continuously, capabilities change deliberately, environments are ephemeral.
+Anthropic calls them Session, Harness, and Sandbox. Knowing which of the three you are touching tells
+you what a change costs.</p>
+
+<figure>
+<svg viewBox="0 0 700 190" role="img" aria-label="Three lifecycles: session, agent definition, container">
+  <rect x="6" y="26" width="216" height="126" rx="5" class="ba"/>
+  <text class="tb" x="20" y="48">Persistent context</text>
+  <text class="tm" x="20" y="66">the session</text>
+  <text class="ts" x="20" y="84">A durable, named thread of work</text>
+  <text class="ts" x="20" y="97">with one agent. Behind it,</text>
+  <text class="ts" x="20" y="110">a queryable log of everything</text>
+  <text class="ts" x="20" y="123">the agent has done.</text>
+  <text class="ts" x="20" y="142" fill="#3b5bdb">Changes continuously</text>
+
+  <rect x="242" y="26" width="216" height="126" rx="5" class="bm"/>
+  <text class="tb" x="256" y="48">Capability configuration</text>
+  <text class="tm" x="256" y="66">the agent definition</text>
+  <text class="ts" x="256" y="84">Markdown plus frontmatter,</text>
+  <text class="ts" x="256" y="97">versioned. Its tool allowlist</text>
+  <text class="ts" x="256" y="110">is the privilege set, and the</text>
+  <text class="ts" x="256" y="123">image's install set.</text>
+  <text class="ts" x="256" y="142" fill="#7048e8">Changes deliberately</text>
+
+  <rect x="478" y="26" width="216" height="126" rx="5" class="bg"/>
+  <text class="tb" x="492" y="48">Execution environment</text>
+  <text class="tm" x="492" y="66">the container per run</text>
+  <text class="ts" x="492" y="84">One harness process, one ACP</text>
+  <text class="ts" x="492" y="97">conversation, a clone of the</text>
+  <text class="ts" x="492" y="110">repo on its own filesystem.</text>
+  <text class="ts" x="492" y="123">Destroyed at exit.</text>
+  <text class="ts" x="492" y="142" fill="#63696f">Ephemeral</text>
+
+  <text class="ts ctr" x="350" y="18">Anything Locus puts on the wrong side of these seams is felt</text>
+  <path class="ln2" d="M222 89 H240" marker-end="url(#a)"/>
+  <path class="ln2" d="M458 89 H476" marker-end="url(#a)"/>
+  <text class="ts ctr" x="350" y="174">A session accumulates across many runs · a run resets · the definition is pinned by version</text>
+</svg>
+<figcaption>The three lifecycles, and where Locus cuts them.</figcaption>
+</figure>
+
+<h3>Vocabulary you need before anything else</h3>
+
+<table>
+<thead><tr><th style="width:20%">Term</th><th>Means</th></tr></thead>
+<tbody>
+<tr><td><strong>Project</strong></td><td>Holds <em>one or more repos</em> and owns the board, wiki, and memory across all of them. Unrelated to GitHub Projects.</td></tr>
+<tr><td><strong>Harness</strong></td><td>An agent CLI — the thing that talks to a model and runs a tool loop. Registered as a plugin. Pi is the only first-party one.</td></tr>
+<tr><td><strong>Session</strong></td><td>A durable, named thread of work with one agent. Survives context resets.</td></tr>
+<tr><td><strong>Run</strong></td><td>One container lifetime = one ACP conversation. A session has many runs.</td></tr>
+<tr><td><strong>Extension</strong></td><td>One of eight authored content types (agents, skills, rules, …) materialized into whatever a harness reads.</td></tr>
+<tr><td><strong>Plugin</strong></td><td>An executable integration — CLI tool, harness, or provider — speaking JSON-RPC 2.0 over stdio.</td></tr>
+<tr><td><strong>Artifact</strong></td><td>A structured deliverable an agent produces: a plan, a diff, a screenshot, a walkthrough. What you review instead of transcripts.</td></tr>
+<tr><td><strong>Workflow</strong></td><td>A canvas graph that loops agents toward a goal, with governance and a mandatory <code>verify</code>.</td></tr>
+<tr><td><strong>Locator</strong></td><td><code>locus://&lt;project&gt;/…</code> — the one address space every navigation path resolves through.</td></tr>
+</tbody></table>
+
+<div class="callout">
+<span class="t">The three rules carried into everything below</span>
+<strong>1.</strong> Nothing in <code>locus-core</code> names a harness — adding one is a trusted plugin manifest, never a <code>match</code> arm.
+<strong>2.</strong> Every harness entry is complete; nothing is inherited, so a descriptor reads cold.
+<strong>3.</strong> The database is derived where it can be — harness output, git, and the marketplace index are sources of truth Locus never writes.
+</div>
+</section>
+
+<!-- ============================ PART I ============================ -->
+<section class="part">
+<p class="eyebrow">Part I</p>
+<h2>How Locus works internally</h2>
+
+<h3>1.1 Process topology</h3>
+
+<p>One Tauri application, one Rust core, one Postgres. The core — <code>locusd</code> — also runs
+headless, which is what makes a scheduled workflow that fires while no window is open a real thing
+rather than a promise.</p>
+
+<figure>
+<svg viewBox="0 0 700 350" role="img" aria-label="Process topology of the Locus application">
+  <rect x="4" y="6" width="692" height="338" rx="6" class="bg"/>
+  <text class="tb" x="18" y="26">Tauri application  ·  locus</text>
+
+  <rect x="18" y="36" width="300" height="72" rx="4" class="ba"/>
+  <text class="tb" x="32" y="56">webview — SolidJS</text>
+  <text class="ts" x="32" y="72">Agent panes · Editor · Board · Wiki</text>
+  <text class="ts" x="32" y="86">Planning · Canvas · Dashboard</text>
+  <text class="ts" x="32" y="100">Detached panes = additional windows</text>
+
+  <path class="lna" d="M168 110 V138" marker-end="url(#ab)"/>
+  <text class="ts" x="176" y="128">typed IPC · tauri::ipc Channel for streams</text>
+
+  <rect x="18" y="140" width="662" height="190" rx="4" class="bm"/>
+  <text class="tb" x="32" y="160">Rust core — locusd   <tspan class="ts">in-process, also runnable headless for cron and CI</tspan></text>
+
+  <g>
+    <rect x="32" y="170" width="152" height="34" rx="3" class="b"/>
+    <text class="t" x="40" y="185">harness registry</text><text class="ts" x="40" y="197">descriptors, tier→model</text>
+    <rect x="192" y="170" width="152" height="34" rx="3" class="b"/>
+    <text class="t" x="200" y="185">run supervisor</text><text class="ts" x="200" y="197">spawn·stream·normalize·cancel</text>
+    <rect x="352" y="170" width="152" height="34" rx="3" class="b"/>
+    <text class="t" x="360" y="185">container supervisor</text><text class="ts" x="360" y="197">bollard → Docker Engine</text>
+    <rect x="512" y="170" width="156" height="34" rx="3" class="b"/>
+    <text class="t" x="520" y="185">repo manager</text><text class="ts" x="520" y="197">bare remote · clones · merge</text>
+
+    <rect x="32" y="212" width="152" height="34" rx="3" class="b"/>
+    <text class="t" x="40" y="227">credential broker</text><text class="ts" x="40" y="239">egress policy · audit</text>
+    <rect x="192" y="212" width="152" height="34" rx="3" class="b"/>
+    <text class="t" x="200" y="227">LSP supervisor</text><text class="ts" x="200" y="239">host servers → editor panes</text>
+    <rect x="352" y="212" width="152" height="34" rx="3" class="b"/>
+    <text class="t" x="360" y="227">event bus</text><text class="ts" x="360" y="239">broadcast + LISTEN/NOTIFY (id only)</text>
+    <rect x="512" y="212" width="156" height="34" rx="3" class="b"/>
+    <text class="t" x="520" y="227">workflow engine</text><text class="ts" x="520" y="239">loops · guardrails · schedules</text>
+
+    <rect x="32" y="254" width="312" height="42" rx="3" class="bo"/>
+    <text class="tb" x="42" y="270">shared services — one Rust implementation</text>
+    <text class="tm" x="42" y="287">memory · mail · board · wiki · telemetry · tools</text>
+
+    <rect x="352" y="254" width="152" height="42" rx="3" class="b"/>
+    <text class="t" x="360" y="270">store</text><text class="ts" x="360" y="284">Postgres via sqlx</text>
+
+    <rect x="512" y="254" width="156" height="42" rx="3" class="bw"/>
+    <text class="t" x="520" y="270">agent socket</text><text class="tm" x="520" y="284">/run/locus.sock</text>
+  </g>
+  <text class="ts" x="32" y="316">locusd outlives the window: closing the app detaches the UI and nothing else. Runs keep streaming; schedules keep firing.</text>
+</svg>
+<figcaption>Process topology. Every high-frequency path — session events, PTY bytes, diagnostics — is a
+<code>tauri::ipc::Channel</code>; only low-frequency notifications use the event system.</figcaption>
+</figure>
+
+<div class="callout">
+<span class="t">Every start reconciles</span>
+On boot the supervisor compares runs marked <code>running</code> against Docker. Container alive → re-attach
+its stream. Container gone → close the run as <code>aborted</code>, emit the event, file it in the inbox.
+Without this, a crash leaves rows claiming to be running forever.
+</div>
+
+<h3>1.2 Containers, images, networks</h3>
+
+<table>
+<thead><tr><th style="width:26%">Container</th><th style="width:16%">Lifetime</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td><code>locus-postgres</code></td><td>per machine</td><td>The store. <code>pgvector</code> + <code>tsvector</code> + window functions.</td></tr>
+<tr><td><code>locus-agent-&lt;run_id&gt;</code></td><td>per agent run</td><td>One harness process, one session. No TUI; ACP over stdio from the host.</td></tr>
+<tr><td><code>locus-svc-&lt;project&gt;-&lt;name&gt;</code></td><td>per project</td><td>Services the project declares — its own Postgres, Redis, the browser.</td></tr>
+</tbody></table>
+
+<p>Network <code>locus-&lt;project&gt;</code> joins a project's agents and service containers. Agents reach
+each other and the project's services; they never reach another project. Only two paths are mounted into
+an agent container, and <code>/workspace</code> is not one of them.</p>
+
+<figure>
+<svg viewBox="0 0 700 250" role="img" aria-label="Agent container mounts, port, and image layers">
+  <rect x="6" y="20" width="330" height="216" rx="5" class="bg"/>
+  <text class="tb" x="20" y="40">locus-agent-&lt;run_id&gt;</text>
+  <rect x="20" y="50" width="302" height="34" rx="3" class="bw"/>
+  <text class="tm" x="30" y="66">/run/locus.sock</text><text class="ts" x="30" y="78">rw · the host daemon socket — the agent's whole API</text>
+  <rect x="20" y="90" width="302" height="34" rx="3" class="ba"/>
+  <text class="tm" x="30" y="106">/locus/config</text><text class="ts" x="30" y="118">ro · this run's materialized config, frozen for its life</text>
+  <rect x="20" y="130" width="302" height="34" rx="3" class="bo"/>
+  <text class="tm" x="30" y="146">/workspace</text><text class="ts" x="30" y="158">a CLONE on the container's own filesystem — never a mount</text>
+  <rect x="20" y="170" width="302" height="30" rx="3" class="b"/>
+  <text class="tm" x="30" y="189">$LOCUS_PORT — allocated by the core from 43000–43999</text>
+  <text class="ts" x="20" y="220">No Docker socket. No host filesystem. No long-lived credential.</text>
+
+  <rect x="356" y="20" width="338" height="216" rx="5" class="bg"/>
+  <text class="tb" x="370" y="40">Two image layers, one cache key</text>
+  <rect x="370" y="52" width="310" height="46" rx="3" class="bm"/>
+  <text class="tm" x="380" y="70">locus/base-&lt;harness&gt;:&lt;version&gt;</text>
+  <text class="ts" x="380" y="84">OS · git · the harness CLI · locus · locus-hook</text>
+  <text class="ts" x="380" y="94" fill="#7048e8">rebuilt when the harness version pins change</text>
+
+  <rect x="370" y="106" width="310" height="46" rx="3" class="ba"/>
+  <text class="tm" x="380" y="124">locus/agent-&lt;hash&gt;</text>
+  <text class="ts" x="380" y="138">the agent's tools allowlist, installed from the index</text>
+  <text class="ts" x="380" y="148" fill="#3b5bdb">rebuilt when the tool list or a pin changes</text>
+
+  <rect x="370" y="160" width="310" height="44" rx="3" class="b dash"/>
+  <text class="tm" x="380" y="178">config is NOT a layer</text>
+  <text class="ts" x="380" y="192">materialized per run — editing a skill invalidates no image</text>
+  <text class="ts" x="370" y="222">&lt;hash&gt; = (base digest, sorted tools, pins) — same tools, one image</text>
+</svg>
+<figcaption>What reaches an agent container, and what a change costs. A cold build is minutes; a warm
+start is seconds.</figcaption>
+</figure>
+
+<div class="callout warn">
+<span class="t">tui = false is required, and the registry enforces it</span>
+A TUI harness multiplexes several sessions inside one process, which hides them from Locus — it could not
+display, count, or own them individually. A descriptor claiming <code>tui = true</code> is refused at
+registration. This preserves the 1:1 mapping between sessions and runs that everything downstream depends on.
+</div>
+
+<h3>1.3 The git model — a local remote, not shared worktrees</h3>
+
+<p>Every project has a <strong>bare local remote</strong> on the host. An agent container clones from it,
+works, commits, and pushes a branch back. You bring the work into your own repo with ordinary git.</p>
+
+<figure>
+<svg viewBox="0 0 700 220" role="img" aria-label="The git model: bare local remote, container clone, branch push back">
+  <rect x="200" y="12" width="300" height="46" rx="4" class="bm"/>
+  <text class="tb ctr" x="350" y="32">host bare local remote</text>
+  <text class="tm ctr" x="350" y="48">/var/lib/locus/repos/&lt;project&gt;.git</text>
+
+  <path class="lnm" d="M250 60 V104" marker-end="url(#am)"/>
+  <text class="ts end" x="244" y="86">clone --reference</text>
+  <path class="lnm" d="M450 104 V62" marker-end="url(#am)"/>
+  <text class="ts" x="456" y="86">push agent/&lt;run-id&gt;</text>
+
+  <rect x="180" y="106" width="340" height="52" rx="4" class="ba"/>
+  <text class="tb ctr" x="350" y="126">container : /workspace</text>
+  <text class="ts ctr" x="350" y="142">container-local, never a mount — the agent cannot reach your working copy</text>
+
+  <rect x="20" y="106" width="140" height="52" rx="4" class="bo"/>
+  <text class="tb ctr" x="90" y="126">your checkout</text>
+  <text class="ts ctr" x="90" y="142">~/Repos/foo</text>
+  <path class="ln" d="M200 35 H92 V102" marker-end="url(#a)"/>
+  <text class="tm ctr" x="90" y="180">git fetch locus</text>
+  <text class="tm ctr" x="90" y="194">git checkout agent/&lt;run-id&gt;</text>
+
+  <rect x="540" y="106" width="146" height="52" rx="4" class="bd"/>
+  <text class="tb ctr" x="613" y="126">main / master</text>
+  <text class="ts ctr" x="613" y="142">Locus never writes here</text>
+  <text class="ts ctr" x="613" y="180">reaching main is a human</text>
+  <text class="ts ctr" x="613" y="192">action, through a PR</text>
+</svg>
+<figcaption>Isolation is real because the working copy was never mounted. A bind-mounted worktree can
+always be escaped by a path bug; a filesystem that does not exist in the container cannot.</figcaption>
+</figure>
+
+<p>Two honest costs. <strong>Overlap surfaces at merge</strong> — two agents can edit the same file and
+resolve it the way every team already does. <strong>Clones cost disk and time</strong> — mitigated by
+<code>--reference</code> against a shared object store, so N agents on one repo is not N copies of its history.</p>
+
+<table>
+<thead><tr><th style="width:18%">Repo mode</th><th style="width:34%">Where the code lives</th><th>You work through</th></tr></thead>
+<tbody>
+<tr><td><strong>Linked</strong></td><td><code>~/Repos/foo</code> stays yours; Locus syncs with it</td><td>your own checkout, and Locus</td></tr>
+<tr><td><strong>Managed</strong></td><td>cloned from the forge, lives only inside Locus</td><td>Locus only</td></tr>
+</tbody></table>
+
+<h3>1.4 Credentials and egress</h3>
+
+<p>The requirement, stated before the mechanism: getting a harness authenticated inside a container must
+be <em>easy to use</em> and <em>secure</em>. The container must not hold a long-lived secret, and setting one
+up must not be a per-project chore. Spike 1 settled on a host proxy.</p>
+
+<figure>
+<svg viewBox="0 0 700 240" role="img" aria-label="Credential proxy and egress enforcement">
+  <rect x="10" y="30" width="200" height="150" rx="5" class="bg"/>
+  <text class="tb" x="24" y="50">agent container</text>
+  <rect x="24" y="62" width="172" height="40" rx="3" class="b"/>
+  <text class="tm" x="34" y="79">API_KEY = "sentinel"</text>
+  <text class="ts" x="34" y="93">a placeholder, not a secret</text>
+  <rect x="24" y="110" width="172" height="34" rx="3" class="b"/>
+  <text class="tm" x="34" y="130">HTTPS_PROXY = host:port</text>
+  <text class="ts" x="24" y="164">attached only to a Docker-internal network:</text>
+  <text class="ts" x="24" y="176">a process ignoring the proxy has nowhere to go</text>
+
+  <path class="lna" d="M212 105 H272" marker-end="url(#ab)"/>
+  <text class="ts ctr" x="242" y="98">request</text>
+
+  <rect x="276" y="30" width="180" height="150" rx="5" class="ba"/>
+  <text class="tb" x="290" y="50">host credential broker</text>
+  <text class="ts" x="290" y="70">1 · check per-run nonce</text>
+  <text class="ts" x="290" y="86">2 · check egress tier</text>
+  <text class="ts" x="290" y="102">3 · audit the attempt</text>
+  <text class="ts" x="290" y="118">4 · resolve keychain ref</text>
+  <text class="ts" x="290" y="134">5 · attach the real secret</text>
+  <rect x="290" y="144" width="152" height="26" rx="3" class="bo"/>
+  <text class="ts ctr" x="366" y="161">every attempt audited, allowed or not</text>
+
+  <path class="lna" d="M458 105 H520" marker-end="url(#ab)"/>
+  <text class="ts ctr" x="489" y="98">host → upstream</text>
+  <rect x="524" y="78" width="164" height="54" rx="5" class="bm"/>
+  <text class="tb ctr" x="606" y="100">model API / network</text>
+  <text class="ts ctr" x="606" y="118">sees the real credential</text>
+
+  <rect x="10" y="192" width="678" height="38" rx="4" class="bw"/>
+  <text class="tb" x="24" y="208">The lethal trifecta</text>
+  <text class="ts" x="130" y="208">private data + untrusted content + a channel out. An agent reading a repo and browsing the web has all three.</text>
+  <text class="ts" x="24" y="222">The proxy is the third leg's chokepoint — which is why it is policy plus audit, not only credential injection.</text>
+</svg>
+<figcaption>The container holds a sentinel; the OS keychain holds the secret; Postgres holds only the
+reference. That is the whole of the claim that Locus stores no credential.</figcaption>
+</figure>
+
+<h4>The defense layers worth naming</h4>
+<table>
+<thead><tr><th style="width:26%">Layer</th><th>In Locus</th></tr></thead>
+<tbody>
+<tr><td>Privilege separation</td><td>The tool allowlist <em>is</em> the privilege set. A reviewer agent gets read-only tools and cannot write.</td></tr>
+<tr><td>Sandboxing</td><td>Container per run, no host filesystem, no Docker socket, clone not mount.</td></tr>
+<tr><td>Egress control</td><td>The proxy, with per-agent policy tiers.</td></tr>
+<tr><td>Rate limiting</td><td>Cap tool calls per run, not only iterations and tokens — injection usually needs volume.</td></tr>
+<tr><td>Canary tokens</td><td>A secret string in the materialized config that must never appear in output. If it does, the system prompt leaked.</td></tr>
+<tr><td>Anomaly detection</td><td>Every run's tool sequence is already normalized in Postgres, so "unlike this agent's baseline" is a query.</td></tr>
+<tr><td>Human in the loop</td><td><code>Gate</code> nodes and <code>locus ask</code>, calibrated to what is <em>irreversible, touches production, or reaches credentials</em>.</td></tr>
+</tbody></table>
+
+<div class="callout bad">
+<span class="t">Stated honestly</span>
+Containers share the host kernel. This is weaker isolation than a microVM — Docker moved its own sandbox
+product to microVMs for exactly that reason. Containers are the pragmatic choice on Linux and macOS with no
+proprietary dependency, but the boundary is a kernel boundary, not a hypervisor one.
+</div>
+</section>
+
+<section class="part">
+<h3>1.5 The one surface — eight extension types</h3>
+
+<p class="lede">An extension is authored <strong>once</strong>, in Locus. At run start the core reads the
+selected harness plugin's descriptor and writes that extension into the path and file format the harness
+expects, under <code>/locus/config</code>, for that run only.</p>
+
+<table>
+<thead><tr><th style="width:16%">Extension</th><th style="width:44%">Is</th><th>Consumed by</th></tr></thead>
+<tbody>
+<tr><td><code>agents</code></td><td>agent definitions — frontmatter over prose</td><td>the harness</td></tr>
+<tr><td><code>commands</code></td><td>invocable prompt templates; worth writing only when they take arguments</td><td>the harness</td></tr>
+<tr><td><code>hooks</code></td><td>shell scripts declaring their events; JSON in and out, exit 0 always</td><td>the harness</td></tr>
+<tr><td><code>linters</code></td><td>a check plus the rule saying why, per directory</td><td><strong><code>locus lint</code></strong> — not the harness</td></tr>
+<tr><td><code>output-styles</code></td><td>how the agent writes; one is active per harness</td><td>the harness</td></tr>
+<tr><td><code>rules</code></td><td>path-scoped instructions, loaded when a matching file is touched</td><td>the harness</td></tr>
+<tr><td><code>skills</code></td><td><code>SKILL.md</code> per directory, model-invocable</td><td>the harness</td></tr>
+<tr><td><code>base-context</code></td><td>the always-loaded instructions every session starts with</td><td>the harness</td></tr>
+</tbody></table>
+
+<p>Two of the eight do not behave like the rest, and every descriptor has to say so.
+<strong><code>linters</code> are tool-facing</strong> — no harness reads them, so every harness supports them
+trivially and identically. <strong><code>output-styles</code> is the most divergent</strong> — where a harness
+has no mechanism, the style is folded into <code>base-context</code> and the descriptor records the loss.</p>
+
+<p><code>base-context</code> is near-uniform in practice (<code>AGENTS.md</code> almost everywhere), which is
+why it also serves as the <strong>fallback injection path</strong> for harness plugins that cannot inject at
+session start.</p>
+
+<h3>1.6 Materialization — the code half of the contract</h3>
+
+<p>Declaring <em>where</em> an extension goes is not enough. A harness with no rules directory needs its
+rules turned into something it does read, and that is a transformation, not a path. Because Locus builds a
+whole config tree per run and destroys it after, materializers <strong>generate whole files</strong>: no
+markers, no merge, no prune, nothing to reconcile.</p>
+
+<figure>
+<svg viewBox="0 0 700 300" role="img" aria-label="Materialization pipeline from authored extensions to a per-run config tree">
+  <rect x="8" y="24" width="150" height="200" rx="5" class="bm"/>
+  <text class="tb" x="20" y="44">Authored once</text>
+  <text class="ts" x="20" y="58">Postgres · Workshop</text>
+  <g class="tm">
+    <text x="20" y="80">agents/</text><text x="20" y="96">commands/</text><text x="20" y="112">hooks/</text>
+    <text x="20" y="128">linters/</text><text x="20" y="144">output-styles/</text><text x="20" y="160">rules/</text>
+    <text x="20" y="176">skills/</text><text x="20" y="192">base-context</text>
+  </g>
+  <text class="ts" x="20" y="214">plus the project's scope</text>
+
+  <path class="lnm" d="M162 124 H206" marker-end="url(#am)"/>
+
+  <rect x="210" y="24" width="196" height="200" rx="5" class="ba"/>
+  <text class="tb" x="224" y="44">Six strategies</text>
+  <text class="ts" x="224" y="58">chosen per extension, per harness</text>
+  <g>
+    <rect x="224" y="66" width="168" height="21" rx="2" class="b"/><text class="tm" x="232" y="81">dir</text><text class="ts" x="268" y="81">copy as-is, rename</text>
+    <rect x="224" y="90" width="168" height="21" rx="2" class="b"/><text class="tm" x="232" y="105">merged-into</text><text class="ts" x="300" y="105">render as prose</text>
+    <rect x="224" y="114" width="168" height="21" rx="2" class="b"/><text class="tm" x="232" y="129">listed-in</text><text class="ts" x="284" y="129">paths into a config key</text>
+    <rect x="224" y="138" width="168" height="21" rx="2" class="b"/><text class="tm" x="232" y="153">entries-in</text><text class="ts" x="290" y="153">structured entries</text>
+    <rect x="224" y="162" width="168" height="21" rx="2" class="bw"/><text class="tm" x="232" y="177">plugin</text><text class="ts" x="272" y="177">executable returns files</text>
+    <rect x="224" y="186" width="168" height="21" rx="2" class="bw"/><text class="tm" x="232" y="201">core-driven</text><text class="ts" x="300" y="201">core fires it itself</text>
+  </g>
+
+  <path class="lna" d="M410 124 H452" marker-end="url(#ab)"/>
+
+  <rect x="456" y="24" width="234" height="200" rx="5" class="bg"/>
+  <text class="tb" x="470" y="44">/locus/config — this run only</text>
+  <text class="ts" x="470" y="58">read-only, frozen for the run's life</text>
+  <g class="tm">
+    <text x="470" y="82">agents/reviewer.md</text>
+    <text x="470" y="98">skills/audit-code/SKILL.md</text>
+    <text x="470" y="114">prompts/plan.md</text>
+    <text x="470" y="130">extensions/locus-hooks.ts</text>
+    <text x="470" y="146">extensions/locus-rules.ts</text>
+    <text x="470" y="162">output-styles/brief.md</text>
+    <text x="470" y="178">AGENTS.md</text>
+  </g>
+  <text class="ts" x="470" y="200">destroyed when the container exits</text>
+
+  <rect x="8" y="236" width="682" height="54" rx="4" class="bo"/>
+  <text class="tb" x="22" y="254">Byte-determinism is a token decision, not a tidiness one</text>
+  <text class="ts" x="22" y="270">Sorted file order · sorted lists inside generated files · no timestamps · no run id · no hostname.</text>
+  <text class="ts" x="22" y="284">That tree IS the prompt prefix. A materializer embedding the current time is a per-run cache miss for every agent the harness serves.</text>
+</svg>
+<figcaption>Materialization. The first four strategies are parameterized data and name no harness; only
+<code>plugin</code> requires an executable.</figcaption>
+</figure>
+
+<h4>Naming the loss</h4>
+<p>A rule folded into always-on context is not the same thing as a rule the harness loads when a matching
+file is touched. An entry that hides the difference is how you end up believing in a capability you do not
+have — so a downgraded strategy carries <code>weaker_than_native</code>:</p>
+
+<pre><code>rules = { via = <span class="s">"merged-into"</span>, target = <span class="s">"context"</span>, strip_frontmatter = <span class="k">true</span>,
+          weaker_than_native = <span class="s">"always-on; path scoping is lost"</span> }</code></pre>
+
+<p>Native and downgraded counts shown anywhere in the UI are <strong>computed from the registry</strong>:
+registered harnesses × eight extensions is the denominator, and the numerator counts
+<code>weaker_than_native</code> keys. Registering a user harness moves the number without an edit.</p>
+
+<h3>1.7 ACP and the canonical event vocabulary</h3>
+
+<p>The <strong>Agent Client Protocol</strong> — JSON-RPC 2.0 over stdio, LSP-for-agents — is the
+<em>only</em> interface an agent session speaks to Locus over. One container hosts one ACP conversation, and
+the UI renders its normalized events. There is no terminal on the agent path; human terminals remain
+available for hand work only and are never agent sessions.</p>
+
+<div class="callout">
+<span class="t">Two constraints that survive the choice</span>
+<code>session/new</code> accepts only <code>cwd</code> and <code>mcpServers</code>, so <strong>a client cannot
+inject a system prompt</strong>. Prompt assembly belongs entirely to the harness; base-context, skills, rules,
+and tools reach the agent through the materialized config tree instead. And <code>mcpServers</code> is passed
+empty — always.
+</div>
+
+<figure>
+<svg viewBox="0 0 700 240" role="img" aria-label="ACP normalization into the canonical twelve-verb event vocabulary">
+  <rect x="8" y="16" width="180" height="106" rx="5" class="bg"/>
+  <text class="tb" x="22" y="36">harness process</text>
+  <text class="ts" x="22" y="52">in the agent container</text>
+  <text class="tm" x="22" y="72">session/update</text>
+  <text class="tm" x="22" y="88">AgentMessageChunk</text>
+  <text class="tm" x="22" y="104">ToolCall / ToolCallUpdate</text>
+
+  <path class="ln" d="M192 68 H236" marker-end="url(#a)"/>
+  <text class="ts ctr" x="214" y="60">stdio</text>
+
+  <rect x="240" y="16" width="180" height="106" rx="5" class="ba"/>
+  <text class="tb" x="254" y="36">ACP client · locus-core</text>
+  <text class="ts" x="254" y="54">one mapping for every</text>
+  <text class="ts" x="254" y="68">ACP harness, not one each</text>
+  <text class="ts" x="254" y="88">assigns seq on arrival —</text>
+  <text class="ts" x="254" y="102">ordering is Locus's</text>
+
+  <path class="ln" d="M424 68 H468" marker-end="url(#a)"/>
+
+  <rect x="472" y="16" width="218" height="106" rx="5" class="bm"/>
+  <text class="tb" x="486" y="36">agents.events</text>
+  <text class="ts" x="486" y="52">run_id · seq · ts · raw JSONB</text>
+  <text class="ts" x="486" y="70">raw is kept on every event, so a</text>
+  <text class="ts" x="486" y="84">normalization bug is repaired by</text>
+  <text class="ts" x="486" y="98">replay, not by re-running the agent</text>
+
+  <rect x="8" y="134" width="682" height="96" rx="5" class="bg"/>
+  <text class="tb" x="22" y="152">The closed twelve-verb vocabulary — every source normalizes to exactly this set</text>
+  <g class="tm">
+    <text x="22" y="176">session_start</text><text x="120" y="176">user</text><text x="176" y="176">assistant</text><text x="256" y="176">thinking</text>
+    <text x="330" y="176">tool_call</text><text x="404" y="176">tool_result</text><text x="490" y="176">tool_error</text>
+    <text x="22" y="196">permission_request</text><text x="152" y="196">subagent_start</text><text x="264" y="196">subagent_stop</text>
+    <text x="372" y="196">aborted</text><text x="436" y="196">session_end</text>
+  </g>
+  <text class="ts" x="22" y="218">A missing verb is recorded as missing, never synthesized. Token usage is an attribute — usage{input,output,cache_read,cache_write} — never a verb.</text>
+</svg>
+<figcaption>The event vocabulary is how Locus is tested: "run this, assert these events appeared," identical
+across the first-party Pi harness and any trusted user harness plugin, with no test-only instrumentation.</figcaption>
+</figure>
+
+<div class="callout warn">
+<span class="t">permission_request is posture-aware</span>
+In the default <strong>bypass</strong> posture every harness gate is switched off at launch, so a
+<code>permission_request</code> is a <em>misconfiguration alarm</em>. In a dispatch-selected <strong>gated</strong>
+posture the same event is a visible human-action request that blocks until resolved. The run's stored posture,
+not the verb alone, determines its meaning.
+</div>
+
+<h3>1.8 Sessions, runs, turns</h3>
+
+<p>"Session" is overloaded — ACP has sessions, every harness has sessions, the UI has panes. Locus needs one
+definition, and the split exists for exactly one reason: <strong>the session is what survives the reset.</strong></p>
+
+<figure>
+<svg viewBox="0 0 700 250" role="img" aria-label="Session, run, and turn hierarchy with a loop reset">
+  <rect x="8" y="14" width="440" height="180" rx="5" class="bm"/>
+  <text class="tb" x="22" y="34">Session</text>
+  <text class="ts" x="80" y="34">a durable, named thread of work with ONE agent</text>
+
+  <rect x="24" y="46" width="200" height="60" rx="4" class="ba"/>
+  <text class="tb" x="36" y="64">Run 1</text><text class="ts" x="80" y="64">one container lifetime</text>
+  <rect x="36" y="72" width="80" height="22" rx="2" class="b"/><text class="ts ctr" x="76" y="87">Turn</text>
+  <rect x="122" y="72" width="90" height="22" rx="2" class="b"/><text class="ts ctr" x="167" y="87">Turn</text>
+
+  <path class="lnm dash" d="M228 76 H248" marker-end="url(#am)"/>
+  <text class="ts ctr" x="238" y="68">reset</text>
+
+  <rect x="252" y="46" width="182" height="60" rx="4" class="ba"/>
+  <text class="tb" x="264" y="64">Run 2</text><text class="ts" x="306" y="64">new container, same session</text>
+  <rect x="264" y="72" width="80" height="22" rx="2" class="b"/><text class="ts ctr" x="304" y="87">Turn</text>
+  <rect x="350" y="72" width="72" height="22" rx="2" class="b"/><text class="ts ctr" x="386" y="87">Turn</text>
+
+  <rect x="24" y="116" width="410" height="64" rx="4" class="bo"/>
+  <text class="tb" x="36" y="134">Carried across the reset, because it belongs to the session</text>
+  <text class="ts" x="36" y="152">agent@version · its branch on the local remote · the board task it serves</text>
+  <text class="ts" x="36" y="168">core-memory base · pane state · cumulative cost</text>
+
+  <rect x="460" y="14" width="230" height="180" rx="5" class="bg"/>
+  <text class="tb" x="474" y="34">Held by the run, and lost at reset</text>
+  <text class="ts" x="474" y="54">events · token usage · exit status</text>
+  <text class="ts" x="474" y="70">artifacts · the resolved model id</text>
+  <text class="ts" x="474" y="86">permission posture · checkpoints</text>
+  <text class="ts" x="474" y="102">the harness's own session id</text>
+  <text class="ts" x="474" y="126" fill="#7048e8">A Locus session is not the</text>
+  <text class="ts" x="474" y="140" fill="#7048e8">harness's session. Resume is</text>
+  <text class="ts" x="474" y="154" fill="#7048e8">Locus's: the next run is primed</text>
+  <text class="ts" x="474" y="168" fill="#7048e8">from the session's own events.</text>
+
+  <text class="ts" x="8" y="216">The Ralph loop the field converged on — pick, act, validate, commit, RESET — needs something that persists across resets and something that does not.</text>
+  <text class="ts" x="8" y="232">The run is the thing that resets. The session is the thing that accumulates.</text>
+</svg>
+<figcaption>Session, run, turn. A workflow iteration ends a run and starts a new one in the same session.</figcaption>
+</figure>
+
+<h4>Handoffs — a payload, not a transcript</h4>
+<p>Guardrails kill and reassign after three stuck iterations, and a session belongs to exactly one agent.
+Work therefore changes hands regularly, and without a payload the successor inherits a branch and a task and
+rediscovers everything else. <code>locus handoff &lt;agent&gt; --why …</code> ends the current session and opens a
+new one on the same task and branch, carrying:</p>
+
+<table>
+<thead><tr><th style="width:18%">Field</th><th>Holds</th></tr></thead>
+<tbody>
+<tr><td><code>goal</code></td><td>what this work is for, restated</td></tr>
+<tr><td><code>done[]</code></td><td>what is finished, each with the evidence</td></tr>
+<tr><td><code>remaining[]</code></td><td>what is not, in the order it should be taken</td></tr>
+<tr><td><code>attempted[]</code></td><td><strong>what was tried and did not work</strong> — the expensive half, and the reason the mechanism pays for itself</td></tr>
+<tr><td><code>decisions[]</code></td><td>choices already made, so they are not re-litigated</td></tr>
+<tr><td><code>open[]</code></td><td>questions the successor inherits</td></tr>
+</tbody></table>
+
+<p>A handoff is <em>not</em> mail and <em>not</em> <code>locus agent invoke</code>. Mail is a message between
+agents that both keep working; invoke is a nested run that returns to its caller. A handoff transfers
+ownership and does not come back.</p>
+</section>
+
+<section class="part">
+<h3>1.9 The store, and the fold</h3>
+
+<p>Postgres is the single source of truth, in nine schemas. Harness output, git, and the marketplace index
+are sources of truth <em>outside</em> Locus and are never written by it. Board, wiki, memory, and mail are the
+exception — they exist only in Postgres, which is why backup is a requirement rather than an afterthought.</p>
+
+<table>
+<thead><tr><th style="width:14%">Schema</th><th>Holds</th></tr></thead>
+<tbody>
+<tr><td><code>core</code></td><td>projects, repos (multi-repo per project), local remotes, settings</td></tr>
+<tr><td><code>agents</code></td><td>versioned <code>agent_defs</code>, sessions, runs, parent/child run edges, normalized events, artifacts and their comment threads</td></tr>
+<tr><td><code>board</code></td><td>tasks (fixed columns, blocked as a status), dependency edges, transitions, assignments, task↔run links, evidence, linked forge issues</td></tr>
+<tr><td><code>wiki</code></td><td>typed pages, revisions, links, contradictions, ingest log, embeddings</td></tr>
+<tr><td><code>memory</code></td><td><strong>core</strong> (bounded, materialized per run) and <strong>store</strong> (facts, scope, provenance, embeddings, confidence, decay)</td></tr>
+<tr><td><code>workflows</code></td><td>versioned <code>workflow_defs</code> (<code>graph</code> + <code>spec</code> JSONB), schedules, executions, iterations, guardrail trips, verify results</td></tr>
+<tr><td><code>mail</code></td><td>threads, messages, delivery state</td></tr>
+<tr><td><code>market</code></td><td>manifests, installs, per-image tool sets</td></tr>
+<tr><td><code>log</code></td><td><code>entries</code> — Locus's own domain event log; the only table any of the above is written <em>from</em></td></tr>
+</tbody></table>
+
+<figure>
+<svg viewBox="0 0 700 240" role="img" aria-label="Event sourcing: log entries fold into projections, with two carve-outs">
+  <rect x="10" y="20" width="180" height="80" rx="5" class="bm"/>
+  <text class="tb" x="24" y="40">log.entries</text>
+  <text class="ts" x="24" y="58">the only thing Locus writes</text>
+  <text class="ts" x="24" y="74">task.moved · mail.sent</text>
+  <text class="ts" x="24" y="88">workflow.iteration_recorded</text>
+
+  <path class="lnm" d="M194 60 H244" marker-end="url(#am)"/>
+  <text class="ts ctr" x="219" y="52">fold</text>
+  <text class="ts ctr" x="219" y="76">synchronous,</text>
+  <text class="ts ctr" x="219" y="88">same transaction</text>
+
+  <rect x="248" y="20" width="200" height="80" rx="5" class="ba"/>
+  <text class="tb" x="262" y="40">projections</text>
+  <text class="ts" x="262" y="58">board · workflows · mail</text>
+  <text class="ts" x="262" y="74">foldable columns of wiki</text>
+  <text class="ts" x="262" y="88">and memory</text>
+
+  <rect x="470" y="20" width="220" height="80" rx="5" class="bg"/>
+  <text class="tb" x="484" y="40">agents.events — exempt</text>
+  <text class="ts" x="484" y="58">appended raw. It is the hot path,</text>
+  <text class="ts" x="484" y="74">written on every tool call; fold work</text>
+  <text class="ts" x="484" y="88">there would tax the biggest writer.</text>
+
+  <rect x="10" y="116" width="438" height="72" rx="5" class="bw"/>
+  <text class="tb" x="24" y="134">Two carve-outs — the fold produces everything except what a model or a clock produced</text>
+  <text class="ts" x="24" y="154">Embeddings (memory.store, wiki.pages) — a model output, not reproducible across embedding-model versions</text>
+  <text class="ts" x="24" y="170">Decay and confidence (memory.store) — a function of wall-clock time</text>
+  <text class="ts" x="24" y="183">Both are declared, not discovered: a carve_out annotation, and a schema test that fails on a new one without it.</text>
+
+  <rect x="470" y="116" width="220" height="72" rx="5" class="bd"/>
+  <text class="tb" x="484" y="134">A fold meeting an unknown</text>
+  <text class="tb" x="484" y="148">(kind, v) HALTS</text>
+  <text class="ts" x="484" y="164">naming the offending stream_pos —</text>
+  <text class="ts" x="484" y="178">never skipping. A skipped entry is a</text>
+  <text class="ts" x="484" y="188">projection that is quietly wrong.</text>
+
+  <text class="ts" x="10" y="212">locus rebuild regenerates every projection. It does not touch the carve-outs, because they were never derived from the log.</text>
+  <text class="ts" x="10" y="228">Two logs, one ordering: agents.events keeps its closed 12-verb enum; log.entries carries an open, per-kind versioned payload. They share one stream_pos per project.</text>
+</svg>
+<figcaption>Event sourcing with two named exemptions. The fold is synchronous in the append's own
+transaction, so a projection is never stale — available only because the core is the sole writer.</figcaption>
+</figure>
+
+<h3>1.10 Memory</h3>
+
+<p>Four layers, split by <strong>lifetime</strong>. Locus owns three; the one it does not own is the one
+every memory product tries to build twice.</p>
+
+<table>
+<thead><tr><th style="width:16%">Layer</th><th style="width:20%">Lives in</th><th style="width:24%">Dies when</th><th style="width:16%">Owner</th><th>Shared</th></tr></thead>
+<tbody>
+<tr><td><strong>Working</strong></td><td>the context window</td><td>the run ends</td><td>sub-harness</td><td>no</td></tr>
+<tr><td><strong>Short-term</strong></td><td>probation buffer</td><td>promoted, or aged out</td><td>Locus</td><td>no</td></tr>
+<tr><td><strong>Long-term</strong></td><td>Postgres</td><td>decays below threshold</td><td>Locus</td><td>yes, by role</td></tr>
+<tr><td><strong>Written</strong></td><td>git — artifacts</td><td>never</td><td>the repo</td><td>everyone</td></tr>
+</tbody></table>
+
+<div class="callout">
+<span class="t">There is no shared short-term</span>
+Two agents sharing scratch state is a documented failure mode: two writers sharing one home compound each
+other's entries into state neither of them authored. Sharing begins at long-term, <em>after</em> consolidation,
+so the promotion boundary and the trust boundary are the same line.
+</div>
+
+<figure>
+<svg viewBox="0 0 700 306" role="img" aria-label="Memory pipeline from capture through promotion to recall and decay">
+  <rect x="10" y="16" width="152" height="76" rx="5" class="ba"/>
+  <text class="tb" x="24" y="36">1 · Capture</text>
+  <text class="ts" x="24" y="52">locus-hook, not a tool</text>
+  <text class="ts" x="24" y="66">passive and deterministic —</text>
+  <text class="ts" x="24" y="80">the model need not remember</text>
+
+  <path class="ln" d="M166 54 H196" marker-end="url(#a)"/>
+
+  <rect x="200" y="16" width="152" height="76" rx="5" class="bg"/>
+  <text class="tb" x="214" y="36">2 · Probation</text>
+  <text class="ts" x="214" y="52">project-scoped, not</text>
+  <text class="ts" x="214" y="66">session-scoped — a pattern</text>
+  <text class="ts" x="214" y="80">needs three sessions to appear</text>
+
+  <path class="ln" d="M356 54 H386" marker-end="url(#a)"/>
+
+  <rect x="390" y="16" width="152" height="76" rx="5" class="bw"/>
+  <text class="tb" x="404" y="36">3 · Promotion</text>
+  <text class="ts" x="404" y="52">re-verification · dedup</text>
+  <text class="ts" x="404" y="66">measured importance</text>
+  <text class="ts" x="404" y="80">fires at cluster density 3</text>
+
+  <path class="ln" d="M546 54 H576" marker-end="url(#a)"/>
+
+  <rect x="580" y="16" width="110" height="76" rx="5" class="bo"/>
+  <text class="tb" x="592" y="36">4 · Store</text>
+  <text class="ts" x="592" y="52">shared by role</text>
+  <text class="ts" x="592" y="66">provenance kept</text>
+  <text class="ts" x="592" y="80">originals archived</text>
+
+  <rect x="10" y="108" width="332" height="102" rx="5" class="bm"/>
+  <text class="tb" x="24" y="128">Injection is a catalog, not content</text>
+  <text class="ts" x="24" y="146">SessionStart emits paths and one-line summaries,</text>
+  <text class="ts" x="24" y="160">capped at 800 tokens ≈ 40 entries. Bodies arrive</text>
+  <text class="ts" x="24" y="174">only through locus memory recall.</text>
+  <text class="ts" x="24" y="192" fill="#7048e8">Exceeding 40 entries is a consolidation trigger, not an eviction.</text>
+
+  <rect x="358" y="108" width="332" height="102" rx="5" class="bg"/>
+  <text class="tb" x="372" y="128">Decay has two drivers, selected by content</text>
+  <text class="ts" x="372" y="146">A memory naming a code symbol invalidates on CHANGE:</text>
+  <text class="ts" x="372" y="160">signature changed → invalidate · body only → re-verify · AST same → no change</text>
+  <text class="ts" x="372" y="176">Everything else ages on an Ebbinghaus curve, where active_days</text>
+  <text class="ts" x="372" y="190">counts only days the project saw a run.</text>
+  <text class="ts" x="372" y="202">Half-lives: strategy 38d · fact 24d · assumption 19d · failure 11d</text>
+
+  <rect x="10" y="222" width="680" height="72" rx="5" class="bw"/>
+  <text class="tb" x="24" y="234">Two guards that stop this sinking</text>
+  <text class="ts" x="24" y="252"><tspan font-weight="600">Chain-aware pruning</tspan> — a decayed memory survives if any graph neighbour is still strong. Frequency and importance are anticorrelated for the memories that matter most:</text>
+  <text class="ts" x="24" y="264">"never call the production database directly" is exactly the rare, critical instruction that vanishes by the third compression pass.</text>
+  <text class="ts" x="24" y="280"><tspan font-weight="600">Cold-start guard</tspan> — a memory is not eligible for pruning until it has survived one keeper pass where a query could plausibly have matched it.</text>
+</svg>
+<figcaption>The memory pipeline. The keeper is an ordinary agent definition running at <code>high</code> tier
+on genuine project idle; the primary agent has no memory-edit tools at all.</figcaption>
+</figure>
+
+<h4>Recall depth reverses by task class</h4>
+<p>This is the counter-intuitive result the design is built around. On factual QA, accuracy rises
+monotonically with <em>k</em>. On agentic tasks the sign flips — success falls from 32.1% at k=1 to ~25% at
+k=5, and flat retrievers drop <em>below</em> the 22.4% no-memory baseline. Over-retrieved agents do not simply
+fail; they wander.</p>
+
+<table>
+<thead><tr><th style="width:26%">Task class</th><th style="width:26%">Substrate</th><th style="width:10%">k</th><th>Graph expansion</th></tr></thead>
+<tbody>
+<tr><td>Code generation / edit</td><td>flat, similarity only</td><td>1</td><td>off</td></tr>
+<tr><td>Planning / strategy</td><td>distilled procedural cues</td><td>1</td><td>off</td></tr>
+<tr><td>Research / review</td><td>structural, hierarchical</td><td>high</td><td>on</td></tr>
+</tbody></table>
+
+<p><code>task_class: code | plan | research</code> sits on the agent definition, defaulting to <code>code</code>;
+a workflow's <code>Agent</code> node overrides it per role. Turn-level body injection is <strong>off</strong> for
+<code>code</code> and <code>plan</code> — a missed injection costs one tool call, while a wrong one measured below
+the no-memory baseline.</p>
+
+<h4>Memory is not the wiki</h4>
+<p>The wiki is curated prose a human reads and reviews. Memory is what an agent recalls: scoped facts with
+provenance, embeddings, and decay. They share <code>pgvector</code> and nothing else. Two more kinds of knowledge
+are deliberately <em>not</em> memory: code structure (AST-derived, queried live via <code>codanna</code>) and the
+project constitution (small, always loaded, and human-written — LLM-written context files measure ~3% worse
+at 20%+ more cost).</p>
+
+<h3>1.11 Token discipline</h3>
+
+<p>If token usage explains most of the variance in how a run goes, tokens are not an operational concern
+that gets attention when a bill arrives — they are a design constraint on every surface that puts bytes in
+front of a model. Four levers, in the order they pay.</p>
+
+<figure>
+<svg viewBox="0 0 700 250" role="img" aria-label="The four token-discipline levers">
+  <rect x="8" y="14" width="336" height="106" rx="5" class="ba"/>
+  <text class="tb" x="22" y="34">1 · Prefix stability — cache rate is the number</text>
+  <text class="ts" x="22" y="52">Cached reads bill at a fraction of fresh input, so a long session with a</text>
+  <text class="ts" x="22" y="66">stable prefix is cheaper than a short one that busts the cache every turn.</text>
+  <text class="ts" x="22" y="84">· materialization is deterministic  · the config tree is frozen for the run</text>
+  <text class="ts" x="22" y="98">· the memory catalog is a snapshot  · mutable content goes LAST</text>
+  <text class="ts" x="22" y="112" fill="#3b5bdb">Below ~80% on a long session means something in front is moving.</text>
+
+  <rect x="356" y="14" width="336" height="106" rx="5" class="bm"/>
+  <text class="tb" x="370" y="34">2 · Prevention at the tool boundary</text>
+  <text class="ts" x="370" y="52">The cheapest token is the one that never enters context. A PreToolUse</text>
+  <text class="ts" x="370" y="66">hook in the base image rewrites verbose commands and compacts their</text>
+  <text class="ts" x="370" y="80">output before the result is appended — 60–90% reported savings on</text>
+  <text class="ts" x="370" y="94">ordinary dev operations, needing no cooperation from the agent.</text>
+  <text class="ts" x="370" y="112" fill="#7048e8">Rule it enforces: a tool high on bytes but low on calls is returning too much per call.</text>
+
+  <rect x="8" y="132" width="336" height="106" rx="5" class="bg"/>
+  <text class="tb" x="22" y="152">3 · Diagnosis, as a query</text>
+  <text class="ts" x="22" y="170">Rank tools by how much result payload they put into history — halving</text>
+  <text class="ts" x="22" y="184">the biggest contributor beats eliminating three small ones. Every</text>
+  <text class="ts" x="22" y="198">tool_result is already a normalized row, so that ranking is a GROUP BY</text>
+  <text class="ts" x="22" y="212">per agent, per project, per harness.</text>
+  <text class="ts" x="22" y="230">It is what makes "this agent is expensive" actionable rather than merely true.</text>
+
+  <rect x="356" y="132" width="336" height="106" rx="5" class="bo"/>
+  <text class="tb" x="370" y="152">4 · Summaries with handles, never bodies</text>
+  <text class="ts" x="370" y="170">memory → 800-token catalog        → locus memory recall</text>
+  <text class="ts" x="370" y="184">tool docs → one line, ~15 tokens   → locus tools docs &lt;name&gt;</text>
+  <text class="ts" x="370" y="198">big tool results → summary + id    → locus artifact get</text>
+  <text class="ts" x="370" y="212">artifacts → OCR text or a frame    → locus artifact get</text>
+  <text class="ts" x="370" y="230">Nothing is pre-loaded that can be fetched — which also dissolves over-retrieval.</text>
+</svg>
+<figcaption>One asymmetry aims the effort: <strong>output tokens cost roughly five times input</strong>. That is
+what the <code>output-styles</code> extension is actually for.</figcaption>
+</figure>
+</section>
+
+<!-- ============================ PART II ============================ -->
+<section class="part">
+<p class="eyebrow">Part II</p>
+<h2>Using Locus</h2>
+
+<h3>2.1 The shell and the address space</h3>
+
+<p class="lede">One window, one selected project, and a group of views that are explicitly not scoped to it.
+A window per project would rebuild the thing the design exists to remove: one inbox per window, one place per
+window to notice an agent has been idle for an hour.</p>
+
+<figure>
+<svg viewBox="0 0 700 320" role="img" aria-label="The Locus shell: rail groups, title-bar pills, and locator bar">
+  <rect x="8" y="10" width="684" height="300" rx="6" class="bg"/>
+
+  <rect x="8" y="10" width="684" height="30" rx="6" class="b"/>
+  <rect x="8" y="30" width="684" height="10" class="b" stroke="none" fill="#fff"/>
+  <text class="tb" x="22" y="30">Locus</text>
+  <rect x="72" y="16" width="300" height="18" rx="9" class="bg"/>
+  <text class="tm" x="82" y="29">locus://tapestry/session/4f2a/run/9</text>
+  <rect x="452" y="15" width="104" height="20" rx="10" class="bw"/>
+  <text class="ts ctr" x="504" y="29">Inbox · 3</text>
+  <rect x="566" y="15" width="116" height="20" rx="10" class="bm"/>
+  <text class="ts ctr" x="624" y="29">Dispatch · 6 running</text>
+
+  <rect x="8" y="44" width="152" height="266" rx="0" class="b"/>
+  <text class="ts" x="22" y="62" fill="#63696f">PROJECT — tapestry ▾</text>
+  <g>
+    <rect x="18" y="70" width="132" height="20" rx="3" class="ba"/><text class="t" x="28" y="84">Setup</text>
+    <rect x="18" y="94" width="132" height="20" rx="3" class="b"/><text class="t" x="28" y="108">Plan</text>
+    <rect x="18" y="118" width="132" height="20" rx="3" class="b"/><text class="t" x="28" y="132">Manage</text>
+    <rect x="18" y="142" width="132" height="20" rx="3" class="b"/><text class="t" x="28" y="156">Interact</text>
+    <rect x="18" y="166" width="132" height="20" rx="3" class="b"/><text class="t" x="28" y="180">Review</text>
+  </g>
+  <text class="ts" x="22" y="206" fill="#63696f">CROSS-PROJECT</text>
+  <g>
+    <rect x="18" y="214" width="132" height="20" rx="3" class="b"/><text class="t" x="28" y="228">Analytics</text>
+    <rect x="18" y="238" width="132" height="20" rx="3" class="b"/><text class="t" x="28" y="252">Memory</text>
+    <rect x="18" y="262" width="132" height="20" rx="3" class="b"/><text class="t" x="28" y="276">Settings</text>
+    <rect x="18" y="286" width="132" height="20" rx="3" class="bm"/><text class="t" x="28" y="300">Workshop</text>
+  </g>
+
+  <rect x="166" y="44" width="526" height="230" rx="0" class="b"/>
+  <text class="ts" x="180" y="62">the selected category's screen — detail opens in place, as a sheet, never a new category</text>
+  <rect x="180" y="72" width="240" height="86" rx="4" class="ba"/>
+  <text class="ts" x="192" y="90">Agent pane · ACP event stream</text>
+  <text class="ts" x="192" y="106">steering composer · docked gates</text>
+  <text class="ts" x="192" y="122">plan · checkpoints · research feed</text>
+  <text class="ts" x="192" y="146" fill="#3b5bdb">one session surface, not a monitor</text>
+  <rect x="430" y="72" width="248" height="86" rx="4" class="b"/>
+  <text class="ts" x="442" y="90">Editor pane · CodeMirror 6</text>
+  <text class="ts" x="442" y="106">the same components at two zoom</text>
+  <text class="ts" x="442" y="122">levels — side pane, or full window</text>
+  <rect x="180" y="168" width="498" height="46" rx="4" class="bg"/>
+  <text class="ts" x="192" y="186">Manage holds one to four focused panes; everything else is a strip entry —</text>
+  <text class="ts" x="192" y="202">project · agent and role · task · status · current tool · tokens · an idle icon when the guardrail says so</text>
+  <rect x="180" y="224" width="498" height="38" rx="4" class="b dash"/>
+  <text class="ts" x="192" y="242">Sorted by needs-attention, then recent activity — never by project and never alphabetically, either of</text>
+  <text class="ts" x="192" y="255">which would put the same session in the same place whether or not anything is happening to it.</text>
+
+  <rect x="166" y="278" width="526" height="32" rx="0" class="b"/>
+  <text class="ts" x="180" y="298">running-agent strip — the Dispatch pill's popover carries the same list from any screen</text>
+</svg>
+<figcaption>The shell. Inbox and Dispatch are pills rather than rail entries because "does anything need me?"
+and "is anything happening?" are questions you ask from every screen.</figcaption>
+</figure>
+
+<h4>Nine categories, in two groups</h4>
+<table>
+<thead><tr><th style="width:16%">Category</th><th style="width:38%">Holds</th><th>The question it answers</th></tr></thead>
+<tbody>
+<tr><td><strong>Setup</strong> <span class="tag">project</span></td><td>harnesses, repos, extensions, CLI tools, base context; what this project has kept; its numbers</td><td>how is this project configured, and what does it know</td></tr>
+<tr><td><strong>Plan</strong> <span class="tag">project</span></td><td>the planning module — interviewer, researcher, auditor; the spec and the recommendation</td><td>what should we build, and is it understood</td></tr>
+<tr><td><strong>Manage</strong> <span class="tag">project</span></td><td>the board and its sessions, as kanban, list, dependency graph, or timeline</td><td>what is assigned, and what is running</td></tr>
+<tr><td><strong>Interact</strong> <span class="tag">project</span></td><td>sessions that are yours alone — a container, a branch, and an agent you talk to directly</td><td>the hands-on work, mine</td></tr>
+<tr><td><strong>Review</strong> <span class="tag">project</span></td><td>tests, linters, LSP diagnostics, and agent reviews for this project</td><td>what is wrong right now</td></tr>
+<tr><td><strong>Analytics</strong></td><td>spend, tokens, cache, run times, task outcomes, memory and extension usage</td><td>what happened, and was it any good</td></tr>
+<tr><td><strong>Memory</strong></td><td>short-term, long-term, artifacts, the wiki, and mail</td><td>what do we already know, and what disagrees</td></tr>
+<tr><td><strong>Settings</strong></td><td>guardrails and everything else that is per install</td><td>what are the defaults</td></tr>
+<tr><td><strong>Workshop</strong></td><td><strong>Plugins:</strong> CLI Tool, Harness, Provider. <strong>Extensions:</strong> the eight types, agent definitions, Workflows</td><td>the tools themselves</td></tr>
+</tbody></table>
+
+<div class="callout">
+<span class="t">Manage operates; Workshop authors</span>
+An agent you are assigning work to and an agent definition you are editing are different activities on the
+same object — one is a thing doing work, the other is a document under version control. The same holds for
+workflows: the canvas is Workshop, a running execution is Manage. That is why agents and workflows appear
+twice in the rail and it is not a duplication.
+</div>
+
+<h4>One address space, so there is one resolver</h4>
+<pre><code>locus://&lt;project&gt;/session/&lt;id&gt;[/run/&lt;id&gt;]
+locus://&lt;project&gt;/task/&lt;id&gt;       artifact/&lt;id&gt;       page/&lt;slug&gt;
+locus://&lt;project&gt;/workflow/&lt;id&gt;[/execution/&lt;id&gt;]      agent/&lt;name&gt;@&lt;version&gt;</code></pre>
+
+<p>The command palette, global search, inbox items, board-card links, artifact comments, notification deep
+links, and a detached window's identity are otherwise seven navigation paths that drift apart. Against one
+locator they are one resolver with seven callers. <code>Cmd-K</code> resolves a locator; <code>Cmd-P</code>
+searches for one; back/forward per window is a stack of them. <code>resolve(locate(v,p)) == (v,p)</code> is
+asserted, not assumed.</p>
+
+<h3>2.2 Setup — configuring a project</h3>
+
+<p>Three tabs: <strong>Settings</strong>, <strong>Persistence</strong>, <strong>Analytics</strong>.</p>
+
+<h4>Settings — five panels</h4>
+<table>
+<thead><tr><th style="width:16%">Panel</th><th>What it controls, and the rule that binds it</th></tr></thead>
+<tbody>
+<tr><td><strong>Harnesses</strong></td><td>An <em>ordered</em> allow-list, not a set: enabled harnesses are offered to the router in the order listed, and anything the router does not claim runs on the agent default. A harness with no working adapter is listed but <strong>not selectable</strong>. Exactly one row carries the agent default, and it must itself be allow-listed. The picker draws only from harness plugins configured in Workshop → Plugins.</td></tr>
+<tr><td><strong>Repos</strong></td><td>A repo belongs to exactly one project. Reassigning re-tags new activity; the old project tag stays on the historical record, so history never silently changes project.</td></tr>
+<tr><td><strong>Extensions</strong></td><td>Seven toggle groups pulled from Workshop's defaults, each with a tri-state master and per-item toggles. Switching one off removes it from the <em>next</em> materialized tree — it does not delete the authored definition. The scope contract is subtraction-only.</td></tr>
+<tr><td><strong>CLI tools</strong></td><td>Catalog search on the left, "in this project" on the right. Adding or removing rebuilds the project's image <strong>once</strong>, not per run. A tool an agent cannot find is the second most common reason a run stalls.</td></tr>
+<tr><td><strong>Base context</strong></td><td>Exactly one <code>base.md</code>, and there is no second. A token-budget meter, version, edit time, run count, History and Save. Over budget reads as "something belongs in a skill or a rule instead" — a design signal, not an error.</td></tr>
+</tbody></table>
+
+<h4>Persistence — everything the project has kept</h4>
+<table>
+<thead><tr><th style="width:20%">Group</th><th style="width:52%">Sections</th><th>Delete offered</th></tr></thead>
+<tbody>
+<tr><td>Memory</td><td>Short-Term · Long-Term · Artifacts</td><td>Long-Term and Artifacts only</td></tr>
+<tr><td>Specs &amp; Tasks</td><td>plan bodies with nested task lists that navigate to the board</td><td>none</td></tr>
+<tr><td>Research</td><td>source and synthesis items</td><td>none</td></tr>
+</tbody></table>
+<p>Short-Term carries no delete because it is already governed by its own decay; Specs and Research carry
+none because they are the written record git owns. Long-Term and Artifacts are the two places where a user
+action, not decay or git, is the only way a record goes away.</p>
+
+<h3>2.3 Plan — a guided conversation that produces a reviewable spec</h3>
+
+<p>Three agents, not one. The split is structural: measured on ProgramBench, single-pass agents terminate
+early by their own choice at a median of 22–177 turns, because exploration and implementation compete for the
+same attention and implementation wins. Splitting them lifted test pass rates 6.9–21.3% relative.</p>
+
+<table>
+<thead><tr><th style="width:20%">Agent</th><th style="width:16%"><code>task_class</code></th><th>Job</th></tr></thead>
+<tbody>
+<tr><td><strong>Interviewer</strong></td><td><code>plan</code></td><td>Drives the questions, holds the state, writes the artifacts</td></tr>
+<tr><td><strong>Researcher</strong></td><td><code>research</code></td><td>Facts, prior art, feasibility. Never asked for intent</td></tr>
+<tr><td><strong>Auditor</strong></td><td><code>plan</code></td><td>Fresh context, adversarial. Grades the spec it did not write</td></tr>
+</tbody></table>
+
+<figure>
+<svg viewBox="0 0 700 300" role="img" aria-label="The seven-stage planning pipeline">
+  <g>
+    <rect x="8" y="16" width="90" height="40" rx="4" class="ba"/><text class="tb ctr" x="53" y="34">1 Inputs</text><text class="ts ctr" x="53" y="48">what to add</text>
+    <rect x="106" y="16" width="90" height="40" rx="4" class="bm"/><text class="tb ctr" x="151" y="34">2 Orient</text><text class="ts ctr" x="151" y="48">repos indexed</text>
+    <rect x="204" y="16" width="90" height="40" rx="4" class="bm"/><text class="tb ctr" x="249" y="34">3 Converse</text><text class="ts ctr" x="249" y="48">n questions</text>
+    <rect x="302" y="16" width="90" height="40" rx="4" class="bm"/><text class="tb ctr" x="347" y="34">4 Synthesis</text><text class="ts ctr" x="347" y="48">pass 2</text>
+    <rect x="400" y="16" width="90" height="40" rx="4" class="ba"/><text class="tb ctr" x="445" y="34">5 Recommend</text><text class="ts ctr" x="445" y="48">+ confidence</text>
+    <rect x="498" y="16" width="90" height="40" rx="4" class="ba"/><text class="tb ctr" x="543" y="34">6 Decompose</text><text class="ts ctr" x="543" y="48">what becomes a card</text>
+    <rect x="596" y="16" width="96" height="40" rx="4" class="bo"/><text class="tb ctr" x="644" y="34">7 Approved</text><text class="ts ctr" x="644" y="48">cards on the board</text>
+  </g>
+  <g class="ln">
+    <path d="M98 36 H104" marker-end="url(#a)"/><path d="M196 36 H202" marker-end="url(#a)"/>
+    <path d="M294 36 H300" marker-end="url(#a)"/><path d="M392 36 H398" marker-end="url(#a)"/>
+    <path d="M490 36 H496" marker-end="url(#a)"/><path d="M588 36 H594" marker-end="url(#a)"/>
+  </g>
+  <path class="lnd" d="M445 60 V78 H249 V60" marker-end="url(#ad)"/>
+  <text class="ts ctr" x="347" y="92" fill="#c92a2a">an auditor finding that names a MISSED QUESTION loops back — once, and only once</text>
+
+  <rect x="8" y="104" width="336" height="90" rx="5" class="bg"/>
+  <text class="tb" x="22" y="122">Stage 3 · the question loop</text>
+  <text class="ts" x="22" y="140">ask you — intent, priorities, trade-offs</text>
+  <text class="ts" x="22" y="154">dispatch researcher — fact, feasibility, prior art</text>
+  <text class="ts" x="22" y="168">scope decision → you, inline, not a separate gate</text>
+  <text class="ts" x="22" y="182">drop — answered, or irrelevant to the goal</text>
+
+  <rect x="356" y="104" width="336" height="90" rx="5" class="bw"/>
+  <text class="tb" x="370" y="122">Stage 4 · synthesis is two passes, and the second SUBTRACTS</text>
+  <text class="ts" x="370" y="140">pass 1 completeness — types, state transitions, edge cases,</text>
+  <text class="ts" x="370" y="154">trust boundaries, error conditions</text>
+  <text class="ts" x="370" y="170">pass 2 reduction — cut what is unsupported, rewrite what is</text>
+  <text class="ts" x="370" y="184">ambiguous. Downstream agents treat an unsupported requirement as mandatory.</text>
+
+  <rect x="8" y="206" width="682" height="86" rx="5" class="ba"/>
+  <text class="tb" x="22" y="224">The properties that make this survivable</text>
+  <text class="ts" x="22" y="242">· <tspan font-weight="600">The goal is an input, not an output.</tspan> Topics are ranked by how much they bear on it, and the interview ends when nothing unresolved still does.</text>
+  <text class="ts" x="22" y="256">· <tspan font-weight="600">Requirement ids are stable</tspan> (R-05). A card already on the board keeps pointing at the requirement it came from, even after a rewrite.</text>
+  <text class="ts" x="22" y="270">· <tspan font-weight="600">Scope changes are approvals, never automatic</tspan> — both directions. A silent narrowing ships something missing and leaves no trace of which step removed it.</text>
+  <text class="ts" x="22" y="284">· <tspan font-weight="600">Effort scales by a ratchet</tspan> — starts minimal, escalates on evidence, never de-escalates. A one-line fix stays three questions.</text>
+</svg>
+<figcaption>The seven stages. Audit is not one of them: the auditor grades continuously and its findings
+arrive as <code>open[]</code> attached to the clause that has the gap.</figcaption>
+</figure>
+
+<h4>Re-planning keeps spec and tasks in sync</h4>
+<table>
+<thead><tr><th style="width:32%">Task state when its requirement changes</th><th>Rule</th></tr></thead>
+<tbody>
+<tr><td>Not started</td><td>rewrite in place</td></tr>
+<tr><td><strong>In progress</strong></td><td>flag it and notify the session — never silently mutate a task an agent is working from</td></tr>
+<tr><td><strong>Done</strong></td><td>never touch. Emit a <em>new</em> task for the delta, linked to the original</td></tr>
+<tr><td>Requirement deleted</td><td>close as <code>superseded</code>, never delete — the trace has to survive</td></tr>
+</tbody></table>
+</section>
+
+<section class="part">
+<h3>2.4 Manage — the board and its sessions</h3>
+
+<p>Fixed columns across every project, deliberately not configurable, and only the gating something else
+already depends on.</p>
+
+<figure>
+<svg viewBox="0 0 700 250" role="img" aria-label="The six fixed board columns and the two gating rules">
+  <g>
+    <rect x="8" y="26" width="106" height="46" rx="4" class="b"/><text class="tb ctr" x="61" y="46">Ready</text><text class="ts ctr" x="61" y="62">unassigned is normal</text>
+    <rect x="122" y="26" width="106" height="46" rx="4" class="bm"/><text class="tb ctr" x="175" y="46">In Progress</text><text class="ts ctr" x="175" y="62">= a run</text>
+    <rect x="236" y="26" width="106" height="46" rx="4" class="ba"/><text class="tb ctr" x="289" y="46">Testing</text><text class="ts ctr" x="289" y="62">= the verify command</text>
+    <rect x="350" y="26" width="106" height="46" rx="4" class="ba"/><text class="tb ctr" x="403" y="46">Reviewing</text><text class="ts ctr" x="403" y="62">= reviewer or Gate</text>
+    <rect x="464" y="26" width="118" height="46" rx="4" class="bw"/><text class="tb ctr" x="523" y="46">Waiting Approval</text><text class="ts ctr" x="523" y="62">= an inbox item</text>
+    <rect x="590" y="26" width="102" height="46" rx="4" class="bo"/><text class="tb ctr" x="641" y="46">Done</text><text class="ts ctr" x="641" y="62">evidence required</text>
+  </g>
+  <g class="ln">
+    <path d="M114 49 H120" marker-end="url(#a)"/><path d="M228 49 H234" marker-end="url(#a)"/>
+    <path d="M342 49 H348" marker-end="url(#a)"/><path d="M456 49 H462" marker-end="url(#a)"/>
+    <path d="M582 49 H588" marker-end="url(#a)"/>
+  </g>
+
+  <rect x="8" y="88" width="336" height="70" rx="5" class="bd"/>
+  <text class="tb" x="22" y="106">blocked is a STATUS, not a column</text>
+  <text class="ts" x="22" y="124">It shows as an icon and is orthogonal to progress — a task can be blocked</text>
+  <text class="ts" x="22" y="138">at any point on the line, not only before it starts. Dependency auto-unblock</text>
+  <text class="ts" x="22" y="151">clears the status when a predecessor completes; it never moves the card.</text>
+
+  <rect x="356" y="88" width="336" height="70" rx="5" class="bo"/>
+  <text class="tb" x="370" y="106">Two gating rules, and no more</text>
+  <text class="ts" x="370" y="124">1 · An agent cannot move a card to Done without evidence.</text>
+  <text class="ts" x="370" y="140">2 · Blocked clears automatically and never manually — it is derived from</text>
+  <text class="ts" x="370" y="152">blocked_by, so clearing it by hand would just be lying about a dependency.</text>
+
+  <rect x="8" y="172" width="684" height="66" rx="5" class="bg"/>
+  <text class="tb" x="22" y="190">Everything else is unrestricted — you can drag anything anywhere</text>
+  <text class="ts" x="22" y="208">The constraints exist to stop an agent asserting completion, not to stop you working. And the footer analytics read the same way:</text>
+  <text class="ts" x="22" y="224">"the two slowest columns are the two that need a human — the median card spends thirty-eight minutes being built and seventeen hours waiting</text>
+  <text class="ts" x="22" y="236">to be looked at." Agents are not the constraint.</text>
+</svg>
+<figcaption>The board. Four of the six columns map onto machinery already in the design, which is why the
+column set is fixed rather than configurable.</figcaption>
+</figure>
+
+<p>Manage offers four views over one toolbar. <strong>Kanban</strong> carries card decoration sourced from
+the task fold and its evidence — a live pulse with the running token count, a blocked marker naming the gate,
+a <code>stuck 3/3</code> ring from the guardrail, the verify command on Testing cards, the gate name on Reviewing
+cards, and the evidence summary on Done. <strong>List</strong> pairs active and inactive sessions with a live
+detail pane, including the stuck-guardrail banner and its <strong>Hand off</strong> control.
+<strong>Graph</strong> draws the dependency DAG, where every edge is one <code>board.task_dependencies</code> row
+and there is no edge with no row. <strong>Timeline</strong> is the same tasks against wall-clock.</p>
+
+<div class="callout warn">
+<span class="t">Evidence proves the requirement was met, not that the feature is right</span>
+A deployment report describes a payments backend that passed CI in two cycles against an adversarially-written
+suite and still shipped two business-logic failures, because neither behavior was in the contract. No amount of
+verification reaches outside its requirement. This is why the planning module's <em>elicitation</em>, not its
+audit, is where the quality actually comes from.
+</div>
+
+<h3>2.5 Interact — sessions the board never sees</h3>
+
+<p>A container, a branch, and an agent you talk to directly. No card, no plan, no gate — the escape hatch
+every plan-driven system needs, and honest about its cost: nothing there is reviewed, so nothing reaches
+<code>main</code> from it until you promote it or land the branch yourself.</p>
+
+<figure>
+<svg viewBox="0 0 700 196" role="img" aria-label="Interact session state machine">
+  <rect x="40" y="60" width="140" height="52" rx="5" class="ba"/>
+  <text class="tb ctr" x="110" y="80">open</text>
+  <text class="ts ctr" x="110" y="96">branch interact/&lt;id&gt;</text>
+  <text class="ts ctr" x="110" y="107">no board_task_id</text>
+
+  <path class="lna" d="M184 74 H300" marker-end="url(#ab)"/>
+  <text class="ts ctr" x="242" y="66">promote — attaches a card</text>
+  <rect x="304" y="34" width="180" height="52" rx="5" class="bo"/>
+  <text class="tb ctr" x="394" y="54">promoted</text>
+  <text class="ts ctr" x="394" y="70">the diff now takes the normal</text>
+  <text class="ts ctr" x="394" y="81">board gate; Interact offers nothing</text>
+
+  <path class="lnd" d="M184 98 H300" marker-end="url(#ad)"/>
+  <text class="ts ctr" x="242" y="118">discard — kills the container,</text>
+  <text class="ts ctr" x="242" y="130">deletes the branch</text>
+  <rect x="304" y="98" width="180" height="52" rx="5" class="bd"/>
+  <text class="tb ctr" x="394" y="118">discarded</text>
+  <text class="ts ctr" x="394" y="134">terminal. The session row and</text>
+  <text class="ts ctr" x="394" y="145">its transcript stay readable</text>
+
+  <rect x="500" y="34" width="192" height="116" rx="5" class="bg"/>
+  <text class="tb" x="512" y="52">Refused transitions</text>
+  <text class="ts" x="512" y="70">· promoting a promoted session</text>
+  <text class="ts" x="512" y="86">· promoting a discarded session</text>
+  <text class="ts" x="512" y="102">· discarding a promoted session —</text>
+  <text class="ts" x="512" y="114">  once on the board, ending it goes</text>
+  <text class="ts" x="512" y="126">  through the board's own gate</text>
+  <text class="ts" x="512" y="144">Each move happens at most once,</text>
+  <text class="ts" x="512" y="156">and never reverses.</text>
+
+  <text class="ts" x="40" y="166">Commit to branch pushes interact/&lt;id&gt; and changes NO state — the session keeps running afterward.</text>
+  <text class="ts" x="40" y="180">Boot reconciliation skips a discarded session rather than filing an aborted run.</text>
+</svg>
+<figcaption>The Interact session state machine. A session with no board task is a first-class named state, not
+a null <code>board_task_id</code> the rest of the system has to interpret.</figcaption>
+</figure>
+
+<h3>2.6 Review, Analytics, and Memory</h3>
+
+<p><strong>Review is now; Analytics is after.</strong> Review says what is broken in <em>this</em> project — a
+failing test, a linter violation, an LSP diagnostic, a reviewer's finding. It is a scheduled or manual
+aggregated pass, never a stream: sending a finding to the inbox tracks it as a to-do and leaves it listed
+where it was found. Keeping the two apart stops Review growing into a query tool and stops Analytics growing
+a live view nobody watches.</p>
+
+<p><strong>Analytics ignores the project filter entirely</strong>, because cross-project questions are the
+useful ones and a spend chart that silently showed one project would be worse than no chart.</p>
+
+<p><strong>Memory</strong> is where the four knowledge homes become inspectable:</p>
+
+<table>
+<thead><tr><th style="width:18%">Screen</th><th>Shows</th></tr></thead>
+<tbody>
+<tr><td>Short-term</td><td>The context window as an anatomy, not a cache: "nothing here is stored — it is rebuilt from scratch every iteration." Resident items list in <strong>fixed prefix order</strong>, because the order <em>is</em> the cache. Each row carries a size and a tag: <code>cached</code>, <code>re-read</code>, <code>volatile</code>. <em>Compacted out</em> is the bridge to artifacts.</td></tr>
+<tr><td>Long-term</td><td>Facts in one of four confidence states — <strong>verified · asserted · decaying · contradicted</strong>. <strong>Provenance beats recency</strong>: a passing verify outranks any later assertion. Editing a recalled fact does not overwrite it — the written fact stays revision 1, the correction becomes revision 2, and provenance still points at the run that wrote revision 1.</td></tr>
+<tr><td>Wiki</td><td>Typed pages: <code>source</code>, <code>entity</code>, <code>concept</code>, <code>synthesis</code>, <code>decision</code>, <code>overview</code>. <strong>Ingest, not authoring</strong> is the entry point. A contradiction is flagged <em>at ingest</em>, not at query, as a card offering <strong>Adjudicate</strong> and <strong>Board card</strong>. <code>locus wiki lint</code> reports orphans, broken links, entities never given a page, and assertions with no source.</td></tr>
+<tr><td>Artifacts</td><td>Plans, diffs, diagrams, images, recordings, walkthroughs — commentable, and a comment steers the agent that made it.</td></tr>
+<tr><td>Mail</td><td>Threads between agents, the <code>mail wait</code> timeout, and handoff payloads.</td></tr>
+</tbody></table>
+
+<h4>Artifacts — two representations, because a human and a model want opposite things</h4>
+<table>
+<thead><tr><th style="width:20%">Kind</th><th style="width:36%">Stored</th><th>Agent-facing</th></tr></thead>
+<tbody>
+<tr><td><code>image</code></td><td>WebP q80, longest edge capped at 2560</td><td><strong>OCR text if the shot carries text</strong>; otherwise downscaled to 1500px</td></tr>
+<tr><td><code>recording</code></td><td>WebM as the browser produced it, capped by duration</td><td>extracted keyframes, never the clip</td></tr>
+<tr><td><code>diff</code> · <code>plan</code> · <code>walkthrough</code></td><td>text in Postgres</td><td>the same text</td></tr>
+</tbody></table>
+<p>An error dialog, a terminal capture, or a failing assertion is text wearing a screenshot's clothes. Only
+appearance — a layout, a rendering bug, a diagram — justifies sending pixels. Media has a retention policy
+(pruned with its run after 30 days unless linked to a PR or a task in Done); text artifacts are small enough
+to keep forever, and the trace depends on them surviving.</p>
+
+<p>The kinds also split by <strong>whether a human is meant to see them</strong>. Review kinds
+(<code>plan</code>, <code>diff</code>, <code>diagram</code>, <code>image</code>, <code>recording</code>,
+<code>walkthrough</code>) reach the inbox when they need you. Reference kinds — <code>finding</code> and
+<code>payload</code> — <strong>never</strong> do; they are storage with a handle. Without that split the inbox
+fills with an agent's own scratch, and the one surface built to protect your attention becomes the one that
+spends it.</p>
+
+<h3>2.7 Dispatch — a durable queue, and the rate a human can absorb</h3>
+
+<p>A card being ready is not the same as a card being started. Dispatch is the queue between them, and it is
+<em>supervisor</em> state rather than UI state — caps, ordering, autorun, schedules, and the kill switch all
+survive a restart, because a queue that forgets is a queue that double-starts.</p>
+
+<figure>
+<svg viewBox="0 0 700 300" role="img" aria-label="Dispatch: caps, review slots, autorun exclusions, and Stop all">
+  <rect x="8" y="16" width="220" height="106" rx="5" class="ba"/>
+  <text class="tb" x="22" y="34">Caps come in pairs</text>
+  <text class="ts" x="22" y="52">A global cap on parallel agents and</text>
+  <text class="ts" x="22" y="66">a per-project cap counted against the</text>
+  <text class="ts" x="22" y="80">SAME pool, never in addition to it.</text>
+  <text class="ts" x="22" y="98" fill="#3b5bdb">A run that would exceed either waits</text>
+  <text class="ts" x="22" y="110" fill="#3b5bdb">rather than starting thin.</text>
+
+  <rect x="240" y="16" width="220" height="106" rx="5" class="bm"/>
+  <text class="tb" x="254" y="34">Ordering is a named method</text>
+  <text class="ts" x="254" y="52">plan order · manual ·</text>
+  <text class="ts" x="254" y="66">unblocks-most · shortest-first</text>
+  <text class="ts" x="254" y="80">tie-break: longest-waiting</text>
+  <text class="ts" x="254" y="98">Preemption is off by default; when on,</text>
+  <text class="ts" x="254" y="110">it pauses at the next ITERATION BOUNDARY.</text>
+
+  <rect x="472" y="16" width="220" height="106" rx="5" class="bw"/>
+  <text class="tb" x="486" y="34">Autorun is a per-project switch</text>
+  <text class="ts" x="486" y="52">on · off · suspended</text>
+  <text class="ts" x="486" y="70">There is no third setting and no</text>
+  <text class="ts" x="486" y="84">per-task exception. A project whose</text>
+  <text class="ts" x="486" y="98">verify pass rate falls under 60%</text>
+  <text class="ts" x="486" y="112">SUSPENDS ITSELF and resumes on its own.</text>
+
+  <rect x="8" y="134" width="452" height="80" rx="5" class="bg"/>
+  <text class="tb" x="22" y="152">The review-slot model — the real constraint is not agents</text>
+  <text class="ts" x="22" y="170">A slot is one change you have not read yet. The median developer reviews four changes a week;</text>
+  <text class="ts" x="22" y="184">eight concurrent agents produce thirty-one. Autorun drains at the rate you absorb, or it is just a</text>
+  <text class="ts" x="22" y="198">faster way of generating a backlog.</text>
+  <text class="ts" x="22" y="208" fill="#7048e8">Per project: review debt · pauses-at threshold · inbox budget per hour · change ceiling.</text>
+
+  <rect x="472" y="134" width="220" height="80" rx="5" class="bd"/>
+  <text class="tb" x="486" y="152">Stop all is reversible</text>
+  <text class="ts" x="486" y="170">Names its exact scope first, kills at</text>
+  <text class="ts" x="486" y="184">the next boundary, optionally lets each</text>
+  <text class="ts" x="486" y="198">agent spend 30s writing a handoff.</text>
+  <text class="ts" x="486" y="208">Restorable for ten minutes.</text>
+
+  <rect x="8" y="226" width="684" height="66" rx="5" class="bd"/>
+  <text class="tb" x="22" y="244">Five classes never autorun, whatever the switch says</text>
+  <text class="ts" x="22" y="262">1 · anything touching migrations/**  — append-only and irreversible in practice</text>
+  <text class="ts" x="22" y="276">2 · any workflow containing a Gate node — the gate is the point; skipping it would be deleting it</text>
+  <text class="ts" x="360" y="262">3 · anything over the change ceiling — past a reviewer's capacity</text>
+  <text class="ts" x="360" y="276">4 · a project under the verify-pass floor    5 · the first task of any plan</text>
+  <text class="ts" x="22" y="288">Each is enforced at the point an autorun-originated run would enter the queue, and each is asserted independently.</text>
+</svg>
+<figcaption>Dispatch. Stopping never deletes branches, artifacts, or memory — it may request a handoff before
+stopping a run.</figcaption>
+</figure>
+
+<h3>2.8 The inbox</h3>
+
+<p>With N agents running, your attention is the bottleneck. Everything that needs you arrives in
+<strong>one</strong> inbox — not scattered across panes, badges, and tiles you have to go looking at. The inbox
+is <em>you as a participant in the same mail system agents use</em>: <code>locus ask</code> from an agent, a
+<code>Gate</code> waiting on approval, a guardrail trip, a contradiction found at ingest, a workflow goal
+awaiting sign-off, a finished run needing review.</p>
+
+<div class="callout ok">
+<span class="t">Silence is the default</span>
+A session working normally produces nothing. The inbox tells you when something <em>needs</em> you, not when
+something <em>happened</em>. An item that documents no response is a notification, not inbox work — and
+notifications go to the activity feed behind the other pill. The inbox also keeps what it resolved, because a
+queue that empties leaves no record of how long a loop waited on you, which is the one number that says
+whether the human is the constraint.
+</div>
+</section>
+
+<!-- ============================ PART III ============================ -->
+<section class="part">
+<p class="eyebrow">Part III</p>
+<h2>Extending Locus</h2>
+
+<h3>3.1 Extensions versus plugins — the distinction that governs everything else</h3>
+
+<p class="lede">Workshop has exactly two subgroups, and the split is not cosmetic. An
+<strong>extension</strong> is content Locus authors and materializes. A <strong>plugin</strong> is an
+executable integration Locus talks to. They have different contracts, different trust models, and different
+failure modes.</p>
+
+<figure>
+<svg viewBox="0 0 700 220" role="img" aria-label="Extensions versus plugins">
+  <rect x="8" y="16" width="336" height="188" rx="5" class="bm"/>
+  <text class="tb" x="22" y="36">Extensions — content, authored in Locus</text>
+  <text class="ts" x="22" y="54">Nine editor targets, one three-pane editor</text>
+  <g class="tm">
+    <text x="22" y="76">agents      commands   hooks</text>
+    <text x="22" y="92">linters     output-styles</text>
+    <text x="22" y="108">rules       skills     base-context</text>
+    <text x="22" y="124">Workflows</text>
+  </g>
+  <rect x="22" y="134" width="300" height="60" rx="3" class="b"/>
+  <text class="ts" x="32" y="152">· stored in Postgres, versioned</text>
+  <text class="ts" x="32" y="166">· materialized fresh into every run</text>
+  <text class="ts" x="32" y="180">· Save is MANUAL — an extension edit is reviewed</text>
+  <text class="ts" x="32" y="192">  before it reaches a tree; a workflow edit autosaves</text>
+
+  <rect x="356" y="16" width="336" height="188" rx="5" class="ba"/>
+  <text class="tb" x="370" y="36">Plugins — executables, capability-negotiated</text>
+  <text class="ts" x="370" y="54">Three kinds, one common contract</text>
+  <g class="tm">
+    <text x="370" y="76">cli_tool    harness    provider</text>
+  </g>
+  <rect x="370" y="88" width="308" height="106" rx="3" class="b"/>
+  <text class="ts" x="380" y="106">· a trusted manifest + one executable</text>
+  <text class="ts" x="380" y="120">· JSON-RPC 2.0 over stdio, any language</text>
+  <text class="ts" x="380" y="134">· namespaced, negotiated capabilities</text>
+  <text class="ts" x="380" y="148">· bounded calls, DATA ONLY</text>
+  <text class="ts" x="380" y="164" fill="#3b5bdb">A plugin declares and returns data; the first-party</text>
+  <text class="ts" x="380" y="176" fill="#3b5bdb">UI knows how to render it. No third-party UI code,</text>
+  <text class="ts" x="380" y="188" fill="#3b5bdb">ever. No plugin writes Locus persistence.</text>
+</svg>
+<figcaption>Core services — memory, mail, board, wiki, telemetry, tools — stay internal and are never
+plugins.</figcaption>
+</figure>
+
+<h4>The first-party roster is deliberately small</h4>
+<table>
+<thead><tr><th style="width:18%">Plugin kind</th><th style="width:32%">First-party plugin</th><th>Canonical id</th></tr></thead>
+<tbody>
+<tr><td>CLI Tool</td><td>GitHub CLI</td><td><code>gh</code></td></tr>
+<tr><td>Harness</td><td>Pi</td><td><code>pi</code></td></tr>
+<tr><td>Provider</td><td>OpenAI API / ChatGPT models</td><td><code>openai</code></td></tr>
+<tr><td>Provider</td><td>Claude models</td><td><code>anthropic</code></td></tr>
+<tr><td>Provider</td><td>OpenRouter</td><td><code>openrouter</code></td></tr>
+</tbody></table>
+<p>That roster is an allowlist of <em>shipped</em> plugins, not a limit on the architecture. A user plugin
+with a valid trusted manifest is discoverable <strong>without a Locus core source change</strong>. A
+non-first-party plugin is either user-installed or absent — it is never silently treated as a built-in.</p>
+
+<h3>3.2 Writing an agent definition</h3>
+
+<p>An agent is a Markdown file with frontmatter. Not a graph, not a compile step. This is the single biggest
+simplification in the design: every harness already reads <code>name</code> + <code>description</code>
+frontmatter over prose, so materializing an agent is close to an identity transform plus a rename.</p>
+
+<pre><code><span class="c">---</span>
+<span class="n">name</span>: reviewer
+<span class="n">description</span>: Read-only critic; runs on task completion
+<span class="n">harness</span>: any            <span class="c"># or a specific one, when it matters</span>
+<span class="n">model_tier</span>: high        <span class="c"># low | medium | high | xhigh — mapped in Settings → Harnesses</span>
+                        <span class="c"># a missing tier falls back UP, never down</span>
+<span class="n">task_class</span>: research    <span class="c"># code | plan | research — sets retrieval depth; defaults to code</span>
+<span class="n">tools</span>: [rg, gh, cargo]  <span class="c"># allowlist, resolved against the marketplace index</span>
+<span class="n">skills</span>: [audit-code]
+<span class="n">rules</span>: [no-secrets]
+<span class="n">memory</span>:
+  <span class="n">scope</span>: project        <span class="c"># agent | project — never cross-project</span>
+  <span class="n">write</span>: propose        <span class="c">#   none    cannot write memory at all</span>
+                        <span class="c">#   propose writes land in the probation buffer for the keeper</span>
+                        <span class="c">#   direct  writes straight to the store — the keeper only</span>
+<span class="c">---</span>
+
+You review code you did not write. Find the defect, not the style...</code></pre>
+
+<h4>The five rules that bind an agent definition</h4>
+<table>
+<thead><tr><th style="width:26%">Rule</th><th>Why, and what it costs you</th></tr></thead>
+<tbody>
+<tr><td><strong><code>tools</code> is enforced, not advisory</strong></td><td>It is the container's install set <em>and</em> the allowlist. A tool absent from the list is absent from the image, so the agent cannot reach for it. Changing the list rebuilds <code>locus/agent-&lt;hash&gt;</code> and invalidates the prefix cache; editing the prose below rebuilds nothing.</td></tr>
+<tr><td><strong>Immutable once referenced</strong></td><td>An edit creates a new version; a run pins the version it used. Editing <code>builder</code> while <code>builder@4</code> is running does not change what that run is doing.</td></tr>
+<tr><td><strong>An unresolvable tool fails at save</strong></td><td>Naming an entry absent from the marketplace index is rejected <em>at save</em>, with the name given — not at run time in a container.</td></tr>
+<tr><td><strong>Composition moves to workflows</strong></td><td>An agent does not nest others structurally. It may call <code>locus agent invoke</code> at runtime if that is in its tool list — bounded in the core at <strong>depth 3 and fan-out 4</strong>, which a workflow may lower and never raise. Depth 3 × fan-out 4 is at most 21 containers, which one machine survives; depth 4 is 85, which it does not.</td></tr>
+<tr><td><strong>Definitions live in Postgres</strong></td><td>Import and export as <code>.md</code>, so a definition can be reviewed in a PR or copied between machines. Export must re-import to an identical definition.</td></tr>
+</tbody></table>
+
+<h4>Permissions are declared in two places, and the second may only narrow</h4>
+<table>
+<thead><tr><th style="width:24%">Set on</th><th style="width:34%">Declares</th><th>Rule</th></tr></thead>
+<tbody>
+<tr><td>the <strong>agent definition</strong></td><td><code>tools</code> — the install set and the allowlist</td><td>the baseline; absent from the list means absent from the image</td></tr>
+<tr><td>the workflow's <strong><code>Agent</code> node</strong></td><td>a <code>tools</code> subset, a <code>network</code> tier, and <code>write</code> scope for this role</td><td><strong>subtracts only.</strong> A node can take the reviewer's write access away; it cannot grant a capability the definition did not have</td></tr>
+</tbody></table>
+<p>Narrowing-only matters because the definition is what was reviewed. If a graph could widen, every workflow
+would be a place to re-grant privileges, and reading an agent would stop telling you what it can do.
+Enforcement is the container, not the harness.</p>
+
+<h3>3.3 The other seven extension types</h3>
+
+<p>One three-pane editor serves all of them — a type is a fixture switch on the component, not eight
+components. Frontmatter field kinds are <em>inferred from the field name</em> through one shared table: a name
+ending in <code>_tokens</code> renders <code>number</code>, <code>tools</code> and <code>roles</code> render
+<code>chips</code>, a name whose value set the registry can enumerate renders <code>select</code>, a
+boolean-named field renders <code>toggle</code>, everything else renders <code>text</code>.</p>
+
+<table>
+<thead><tr><th style="width:16%">Type</th><th>The invariant a test has to hold</th></tr></thead>
+<tbody>
+<tr><td><code>skills</code></td><td>Lazy-loaded. A <code>budget_tokens</code> field <strong>refuses to materialize</strong> the skill above that cap. Downgrade inlines the description into base context and loses lazy loading.</td></tr>
+<tr><td><code>rules</code></td><td><strong>One glob per rule</strong> — a second match is a second rule, not a second glob. A <code>priority</code> field orders overlapping matches. The most downgraded type: concatenated into base context, firing on every file.</td></tr>
+<tr><td><code>base-context</code></td><td>Exactly one per project. Native everywhere — it is the fallback every other downgrade lands in. Over budget means something upstream was downgraded and should be fixed <em>there</em>.</td></tr>
+<tr><td><code>commands</code></td><td>Argument-taking prompt templates. <strong>A command with no args should be a skill instead.</strong> Downgrade materializes it as a skill, losing argument validation.</td></tr>
+<tr><td><code>hooks</code></td><td>One event, a threshold, a timeout, and an on-error choice ending in exit 0 / log / continue. <strong>A hook that fails a run has turned an optimisation into an outage.</strong></td></tr>
+<tr><td><code>output-styles</code></td><td>Exactly one active per harness. A roles checklist decides which roles get which style. The largest single downgrade in the system when merged into base context.</td></tr>
+<tr><td><code>linters</code></td><td>Native 0 / downgraded 0 <em>by design</em> — a human-and-CLI surface (<code>locus lint</code>), not materialized into any harness, so there is nothing to downgrade. A violation choice of <code>warn</code> or <code>fail</code>; a rule nobody can fail is a preference.</td></tr>
+</tbody></table>
+
+<div class="callout warn">
+<span class="t">Hooks log and inject. They never think.</span>
+A hook cannot reuse the agent's LLM, and it fires on every tool call — so any model call inside one taxes the
+whole run. Two rules follow: the <strong>injection path carries a 100ms timeout</strong> and emits nothing on
+expiry, and the <strong>logging path never touches the socket synchronously</strong> — it appends to a local
+buffer and returns, with a background flush. Output must not begin with <code>{</code>, which some harnesses
+parse as JSON rather than as context.
+</div>
+
+<h3>3.4 The plugin contract</h3>
+
+<p>Every CLI-tool, harness, and model-provider plugin has a trusted manifest and one executable speaking
+JSON-RPC 2.0 over stdio, in any language. The manifest envelope is deliberately small.</p>
+
+<pre><code><span class="c"># plugins/&lt;id&gt;/manifest.toml</span>
+<span class="n">protocol</span>     = <span class="s">"locus.plugin.v1"</span>
+<span class="n">kind</span>         = <span class="s">"harness"</span>             <span class="c"># cli_tool | harness | provider</span>
+<span class="n">id</span>           = <span class="s">"pi"</span>
+<span class="n">version</span>      = <span class="s">"1.0.0"</span>
+<span class="n">executable</span>   = <span class="s">"locus-plugin-pi"</span>
+<span class="n">capabilities</span> = [<span class="s">"harness.session"</span>, <span class="s">"harness.materialize"</span>]
+<span class="n">permissions</span>  = [<span class="s">"model_catalog"</span>]</code></pre>
+
+<figure>
+<svg viewBox="0 0 700 260" role="img" aria-label="Plugin lifecycle sequence over JSON-RPC stdio">
+  <rect x="30" y="14" width="130" height="26" rx="4" class="ba"/><text class="tb ctr" x="95" y="32">locus-core host</text>
+  <rect x="470" y="14" width="150" height="26" rx="4" class="bm"/><text class="tb ctr" x="545" y="32">plugin executable</text>
+  <path class="ln2" d="M95 42 V244"/><path class="ln2" d="M545 42 V244"/>
+
+  <path class="lna" d="M97 62 H543" marker-end="url(#ab)"/>
+  <text class="tm ctr" x="320" y="57">plugin.initialize</text>
+  <text class="ts ctr" x="320" y="75">negotiate protocol version, return the descriptor</text>
+
+  <path class="lna" d="M97 100 H543" marker-end="url(#ab)"/>
+  <text class="tm ctr" x="320" y="95">plugin.describe</text>
+  <text class="ts ctr" x="320" y="113">kind · identity · version · capabilities · schema versions</text>
+
+  <path class="lna" d="M97 138 H543" marker-end="url(#ab)"/>
+  <text class="tm ctr" x="320" y="133">plugin.health</text>
+  <text class="ts ctr" x="320" y="151">readiness plus a bounded diagnostic summary</text>
+
+  <path class="lnm" d="M97 178 H543" marker-end="url(#am)"/>
+  <text class="tm ctr" x="320" y="173">harness.* / provider.* / cli_tool.*</text>
+  <text class="ts ctr" x="320" y="191">namespaced capability calls, typed JSON, BOUNDED — data only</text>
+
+  <path class="lna" d="M97 218 H543" marker-end="url(#ab)"/>
+  <text class="tm ctr" x="320" y="213">plugin.shutdown</text>
+  <text class="ts ctr" x="320" y="231">terminate cleanly at the end of the host session</text>
+</svg>
+<figcaption>The lifecycle runs before any kind-specific call. The executable is a separate process with no
+direct Postgres, Tauri, or filesystem authority outside the capability request it is handling.</figcaption>
+</figure>
+
+<h4>What the host does, and refuses to do</h4>
+<table>
+<thead><tr><th style="width:34%">The host…</th><th>Consequence for you as a plugin author</th></tr></thead>
+<tbody>
+<tr><td>Rejects a protocol or version mismatch <em>before</em> dispatching any call</td><td>Get <code>protocol = "locus.plugin.v1"</code> right or nothing runs</td></tr>
+<tr><td>Rejects malformed or <strong>required-unsupported</strong> capabilities</td><td>Declare what you actually implement; a harness must expose at least <code>harness.session</code></td></tr>
+<tr><td><strong>Ignores unknown optional capabilities</strong> and preserves them for diagnostics</td><td>You can ship ahead of the host without breaking loading</td></tr>
+<tr><td>Bounds every call and records structured diagnostics on timeout</td><td>A hung plugin degrades one call, not the run</td></tr>
+<tr><td>Never infers behavior from a plugin <em>name</em></td><td>Adding a capability must not require a core <code>match</code> on your id</td></tr>
+<tr><td>Owns rendering, persistence, credentials, ACP normalization, and trust</td><td>Return data. Never attempt UI or a write path</td></tr>
+</tbody></table>
+</section>
+
+<section class="part">
+<h3>3.5 Writing a harness plugin</h3>
+
+<p>A harness plugin is the largest of the three, because it has both halves of the contract: a
+<strong>descriptor</strong> that says where every extension goes, and <strong>capabilities</strong> that say how
+a session is launched and how its events arrive.</p>
+
+<h4>Step 1 — the descriptor</h4>
+<p>The first-party Pi descriptor is the reference entry. Every field is mechanism; none of it is policy.</p>
+
+<pre><code><span class="c"># harnesses/pi/pi.toml</span>
+<span class="n">name</span>   = <span class="s">"pi"</span>
+<span class="n">binary</span> = <span class="s">"pi"</span>
+<span class="n">detect</span> = [<span class="s">"--version"</span>]           <span class="c"># runs at IMAGE BUILD — its job is to fail the build</span>
+                                <span class="c"># when the binary is missing, not to find one on your host</span>
+<span class="n">materializer</span> = <span class="s">"pi/materialize"</span>  <span class="c"># hooks and rules are TypeScript here, not files</span>
+
+[<span class="k">image</span>]
+<span class="n">base</span> = <span class="s">"debian:bookworm-slim"</span>
+
+[<span class="k">launch</span>]                         <span class="c"># how to start ONE session in ONE run</span>
+<span class="n">argv</span> = [<span class="s">"--print"</span>]
+<span class="n">tui</span>  = <span class="k">false</span>                     <span class="c"># REQUIRED false, enforced by the registry</span>
+
+[<span class="k">config</span>]
+<span class="n">home</span> = <span class="s">"/locus/config"</span>           <span class="c"># pi has no env override, so HOME is set</span>
+
+[<span class="k">telemetry</span>]
+<span class="n">source</span> = <span class="s">"acp"</span>                   <span class="c"># acp is the ONLY source</span>
+
+[<span class="k">models</span>]                         <span class="c"># mechanism only — no model routing here</span>
+<span class="n">flag</span>      = <span class="s">"--model"</span>            <span class="c"># how a model is passed to THIS harness</span>
+<span class="n">list_argv</span> = []                    <span class="c"># optional: how to ask it what it has</span>
+
+[<span class="k">layout</span>]                         <span class="c"># ALL EIGHT, and where THIS harness reads each</span>
+<span class="n">agents</span>        = { via = <span class="s">"dir"</span>,  dir = <span class="s">"/locus/config/agents"</span>,  format = <span class="s">"markdown+frontmatter"</span> }
+<span class="n">commands</span>      = { via = <span class="s">"dir"</span>,  dir = <span class="s">"/locus/config/prompts"</span>, format = <span class="s">"markdown+frontmatter"</span> }
+<span class="n">hooks</span>         = { via = <span class="s">"plugin"</span>, emits = <span class="s">"/locus/config/extensions/locus-hooks.ts"</span> }
+<span class="n">linters</span>       = { via = <span class="s">"dir"</span>,  dir = <span class="s">"/locus/config/linters"</span>, format = <span class="s">"shell+markdown"</span> }
+<span class="n">output-styles</span> = { via = <span class="s">"dir"</span>,  dir = <span class="s">"/locus/config/output-styles"</span>, active = <span class="s">"brief-bright-gone"</span> }
+<span class="n">rules</span>         = { via = <span class="s">"plugin"</span>, emits = <span class="s">"/locus/config/extensions/locus-rules.ts"</span> }
+<span class="n">skills</span>        = { via = <span class="s">"dir"</span>,  dir = <span class="s">"/locus/config/skills"</span>,  format = <span class="s">"markdown+frontmatter"</span> }
+<span class="n">context</span>       = { via = <span class="s">"file"</span>, file = <span class="s">"/locus/config/AGENTS.md"</span> }</code></pre>
+
+<div class="callout bad">
+<span class="t">The failure this file exists to prevent is silent</span>
+An omitted extension is <strong>refused</strong> at registration, with a message naming it. The worst failure
+mode in this whole class of tooling is a file that is "present, plausible, and loaded by nobody" — the tree is
+written, the run starts, and nothing loaded. Pi's own descriptor carries a comment recording exactly such a
+trap: <em>never write to a</em> <code>commands</code> <em>directory, because pi renames</em>
+<code>&lt;home&gt;/commands</code> <em>to</em> <code>prompts</code> <em>on startup, so writing the old name silently
+moves the tree.</em>
+</div>
+
+<h4>Step 2 — pass <code>locus harness lint</code></h4>
+<p>The lint refuses six things, and each corresponds to a way a capability quietly fails to arrive:</p>
+<table>
+<thead><tr><th style="width:44%">Refused</th><th>Because</th></tr></thead>
+<tbody>
+<tr><td>an undeclared extension</td><td>an omission is indistinguishable from an unsupported capability</td></tr>
+<tr><td>an unknown <code>via</code> strategy</td><td>there are exactly six, and core writes what they return</td></tr>
+<tr><td><code>tui = true</code></td><td>it breaks the one-session-per-run mapping everything depends on</td></tr>
+<tr><td>a missing <code>[telemetry].source</code></td><td>events would have nowhere to arrive from</td></tr>
+<tr><td>a source other than <code>acp</code></td><td>ACP is the only transport; the old four-source table is retired</td></tr>
+<tr><td>a downgrade with no <code>weaker_than_native</code></td><td>a capability you believe in but do not have is worse than one you know you lack</td></tr>
+</tbody></table>
+
+<h4>Step 3 — model routing is mechanism here, policy in the app</h4>
+<p>An agent asks for <code>model_tier: high</code>. The descriptor supplies only how a model is passed and how
+to enumerate what exists. Which model <code>high</code> <em>means</em> lives in <code>core.settings</code>, keyed
+by harness and tier, and is edited in <strong>Settings → Harnesses</strong>. Three rules make it safe to leave
+half-filled:</p>
+<ul>
+<li><strong>A missing tier falls back UP, never down.</strong> An agent asking for <code>xhigh</code> on a harness with no <code>xhigh</code> gets <code>high</code>. Falling <em>down</em> would quietly answer a hard question with a cheap model, and the result would look like a bad agent rather than a bad setting.</li>
+<li><strong>Unset means the harness's default.</strong> With no mapping at all, no <code>flag</code> is passed — a harness that was never configured still runs. A new harness is usable the moment it is registered.</li>
+<li><strong>The resolved model id is recorded on the run</strong>, not the tier — so spend and verify pass rate are attributable to what actually answered.</li>
+</ul>
+
+<h4>Step 4 — declare capabilities, not a name</h4>
+<p>The harness contract is capability-based rather than a fixed method list. The minimum for selection is
+<code>harness.session</code>; everything else is negotiable.</p>
+<table>
+<thead><tr><th style="width:26%">Capability</th><th style="width:14%">Required</th><th>Covers</th></tr></thead>
+<tbody>
+<tr><td><code>harness.session</code></td><td><span class="tag act">yes</span></td><td>the minimum session capability needed for selection</td></tr>
+<tr><td><code>harness.launch</code></td><td><span class="tag">optional</span></td><td>launch mechanics beyond the descriptor's <code>[launch]</code></td></tr>
+<tr><td><code>harness.events</code></td><td><span class="tag">optional</span></td><td>session events; all supported events map to the canonical ACP vocabulary</td></tr>
+<tr><td><code>harness.materialize</code></td><td><span class="tag">optional</span></td><td>the <code>plugin</code> strategy — return the files to write</td></tr>
+<tr><td>model discovery, permissions, resume, checkpoints, usage</td><td><span class="tag">optional</span></td><td>declared as needed; absence is recorded, never inferred</td></tr>
+</tbody></table>
+<p>A harness may implement native ACP, an ACP adapter, or a materializer-backed configuration. Adding a
+capability must never require a new core match on the harness id — core validates the schema, routes the
+request, and preserves unknown optional data for diagnostics.</p>
+
+<h3>3.6 Writing a provider plugin</h3>
+
+<p>A provider is where a credential is <em>configured</em>, and it holds a <strong>reference, not a key</strong>.
+The record carries an identifier, an authentication method, an OS-keychain reference, an optional
+<code>base_url</code>, verification metadata, and a curated model catalog whose aliases are what every model
+selector displays.</p>
+
+<pre><code><span class="c">#!/usr/bin/env python3  —  a complete provider plugin, minus error handling</span>
+<span class="k">import</span> json, sys
+
+MODELS = [{<span class="s">"id"</span>: <span class="s">"claude-sonnet-4"</span>, <span class="s">"alias"</span>: <span class="s">"Sonnet"</span>},
+          {<span class="s">"id"</span>: <span class="s">"claude-opus-4"</span>,   <span class="s">"alias"</span>: <span class="s">"Opus"</span>}]
+
+<span class="k">def</span> emit(req, result):
+    print(json.dumps({<span class="s">"jsonrpc"</span>: <span class="s">"2.0"</span>, <span class="s">"id"</span>: req.get(<span class="s">"id"</span>), <span class="s">"result"</span>: result},
+                     separators=(<span class="s">","</span>, <span class="s">":"</span>)), flush=<span class="k">True</span>)
+
+<span class="k">for</span> raw <span class="k">in</span> sys.stdin:
+    req = json.loads(raw); m = req.get(<span class="s">"method"</span>)
+    <span class="k">if</span> m == <span class="s">"plugin.initialize"</span>:
+        emit(req, {<span class="s">"protocol"</span>: <span class="s">"locus.plugin.v1"</span>,
+                   <span class="s">"capabilities"</span>: [<span class="s">"provider.models"</span>, <span class="s">"provider.verify"</span>, <span class="s">"provider.aliases"</span>]})
+    <span class="k">elif</span> m == <span class="s">"plugin.describe"</span>:
+        emit(req, {<span class="s">"protocol"</span>: <span class="s">"locus.plugin.v1"</span>, <span class="s">"kind"</span>: <span class="s">"provider"</span>, <span class="s">"id"</span>: <span class="s">"anthropic"</span>,
+                   <span class="s">"version"</span>: <span class="s">"1.0.0"</span>, <span class="s">"schema_versions"</span>: {<span class="s">"plugin"</span>: <span class="s">"v1"</span>},
+                   <span class="s">"capabilities"</span>: [<span class="s">"provider.models"</span>, <span class="s">"provider.verify"</span>, <span class="s">"provider.aliases"</span>],
+                   <span class="s">"permissions"</span>: [<span class="s">"keychain_reference"</span>]})
+    <span class="k">elif</span> m == <span class="s">"plugin.health"</span>:    emit(req, {<span class="s">"ready"</span>: <span class="k">True</span>})
+    <span class="k">elif</span> m == <span class="s">"provider.models"</span>: emit(req, {<span class="s">"models"</span>: MODELS})
+    <span class="k">elif</span> m == <span class="s">"provider.verify"</span>: emit(req, {<span class="s">"status"</span>: <span class="s">"unverified"</span>})
+    <span class="k">elif</span> m == <span class="s">"plugin.shutdown"</span>: emit(req, {<span class="s">"stopped"</span>: <span class="k">True</span>}); <span class="k">break</span></code></pre>
+
+<div class="callout bad">
+<span class="t">The one thing a provider plugin must never do</span>
+Return, log, cache, or accept a raw secret. Postgres stores the <code>keychain_reference</code>; the key never
+enters a row, a repository, an artifact, a log line, or a container. The host broker resolves the reference
+<em>only</em> at the egress boundary. A provider plugin that handles a key has broken the single claim the whole
+credential model rests on.
+</div>
+
+<h3>3.7 Writing a CLI-tool plugin</h3>
+
+<p>Two artifacts, and they do different jobs. The <strong>marketplace manifest</strong> is the resolver's input
+— it validates an agent's <code>tools</code> list and supplies the one-line catalog entry. The <strong>plugin
+executable</strong> supplies install, verify, docs, and digest capabilities.</p>
+
+<pre><code><span class="c"># index/gh.toml — the marketplace manifest</span>
+<span class="n">name</span>    = <span class="s">"gh"</span>
+<span class="n">summary</span> = <span class="s">"GitHub's official command-line interface"</span>   <span class="c"># ~15 tokens; this is what</span>
+                                                     <span class="c"># reaches an agent's context</span>
+<span class="n">install</span> = { brew = <span class="s">"gh"</span> }
+<span class="n">verify</span>  = <span class="s">"gh --version"</span>
+<span class="n">docs</span>    = <span class="s">"docs/gh.md"</span>                                <span class="c"># fetched ONLY on demand, via</span>
+                                                     <span class="c"># locus tools docs gh</span>
+<span class="n">caps</span>    = [<span class="s">"source-control"</span>, <span class="s">"github"</span>]</code></pre>
+
+<figure>
+<svg viewBox="0 0 700 170" role="img" aria-label="Just-in-time tool knowledge versus eager tool installation">
+  <rect x="8" y="16" width="336" height="140" rx="5" class="ba"/>
+  <text class="tb" x="22" y="36">Knowledge is JUST-IN-TIME</text>
+  <text class="ts" x="22" y="56">At session start the agent receives a CATALOG:</text>
+  <text class="tm" x="22" y="76">gh — GitHub's official CLI</text>
+  <text class="tm" x="22" y="90">rg — fast recursive search</text>
+  <text class="tm" x="22" y="104">cargo — the Rust build tool</text>
+  <text class="ts" x="22" y="126">Fifteen allowlisted tools ≈ 225 tokens, against</text>
+  <text class="ts" x="22" y="140">~3,000 for their full pages — and the difference is</text>
+  <text class="ts" x="22" y="152">recovered by any agent that actually reads one.</text>
+
+  <rect x="356" y="16" width="336" height="140" rx="5" class="bw"/>
+  <text class="tb" x="370" y="36">Installation is EAGER, deliberately</text>
+  <text class="ts" x="370" y="56">A tool absent from the allowlist is absent from</text>
+  <text class="ts" x="370" y="70">the image, because that is a PRIVILEGE BOUNDARY,</text>
+  <text class="ts" x="370" y="84">not a context decision.</text>
+  <text class="ts" x="370" y="106">Just-in-time applies to what an agent KNOWS,</text>
+  <text class="ts" x="370" y="120">never to what it CAN REACH.</text>
+  <text class="ts" x="370" y="142" fill="#b26a00">A tool an agent cannot find is the second most</text>
+  <text class="ts" x="370" y="154" fill="#b26a00">common reason a run stalls — check the project scope.</text>
+</svg>
+<figcaption>The same move the field made for MCP under three names — Tool Search Tool, Code Mode, the
+MCP-code-execution pattern — reached directly, as a catalog line and a <code>docs</code> verb.</figcaption>
+</figure>
+
+<div class="callout ok">
+<span class="t">Blurbs are a tuning surface, not boilerplate</span>
+Anthropic reported a <strong>40% cut in task completion time</strong> from having an agent evaluate and rewrite
+tool descriptions. The index is git-backed, so a better description is a commit — and the event store already
+holds what it would be measured against: how often a tool was reached for, and whether those runs passed.
+</div>
+
+<h3>3.8 Writing a materializer</h3>
+
+<p>Only the <code>plugin</code> strategy needs an executable. It is called once per run with the extension set
+as JSON and <strong>returns the files to write</strong> — it never writes them itself.</p>
+
+<pre><code>→ materialize { harness, extension, root: <span class="s">"/locus/config"</span>,
+                entries: [{ name, frontmatter, body }] }
+← { files: [{ path, mode, content }] }</code></pre>
+
+<p>Three things fall out of returning data rather than writing it: a materializer is a <strong>pure
+function</strong> and therefore testable without a container, a buggy one <strong>cannot escape the config
+tree</strong> (core rejects any path that does not resolve under <code>root</code>, and writes nothing), and the
+same JSON is the fixture for an event-based "did this harness get its rules" test.</p>
+
+<p>Pi's materializer is the reference because a generated TypeScript extension is the furthest a harness gets
+from copying a directory — it proves the contract at its hardest point:</p>
+
+<pre><code><span class="k">def</span> materialize(params):
+    root = params[<span class="s">"root"</span>]
+    extensions = params.get(<span class="s">"extensions"</span>, {})
+    files = []
+    <span class="k">if</span> <span class="s">"rules"</span> <span class="k">in</span> extensions:
+        bodies = [e[<span class="s">"body"</span>] <span class="k">for</span> e <span class="k">in</span> extensions[<span class="s">"rules"</span>]]     <span class="c"># order as given — sorted upstream</span>
+        files.append({
+            <span class="s">"path"</span>: root + <span class="s">"/extensions/locus-rules.ts"</span>,
+            <span class="s">"mode"</span>: 420,
+            <span class="s">"content"</span>: TEMPLATE % json.dumps(bodies)})
+    <span class="k">return</span> {<span class="s">"files"</span>: files}</code></pre>
+
+<div class="callout warn">
+<span class="t">The determinism checklist — every item is testable, and CI tests them</span>
+<strong>1.</strong> Materializing the same agent twice produces byte-identical trees; <code>diff -r</code> is empty.
+<strong>2.</strong> A materializer that emits a timestamp <em>fails</em> a determinism test.
+<strong>3.</strong> Generated file order and in-file list order are both sorted, asserted independently.
+<strong>4.</strong> A returned path that escapes <code>root</code> is rejected and nothing is written.
+<strong>5.</strong> The config tree is read-only for the run's lifetime — a mid-run write attempt fails.
+Nothing fails visibly when determinism breaks; the runs just get more expensive. That is why the check is in CI
+and cache rate is on the dashboard.
+</div>
+
+<h3>3.9 Trust and admission</h3>
+
+<table>
+<thead><tr><th style="width:20%">Plugin kind</th><th>Admission requirement</th></tr></thead>
+<tbody>
+<tr><td><strong>CLI tool</strong></td><td><strong>Minisign signature</strong> against a trusted public key held in Locus settings. A manifest and its binary must verify before entering the enabled catalog or an image. An unsigned or untrusted upload is <em>rejected</em> — read-only access is not a meaningful containment boundary for code executed during an image build.</td></tr>
+<tr><td><strong>Provider</strong></td><td>Credentials remain OS-keychain references resolved by the host broker. Raw secrets never cross the plugin or persistence boundary.</td></tr>
+<tr><td><strong>Harness</strong></td><td>A trusted descriptor loaded by the registry. The host owns run identity, container placement, ACP normalization, and policy; the plugin owns harness-specific mechanics only.</td></tr>
+</tbody></table>
+
+<p><strong>The admission rule is not open:</strong> untrusted executable plugins are refused. What remains
+undecided is the signature/trust-store <em>UX</em> for user plugins, which the marketplace installer owns.</p>
+</section>
+
+<!-- ============================ PART IV ============================ -->
+<section class="part">
+<p class="eyebrow">Part IV</p>
+<h2>Workflows and governance</h2>
+
+<p class="lede">A workflow is <strong>a loop toward a goal</strong>, not a one-shot pipeline. It is also the
+team: its <code>Agent</code> nodes are the roster, each node carries a role, and the edges are the
+dependencies. There is no separate <code>Team</code> entity, and there is no <code>Job</code> — a workflow
+subsumes it, and running a single agent ad hoc needs no wrapper at all.</p>
+
+<h3>4.1 Six executable nodes</h3>
+
+<table>
+<thead><tr><th style="width:16%">Node</th><th>Contributes</th></tr></thead>
+<tbody>
+<tr><td><code>Agent</code></td><td>An agent definition, <strong>pinned by version</strong>, plus a <code>role</code> — the definition is reusable, the role is per-workflow. Carries this role's permission narrowing: a <code>tools</code> subset, a <code>network</code> tier, <code>write</code> scope.</td></tr>
+<tr><td><code>Task</code></td><td>A unit of work, optionally sourced from the board.</td></tr>
+<tr><td><code>Loop</code></td><td>The iteration construct: what repeats, and what resets between passes.</td></tr>
+<tr><td><code>Condition</code></td><td>Deterministic routing. <strong>No model in the orchestration path</strong> — the graph decides, not an LLM.</td></tr>
+<tr><td><code>Gate</code></td><td>A checkpoint: human, or another agent acting as reviewer.</td></tr>
+<tr><td><code>Verify</code></td><td>The runnable success criterion. <strong>Required — <code>verify</code> is NOT NULL.</strong></td></tr>
+</tbody></table>
+
+<h4>What a <code>Condition</code> can say</h4>
+<p>A small <em>total</em> expression language over facts the run already produced — no code, no model, no I/O,
+and no way to hang the orchestrator:</p>
+<pre><code>verify.passed · verify.exit_code · iteration · elapsed · tokens.used
+events.count(tool_error) · events.last(kind) · artifact.exists(kind)
+task.status · mail.pending
+
+with  ==  !=  &lt;  &gt;  &lt;=  &gt;=   ·   and  or  not   ·   parentheses</code></pre>
+<p>Every operand is a column, so a <code>Condition</code> is a <code>WHERE</code> clause against the run —
+evaluable in microseconds and reproducible from stored events. Anything it cannot express is a
+<code>Gate</code>, which is to say a decision that deserved a person or an agent rather than an operator.</p>
+
+<h3>4.2 Governance — what sits outside the graph</h3>
+
+<figure>
+<svg viewBox="0 0 700 240" role="img" aria-label="A workflow is a graph plus governance">
+  <rect x="8" y="16" width="404" height="212" rx="5" class="bg"/>
+  <text class="tb" x="22" y="36">The graph — executable nodes</text>
+  <rect x="26" y="50" width="86" height="34" rx="4" class="bm"/><text class="ts ctr" x="69" y="65">Task</text><text class="ts ctr" x="69" y="77">from the board</text>
+  <path class="ln" d="M116 67 H140" marker-end="url(#a)"/>
+  <rect x="144" y="50" width="98" height="34" rx="4" class="ba"/><text class="ts ctr" x="193" y="65">Agent · builder</text><text class="ts ctr" x="193" y="77">tools narrowed</text>
+  <path class="ln" d="M246 67 H270" marker-end="url(#a)"/>
+  <rect x="274" y="50" width="86" height="34" rx="4" class="bo"/><text class="ts ctr" x="317" y="65">Verify</text><text class="ts ctr" x="317" y="77">fresh container</text>
+
+  <path class="ln" d="M317 88 V104" marker-end="url(#a)"/>
+  <rect x="256" y="106" width="122" height="34" rx="4" class="b"/><text class="ts ctr" x="317" y="121">Condition</text><text class="tm ctr" x="317" y="133">verify.passed</text>
+
+  <path class="ln" d="M256 123 H200 V142" marker-end="url(#a)"/>
+  <text class="ts" x="196" y="118">false</text>
+  <rect x="144" y="144" width="98" height="34" rx="4" class="bw"/><text class="ts ctr" x="193" y="159">Loop</text><text class="ts ctr" x="193" y="171">reset context</text>
+  <path class="lnm" d="M144 161 H100 V67 H140" marker-end="url(#am)"/>
+
+  <path class="ln" d="M378 123 H396 V190 H310" marker-end="url(#a)"/>
+  <text class="ts" x="382" y="118">true</text>
+  <rect x="212" y="176" width="98" height="34" rx="4" class="ba"/><text class="ts ctr" x="261" y="191">Agent · tester</text><text class="ts ctr" x="261" y="203">clones at BASE</text>
+
+  <rect x="424" y="16" width="268" height="212" rx="5" class="bm"/>
+  <text class="tb" x="438" y="36">Governance — outside the graph</text>
+  <rect x="438" y="46" width="240" height="52" rx="3" class="b"/>
+  <text class="tb" x="448" y="63">goal</text>
+  <text class="ts" x="448" y="78">The guiding statement applied to each step,</text>
+  <text class="ts" x="448" y="90">AND the termination condition. One statement.</text>
+
+  <rect x="438" y="104" width="240" height="52" rx="3" class="b"/>
+  <text class="tb" x="448" y="121">guardrails</text>
+  <text class="ts" x="448" y="136">Each a title and a prompt body, read by the run</text>
+  <text class="ts" x="448" y="148">in flight and RE-INJECTED after any reset.</text>
+
+  <rect x="438" y="162" width="240" height="56" rx="3" class="b"/>
+  <text class="tb" x="448" y="179">success criteria</text>
+  <text class="ts" x="448" y="194">kind: command | assertion | human, each with a</text>
+  <text class="ts" x="448" y="206">named checker. A criterion the core cannot check</text>
+  <text class="ts" x="448" y="216">itself BECOMES A GATE — never passed on the agent's word.</text>
+</svg>
+<figcaption>Graph and governance are authored separately. Run state belongs to runs; the authoring surface
+holds no execution state at all.</figcaption>
+</figure>
+
+<div class="callout">
+<span class="t">Where <code>Verify</code> runs, and why it matters</span>
+In a <strong>fresh container from the agent's own image, on the run's branch</strong> — never in the agent's
+container. Two reasons, and they are the same reason: the agent's container may already be gone, and its
+filesystem holds whatever the agent did outside git. <em>A check that passes only on the machine that made the
+change has verified nothing.</em> The command comes from the task or the node, the exit code is the result, and
+stdout plus stderr are captured as the evidence the board requires for Done.
+</div>
+
+<h3>4.3 Guardrails</h3>
+
+<p>Each is borrowed from a measured failure in an existing tool. Defaults apply to any agent run; a workflow
+may tighten or relax them, and they are what make leaving a loop unattended defensible.</p>
+
+<table>
+<thead><tr><th style="width:24%">Guardrail</th><th style="width:12%">Default</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td><code>max_iterations</code></td><td>8</td><td>Agents loop endlessly retrying the same broken approach without a hard stop</td></tr>
+<tr><td>Forced reflection before retry</td><td>on</td><td>"What failed? What specific change would fix it? Am I repeating myself?" — reported to substantially cut stuck agents</td></tr>
+<tr><td>Kill-and-reassign after 3 stuck iterations</td><td>on</td><td>A fresh context beats a confused one</td></tr>
+<tr><td><strong>Waiting ≠ idle</strong></td><td>—</td><td>A run carries a <code>waiting</code> state with a reason — <code>ask</code>, <code>mail</code>, <code>debug-paused</code>, <code>gate</code> — and idle counts only time outside it. One mechanism, four callers. Without it every deliberate block reads as a stall</td></tr>
+<tr><td>Idle detection</td><td>60s</td><td>No event on the run's stream for 60s while not blocked. The tile gets an idle icon and a toast fires <em>once per idle stretch</em>, never repeatedly</td></tr>
+<tr><td>Wall-clock ceiling</td><td>none</td><td>Optional; a loop that cannot finish overnight should stop, not run to morning</td></tr>
+<tr><td><strong>Token budget</strong></td><td><strong>none — optional</strong></td><td>When set, auto-pause at 85% and notify rather than draining silently</td></tr>
+</tbody></table>
+
+<div class="callout warn">
+<span class="t">A budget is optional; the accounting is not</span>
+Token usage by itself reportedly explains 80% of the variance in agent task performance. If that holds even
+roughly, tokens are the strongest single predictor of whether a run went well — and <strong>a run that passes
+verify on four times the tokens is a worse run wearing a green tick</strong>. So every run carries usage whether
+or not a ceiling was set, agent trust is weighted by tokens per passing run, and the dashboard reports both.
+</div>
+
+<p><strong>Pause means the loop stops being fed, not that a process is frozen.</strong> The supervisor lets the
+current turn finish, holds before the next iteration, and notifies; the container stays up so its state is
+inspectable. <code>SIGSTOP</code> on a harness mid-request would leave sockets half-written and a model call in
+flight — a worse problem than the spend it saved.</p>
+
+<h3>4.4 When <code>Verify</code> fails, classify before retrying</h3>
+
+<p>Every guardrail above answers a failed iteration the same way: try again, with reflection, then give up.
+That is wrong for at least half of failures. Locus routes every failure through a four-way arbiter first, and
+each class has a different corrective action.</p>
+
+<figure>
+<svg viewBox="0 0 700 200" role="img" aria-label="The four-way failure arbiter">
+  <rect x="272" y="12" width="156" height="34" rx="4" class="bd"/>
+  <text class="tb ctr" x="350" y="34">Verify failed</text>
+  <path class="lnd" d="M350 48 V64" marker-end="url(#ad)"/>
+  <rect x="248" y="66" width="204" height="30" rx="4" class="bw"/>
+  <text class="tb ctr" x="350" y="86">arbiter — an agent with a bounded job</text>
+
+  <path class="ln" d="M290 98 V116 H90 V128" marker-end="url(#a)"/>
+  <path class="ln" d="M330 98 V112 H262 V128" marker-end="url(#a)"/>
+  <path class="ln" d="M372 98 V112 H436 V128" marker-end="url(#a)"/>
+  <path class="ln" d="M412 98 V116 H610 V128" marker-end="url(#a)"/>
+
+  <rect x="8" y="130" width="164" height="62" rx="4" class="b"/>
+  <text class="tb ctr" x="90" y="148">Bug</text>
+  <text class="ts ctr" x="90" y="163">the implementation violates</text>
+  <text class="ts ctr" x="90" y="174">a clear requirement</text>
+  <text class="ts ctr" x="90" y="188" fill="#3b5bdb">retry + promote the check into regression</text>
+
+  <rect x="180" y="130" width="164" height="62" rx="4" class="bm"/>
+  <text class="tb ctr" x="262" y="148">Spec gap</text>
+  <text class="ts ctr" x="262" y="163">the requirement omitted</text>
+  <text class="ts ctr" x="262" y="174">necessary behavior</text>
+  <text class="ts ctr" x="262" y="188" fill="#7048e8">LEAVES the workflow → a new task for the delta</text>
+
+  <rect x="354" y="130" width="164" height="62" rx="4" class="bo"/>
+  <text class="tb ctr" x="436" y="148">Noise</text>
+  <text class="ts ctr" x="436" y="163">environmental or irrelevant —</text>
+  <text class="ts ctr" x="436" y="174">a flaky test, a CI hiccup</text>
+  <text class="ts ctr" x="436" y="188" fill="#2b8a3e">recalibrate; DOES NOT count against max_iterations</text>
+
+  <rect x="528" y="130" width="164" height="62" rx="4" class="bm"/>
+  <text class="tb ctr" x="610" y="148">Ambiguity</text>
+  <text class="ts ctr" x="610" y="163">the requirement admits</text>
+  <text class="ts ctr" x="610" y="174">several valid readings</text>
+  <text class="ts ctr" x="610" y="188" fill="#7048e8">refine the requirement, then RESTART — never retry</text>
+</svg>
+<figcaption>Two consequences worth having on purpose. Noise stops burning the iteration budget — three flaky
+failures otherwise kill a workflow at 8 iterations having attempted the work five times. And spec gaps and
+ambiguity <em>leave the workflow entirely</em>, which is the only path that reaches the thing actually
+broken.</figcaption>
+</figure>
+
+<p>The classification is a column on the iteration, so <strong>spec-gap rate and ambiguity-detection rate are
+queries</strong> — and a workflow that keeps producing spec gaps is visibly a planning problem rather than a
+builder problem.</p>
+
+<h3>4.5 Independence is structural, not requested</h3>
+
+<p><strong>Role contamination is refused at compile time.</strong> One agent definition may not hold both the
+builder and the tester role in one workflow, and the reviewer may not be the implementer. This belongs in graph
+validation beside cycles and missing <code>verify</code> — not in a convention someone follows. A verifier that
+wrote the code inherits its assumptions, and a graph that quietly allows it produces reviews that agree with
+everything.</p>
+
+<table>
+<thead><tr><th style="width:20%">Regime</th><th style="width:30%">Mechanism</th><th style="width:26%">Catches</th><th>Cannot catch</th></tr></thead>
+<tbody>
+<tr><td><strong>Independence-based</strong></td><td>one agent implements, another writes tests — both from the requirement, neither seeing the other</td><td>contract violations, behavioral bugs</td><td>anything the requirement never said; shared model blind spots</td></tr>
+<tr><td><strong>Attention-based</strong></td><td>one model directed into separate reviewer roles — security, architecture, product, QA</td><td>structural, product, and UX problems</td><td>it is not independent, so a shared misreading survives</td></tr>
+</tbody></table>
+
+<p>Locus can enforce independence <em>structurally</em>, which is the part most setups only ask for politely:
+separate containers, separate sessions, no shared conversation, no shared short-term memory — all already true
+— plus the one the git model makes possible: <strong>the tester clones the branch at base</strong>, before the
+builder's commits. A verifier that cannot see the implementation cannot adopt its assumptions.</p>
+
+<h3>4.6 Worked example — builder, tester, reviewer</h3>
+
+<ol>
+<li><strong>Author the roster.</strong> Drop three <code>Agent</code> nodes. Each pins a definition by version and carries a role. Narrow the tester's <code>tools</code> to read-plus-test; narrow the reviewer's <code>write</code> scope to none.</li>
+<li><strong>Draw the dependencies.</strong> An edge from builder to tester is the dependency. When the workflow creates board tasks, that edge <em>becomes</em> the tasks' <code>blocked_by</code> relationship — declared once, visually, rather than drawn on the canvas and re-entered on the board.</li>
+<li><strong>Add <code>Verify</code>.</strong> The runnable check. It is <code>NOT NULL</code>, so the graph will not compile without it.</li>
+<li><strong>Write Governance.</strong> The goal is the guiding statement <em>and</em> the termination condition. Add guardrail prompts and success criteria; anything the core cannot check becomes a gate that reaches your inbox with the evidence attached.</li>
+<li><strong>Approve the goal.</strong> That is the gate. Then it runs unattended: the tester starts the moment the builder's task completes, and the run stops on <code>max_iterations</code> when the goal is unreachable, with the live overlay showing which iteration tripped which guardrail.</li>
+</ol>
+
+<div class="callout">
+<span class="t">The Ralph loop is a preset, not the only shape</span>
+<em>pick → act → validate → commit → reset</em> is expressible in these nodes already: a <code>Loop</code> whose
+reset starts a fresh run in the same session, a <code>Verify</code> as the validate step, and Governance's goal
+as the termination condition. <code>locus ralph --goal … --verify …</code> runs one without opening the canvas,
+and dropping the preset onto the canvas <strong>expands it into ordinary nodes</strong> so it can be edited
+rather than configured. Two honest notes: it is <em>token-hungry by construction</em> — a fresh context every
+pass is the point — and it is <em>only as good as its verify</em>, because a loop iterating against a weak check
+converges confidently on the wrong thing.
+</div>
+
+<p><strong>The cost of deterministic routing, stated plainly:</strong> a workflow cannot re-plan itself mid-run.
+The lead is the graph you drew, not what a model decided this run, which is what makes a run reproducible and
+debuggable. If dynamic decomposition turns out to be needed, the fix is an agent that <em>authors a
+workflow</em> and submits it for goal approval — not a model in the execution path.</p>
+</section>
+
+<!-- ============================ PART V ============================ -->
+<section class="part">
+<p class="eyebrow">Part V</p>
+<h2>Operations</h2>
+
+<h3>5.1 First-run setup</h3>
+
+<table>
+<thead><tr><th style="width:24%">Task</th><th>Command</th></tr></thead>
+<tbody>
+<tr><td>Install</td><td><code>cargo fetch &amp;&amp; pnpm -C apps/desktop install</code></td></tr>
+<tr><td>Build</td><td><code>cargo build &amp;&amp; pnpm -C apps/desktop build</code></td></tr>
+<tr><td>Test</td><td><code>cargo test</code></td></tr>
+<tr><td>Test one module</td><td><code>cargo test -p &lt;crate&gt; &lt;module&gt;::</code></td></tr>
+<tr><td>Lint</td><td><code>cargo clippy --all-targets -- -D warnings</code></td></tr>
+<tr><td>Run locally</td><td><code>pnpm -C apps/desktop tauri dev</code></td></tr>
+<tr><td>Validate every harness descriptor</td><td><code>locus harness lint</code></td></tr>
+</tbody></table>
+
+<p>The <code>tauri</code> CLI is a devDependency of <code>apps/desktop</code>, not a global install — reach it
+through pnpm. Toolchain baseline: <code>docker 29</code>, <code>node v24</code>, <code>pnpm 10</code>,
+<code>cargo 1.97</code>.</p>
+
+<h4>Bringing up a project</h4>
+<ol>
+<li><strong>Create the project.</strong> It owns the board, wiki, and memory across every repo it holds.</li>
+<li><strong>Add repos</strong> as <em>linked</em> (your checkout stays yours; Locus syncs with it) or <em>managed</em> (cloned from the forge, lives only inside Locus). A repo belongs to exactly one project.</li>
+<li><strong>Configure harnesses</strong> in Setup → Settings. The allow-list is ordered; exactly one row carries the agent default and it must itself be allow-listed. A harness with no working adapter is listed but not selectable.</li>
+<li><strong>Set tier-to-model mappings</strong> in Settings → Harnesses. Leaving them unset is safe: no <code>flag</code> is passed and the harness runs on its own default.</li>
+<li><strong>Scope extensions and CLI tools.</strong> Both are subtraction-only against Workshop's defaults. A tool change rebuilds the project image once.</li>
+<li><strong>Write <code>base.md</code>.</strong> Exactly one per project, with a token-budget meter.</li>
+<li><strong>Seed the wiki.</strong> <code>locus wiki ingest</code> reads the ADRs, specs, READMEs, and existing <code>AGENTS.md</code> files already in git, so the first keeper pass has a corpus rather than a blank store.</li>
+</ol>
+
+<div class="callout ok">
+<span class="t">An empty memory store degrades cleanly</span>
+No catalog, no injection, no recall — agents run exactly as they would with no memory layer, which is the
+correct baseline. It need not stay empty, but nothing breaks while it is.
+</div>
+
+<h3>5.2 Backup and restore</h3>
+
+<p>With board, wiki, memory, and mail living <em>only</em> in Postgres, losing the volume loses work no reindex
+can rebuild. Event sourcing does not soften this — it sharpens it: the log itself lives only here, and the two
+carve-outs (embeddings, decay state) were never derived from the log, so a rebuild cannot restore them at any
+price.</p>
+
+<pre><code>locus backup            <span class="c"># dumps the nine schemas AND the artifact blob tree together</span>
+locus restore --drill   <span class="c"># restores into a SCRATCH database, asserts row counts against the source</span>
+locus rebuild           <span class="c"># regenerates every projection from log.entries — never touches the carve-outs</span></code></pre>
+
+<table>
+<thead><tr><th style="width:26%">Rule</th><th>Why it is a rule and not advice</th></tr></thead>
+<tbody>
+<tr><td>Nightly, and before every migration</td><td>Migrations are the one irreversible operation in the system</td></tr>
+<tr><td>Seven dailies, four weeklies</td><td>Enough history to survive a problem noticed a month later</td></tr>
+<tr><td><strong>Backup covers both trees or neither</strong></td><td>Text artifacts are rows; media is files under <code>/var/lib/locus/artifacts/</code>. Taking one and not the other restores a database full of paths to nothing</td></tr>
+<tr><td><code>--drill</code> is first-class, not documentation</td><td><strong>A backup nobody has restored is a belief, not a backup</strong></td></tr>
+</tbody></table>
+
+<h3>5.3 Reconciliation and Stop all</h3>
+
+<figure>
+<svg viewBox="0 0 700 186" role="img" aria-label="Boot reconciliation decision and Stop all scope">
+  <rect x="8" y="14" width="320" height="150" rx="5" class="ba"/>
+  <text class="tb" x="22" y="34">Every start reconciles</text>
+  <rect x="22" y="44" width="290" height="24" rx="3" class="b"/>
+  <text class="ts" x="32" y="60">for each run marked `running`, ask Docker</text>
+  <path class="ln" d="M100 70 V84" marker-end="url(#a)"/><path class="ln" d="M240 70 V84" marker-end="url(#a)"/>
+  <rect x="30" y="86" width="140" height="42" rx="3" class="bo"/>
+  <text class="ts ctr" x="100" y="102">container alive</text>
+  <text class="ts ctr" x="100" y="118">re-attach its stream</text>
+  <rect x="176" y="86" width="136" height="42" rx="3" class="bd"/>
+  <text class="ts ctr" x="244" y="102">container gone</text>
+  <text class="ts ctr" x="244" y="116">close as aborted, emit the</text>
+  <text class="ts ctr" x="244" y="126">event, file an inbox item</text>
+  <text class="ts" x="22" y="146">A discarded Interact session is EXPECTED to have no container —</text>
+  <text class="ts" x="22" y="158">reconciliation skips it rather than filing an aborted run.</text>
+
+  <rect x="340" y="14" width="352" height="158" rx="5" class="bd"/>
+  <text class="tb" x="354" y="34">Stop all names its scope before it acts</text>
+  <text class="ts" x="354" y="54">· how many running agents will be killed, at the next iteration boundary</text>
+  <text class="ts" x="354" y="70">· autorun switched off in how many projects</text>
+  <text class="ts" x="354" y="86">· how many schedules skipped — skipped, never queued</text>
+  <text class="ts" x="354" y="102">· branches, artifacts, and memory are left untouched</text>
+  <rect x="354" y="106" width="324" height="52" rx="3" class="bw"/>
+  <text class="ts" x="364" y="122">Handoff toggle ON — up to 30s each; a successor starts from the payload</text>
+  <text class="ts" x="364" y="136">instead of re-deriving it. OFF — immediate; work in flight is discarded.</text>
+  <text class="ts" x="364" y="152" fill="#b26a00">Either way, reversible for ten minutes — what you press when something</text>
+  <text class="ts" x="364" y="164" fill="#b26a00">is badly wrong should not be the thing you cannot undo.</text>
+</svg>
+<figcaption>The two operations that decide whether the system is trustworthy across restarts and across
+panic.</figcaption>
+</figure>
+
+<h3>5.4 The metrics that matter</h3>
+
+<p>Every one of these is already a column, so each is a query rather than new instrumentation. That is the
+point of normalizing events in the first place.</p>
+
+<table>
+<thead><tr><th style="width:26%">Metric</th><th style="width:32%">Reads</th><th>What it tells you</th></tr></thead>
+<tbody>
+<tr><td><strong>Cache rate</strong></td><td><code>usage.cache_read</code> ÷ <code>usage.input</code></td><td>Below ~80% on a long session means something in front of the prompt is moving — and the run that did it is identifiable</td></tr>
+<tr><td><strong>Tool-payload offender ranking</strong></td><td><code>GROUP BY</code> over <code>tool_result</code> sizes</td><td>Which tool is putting the most bytes into history. Halving the biggest beats eliminating three small ones</td></tr>
+<tr><td><strong>Tokens per passing run</strong></td><td>usage ÷ runs that passed verify</td><td>Separates a good run from an expensive one wearing a green tick</td></tr>
+<tr><td><strong>Verify pass rate</strong></td><td>run rows</td><td>Under 60% <em>suspends a project's autorun automatically</em> and restores it when the number recovers</td></tr>
+<tr><td><strong>Spec-gap rate</strong></td><td>arbiter classification per iteration</td><td>A workflow that keeps producing spec gaps is a <em>planning</em> problem, not a builder problem</td></tr>
+<tr><td><strong>Ambiguity-detection rate</strong></td><td>arbiter classification per iteration</td><td>How often requirements admit two readings — the leading indicator for rework</td></tr>
+<tr><td><strong>Noise reclassified</strong></td><td>arbiter classification per iteration</td><td>Iterations recovered that would otherwise have been burned by flaky checks</td></tr>
+<tr><td><strong>Agent trust</strong></td><td>verify pass rate over the last 20 runs, discounted by guardrail trips, human-rejected artifacts, and tokens per passing run</td><td>Whether this agent has earned unattended work</td></tr>
+<tr><td><strong>Board dwell per column</strong></td><td><code>board.task_transitions</code></td><td>Where the queue actually stalls. Usually not the agents</td></tr>
+</tbody></table>
+
+<h3>5.5 Troubleshooting</h3>
+
+<table>
+<thead><tr><th style="width:30%">Symptom</th><th style="width:34%">Most likely cause</th><th>Where to look</th></tr></thead>
+<tbody>
+<tr><td>A run starts but the agent behaves as if a skill or rule does not exist</td><td>Silent non-load — the tree was written but the harness reads a different path or filename suffix</td><td><code>locus harness lint</code>, then the materialization smoke test: start a run with a canary skill and rule and assert the agent can see both</td></tr>
+<tr><td>Runs got more expensive with no code change</td><td>Prefix instability — something mutable moved to the front of the prompt</td><td>Cache rate on the dashboard; the determinism check in CI; whatever injection point was added last</td></tr>
+<tr><td>A run stalls partway</td><td>A tool the agent cannot find</td><td>Setup → CLI tools; the agent definition's <code>tools</code> list. A tool absent from the allowlist is absent from the image</td></tr>
+<tr><td><code>permission_request</code> events appearing</td><td>In <strong>bypass</strong> posture this is a misconfiguration <em>alarm</em>, not a prompt</td><td>The run's stored posture. In gated posture the same event is a legitimate blocked human action</td></tr>
+<tr><td>Runs marked <code>running</code> that ended weeks ago</td><td><code>locusd</code> crashed without reconciling</td><td>Restart — reconciliation closes them as <code>aborted</code> and files inbox items</td></tr>
+<tr><td>A workflow dies at <code>max_iterations</code> having attempted the work five times</td><td>Flaky checks classified as <code>Bug</code> instead of <code>Noise</code></td><td>The arbiter's classification column; recalibrate or quarantine the check</td></tr>
+<tr><td>An agent idles at a breakpoint and trips the idle guardrail</td><td>The <code>waiting</code> state was not set</td><td>A paused debug session must suppress idle detection — one mechanism, four callers</td></tr>
+<tr><td>A schedule fires but nothing runs</td><td>Overlap — the previous execution is still running</td><td>Overlap is <strong>skipped, never queued</strong>. A schedule skipping most firings raises a misconfiguration banner with <em>Widen the interval</em></td></tr>
+<tr><td>Autorun turned itself off</td><td>The project's rolling verify pass rate fell under 60%</td><td>Dispatch → Autorun. It resumes on its own; the UI distinguishes suspension from a manual off</td></tr>
+<tr><td>A harness will not appear as selectable</td><td>No working adapter, or it is not in the project's allow-list</td><td>Workshop → Plugins → Harness, then Setup → Settings → Harnesses</td></tr>
+</tbody></table>
+</section>
+
+<!-- ============================ PART VI ============================ -->
+<section class="part">
+<p class="eyebrow">Part VI</p>
+<h2>Current state</h2>
+
+<h3>6.1 Milestones</h3>
+
+<table>
+<thead><tr><th style="width:10%">Milestone</th><th style="width:34%">Scope</th><th style="width:10%">Features</th><th style="width:10%">Tasks</th><th>State</th></tr></thead>
+<tbody>
+<tr><td>M0</td><td>Specification and spikes</td><td>3</td><td>39</td><td><span class="tag ok">closed</span></td></tr>
+<tr><td>M0.5</td><td>Desktop UI on fixtures</td><td>12</td><td>268</td><td><span class="tag ok">closed</span></td></tr>
+<tr><td>M0.6</td><td>Desktop reconciliation</td><td>6</td><td>195</td><td><span class="tag ok">closed</span></td></tr>
+<tr><td>M0.7</td><td>Current mockup reconciliation</td><td>11</td><td>324</td><td><span class="tag ok">closed</span></td></tr>
+<tr><td>M1</td><td>Core runtime</td><td>14</td><td>270</td><td><span class="tag ok">closed</span></td></tr>
+<tr><td><strong>M1.5</strong></td><td>ACP agent panel, controls, plugin contract</td><td>5</td><td>64</td><td><span class="tag act">active</span></td></tr>
+<tr><td>M2</td><td>Workspace — editor, LSP, search</td><td>3</td><td>57</td><td><span class="tag">queued</span></td></tr>
+<tr><td>M3</td><td>Coordination, memory, and mail</td><td>6</td><td>133</td><td><span class="tag">queued</span></td></tr>
+<tr><td>M3.5</td><td>Agent capabilities: debug and browser</td><td>3</td><td>56</td><td><span class="tag">queued</span></td></tr>
+<tr><td>M4</td><td>Workflow canvas</td><td>3</td><td>69</td><td><span class="tag">queued</span></td></tr>
+<tr><td>M5</td><td>Project management</td><td>5</td><td>127</td><td><span class="tag">queued</span></td></tr>
+<tr><td>M6</td><td>Automation and discoverability</td><td>3</td><td>46</td><td><span class="tag">queued</span></td></tr>
+<tr><td>M7</td><td>Forge providers</td><td>4</td><td>78</td><td><span class="tag">queued</span></td></tr>
+<tr><td>M8</td><td>Marketplace installer</td><td>1</td><td>11</td><td><span class="tag">queued</span></td></tr>
+<tr><td colspan="2"><strong>Total</strong></td><td><strong>79</strong></td><td><strong>1,737</strong></td><td><strong>448 remaining</strong></td></tr>
+</tbody></table>
+
+<div class="callout">
+<span class="t">Read the phase boundaries this way</span>
+<strong>M1 alone is a usable multi-agent runner</strong> without any of M2–M8. <strong>M4 is where it stops
+being a runner and becomes the product.</strong> Nine milestones at this scope is multi-year work, and the
+boundaries are drawn so that is survivable.
+</div>
+
+<h4>Where the current work sits</h4>
+<p>M1.5 is the focus: session controls and dispatch permissions are complete, the plugin contract is
+implemented and its first-party roster registered, and the remaining M1.5 items — the session research feed
+and the unified Agent Pane — are blocked on <code>memory</code> and <code>planning-module</code> landing first.
+Several later features have completed slices ahead of their milestone: the editor, mail, memory, repo manager,
+tool compaction, marketplace index, <code>locus browse</code>, LSP's CLI contract, and project search.</p>
+
+<p>Three carry-forwards from M0 remain unexercised and are worth knowing about, because each affects trust in
+a feature that looks finished: <strong>real token usage has not been observed from a live run</strong> (if a
+harness reports nothing, spend must stay <em>unknown</em>, never zero); <strong>MergeView chunk revert, the
+three webview targets, and Cmd/IME behavior have not been exercised</strong>; and <strong>the Pi plugin has not
+been run end to end</strong> alongside a trusted user harness plugin.</p>
+
+<h3>6.2 Open decisions</h3>
+
+<p>These are unresolved <em>by design</em>, each owned by a spec. They are listed because an administrator
+reading a behavior that looks arbitrary deserves to know it has not been decided rather than being decided
+badly.</p>
+
+<table>
+<thead><tr><th style="width:24%">Feature</th><th>The decision still open</th></tr></thead>
+<tbody>
+<tr><td>agent-definitions</td><td>Resolve <code>harness: any</code> at save time or at run start</td></tr>
+<tr><td>workshop-plugins</td><td>The user-plugin signature and trust-store UX; first-party executable version pins. <em>The capability envelope itself is settled.</em></td></tr>
+<tr><td>board</td><td>The column-two label: <strong>Building</strong> or <strong>In Progress</strong></td></tr>
+<tr><td>guardrails</td><td>Whether the idle window scales by <code>task_class</code></td></tr>
+<tr><td>handoffs</td><td>Whether handoffs may cross projects</td></tr>
+<tr><td>mail</td><td>Whether agents can mail the human directly, or must use <code>locus ask</code></td></tr>
+<tr><td>memory</td><td>The initial <code>importance</code> value before a memory is recalled</td></tr>
+<tr><td>repo-manager</td><td>When a linked repo syncs: on demand, on a timer, or on git change</td></tr>
+<tr><td>tool-compaction</td><td>One compaction threshold shared with <code>artifacts</code></td></tr>
+<tr><td>locus-browse</td><td>The recording duration cap, alongside the 30-day media retention policy</td></tr>
+<tr><td>locus-debug</td><td>The supported language-adapter boundary; the tail is not covered</td></tr>
+<tr><td>media-artifacts</td><td>The OCR-confidence threshold for falling back to the source image</td></tr>
+<tr><td>marketplace-index</td><td><strong>Curation versus selection</strong> — a vetted catalog with quality guarantees, or an open index where usage data ranks manifests. Locus already collects the usage data, which points at selection</td></tr>
+<tr><td>workflow-engine</td><td>The arbiter's bounded model budget</td></tr>
+<tr><td>planning-module</td><td>How to turn "I don't know what I want yet" into a goal</td></tr>
+<tr><td>schedules</td><td>Timezone and DST behavior for cron expressions</td></tr>
+<tr><td>dashboard-metrics</td><td>The cache-rate alert threshold, and what counts as a long session</td></tr>
+</tbody></table>
+
+<h3>6.3 Named risks</h3>
+
+<table>
+<thead><tr><th style="width:28%">Risk</th><th>Shape, and the mitigation that exists</th></tr></thead>
+<tbody>
+<tr><td><strong>A complete-looking requirement that is not</strong></td><td>Every gate checks work against a requirement, so a requirement that omits a behavior produces a green run, a passing adversarial suite, a Done card with evidence, and a broken feature. <em>Nothing downstream can catch it — this is a limit of the shape, not a bug in it.</em> Mitigations: the reduction pass, specialization records, and making spec-gap rate a number somebody looks at.</td></tr>
+<tr><td><strong>Harness surfaces rot, in both halves</strong></td><td>Structured events and config layouts are the harness's private business and change between releases. The failure is <em>silent</em>: the tree is written, the run starts, nothing loaded. Mitigation: a materialization smoke test per harness, on registration and in CI, with a canary skill and rule.</td></tr>
+<tr><td><strong>Prefix stability decays by accident</strong></td><td>Nothing fails; the runs just get more expensive, and the cause is whatever injection point was added last. Mitigation: cache rate on the dashboard, determinism check in CI — a regression shows as a number rather than a slow drift nobody attributes.</td></tr>
+<tr><td><strong>Postgres is irreplaceable</strong></td><td>Board, wiki, memory, and mail live only there. Mitigation: backup and a restore <em>drill</em> from M1, not later.</td></tr>
+<tr><td><strong>Nested agents multiply containers</strong></td><td>An agent built from three agents is four containers, each able to nest further. The cycle check, depth limit, and fan-out cap are not polish — without all three, one bad graph exhausts the machine.</td></tr>
+<tr><td><strong>DAP adapter coverage</strong></td><td>The client is one implementation, but every language needs its own adapter baked into the image. Node, Python, and Rust are well served; the tail is not.</td></tr>
+<tr><td><strong>Webview inconsistency</strong></td><td>Tauri ships no browser, so the UI runs on WKWebView, WebView2, or WebKitGTK. This is the genuine cost of Tauri over Electron. Fallback for WebKitGTK is a pinned newer version, not a framework change.</td></tr>
+<tr><td><strong>TUI-only harnesses are excluded</strong></td><td>Deliberate, but real. A harness that insists on painting a full-screen interface cannot expose the one ACP conversation per run that Locus owns and renders.</td></tr>
+</tbody></table>
+</section>
+
+<!-- ============================ APPENDICES ============================ -->
+<section class="part">
+<p class="eyebrow">Appendix A</p>
+<h2>The agent CLI</h2>
+
+<p class="lede">Inside its container an agent calls <code>locus …</code>, which speaks to
+<code>/run/locus.sock</code>. This is the MCP replacement: a binary costs nothing until invoked; a server sits
+in context whether used or not. Every verb takes <code>--json</code>, compact and never pretty-printed,
+because the caller is usually a model.</p>
+
+<h4>Memory</h4>
+<table><tbody>
+<tr><td style="width:38%"><code>locus memory note add|replace|remove</code></td><td>the bounded core tier; an over-cap write is an ERROR, never an eviction</td></tr>
+<tr><td><code>locus memory recall &lt;query&gt;</code></td><td>the store tier: structured + full-text + vector hybrid</td></tr>
+<tr><td><code>locus memory write --scope … --why …</code></td><td>a fact, with provenance attached automatically</td></tr>
+<tr><td><code>locus memory forget &lt;id&gt;</code></td><td>traced back to its writer, then deleted</td></tr>
+</tbody></table>
+
+<h4>Mail and coordination</h4>
+<table><tbody>
+<tr><td style="width:38%"><code>locus mail send|list|read|reply|drain</code></td><td>agent ↔ agent, Rust-native</td></tr>
+<tr><td><code>locus mail wait</code></td><td>blocks with a 15-minute default timeout, then returns empty. Sets <code>waiting</code>, so it never reads as idle</td></tr>
+<tr><td><code>locus ask &lt;question&gt;</code></td><td>escalate to the human; blocks, and appears in the inbox</td></tr>
+<tr><td><code>locus handoff &lt;agent&gt; --why …</code></td><td>transfer ownership: ends this session, opens the successor's on the same task and branch</td></tr>
+<tr><td><code>locus agent invoke &lt;name&gt;@&lt;version&gt;</code></td><td>a nested agent: own container, own clone. Depth 3, fan-out 4</td></tr>
+</tbody></table>
+
+<h4>Board and wiki</h4>
+<table><tbody>
+<tr><td style="width:38%"><code>locus task list|show|move|assign|comment</code></td><td>the board, agent-driven. Done requires evidence</td></tr>
+<tr><td><code>locus wiki search|read|write|history</code></td><td>revisions attributed to the run</td></tr>
+<tr><td><code>locus wiki ingest &lt;path|url&gt;</code></td><td>read a document into typed pages; flags contradictions at ingest</td></tr>
+<tr><td><code>locus wiki query &lt;question&gt;</code></td><td>synthesize an answer, filed back as a <code>synthesis</code> page so it is asked once</td></tr>
+<tr><td><code>locus wiki lint</code></td><td>orphans, broken links, missing entities, unsourced assertions</td></tr>
+</tbody></table>
+
+<h4>Real tools, not a shell</h4>
+<table><tbody>
+<tr><td style="width:38%"><code>locus lsp def|refs|hover|symbols|rename|diagnostics</code></td><td>semantic navigation over <em>this run's clone</em>. An agent grepping for a symbol reads ten files to answer what one LSP call answers exactly — cheaper in tokens <em>and</em> correct on overloads, shadowing, and re-exports</td></tr>
+<tr><td><code>locus debug start|break|step|stack|vars|eval</code></td><td>DAP. The session lives in the core, keyed by run; the CLI holds nothing. <code>break --log</code> is a <strong>logpoint</strong>: it prints and keeps running</td></tr>
+<tr><td><code>locus browse open|click|fill|press|assert</code></td><td>the project browser, one Playwright context per run. <code>assert</code> exits non-zero with structured JSON, so a <code>Verify</code> node can gate on it</td></tr>
+<tr><td><code>locus browse screenshot|record|console|network</code></td><td>screenshots and recordings land as artifacts automatically. <code>console</code> and <code>network</code> matter more than pixels — a failing UI usually explains itself in text</td></tr>
+<tr><td><code>locus svc up|down &lt;name&gt;</code></td><td>start a project service container. Agents get no Docker socket</td></tr>
+<tr><td><code>locus tools list|docs &lt;name&gt;</code></td><td>the allowlisted catalog, and a full page on demand</td></tr>
+<tr><td><code>locus lint [--changed|--only NAME]</code></td><td>this project's linters — the one extension no harness reads. Called by the agent before it commits, and by a workflow's <code>Verify</code> node; <em>never</em> from a hook, which would tax every tool call</td></tr>
+</tbody></table>
+
+<h4>Artifacts and run state</h4>
+<table><tbody>
+<tr><td style="width:38%"><code>locus artifact put &lt;kind&gt; &lt;path&gt;</code></td><td>publish a plan, diagram, or image for review</td></tr>
+<tr><td><code>locus artifact get &lt;id&gt; [--for-context]</code></td><td><code>--for-context</code> returns OCR text or a downscaled frame, never the raw bytes</td></tr>
+<tr><td><code>locus artifact comments</code></td><td>feedback left on your artifacts, threaded — a comment steers the agent that made it</td></tr>
+<tr><td><code>locus run status|artifacts</code></td><td>this run's own state</td></tr>
+</tbody></table>
+
+<div class="callout warn">
+<span class="t">Two rules that apply to every verb above</span>
+<strong>Debugging advice is logpoints before breakpoints.</strong> <code>break</code> stops the world, and an
+agent that stops the world then has to remember to continue it — a stopped process nobody resumes looks
+exactly like a hung run.
+<strong>Auto-waiting, not sleeps.</strong> Playwright waits for actionability by default; an agent writing
+<code>sleep 2</code> is a flaky test being born.
+</div>
+</section>
+
+<section class="part">
+<p class="eyebrow">Appendix B</p>
+<h2>Glossary</h2>
+
+<table>
+<thead><tr><th style="width:24%">Term</th><th>Definition</th></tr></thead>
+<tbody>
+<tr><td><strong>ACP</strong></td><td>Agent Client Protocol — JSON-RPC 2.0 over stdio, LSP-for-agents. The only agent-session transport in Locus.</td></tr>
+<tr><td><strong>Agent definition</strong></td><td>Markdown plus frontmatter, versioned in Postgres. Immutable once a run references it.</td></tr>
+<tr><td><strong>Arbiter</strong></td><td>The bounded agent that classifies a verify failure as Bug, Spec gap, Noise, or Ambiguity before anything retries.</td></tr>
+<tr><td><strong>Artifact</strong></td><td>A structured deliverable — plan, diff, diagram, image, recording, walkthrough (review kinds) or finding, payload (reference kinds).</td></tr>
+<tr><td><strong>Autorun</strong></td><td>A per-project tri-state switch — on, off, suspended — letting agents pick up their own work. Throttled by review slots, not by agent count.</td></tr>
+<tr><td><strong>Base context</strong></td><td>The always-loaded instructions every session starts with. Exactly one per project; the fallback every downgrade lands in.</td></tr>
+<tr><td><strong>Canary token</strong></td><td>A secret string in the materialized config that must never appear in output. If it does, the system prompt leaked.</td></tr>
+<tr><td><strong>Carve-out</strong></td><td>A column that cannot be folded from the log because a model or a clock produced it: embeddings, and decay/confidence.</td></tr>
+<tr><td><strong>Dispatch</strong></td><td>The durable queue between a card being ready and a run being started. Supervisor state, not UI state.</td></tr>
+<tr><td><strong>Downgrade</strong></td><td>An extension materialized by a weaker mechanism than the harness natively offers. Must carry <code>weaker_than_native</code> naming the loss.</td></tr>
+<tr><td><strong>Extension</strong></td><td>One of eight authored content types materialized per run into whatever a harness reads.</td></tr>
+<tr><td><strong>Gate</strong></td><td>A checkpoint node — human, or an agent acting as reviewer. Also what an uncheckable success criterion becomes.</td></tr>
+<tr><td><strong>Handoff</strong></td><td>A structured payload transferring ownership: goal, done, remaining, attempted, decisions, open. Not mail, not invoke.</td></tr>
+<tr><td><strong>Harness</strong></td><td>An agent CLI, registered as a plugin. Pi is the only first-party one.</td></tr>
+<tr><td><strong>Interact session</strong></td><td>A session with no board task: <code>open</code>, <code>promoted</code>, or <code>discarded</code>.</td></tr>
+<tr><td><strong>Keeper</strong></td><td>The ordinary agent definition that consolidates memory on genuine project idle. The only thing with direct memory-write access.</td></tr>
+<tr><td><strong>Locator</strong></td><td><code>locus://&lt;project&gt;/…</code> — the one address space every navigation path resolves through.</td></tr>
+<tr><td><strong>Materializer</strong></td><td>The code half of the harness contract. Six strategies; only <code>plugin</code> needs an executable.</td></tr>
+<tr><td><strong>Permission posture</strong></td><td><code>bypass</code> (default; a permission request is an alarm) or <code>gated</code> (a request blocks as a visible human action). Selected at dispatch, pinned on the run.</td></tr>
+<tr><td><strong>Plugin</strong></td><td>An executable integration — cli_tool, harness, or provider — speaking JSON-RPC 2.0 over stdio. Data only, never UI.</td></tr>
+<tr><td><strong>Project</strong></td><td>One or more repos, plus the board, wiki, and memory that span them.</td></tr>
+<tr><td><strong>Provider</strong></td><td>Where a credential is configured. Holds an OS-keychain <em>reference</em>, never a key.</td></tr>
+<tr><td><strong>Review slot</strong></td><td>One change you have not read yet. The unit autorun is rate-limited in.</td></tr>
+<tr><td><strong>Run</strong></td><td>One container lifetime = one ACP conversation. Bounded by the container exiting.</td></tr>
+<tr><td><strong>Session</strong></td><td>A durable, named thread of work with one agent. Bounded by you closing it. The thing that survives a reset.</td></tr>
+<tr><td><strong>Specialization record</strong></td><td>A domain's accumulated requirements (payments demands idempotency keys, …), stored as a wiki <code>concept</code> page and injected into synthesis above a confidence threshold.</td></tr>
+<tr><td><strong>Stream position</strong></td><td><code>agents.events.stream_pos</code> — monotonic per project, assigned by the core rather than a Postgres sequence.</td></tr>
+<tr><td><strong>Verify</strong></td><td>The runnable success criterion. <code>NOT NULL</code> on every workflow, and run in a fresh container from the agent's image on the run's branch.</td></tr>
+<tr><td><strong>Walkthrough</strong></td><td>The artifact generated on session completion: a concise summary of what changed, screenshots and recordings inline. The actual answer to "six agents ran overnight, now what."</td></tr>
+</tbody></table>
+</section>
+
+<section class="part">
+<p class="eyebrow">Appendix C</p>
+<h2>Where to read further</h2>
+
+<p class="lede"><code>PLAN.md</code> at the repo root is the architecture and the authority.
+<code>.specs/&lt;feature&gt;/</code> decomposes it into contracts and runnable tasks: a <code>spec.md</code>
+(purpose, the governing PLAN.md section, the contract, falsifiable acceptance criteria, dependencies, and what
+is genuinely open) and a <code>tasks.md</code> (numbered steps, each with a runnable <code>verify:</code>). A
+spec <em>cites</em> the section that governs it rather than restating it — one source for a decision, not two
+that drift.</p>
+
+<table>
+<thead><tr><th style="width:26%">If you are working on…</th><th>Read</th></tr></thead>
+<tbody>
+<tr><td>The plugin contract</td><td><code>.specs/workshop-plugins/</code>, <code>.specs/harness-registry/</code></td></tr>
+<tr><td>Materialization and determinism</td><td><code>.specs/materializers/</code>, <code>harnesses/pi/pi.toml</code>, <code>harnesses/pi/materialize</code></td></tr>
+<tr><td>Agent authoring</td><td><code>.specs/agent-definitions/</code>, <code>.specs/workshop-revision/</code></td></tr>
+<tr><td>The runtime and isolation</td><td><code>.specs/run-supervisor/</code>, <code>.specs/sandbox/</code>, <code>.specs/security/</code></td></tr>
+<tr><td>The store and event sourcing</td><td><code>.specs/store/</code>, <code>.specs/event-store/</code>, <code>.specs/telemetry/</code></td></tr>
+<tr><td>Memory and knowledge</td><td><code>.specs/memory/</code>, <code>.specs/wiki/</code>, <code>.specs/knowledge-revision/</code></td></tr>
+<tr><td>Screens and navigation</td><td><code>.specs/design-revision/</code>, <code>docs/UI_MOCKUP_REVIEW.md</code>, <code>.specs/shell-revision/</code></td></tr>
+<tr><td>Project configuration</td><td><code>.specs/setup-revision/</code></td></tr>
+<tr><td>Planning</td><td><code>.specs/planning-module/</code>, <code>.specs/plan-revision/</code></td></tr>
+<tr><td>The board and sessions</td><td><code>.specs/board/</code>, <code>.specs/manage-revision/</code>, <code>.specs/interact-sessions/</code></td></tr>
+<tr><td>Queueing, autorun, schedules</td><td><code>.specs/dispatch-revision/</code>, <code>.specs/schedules/</code>, <code>.specs/guardrails/</code></td></tr>
+<tr><td>Workflows</td><td><code>.specs/workflow-engine/</code>, <code>.specs/workflow-canvas/</code></td></tr>
+<tr><td>Agent capabilities</td><td><code>.specs/lsp/</code>, <code>.specs/locus-debug/</code>, <code>.specs/locus-browse/</code>, <code>.specs/media-artifacts/</code></td></tr>
+<tr><td>Tools and the marketplace</td><td><code>.specs/marketplace-index/</code>, <code>.specs/marketplace-installer/</code>, <code>.specs/tool-compaction/</code></td></tr>
+<tr><td>The evidence behind the three spikes</td><td><code>spikes/01-sandboxed-harness/FINDINGS.md</code>, <code>spikes/02-editor-embed/FINDINGS.md</code>, <code>spikes/03-workflow-canvas/FINDINGS.md</code></td></tr>
+<tr><td>What is left to build</td><td><code>TODO.md</code> — the unfinished-work index, with the dependency map</td></tr>
+</tbody></table>
+
+<div class="callout">
+<span class="t">How Locus is tested</span>
+<strong>Event-based.</strong> Every run normalizes into the same event vocabulary regardless of harness,
+capture path, or container — so a test is <em>"run this, assert these events appeared."</em> That works
+identically across the first-party Pi harness and any trusted user harness plugin, and needs no test-only
+instrumentation, because the substrate is the one telemetry already requires. Unit tests cover the pure parts;
+everything above them asserts on the event stream.
+</div>
+
+<hr>
+<p style="font-family:Inter,sans-serif; font-size:8pt; color:#63696f;">
+Compiled from <code>PLAN.md</code> and the 79 feature contracts under <code>.specs/</code> as of
+25 August 2026, on branch <code>agent/todo-wave-m1-5-m3-5</code>. Where this guide and <code>PLAN.md</code>
+disagree, <code>PLAN.md</code> is the authority.
+</p>
+</section>
+
+</body>
+</html>

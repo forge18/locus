@@ -28,6 +28,14 @@ pub struct VerbDispatch {
     pub verb: AgentSocketVerb,
 }
 
+/// Internal authorization request used before an agent starts its clone-local LSP server.
+/// It is intentionally absent from `VERB_DISPATCHES`, so agents cannot invoke the lease verb
+/// directly as a user-facing CLI command.
+pub const LSP_LEASE_DISPATCH: VerbDispatch = VerbDispatch {
+    command: &[],
+    verb: AgentSocketVerb::LspLease,
+};
+
 pub const VERB_DISPATCHES: &[VerbDispatch] = &[
     VerbDispatch {
         command: &["memory", "note", "add"],
@@ -150,6 +158,10 @@ pub const VERB_DISPATCHES: &[VerbDispatch] = &[
         verb: AgentSocketVerb::LspSymbols,
     },
     VerbDispatch {
+        command: &["lsp", "diagnostics"],
+        verb: AgentSocketVerb::LspDiagnostics,
+    },
+    VerbDispatch {
         command: &["lsp", "rename"],
         verb: AgentSocketVerb::LspRename,
     },
@@ -164,6 +176,26 @@ pub const VERB_DISPATCHES: &[VerbDispatch] = &[
     VerbDispatch {
         command: &["debug", "step"],
         verb: AgentSocketVerb::DebugStep,
+    },
+    VerbDispatch {
+        command: &["debug", "run"],
+        verb: AgentSocketVerb::DebugRun,
+    },
+    VerbDispatch {
+        command: &["debug", "next"],
+        verb: AgentSocketVerb::DebugNext,
+    },
+    VerbDispatch {
+        command: &["debug", "finish"],
+        verb: AgentSocketVerb::DebugFinish,
+    },
+    VerbDispatch {
+        command: &["debug", "continue"],
+        verb: AgentSocketVerb::DebugContinue,
+    },
+    VerbDispatch {
+        command: &["debug", "stop"],
+        verb: AgentSocketVerb::DebugStop,
     },
     VerbDispatch {
         command: &["debug", "stack"],
@@ -188,6 +220,10 @@ pub const VERB_DISPATCHES: &[VerbDispatch] = &[
     VerbDispatch {
         command: &["browse", "fill"],
         verb: AgentSocketVerb::BrowseFill,
+    },
+    VerbDispatch {
+        command: &["browse", "press"],
+        verb: AgentSocketVerb::BrowsePress,
     },
     VerbDispatch {
         command: &["browse", "assert"],
@@ -336,6 +372,129 @@ pub fn resolve_verb(arguments: &[String]) -> Option<(&'static VerbDispatch, &[St
 pub fn allowed_verb(arguments: &[String]) -> Result<(&'static VerbDispatch, &[String])> {
     resolve_verb(arguments)
         .ok_or_else(|| anyhow::anyhow!("command is not allowlisted: {}", arguments.join(" ")))
+}
+
+/// `textDocument/documentSymbol` needs the document it should inspect. Keep the CLI contract
+/// explicit while leaving symbol resolution and server capabilities in the daemon/client layer.
+pub fn validate_lsp_args(verb: AgentSocketVerb, args: &[String]) -> anyhow::Result<()> {
+    if !matches!(
+        verb,
+        AgentSocketVerb::LspDef
+            | AgentSocketVerb::LspRefs
+            | AgentSocketVerb::LspHover
+            | AgentSocketVerb::LspSymbols
+            | AgentSocketVerb::LspDiagnostics
+            | AgentSocketVerb::LspRename
+    ) {
+        anyhow::bail!("not an LSP verb: {verb}");
+    }
+    locus_core::lsp::parse_cli_request(&verb.to_string(), args)
+        .map(|_| ())
+        .map_err(|error| anyhow::anyhow!(error.to_string()))
+}
+
+pub fn validate_symbols_args(args: &[String]) -> anyhow::Result<()> {
+    validate_lsp_args(AgentSocketVerb::LspSymbols, args)
+}
+
+/// Validate the ownership-transfer contract before opening the authenticated socket.
+pub fn validate_handoff_args(args: &[String]) -> anyhow::Result<()> {
+    if args.len() < 3 {
+        anyhow::bail!("handoff requires <agent> --why <reason>");
+    }
+    if args[0].trim().is_empty() || args[0].starts_with("--") {
+        anyhow::bail!("handoff requires a target agent");
+    }
+    if args[1] != "--why" || args[2..].iter().any(|value| value.starts_with("--")) {
+        anyhow::bail!("handoff requires <agent> --why <reason>");
+    }
+    if args[2..].iter().all(|value| value.trim().is_empty()) {
+        anyhow::bail!("handoff reason must not be empty");
+    }
+    Ok(())
+}
+
+/// Validate debug arguments before opening the authenticated socket. The CLI retains no
+/// session state; every accepted request is routed to the run-owned core session.
+pub fn validate_debug_args(verb: AgentSocketVerb, args: &[String]) -> anyhow::Result<()> {
+    if !matches!(
+        verb,
+        AgentSocketVerb::DebugStart
+            | AgentSocketVerb::DebugBreak
+            | AgentSocketVerb::DebugStep
+            | AgentSocketVerb::DebugRun
+            | AgentSocketVerb::DebugNext
+            | AgentSocketVerb::DebugFinish
+            | AgentSocketVerb::DebugContinue
+            | AgentSocketVerb::DebugStop
+            | AgentSocketVerb::DebugStack
+            | AgentSocketVerb::DebugVars
+            | AgentSocketVerb::DebugEval
+    ) {
+        anyhow::bail!("not a debug verb: {verb}");
+    }
+    match verb {
+        AgentSocketVerb::DebugStart => validate_options(args, &["--config"], true),
+        AgentSocketVerb::DebugBreak => {
+            let location = args.first().context("debug break requires FILE:LINE")?;
+            if !location
+                .rsplit_once(':')
+                .is_some_and(|(_, line)| line.parse::<u32>().is_ok_and(|line| line > 0))
+            {
+                anyhow::bail!("debug break location must be FILE:LINE");
+            }
+            validate_options(&args[1..], &["--if", "--log"], true)
+        }
+        AgentSocketVerb::DebugVars => validate_options(args, &["--frame"], false),
+        AgentSocketVerb::DebugEval => {
+            if args.is_empty() || args.join(" ").trim().is_empty() {
+                anyhow::bail!("debug eval requires an expression");
+            }
+            Ok(())
+        }
+        AgentSocketVerb::DebugStep
+        | AgentSocketVerb::DebugRun
+        | AgentSocketVerb::DebugNext
+        | AgentSocketVerb::DebugFinish
+        | AgentSocketVerb::DebugContinue
+        | AgentSocketVerb::DebugStop
+        | AgentSocketVerb::DebugStack => {
+            if args.is_empty() {
+                Ok(())
+            } else {
+                anyhow::bail!("{verb} does not accept arguments")
+            }
+        }
+        _ => unreachable!(),
+    }
+}
+
+fn validate_options(args: &[String], allowed: &[&str], require_value: bool) -> anyhow::Result<()> {
+    let mut index = 0;
+    while index < args.len() {
+        let option = args[index].as_str();
+        if !allowed.contains(&option) {
+            anyhow::bail!("unknown debug option: {option}");
+        }
+        if require_value {
+            let value = args
+                .get(index + 1)
+                .context("debug option requires a value")?;
+            if value.starts_with("--") || value.trim().is_empty() {
+                anyhow::bail!("debug option requires a value: {option}");
+            }
+            index += 2;
+        } else {
+            let value = args
+                .get(index + 1)
+                .context("debug option requires a value")?;
+            value
+                .parse::<u32>()
+                .context("--frame must be a non-negative integer")?;
+            index += 2;
+        }
+    }
+    Ok(())
 }
 
 #[derive(Debug)]
@@ -569,6 +728,16 @@ fn stateless() {
     assert_eq!(std::mem::size_of::<SocketClient>(), 0);
 }
 
+#[test]
+fn handoff_requires_a_target_and_reason() {
+    assert!(validate_handoff_args(
+        &["auditor".into(), "--why".into(), "context exhausted".into(),]
+    )
+    .is_ok());
+    assert!(validate_handoff_args(&["auditor".into()]).is_err());
+    assert!(validate_handoff_args(&["auditor".into(), "--why".into(), "--bad".into(),]).is_err());
+}
+
 #[tokio::test]
 async fn all_verbs_are_round_trips() {
     let path = test_socket_path();
@@ -599,6 +768,51 @@ async fn all_verbs_are_round_trips() {
 
     server.await.expect("server task completes");
     std::fs::remove_file(path).expect("remove test socket");
+}
+
+#[cfg(test)]
+mod lsp {
+    use super::{allowed_verb, validate_lsp_args, validate_symbols_args, AgentSocketVerb};
+
+    #[test]
+    fn symbols_requires_one_file_path() {
+        let command = ["lsp".into(), "symbols".into(), "src/lib.rs".into()];
+        let (dispatch, args) = allowed_verb(&command).expect("symbols is allowlisted");
+        assert_eq!(dispatch.verb, AgentSocketVerb::LspSymbols);
+        validate_symbols_args(args).expect("file path is accepted");
+    }
+
+    #[test]
+    fn symbols_rejects_missing_or_ambiguous_path() {
+        for args in [
+            Vec::<String>::new(),
+            vec!["src/lib.rs".into(), "extra.rs".into()],
+            vec!["--all".into()],
+        ] {
+            assert!(validate_symbols_args(&args).is_err(), "accepted {args:?}");
+        }
+    }
+
+    #[test]
+    fn every_lsp_verb_keeps_its_cli_shape() {
+        for (command, args) in [
+            (vec!["lsp", "def"], vec!["src/lib.rs", "1", "2"]),
+            (vec!["lsp", "refs"], vec!["src/lib.rs", "1", "2"]),
+            (vec!["lsp", "hover"], vec!["src/lib.rs", "1", "2"]),
+            (vec!["lsp", "symbols"], vec!["src/lib.rs"]),
+            (vec!["lsp", "diagnostics"], vec!["src/lib.rs"]),
+            (
+                vec!["lsp", "rename"],
+                vec!["src/lib.rs", "1", "2", "renamed"],
+            ),
+        ] {
+            let command = command.into_iter().map(String::from).collect::<Vec<_>>();
+            let args = args.into_iter().map(String::from).collect::<Vec<_>>();
+            let input = [command, args.clone()].concat();
+            let (dispatch, parsed_args) = allowed_verb(&input).expect("LSP verb is allowlisted");
+            validate_lsp_args(dispatch.verb, parsed_args).expect("LSP shape is valid");
+        }
+    }
 }
 
 #[cfg(test)]
@@ -684,6 +898,74 @@ mod json {
 }
 
 #[cfg(test)]
+mod mail {
+    use super::*;
+
+    fn command(parts: &[&str]) -> Vec<String> {
+        parts.iter().map(|part| (*part).into()).collect()
+    }
+
+    #[test]
+    fn send() {
+        let input = command(&["mail", "send", "reviewer", "body"]);
+        let (dispatch, args) = allowed_verb(&input).expect("mail send is allowlisted");
+        assert_eq!(dispatch.verb, AgentSocketVerb::MailSend);
+        assert_eq!(args, ["reviewer", "body"]);
+    }
+
+    #[test]
+    fn list_read() {
+        for (parts, expected) in [
+            (&["mail", "list"][..], AgentSocketVerb::MailList),
+            (&["mail", "read", "thread-1"][..], AgentSocketVerb::MailRead),
+        ] {
+            let (dispatch, _) = allowed_verb(&command(parts)).expect("mail read/list allowlisted");
+            assert_eq!(dispatch.verb, expected);
+        }
+    }
+
+    #[test]
+    fn reply_threads() {
+        let input = command(&["mail", "reply", "thread-1", "answer"]);
+        let (dispatch, args) = allowed_verb(&input).expect("mail reply is allowlisted");
+        assert_eq!(dispatch.verb, AgentSocketVerb::MailReply);
+        assert_eq!(args, ["thread-1", "answer"]);
+    }
+
+    #[test]
+    fn drain() {
+        let input = command(&["mail", "drain", "thread-1"]);
+        let (dispatch, args) = allowed_verb(&input).expect("mail drain is allowlisted");
+        assert_eq!(dispatch.verb, AgentSocketVerb::MailDrain);
+        assert_eq!(args, ["thread-1"]);
+    }
+
+    #[test]
+    fn wait_times_out() {
+        let input = command(&["mail", "wait"]);
+        let (dispatch, args) = allowed_verb(&input).expect("mail wait is allowlisted");
+        assert_eq!(dispatch.verb, AgentSocketVerb::MailWait);
+        assert!(args.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod ask {
+    use super::*;
+
+    #[test]
+    fn blocks_and_reaches_inbox() {
+        let input: Vec<String> = ["ask", "Which deployment window?"]
+            .into_iter()
+            .map(String::from)
+            .collect();
+        let (dispatch, args) = allowed_verb(&input).expect("ask is allowlisted");
+        assert_eq!(dispatch.verb, AgentSocketVerb::Ask);
+        assert_eq!(args, ["Which deployment window?"]);
+    }
+}
+
+#[cfg(test)]
 mod run {
     use super::{resolve_verb, AgentSocketVerb, VERB_DISPATCHES};
 
@@ -728,6 +1010,36 @@ mod memory {
         let (dispatch, args) = resolve_verb(&command).expect("memory explain dispatches");
         assert_eq!(dispatch.verb, AgentSocketVerb::MemoryExplain);
         assert_eq!(args, ["fact-1"]);
+    }
+
+    #[test]
+    fn note_verbs() {
+        for command in [
+            ["memory", "note", "add"],
+            ["memory", "note", "replace"],
+            ["memory", "note", "remove"],
+        ] {
+            let args: Vec<String> = command.iter().map(ToString::to_string).collect();
+            assert!(
+                resolve_verb(&args).is_some(),
+                "note verb is allowlisted: {command:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn store_verbs() {
+        for command in [
+            ["memory", "recall"],
+            ["memory", "write"],
+            ["memory", "forget"],
+        ] {
+            let args: Vec<String> = command.iter().map(ToString::to_string).collect();
+            assert!(
+                resolve_verb(&args).is_some(),
+                "store verb is allowlisted: {command:?}"
+            );
+        }
     }
 }
 

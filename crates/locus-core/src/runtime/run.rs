@@ -1,7 +1,7 @@
 //! Spawn one configured agent container for a queued run.
 
-use crate::ids::{RunId, SessionId};
-use std::path::PathBuf;
+use crate::ids::{ProjectId, RunId, SessionId};
+use std::{path::PathBuf, sync::Arc};
 
 use anyhow::{bail, Context, Result};
 
@@ -28,7 +28,11 @@ use crate::{
         ports::project_network,
         ports::PortAllocator,
     },
-    services::tools::{ProjectToolScope, RoleToolScope},
+    services::{
+        handoff::HandoffContext,
+        project::ProjectSettings,
+        tools::{ProjectToolScope, RoleToolScope},
+    },
     store::{audits::StoreAuditSink, Store},
 };
 use url::Url;
@@ -79,6 +83,7 @@ mod own_state_only {
             session_id: SessionId::generate(),
             resolved_model_id: model.into(),
             status: RunStatus::Running,
+            permission_posture: Default::default(),
             events: vec![],
             usage: None,
             exit_code: None,
@@ -153,12 +158,19 @@ pub struct SpawnRequest<'a> {
     pub egress_policy_root: PathBuf,
     /// Per-run capability validated by the daemon socket before it routes any agent request.
     pub run_nonce: String,
+    /// Whether this run's resolved tool allow-list includes clone-local LSP.
+    pub lsp_enabled: bool,
     pub base_image_digest: String,
     /// The catalog-resolved baseline; project and role scopes can only remove from it.
     pub tools: Vec<ToolPin>,
     pub project_extension_scope: ProjectExtensionScope,
     pub project_tool_scope: ProjectToolScope,
     pub role_tool_scope: RoleToolScope,
+    /// Project settings for this run. The persisted spawn path refreshes this from `core.settings`
+    /// before writing the host-owned registration; it is never supplied by the CLI.
+    pub project_settings: ProjectSettings,
+    /// Optional session context used by the ownership-transfer route.
+    pub handoff_context: Option<HandoffContext>,
     pub plugin: Option<&'a PluginHost>,
 }
 
@@ -196,6 +208,18 @@ fn credential_proxy_rejects_credential_bearing_values() {
     assert!(CredentialProxyConfig::new("https://token@example.test").is_err());
 }
 
+#[derive(Debug, PartialEq, Eq)]
+struct RegistrationLease(Arc<PathBuf>);
+
+impl Drop for RegistrationLease {
+    fn drop(&mut self) {
+        crate::runtime::daemon::remove_agent_registration(self.0.as_path());
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct AgentRunRegistrationGuard(Arc<RegistrationLease>);
+
 /// The started container and the materialized configuration used for its prompt prefix.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SpawnedRun {
@@ -206,6 +230,7 @@ pub struct SpawnedRun {
     pub image_disposition: ImageDisposition,
     pub port: u16,
     pub pty_stream: PtyStream,
+    registration: AgentRunRegistrationGuard,
 }
 
 /// Materialize the run configuration, ensure its agent image, then start and attach its PTY.
@@ -259,6 +284,40 @@ fn spawn_at_port(
     if request.run_nonce.trim().is_empty() {
         bail!("run socket capability nonce is required")
     }
+    let lsp_enabled = request.lsp_enabled
+        && request.tools.iter().any(|tool| {
+            tool.name == "lsp"
+                && request.project_tool_scope.permits(&tool.name)
+                && request.role_tool_scope.permits(&tool.name)
+        });
+    let debug_adapters = request
+        .project_settings
+        .debug_configs()
+        .values()
+        .map(|config| config.adapter())
+        .filter(|adapter| {
+            request.tools.iter().any(|tool| {
+                tool.name == *adapter
+                    && request.project_tool_scope.permits(&tool.name)
+                    && request.role_tool_scope.permits(&tool.name)
+            })
+        })
+        .map(str::to_owned)
+        .collect();
+    let debug_configs = request.project_settings.debug_configs().clone();
+    let registration_path = crate::runtime::daemon::write_agent_registration(
+        &request.socket_source,
+        &crate::runtime::daemon::AgentRunRegistration {
+            run_id: run.id,
+            nonce: request.run_nonce.clone(),
+            lsp_enabled,
+            debug_adapters,
+            debug_configs,
+            handoff_context: request.handoff_context.clone(),
+        },
+    )?;
+    let registration =
+        AgentRunRegistrationGuard(Arc::new(RegistrationLease(Arc::new(registration_path))));
     request
         .credential_proxy_authorizer
         .attach_audit_sink(StoreAuditSink::new(request.audit_store)?);
@@ -330,6 +389,10 @@ fn spawn_at_port(
             .map(|(key, value)| format!("{key}={value}")),
     );
     environment.push(format!("LOCUS_PORT={port}"));
+    environment.push(format!(
+        "LOCUS_LSP_ENABLED={}",
+        if lsp_enabled { "1" } else { "0" }
+    ));
     let container = ContainerLaunch {
         name: format!("locus-agent-{}", run.id),
         image: image.clone(),
@@ -371,6 +434,7 @@ fn spawn_at_port(
         image_disposition,
         port,
         pty_stream,
+        registration,
     })
 }
 
@@ -379,9 +443,14 @@ fn spawn_at_port(
 pub async fn spawn_persisted(
     store: &Store,
     run: &mut Run,
-    request: SpawnRequest<'_>,
+    mut request: SpawnRequest<'_>,
     runtime: &mut impl ContainerRuntime,
 ) -> Result<SpawnedRun> {
+    let project_id: ProjectId = request
+        .project_id
+        .parse()
+        .context("spawn project id must be a UUID")?;
+    request.project_settings = store.project_settings(project_id).await?;
     let forwarding =
         ForwardProxyLaunch::for_project(request.project_id, request.egress_policy_root.clone())?;
     let port = store.allocate_run_port(run.id).await?;
@@ -527,6 +596,7 @@ mod native_session_id {
             session_id: SessionId::generate(),
             resolved_model_id: "test-model".into(),
             status: RunStatus::Running,
+            permission_posture: Default::default(),
             events: vec![],
             usage: None,
             exit_code: None,
@@ -538,6 +608,107 @@ mod native_session_id {
         record_native_session_id(&mut run, "harness-session-42").expect("store harness id");
 
         assert_eq!(run.native_session_id.as_deref(), Some("harness-session-42"));
+    }
+}
+
+#[cfg(test)]
+mod permission_posture {
+    use super::*;
+    use crate::runtime::session::{PermissionPosture, Run};
+
+    #[test]
+    fn dispatch_pins_bypass_or_gated_posture() {
+        let mut run = Run {
+            id: RunId::generate(),
+            session_id: SessionId::generate(),
+            resolved_model_id: "test-model".into(),
+            status: RunStatus::Queued,
+            permission_posture: PermissionPosture::default(),
+            events: vec![],
+            usage: None,
+            exit_code: None,
+            cancel_reason: None,
+            native_session_id: None,
+            artifacts: vec![],
+        };
+        run.set_permission_posture(PermissionPosture::Gated)
+            .unwrap();
+        assert_eq!(run.permission_posture, PermissionPosture::Gated);
+        run.status = RunStatus::Running;
+        assert!(run
+            .set_permission_posture(PermissionPosture::Bypass)
+            .is_err());
+        assert_eq!(run.permission_posture, PermissionPosture::Gated);
+    }
+}
+
+#[cfg(test)]
+mod permission_request_by_posture {
+    use super::*;
+    use crate::runtime::session::PermissionPosture;
+    use crate::services::telemetry::{AcpAdapter, Adapter, EventCollector};
+    use serde_json::json;
+
+    #[test]
+    fn bypass_alarms_but_gated_waits_for_a_human() {
+        let captured = AcpAdapter
+            .normalize(json!({"method": "session/request_permission", "id": "p1"}))
+            .unwrap()
+            .pop()
+            .unwrap();
+        let collector = EventCollector::new(4);
+        let mut alarms = collector.subscribe_alarms();
+        let mut gates = collector.subscribe_gates();
+        collector.capture_with_posture(
+            RunId::generate(),
+            PermissionPosture::Bypass,
+            captured.clone(),
+        );
+        collector.capture_with_posture(RunId::generate(), PermissionPosture::Gated, captured);
+        assert!(alarms.try_recv().is_ok());
+        assert!(gates.try_recv().is_ok());
+    }
+}
+
+#[cfg(test)]
+mod checkpoints {
+    use super::*;
+    use crate::runtime::controls::{CheckpointLedger, WorkspaceSnapshot};
+    use crate::services::telemetry::{Event, EventVerb};
+    use serde_json::json;
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn restore_and_undo_keep_the_transcript() {
+        let run_id = RunId::generate();
+        let event = Event {
+            run_id,
+            seq: 0,
+            ts: "2026-01-01T00:00:00Z".into(),
+            verb: EventVerb::Assistant,
+            text: Some("before edit".into()),
+            tool: None,
+            args: None,
+            usage: None,
+            raw: json!({"text": "before edit"}),
+        };
+        let mut files = BTreeMap::new();
+        files.insert("src/lib.rs".into(), "old".into());
+        let mut ledger = CheckpointLedger::default();
+        let checkpoint = ledger.snapshot_before_edit(
+            run_id,
+            WorkspaceSnapshot {
+                branch: "agent/test".into(),
+                files,
+            },
+        );
+        let restored = ledger
+            .restore(checkpoint.id, std::slice::from_ref(&event))
+            .unwrap();
+        assert_eq!(restored.transcript, vec![event.clone()]);
+        assert_eq!(restored.workspace.files["src/lib.rs"], "old");
+        let undone = ledger.undo(std::slice::from_ref(&event)).unwrap();
+        assert_eq!(undone.transcript, vec![event]);
     }
 }
 
@@ -554,6 +725,7 @@ mod pause_holds_not_freezes {
             session_id: SessionId::generate(),
             resolved_model_id: "test-model".into(),
             status: RunStatus::Running,
+            permission_posture: Default::default(),
             events: vec![],
             usage: None,
             exit_code: None,
@@ -617,6 +789,7 @@ mod cancels {
             session_id: SessionId::generate(),
             resolved_model_id: "test-model".into(),
             status: RunStatus::Running,
+            permission_posture: Default::default(),
             events: vec![],
             usage: None,
             exit_code: None,
@@ -727,6 +900,7 @@ mod spawns {
         extensions: &'a ExtensionSet,
         config_root: PathBuf,
         credential_proxy_authorizer: &'a CredentialProxy,
+        project_settings: ProjectSettings,
     ) -> SpawnRequest<'a> {
         let egress_policy_root = config_root.with_file_name("locus-forwarding-proxy-policies");
         SpawnRequest {
@@ -746,6 +920,7 @@ mod spawns {
             ),
             egress_policy_root,
             run_nonce: "nonce".into(),
+            lsp_enabled: false,
             base_image_digest: "sha256:base".into(),
             tools: vec![
                 ToolPin {
@@ -768,6 +943,8 @@ mod spawns {
             },
             project_tool_scope: ProjectToolScope::new(["sqlx"]),
             role_tool_scope: RoleToolScope::new(["git"]),
+            project_settings,
+            handoff_context: None,
             plugin: None,
         }
     }
@@ -797,6 +974,7 @@ mod spawns {
             session_id: SessionId::generate(),
             resolved_model_id: "test-model".into(),
             status: RunStatus::Queued,
+            permission_posture: Default::default(),
             events: vec![],
             usage: None,
             exit_code: None,
@@ -810,6 +988,7 @@ mod spawns {
             &extensions,
             config_root.clone(),
             &credential_proxy_authorizer,
+            ProjectSettings::default(),
         );
         let mut runtime = RecordingRuntime::default();
 
@@ -861,6 +1040,14 @@ mod spawns {
             ]
         );
         assert_eq!(spawned.container.network, "locus-project-1-internal");
+        assert!(spawned.container.entrypoint.contains("git clone"));
+        assert!(spawned.container.entrypoint.contains("/workspace"));
+        assert!(spawned.container.entrypoint.contains("checkout -b agent/"));
+        assert!(spawned
+            .container
+            .mounts
+            .iter()
+            .all(|mount| mount.destination != "/workspace"));
         assert!(spawned
             .container
             .environment
@@ -945,6 +1132,7 @@ mod spawns {
             session_id: SessionId::generate(),
             resolved_model_id: "test-model".into(),
             status: RunStatus::Queued,
+            permission_posture: Default::default(),
             events: vec![],
             usage: None,
             exit_code: None,
@@ -958,6 +1146,7 @@ mod spawns {
             &extensions,
             config_root.clone(),
             &credential_proxy_authorizer,
+            ProjectSettings::default(),
         );
         let mut runtime = RecordingRuntime {
             fail_attach: true,

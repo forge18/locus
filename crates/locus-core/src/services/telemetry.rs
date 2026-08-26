@@ -9,6 +9,7 @@
 
 use crate::bus::InProcessBus;
 use crate::ids::RunId;
+use crate::runtime::controls::PermissionPosture;
 use std::{
     collections::{BTreeSet, HashMap, VecDeque},
     sync::{Arc, Mutex},
@@ -174,11 +175,22 @@ impl Event {
     }
 }
 
-/// A permission prompt is an alarm: a noninteractive run would otherwise hang.
+/// A permission prompt is an alarm for a bypass run: a noninteractive run would otherwise hang.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PermissionAlarm {
     pub run_id: RunId,
     pub seq: u64,
+}
+
+/// A gated permission request retained as a human-action item.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionGate {
+    pub run_id: RunId,
+    pub seq: u64,
+    pub request_id: String,
+    pub diff: Option<Value>,
+    pub raw: Value,
 }
 
 /// Owns per-run sequence assignment and publishes normalized events to local consumers.
@@ -192,6 +204,7 @@ pub struct EventCollector {
     events: Arc<Mutex<HashMap<RunId, VecDeque<Event>>>>,
     events_out: InProcessBus<Event>,
     alarms: InProcessBus<PermissionAlarm>,
+    gates: InProcessBus<PermissionGate>,
 }
 
 impl EventCollector {
@@ -201,10 +214,22 @@ impl EventCollector {
             events: Arc::new(Mutex::new(HashMap::new())),
             events_out: InProcessBus::new(capacity),
             alarms: InProcessBus::new(capacity),
+            gates: InProcessBus::new(capacity),
         }
     }
 
+    /// Capture with the default bypass posture for legacy callers.
     pub fn capture(&self, run_id: RunId, captured: CapturedEvent) -> Event {
+        self.capture_with_posture(run_id, PermissionPosture::Bypass, captured)
+    }
+
+    /// Capture an event and classify permission requests using the immutable run posture.
+    pub fn capture_with_posture(
+        &self,
+        run_id: RunId,
+        posture: PermissionPosture,
+        captured: CapturedEvent,
+    ) -> Event {
         let seq = {
             let mut sequences = self.next_seq.lock().expect("event sequence lock");
             let next = sequences.entry(run_id).or_insert(0);
@@ -222,10 +247,20 @@ impl EventCollector {
         drop(journals);
         self.events_out.publish(event.clone());
         if event.verb == EventVerb::PermissionRequest {
-            self.alarms.publish(PermissionAlarm {
-                run_id: event.run_id,
-                seq: event.seq,
-            });
+            if posture.is_gated() {
+                self.gates.publish(PermissionGate {
+                    run_id: event.run_id,
+                    seq: event.seq,
+                    request_id: permission_request_id(&event.raw),
+                    diff: permission_diff(&event.raw),
+                    raw: event.raw.clone(),
+                });
+            } else {
+                self.alarms.publish(PermissionAlarm {
+                    run_id: event.run_id,
+                    seq: event.seq,
+                });
+            }
         }
         event
     }
@@ -246,6 +281,39 @@ impl EventCollector {
     pub fn subscribe_alarms(&self) -> broadcast::Receiver<PermissionAlarm> {
         self.alarms.subscribe()
     }
+
+    pub fn subscribe_gates(&self) -> broadcast::Receiver<PermissionGate> {
+        self.gates.subscribe()
+    }
+}
+
+fn permission_request_id(raw: &Value) -> String {
+    [
+        raw.pointer("/params/requestId"),
+        raw.pointer("/params/request_id"),
+        raw.pointer("/params/toolCall/toolCallId"),
+        raw.get("id"),
+    ]
+    .into_iter()
+    .flatten()
+    .find_map(|value| match value {
+        Value::String(value) if !value.trim().is_empty() => Some(value.clone()),
+        Value::Number(value) => Some(value.to_string()),
+        _ => None,
+    })
+    .unwrap_or_else(|| "unknown-permission-request".into())
+}
+
+fn permission_diff(raw: &Value) -> Option<Value> {
+    [
+        raw.pointer("/params/diff"),
+        raw.pointer("/params/toolCall/diff"),
+        raw.pointer("/params/toolCall/rawInput"),
+    ]
+    .into_iter()
+    .flatten()
+    .next()
+    .cloned()
 }
 
 /// Normalizes one raw record. Kept separate from collection so a run can be replayed.
@@ -581,6 +649,44 @@ mod tests {
                 seq: 0
             }
         );
+    }
+
+    #[test]
+    fn permission_request_gated() {
+        let raw = json!({
+            "id": "request-42",
+            "method": "session/request_permission",
+            "params": {"diff": {"path": "src/lib.rs", "added": 1}}
+        });
+        let captured = AcpAdapter.normalize(raw).unwrap().pop().unwrap();
+        let collector = EventCollector::new(4);
+        let mut alarms = collector.subscribe_alarms();
+        let mut gates = collector.subscribe_gates();
+        let event =
+            collector.capture_with_posture(RunId::generate(), PermissionPosture::Gated, captured);
+
+        assert_eq!(event.verb, EventVerb::PermissionRequest);
+        assert!(alarms.try_recv().is_err());
+        let gate = gates.try_recv().expect("gated request is visible");
+        assert_eq!(gate.request_id, "request-42");
+        assert_eq!(gate.diff, Some(json!({"path": "src/lib.rs", "added": 1})));
+    }
+
+    #[test]
+    fn permission_request_replay() {
+        let raw = json!({
+            "id": "request-7",
+            "method": "session/request_permission",
+            "params": {"diff": {"file": "src/main.rs", "removed": 2}}
+        });
+        let event = EventCollector::new(1).capture_with_posture(
+            RunId::generate(),
+            PermissionPosture::Gated,
+            AcpAdapter.normalize(raw.clone()).unwrap().pop().unwrap(),
+        );
+        assert_eq!(event.raw, raw);
+        assert_eq!(event.raw["id"], "request-7");
+        assert_eq!(event.raw["params"]["diff"]["file"], "src/main.rs");
     }
 
     #[test]

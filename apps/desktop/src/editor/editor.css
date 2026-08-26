@@ -1,0 +1,41 @@
+.locus-editor-pane,
+.locus-editor-full-window {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  background: var(--surface-ground);
+}
+
+.locus-editor-surface,
+.locus-merge-editor {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+.locus-editor-surface .cm-editor {
+  height: 100%;
+}
+
+.locus-merge-editor .cm-mergeView {
+  min-height: 100%;
+  overflow: auto;
+}
+
+.locus-merge-editor .cm-editor {
+  min-height: 100%;
+}
+
+.locus-merge-revert {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-sm);
+  color: var(--action-attention);
+  background: var(--surface-chrome);
+  cursor: pointer;
+}
+
+.locus-merge-revert:hover {
+  background: var(--surface-selected);
+}

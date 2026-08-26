@@ -4,7 +4,9 @@
 pub mod acp;
 pub mod boot;
 pub mod container;
+pub mod controls;
 pub mod daemon;
+pub mod dap;
 pub mod dispatch;
 pub mod invoke;
 pub mod normalize;

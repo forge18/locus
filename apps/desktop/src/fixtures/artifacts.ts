@@ -14,7 +14,7 @@ export const REVIEW_KINDS: Array<{ kind: ArtifactKind; label: string; icon: stri
   { kind: 'diff', label: 'diff', icon: 'git-diff', note: '2 files · +79 −7' },
   { kind: 'plan', label: 'walkthrough', icon: 'list-checks', note: '6 steps, each with evidence' },
   { kind: 'image', label: 'image', icon: 'image', note: 'OCR text derived' },
-  { kind: 'video', label: 'recording', icon: 'video', note: '9 keyframes derived' },
+  { kind: 'recording', label: 'recording', icon: 'video', note: '9 keyframes derived' },
   { kind: 'report', label: 'diagram', icon: 'graph', note: 'nodes and edges, described' },
 ]
 
@@ -73,6 +73,18 @@ export const ARTIFACTS: Artifact[] = [
 // Compaction handles are first-class artifacts: short-term can drop a result
 // without making it unreachable from a later entry point.
 ARTIFACTS.push(
+  {
+    id: 'a-4',
+    runId: 'r-0003-0',
+    kind: 'recording',
+    title: 'Browser capture — 42 seconds',
+    body: null,
+    blobPath: '~/.locus/blobs/4a/4a42c0.webm',
+    mediaType: 'video/webm',
+    sha256: '4a42c0d9e8f7012e3a5b6c7d8e9f00112233445566778899aabbccddeeff0011',
+    derivedText: '9 keyframes extracted for model context; the original clip remains human-only.',
+    createdAt: '2026-08-20T14:02:00Z',
+  },
   {
     id: 'a-7802',
     runId: 'r-9f21',

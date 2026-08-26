@@ -1,4 +1,7 @@
 import { For, Show, createSignal } from "solid-js";
+import { EditorPane } from "../../editor/EditorPane";
+import { FullWindowEditor } from "../../editor/FullWindowEditor";
+import { plainTextDescriptor } from "../../editor/types";
 import { AnalyticsView } from "../analytics/AnalyticsView";
 
 type ProjectTab = "settings" | "persistence" | "analytics";
@@ -26,6 +29,19 @@ const harnesses = [
   { id: "cursor", adapter: "ACP", detail: "Cursor · composer-2" },
 ];
 
+const baseContextFile = {
+  uri: "file:///workspace/base.md",
+  path: "base.md",
+  languageId: "plain",
+  content: `# Working in tapestry
+
+You are working in a clone of a bare local remote. Your branch is never main and you cannot reach the host filesystem.
+
+Record what you learn with locus memory write at project scope, and recall before you explore.
+
+Verify with cargo nextest run.`,
+};
+
 const extensions = [
   ["Agents", "4 enabled"],
   ["Commands", "6 enabled"],
@@ -37,8 +53,17 @@ const extensions = [
   ["Base context", "1 enabled"],
 ] as const;
 
-export function ProjectsView() {
+export interface ProjectsViewProps {
+  /** A real ordinary checkout path enables host LSP for the editor surface. */
+  editorProjectRoot?: string;
+  editorProjectId?: string;
+  editorPaneId?: string;
+}
+
+export function ProjectsView(props: ProjectsViewProps = {}) {
   const [tab, setTab] = createSignal<ProjectTab>("settings");
+  const [editorOpen, setEditorOpen] = createSignal(false);
+  const [editorFullscreen, setEditorFullscreen] = createSignal(false);
   const [defaultHarness, setDefaultHarness] = createSignal("claude");
   const [enabledHarnesses, setEnabledHarnesses] = createSignal(
     new Set(harnesses.map(({ id }) => id)),
@@ -237,33 +262,87 @@ export function ProjectsView() {
                   <strong class="mono">base.md</strong>
                   <small>v9 · edited 5h ago · loaded by 1,204 runs</small>
                   <button class="btn btn-secondary">History</button>
+                  <button
+                    class="btn btn-secondary"
+                    data-testid="project-base-context-edit"
+                    onClick={() => setEditorOpen(!editorOpen())}
+                  >
+                    {editorOpen() ? "Preview" : "Edit"}
+                  </button>
                   <button class="btn btn-primary">Save</button>
                 </header>
-                <div class="base-prose">
-                  <strong># Working in tapestry</strong>
-                  <p>
-                    You are working in a clone of a bare local remote. Your
-                    branch is never main and you cannot reach the host
-                    filesystem. Push the branch; a human decides what lands.
-                  </p>
-                  <p>
-                    Record what you learn with <b>locus memory write</b> at
-                    project scope, and recall before you explore — the answer is
-                    usually already a fact.
-                  </p>
-                  <p>
-                    Verify with <b>cargo nextest run</b>. A claim without the
-                    command and its exit code is not a claim.
-                    <i />
-                  </p>
-                </div>
+                <Show
+                  when={editorOpen()}
+                  fallback={
+                    <div class="base-prose">
+                      <strong># Working in tapestry</strong>
+                      <p>
+                        You are working in a clone of a bare local remote. Your
+                        branch is never main and you cannot reach the host
+                        filesystem. Push the branch; a human decides what lands.
+                      </p>
+                      <p>
+                        Record what you learn with <b>locus memory write</b> at
+                        project scope, and recall before you explore — the
+                        answer is usually already a fact.
+                      </p>
+                      <p>
+                        Verify with <b>cargo nextest run</b>. A claim without
+                        the command and its exit code is not a claim.
+                        <i />
+                      </p>
+                    </div>
+                  }
+                >
+                  <EditorPane
+                    file={baseContextFile}
+                    language={plainTextDescriptor}
+                    projectRoot={props.editorProjectRoot}
+                    projectId={props.editorProjectId}
+                    paneId={props.editorPaneId}
+                  />
+                </Show>
               </div>
+              <Show when={editorOpen()}>
+                <button
+                  class="btn btn-secondary project-editor-fullscreen"
+                  data-testid="project-base-context-fullscreen"
+                  onClick={() => setEditorFullscreen(true)}
+                >
+                  Open full window
+                </button>
+              </Show>
               <p class="project-panel-note">
                 Kept short on purpose: it is the one file every run pays for.
                 Over budget usually means something belongs in a skill or a rule
                 instead.
               </p>
             </section>
+            <Show when={editorFullscreen()}>
+              <div
+                class="project-editor-overlay"
+                role="dialog"
+                aria-label="Base context editor"
+                data-testid="project-editor-overlay"
+              >
+                <header>
+                  <strong class="mono">base.md</strong>
+                  <button
+                    class="btn btn-secondary"
+                    onClick={() => setEditorFullscreen(false)}
+                  >
+                    Close
+                  </button>
+                </header>
+                <FullWindowEditor
+                  file={baseContextFile}
+                  language={plainTextDescriptor}
+                  projectRoot={props.editorProjectRoot}
+                  projectId={props.editorProjectId}
+                  paneId={props.editorPaneId}
+                />
+              </div>
+            </Show>
 
             <section
               class="project-panel"

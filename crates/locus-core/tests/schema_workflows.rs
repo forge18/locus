@@ -118,6 +118,42 @@ async fn schema_workflows() {
         assert!(exists, "workflow index {index} exists");
     }
 
+    for table in ["project_streams", "entries"] {
+        let exists: bool = query_scalar(
+            "SELECT EXISTS (
+                SELECT 1 FROM information_schema.tables
+                WHERE table_schema = 'log' AND table_name = $1
+            )",
+        )
+        .bind(table)
+        .fetch_one(store.test_pool())
+        .await
+        .expect("query the workflow log schema");
+        assert!(exists, "log.{table} exists");
+    }
+    for column in [
+        "project_id",
+        "stream_pos",
+        "kind",
+        "v",
+        "payload",
+        "actor",
+        "caused_by",
+        "created_at",
+    ] {
+        let exists: bool = query_scalar(
+            "SELECT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_schema = 'log' AND table_name = 'entries' AND column_name = $1
+            )",
+        )
+        .bind(column)
+        .fetch_one(store.test_pool())
+        .await
+        .expect("query workflow log columns");
+        assert!(exists, "log.entries.{column} exists");
+    }
+
     query("INSERT INTO core.projects (id, name) VALUES ($1::uuid, 'workflow test project')")
         .bind("00000000-0000-0000-0000-000000000001")
         .execute(store.test_pool())

@@ -1,6 +1,11 @@
 /* desktop Workshop fixtures: authored configuration, never run state. */
 .ws-fixture, .ws-providers { height: 100%; min-height: 0; overflow: auto; color: var(--text-primary); }
 .ws-fixture { padding: 16px 20px 24px; }
+.agents-screen { display: flex; flex-direction: column; gap: 12px; }
+.agents-screen > .extension-editor { flex: 1; min-height: 0; }
+.agents-handoff-footer { display: flex; align-items: center; gap: 12px; flex: none; padding: 10px 12px; border: 1px solid var(--border-strong); border-radius: var(--r-card); background: var(--surface-selected); color: var(--text-secondary); font-size: var(--t-meta); }
+.agents-handoff-footer strong { color: var(--text-primary); font-weight: 500; }
+.agents-handoff-footer span { flex: 1; }
 .ws-fixture-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 14px; border-bottom: 1px solid var(--border-subtle); }
 .ws-fixture h1, .ws-providers h1 { margin: 0; font-size: var(--t-title); font-weight: 500; }
 .ws-fixture h2, .ws-providers h2 { margin: 0 0 8px; color: var(--text-secondary); font-size: var(--t-label); font-weight: 500; letter-spacing: .1em; text-transform: uppercase; }

@@ -105,19 +105,29 @@ the strongest available argument that skipping VSCodium costs less than it would
 | Workflows | **A visual canvas** (`solid-flow`) plus **Governance**. A workflow is a loop toward a goal; goal, guardrails, and success criteria are authored outside the graph. `verify` is required and the token budget is optional. |
 | Teams | **The workflow is the team.** Its agent nodes are the roster, each node carries a role, and the edges are the dependencies. No separate `Team` entity. |
 | Review surface | **Artifacts**, not transcripts. Plans, diffs, diagrams, screenshots, recordings, and a walkthrough on completion — all commentable, and a comment steers the agent that made it. |
-| Harness contract | **Declaration plus materialization.** A TOML file says where each of the eight extensions goes; a **materializer** puts it there. Four strategies are generic and parameterized by that TOML; the fifth is a plugin, for the harnesses whose config is code. A harness needing code is a directory, one that does not is a file. |
+| Harness contract | **A capability-based plugin.** A trusted manifest and one JSON-RPC 2.0 executable over stdio describe launch, session, ACP events, materialization, and optional capabilities. The first-party roster contains Pi only; user-written harness plugins add others without a core match. |
 | Tokens | **A design constraint, not a bill.** Prefix stability is a rule the materializer obeys, tool output is compacted before it reaches context, and every surface hands an agent a summary with a handle rather than a body. Cache rate and payload-by-tool are dashboard metrics because both are already columns. |
-| Navigation | **A project-scoped rail, in two groups.** The selected project owns Setup, Plan, Manage, Interact, and Review. Analytics, Memory, Settings, and Workshop are cross-project. Inbox and Dispatch are title-bar pills, each opening a popover, because "does anything need me?" and "is anything happening?" are questions you ask from every screen. One locator scheme addresses everything. |
+| Navigation | **A project-scoped rail, in two groups.** The selected project owns Setup, Plan, Manage, Interact, and Review. Analytics, Memory, Settings, and Workshop are cross-project. Workshop has exactly two subgroups: Plugins (CLI Tool, Harness, Provider) and Extensions (the eight extension types plus Workflows). Inbox and Dispatch are title-bar pills, each opening a popover, because "does anything need me?" and "is anything happening?" are questions you ask from every screen. One locator scheme addresses everything. |
 | Handoffs | **Ownership transfers with a payload, never a transcript.** `done`, `remaining`, `attempted`, `decisions`, `open` — the successor reads that, not the predecessor's history. Kill-and-reassign already existed; this is what it hands over. |
 | Tools | **Just-in-time documentation, eager installation.** The enabled CLI catalog is baked into the image; project and workflow roles only narrow it. A one-line catalog per allowlisted tool arrives only when an agent asks for it. |
 | Filesystem | **No virtual filesystem.** Docker layers and `git clone --reference` already give copy-on-write; exposing Locus state as files is the thing the store exists to stop. |
 | Artifacts on disk | **Text in Postgres, media as files the row points at.** Media is stored once for you and **derived on demand for a model** — OCR before pixels, keyframes before clips. Two representations, because a human and a model want opposite things. |
-| Plugins | **One manifest + one executable speaking JSON-RPC 2.0 over stdio**, in any language. Core services stay internal and are never plugins. **Data-driven: a plugin declares and returns data; the first-party UI knows how to render it.** No third-party UI code, ever. |
+| Plugins | **One common manifest + one executable speaking JSON-RPC 2.0 over stdio**, in any language, for CLI tools, harnesses, and model providers. The host negotiates namespaced capabilities and bounded calls; optional capabilities do not make the contract brittle. Core services stay internal and are never plugins. **Data-driven: a plugin declares and returns data; the first-party UI knows how to render it.** No third-party UI code, ever. |
 | Board | **Fixed columns across every project**, not configurable: Ready → In Progress → Testing → Reviewing → Waiting For Approval → Done. **`blocked` is a status, not a column.** Two gating rules only. |
 | Planning | **Three agents** — interviewer, researcher, auditor — over ACP, across **seven stages**: Inputs, Orient, Converse, Synthesis, Recommend, Decompose, Approved. Goal is an input, not an output. Requirement ids are stable, so a card keeps pointing at the requirement it came from. The approved spec is decomposed into board cards explicitly: spec-only, every task, or spec plus selected carve-outs. Nothing reaches the board until the single final approval. |
-| Testing Locus | **Event-based.** Every run normalizes into `memory.event`, so a test is "run this, assert these events appeared" — identical across all eleven harnesses, no test-only instrumentation. |
+| Testing Locus | **Event-based.** Every run normalizes into `memory.event`, so a test is "run this, assert these events appeared" — identical across the first-party Pi harness and any trusted user harness plugin, with no test-only instrumentation. |
 | Permissions | **Bypass is the default; a job may explicitly opt into gated approval.** What an agent may do is *declared* — the tool allowlist on the agent definition, narrowed per role by the workflow's `Agent` node — and enforced by the container. A gated request blocks as a visible human action; an unexpected bypass request is an alarm. |
 | UI components | **Kobalte** headless primitives + **shadcn-solid** components copied into the repo + **Tailwind**. Headless, because an IDE's chrome is small and its large surfaces are all bespoke or bring their own DOM. |
+
+**Plugin contract.** Every CLI-tool, harness, and model-provider plugin has a trusted manifest and one
+executable speaking JSON-RPC 2.0 over stdio. The host negotiates `protocol`, `kind`, `version`, and
+namespaced capabilities through `plugin.initialize`, `plugin.describe`, `plugin.health`, and
+`plugin.shutdown`. Required capabilities are validated before dispatch; unknown optional capabilities
+are preserved for diagnostics. Calls are bounded and return data only — no plugin renders UI or writes
+Locus persistence. Harnesses use the same envelope but expose a flexible capability descriptor for
+launch, session, ACP events, materialization, model discovery, permissions, resume, checkpoints, and
+usage; only the minimum session capability is required for selection. First-party plugins are `pi`,
+`gh`, `openai`, `anthropic`, and `openrouter`; other plugins are user-supplied.
 
 ### desktop desktop revision
 
@@ -291,7 +301,7 @@ the git model below. **No long-lived credential lives in the container** — see
 #### Images — two layers, one cache key
 
 **The harness binary lives in the image, never on the host.** That is what makes a run reproducible
-and what keeps eleven harnesses from becoming eleven host installs. `detect` runs at *image build*,
+and what keeps each harness plugin binary inside a reproducible image rather than becoming a host install. `detect` runs at *image build*,
 not on your machine, and its job is to fail the build when the binary is missing rather than to find
 one you already have.
 
@@ -431,8 +441,8 @@ services — but the boundary is a kernel boundary, not a hypervisor one.
 ### The one surface
 
 **Eight extension types, the same set for every harness.** An extension is authored **once**, in
-Locus. At run start the core reads `harnesses/<name>.toml` and writes it into the path and file
-format that harness expects, under `/locus/config`, for that run only.
+Locus. At run start the core reads the selected harness plugin's descriptor and writes extensions into the
+path and file format that harness expects, under `/locus/config`, for that run only.
 
 | Extension | Is | Consumed by |
 | --- | --- | --- |
@@ -451,21 +461,21 @@ Two of the eight do not behave like the rest, and the registry has to say so per
   `locus lint` can find it, which means every harness supports linters trivially and identically.
 - **`output-styles` is the most divergent.** Some harnesses have a real mechanism; others have no
   concept of it and the style has to be folded into `base-context` instead. Where that happens the
-  registry records it, because a style silently merged into context is a different thing from a style
-  the harness selects — and the entry should say which one you got.
+  plugin descriptor records it, because a style silently merged into context is a different thing from a
+  style the harness selects — and the entry should say which one you got.
 
 `base-context` is near-uniform in practice — `AGENTS.md` almost everywhere, with `CLAUDE.md` and
 `AGENTS.override.md` as the two exceptions — which is why it also serves as the **fallback injection
-path** for the four harnesses that cannot inject at session start.
+path** for harness plugins that cannot inject at session start.
 
 This inverts `local-dx`'s hardest problem. There is no propagation, no symlink graph, no `--prune`,
 no drift: the target filesystem is destroyed when the run ends.
 
 Three rules carried over verbatim from `local-dx`, because each earned its place:
 
-1. **Nothing in core names a harness.** Adding one is a TOML file, plus a materializer plugin and a
-   stream-format module only where that harness needs code — and neither is compiled into core.
-2. **Every entry is complete — nothing inherited.** A harness file states every path and format it
+1. **Nothing in core names a harness.** Adding one is a trusted plugin manifest plus a capability
+   implementation, and neither is compiled into core.
+2. **Every entry is complete — nothing inherited.** A harness plugin states every path and format it
    uses, so it reads cold.
 3. **The database is derived where it can be.** Harness output, git, and the marketplace index are
    sources of truth and are never written by Locus. Board, wiki, **memory**, and **mail** are the
@@ -530,40 +540,33 @@ readily as to a host one. Running agents on the host would give them your real f
 real credentials, which is precisely the exposure the container model exists to remove. ACP is not a
 reason to leave the sandbox.
 
-A harness is described by one TOML file. ACP does not replace the config contract — it standardises
-the conversation loop, and says nothing about where a harness reads its skills, rules, or context.
-That knowledge is per-harness whether the harness speaks ACP or not.
+A harness plugin declares a descriptor (TOML or the manifest format it returns) and capability data.
+ACP does not replace the config contract — it standardises the conversation loop, and says nothing about
+where a harness reads its skills, rules, or context. That knowledge is per-harness whether the plugin
+speaks native ACP or supplies an adapter.
 
 **Every supported harness fronts the ACP surface.** `[telemetry].source` collapses to `acp`. Where a
 harness has no native ACP mode, a Locus-side mapping (materializer/plugin) bridges it. All sources
 normalize into the one event vocabulary below, and nothing downstream knows which mapping a run
 arrived through — because there is one mapping for every ACP harness, not one per harness.
 
-**Registered harnesses.** One entry each in `harnesses/` — a file where declaration is enough, a
-directory where the harness needs a materializer plugin. Every entry complete, nothing inherited:
+**Registered harnesses.** Pi is the only first-party entry. A trusted user plugin may register another
+harness without a core source change. Every descriptor is complete, nothing inherited:
 
 | Harness | Binary | ACP surface | Session injection reaches it by |
 | --- | --- | --- | --- |
-| claude | `claude` | native | its own `SessionStart` hook |
-| codex | `codex` | native | its own `SessionStart` hook |
-| copilot | `copilot` | native | its own `sessionStart` hook |
-| pi · omp | `pi` · `omp` | native, via a generated TS extension | the generated extension |
-| **gemini** | `gemini` | native | its own hook |
-| **cursor** | `agent` | **ACP** (`agent acp`) | `[layout].context` |
-| **antigravity** | `agy` | **ACP** | `[layout].context` |
-| **aider** | `aider` | **ACP** | `--read`, a context file |
-| dsh | `dsh` | native | `[layout].context` |
-| opencode | `opencode` | **ACP** | `[layout].context` |
+| pi | `pi` | native, via a generated TS extension | the generated extension |
+| user plugin | declared by manifest | native ACP or an adapter | the capability declared by the plugin |
 
 `[telemetry].source` is real but single-valued in the ACP-only model: for every supported harness it
 is `acp`. The four-source table that once selected a path per harness is retired; there is one path.
 Everything still normalizes into the one event vocabulary below, and nothing downstream re-diverges.
 
-**Every harness has every capability. Only the mechanism differs.** This is `local-dx`'s rule and it
-carries over unchanged: where a harness has no native mechanism, a loader bridges it, and the harness
-file records *how* rather than *whether*. There is no capability matrix and no feature flag to branch
-on, because a flag would let a capability silently not arrive — the failure `local-dx` names as worst,
-a file present, plausible, and loaded by nobody.
+**Every supported harness declares its capabilities. Only the mechanism differs.** Where a harness has no
+native mechanism, its plugin declares an adapter or fallback and names the loss. The host uses capability
+negotiation rather than a central harness-name matrix: required session capabilities must be present,
+optional capabilities may be absent, and unknown optional data is preserved for diagnostics. This keeps a
+user-written harness flexible without allowing a capability to arrive silently or be loaded by nobody.
 
 So the four that cannot inject at session start still get injection: it lands in `[layout].context`,
 which every harness reads. That fallback is why the layout table survives everything else. The same
@@ -573,7 +576,7 @@ a native session id to hand back.
 
 **The harness file declares mechanism, never policy.** No `[capabilities]` block, and **no model
 routing** — tier resolution is the app's, so changing which model `high` means is a setting rather
-than eleven file edits.
+than one plugin-manifest edit per harness.
 
 #### Model routing — mechanism in the file, policy in the UI
 
@@ -608,9 +611,9 @@ never the file's business, and a harness that gained a model overnight needs no 
 appear in the combobox.
 
 ```toml
-# harnesses/claude.toml
-name    = "claude"
-binary  = "claude"
+# harnesses/pi/pi.toml
+name    = "pi"
+binary  = "pi"
 detect  = ["--version"]
 
 [launch]                              # how to start ONE session in ONE run
@@ -666,12 +669,12 @@ of them needs a plugin:
 
 | Strategy | Does | Used by |
 | --- | --- | --- |
-| `dir` | copy the extension's files as they are, optionally renaming | claude, pi, omp, opencode skills; copilot agents (`suffix = ".agent.md"`) |
-| `merged-into` | render the files into one target file as prose, frontmatter stripped | codex and copilot rules and output-styles; dsh commands |
-| `listed-in` | write the files' paths into a key of the harness's config | opencode rules and styles → `opencode.json:instructions` |
-| `entries-in` | convert each file into one structured entry in a config file | codex agents → TOML; dsh agents → `cordis.patch.yml`; claude hooks → `settings.json` |
-| `plugin` | **run an executable that returns the files to write** | pi and omp hooks and rules (TS extension); opencode hooks (plugin) |
-| `core-driven` | Locus fires the extension itself at the boundaries it owns | aider and cursor hooks — neither has a hook mechanism, so `session_start` and `session_end` come from the container's own lifetime |
+| `dir` | copy the extension's files as they are, optionally renaming | Pi and trusted user harness plugins |
+| `merged-into` | render the files into one target file as prose, frontmatter stripped | trusted user harness plugins whose native layout requires it |
+| `listed-in` | write the files' paths into a key of the harness's config | trusted user harness plugins whose config is path-based |
+| `entries-in` | convert each file into one structured entry in a config file | trusted user harness plugins whose config is structured |
+| `plugin` | **run an executable that returns the files to write** | Pi and trusted user harness plugins |
+| `core-driven` | Locus fires the extension itself at the boundaries it owns | a user harness plugin that declares no native hook mechanism |
 
 **Every entry that is weaker than native says so.** A rule folded into always-on context is not the
 same thing as a rule the harness loads when a matching file is touched, and an entry that hides the
@@ -683,12 +686,14 @@ rules = { via = "merged-into", target = "context", strip_frontmatter = true,
           weaker_than_native = "always-on; path scoping is lost" }
 ```
 
-Twenty-nine of the eighty-eight entries across the eleven harnesses are downgrades. That number is
-the honest measure of how uneven the field is, and it is only visible because the files say it.
+The first-party Pi descriptor is the reference entry; user harness plugins may add their own extension
+layouts and downgrade explanations. Those values are the honest measure of unevenness and are visible
+because each descriptor says them.
 
-**Both figures are computed from the registry, never maintained by hand** — eleven harnesses times
+**Both figures are computed from the registry, never maintained by hand** — registered harnesses times
 eight extensions is the denominator, and the numerator is a count of `weaker_than_native` keys. Any
-surface that shows them reads the files, so registering a harness moves the number without an edit.
+surface that shows them reads the descriptors, so registering a user harness moves the number without an
+edit.
 
 The first four are parameterized data — `format`, `suffix`, `flat`, `strip_frontmatter`, the target
 key — and live in `crates/locus-core/src/harness/materialize/` as generic implementations that name no
@@ -701,7 +706,7 @@ with the same tools must produce a byte-identical tree, because that tree *is* t
 an unstable prefix costs cache on every run that follows. A materializer that embeds the current time
 is not slightly untidy — it is a per-run cache miss for every agent that harness serves.
 
-**The plugin contract, for the fifth.** Same shape as every other plugin here: one executable,
+**The materializer capability contract.** It uses the common plugin envelope: one executable,
 JSON-RPC 2.0 over stdio, any language. It is called once per run with the extension set as JSON and
 **returns the files to write** — it never writes them itself:
 
@@ -719,10 +724,10 @@ without a container, a buggy one cannot escape the config tree, and the same JSO
 
 ```
 harnesses/
-  claude.toml            pure data — every extension is native
   pi/
     pi.toml
     materialize          executable; generates the TS extension pi reads
+  user-plugin/           trusted user-supplied harness descriptor and executable
 ```
 
 **Canonical event vocabulary** — every source normalizes to exactly this set:
@@ -764,9 +769,8 @@ Three rules keep the one path honest:
 - **Ordering is Locus's.** `seq` is assigned on arrival at the core, so a source with no ordering
   guarantee still yields a totally ordered stream.
 - **A missing verb is recorded as missing, never synthesized.** A harness that cannot report `thinking`
-  produces no `thinking` events rather than empty ones. Each `harnesses/*.toml` declares the verb set
-  its source can emit, so an event-based test knows what to expect per harness — otherwise every
-  assertion would have to be written to the weakest path.
+  produces no `thinking` events rather than empty ones. Each harness plugin descriptor declares the verb set its source can emit, so an event-based test knows
+  what to expect per harness — otherwise every assertion would have to be written to the weakest path.
 - **`raw` is kept on every event.** Harness formats change between releases; replay against a fixed
   parser is the repair, and it is the reason capture is separated from normalization at all.
 
@@ -835,8 +839,8 @@ log and nothing exists to re-derive them from.
 **What this costs, stated once.** Every `(kind, v)` ever written must stay foldable forever, and a fold
 meeting an unknown one **halts naming the offending `stream_pos` rather than skipping** — a skipped
 entry yields a projection that is quietly wrong, which is the failure event sourcing exists to prevent.
-Locus already carries permanent schema-evolution cost against eleven third-party harness formats it does
-not control; this adds a second obligation for events it does own. Owning them is the difference.
+Locus already carries permanent schema-evolution cost against user-supplied harness formats it does not
+control; this adds a second obligation for events it does own. Owning them is the difference.
 
 **And it does not reduce the backup requirement — it sharpens it.** The log lives only in the Postgres
 volume, so losing the volume loses the thing everything else rebuilds *from*; and the two carve-outs
@@ -2161,7 +2165,7 @@ another.
 | **Analytics** | spend, tokens, cache, run times, task outcomes, memory and extension usage; telemetry as its query half | what happened, and was it any good |
 | **Memory** | short-term, long-term, artifacts, and the wiki | what do we already know, and what disagrees |
 | **Settings** | guardrails and everything else that is per install | what are the defaults |
-| **Workshop** | harnesses, providers, CLI tools, the eight extension types, agent definitions, workflows | the tools themselves |
+| **Workshop** | **Plugins:** CLI Tool, Harness, Provider. **Extensions:** the eight extension types, agent definitions, Workflows | the tools themselves |
 
 **Two questions you ask from everywhere, so they are not rail items.** *Does anything need me?* and
 *is anything happening?* do not belong to a screen — they belong to every screen. So the inbox count
@@ -2188,9 +2192,11 @@ are editing are different activities on the same object — one is a thing doing
 document under version control. Same for workflows: the canvas is Workshop, a running execution is
 Manage.
 
-**Workshop is where the meta-harness actually lives.** Skills, rules, commands, hooks, output-styles,
-linters, agents, base-context — authored once, materialized into every runtime. That is the product's
-central claim, and it deserves a place rather than a settings page.
+**Workshop is where the meta-harness actually lives.** It has two subgroups: **Plugins** (CLI Tool,
+Harness, Provider) and **Extensions** (skills, rules, commands, hooks, output-styles, linters, agents,
+base-context, and Workflows). Extensions are authored once and materialized into every runtime; Plugins
+are executable, capability-negotiated integrations. That is the product's central claim, and it deserves
+a place rather than a settings page.
 
 #### The inbox
 
@@ -2391,11 +2397,9 @@ below is decomposed that way.
 **This document stays the architecture.** A spec cites the section that governs it rather than
 restating it — one source for a decision, not two that drift.
 
-- `harnesses/*` — **all eleven written**, every one of the eight extensions declared with a `via`
-  strategy and every downgrade carrying `weaker_than_native`. One is UNVERIFIED against a running
-  binary — `dsh`, not installed here and not present in `local-dx` — and says so in the file. What
-  remains is confirming it against its harness, which is Spike 1's other half. `hermes` was removed
-  ACP-only: it ships no first-class ACP mode and is declared out of support.
+- `harnesses/pi/` — the **one first-party harness plugin**, with all eight extensions declared and every
+  downgrade carrying `weaker_than_native`. Other harnesses are trusted user plugins; they are not shipped
+  integrations and do not require a core source match.
 - Fill in the stub `AGENTS.md` at the repo root
 - **Spike 1** `spikes/01-sandboxed-harness/` — does a harness run in a container built from
   `locus/base-<harness>`, authenticated without holding a long-lived secret, against its own clone,
@@ -2409,13 +2413,13 @@ restating it — one source for a decision, not two that drift.
   depends on it.
 
 ```bash
-# every harness declares all eight extensions, each with a known `via` strategy
+# every registered harness plugin declares all eight extensions, each with a known `via` strategy
 locus harness lint          # refuses an undeclared extension or an unknown strategy
 ```
 
 `verify:` all three spikes produce a written answer in their directory; every `.specs/*/` holds both a
 `spec.md` and a `tasks.md` and every task row carries a runnable command;
-`locus harness lint` passes for all eleven.
+`locus harness lint` passes for the first-party Pi plugin and a user-plugin fixture.
 
 ### M0.5 — Desktop UI on fixtures
 
@@ -2439,14 +2443,14 @@ time. The cost is the honest one: fixture shapes are invented before the schemas
   retrofitting one address space onto navigation that already exists costs more than starting with it
 - **Fourteen screens** — Inbox, Status, Plan, Develop, Automate Kanban, Automate Agents, Review
   Telemetry, Review Runs, Review Artifacts, Workshop Extensions, Workshop Agent-definitions, Workshop
-  Workflow, Workshop Harnesses, Wiki
+  Workflow, Workshop Plugins, Wiki
 - **Real renderers, not the mockup's hand-drawn SVG** — the runs-by-hour bars, the telemetry sparkline
   and facet tracks, the wiki graph, the canvas edge layer
 
 **Fixtures are derived, never invented.** Their types come from the eight schemas and the canonical
 event vocabulary rather than from what a screen happens to need; each module names the schema and the
-command that will replace it; and the Harnesses and Extensions screens compute theirs from
-`harnesses/*.toml`, so those two are correct on the first day and stay correct without an edit.
+command that will replace it; and the Plugins and Extensions screens compute theirs from the registry and trusted plugin manifests,
+so those two are correct on the first day and stay correct without an edit.
 
 Historical verification reached every v1 screen, derived Harnesses data from the TOMLs, and enforced
 keyboard focus and a clean `pnpm build`. The desktop verification inventory is `.specs/design-desktop/tasks.md`.
@@ -2454,8 +2458,9 @@ keyboard focus and a clean `pnpm build`. The desktop verification inventory is `
 ### M0.6 — desktop desktop reconciliation
 
 The desktop handoff replaces the shell, expands the fixture set to thirty-one screens, and introduces
-Providers, CLI tools, project scope, plan decomposition, dispatch, and workflow Governance. It also
-ships Dark and cool-neutral Light themes through semantic roles. The contract is `.specs/design-desktop/`;
+the Workshop Plugins subgroup (model providers, CLI tools, and harnesses), project scope, plan
+decomposition, dispatch, and workflow Governance. It also ships Dark and cool-neutral Light themes
+through semantic roles. The contract is `.specs/design-desktop/`;
 theme values and regression requirements are `.specs/theme-system/`.
 
 `verify:` the 31-screen fixture inventory, provider-secret redaction, selected-project navigation,
@@ -2471,15 +2476,17 @@ Daemon, store, registry, containers, and ACP conversations.
   asserts row counts against the source — because a backup nobody has restored is a belief, not a
   backup, and this is the one piece the deferral table calls non-deferrable
 - **ACP client** on the `agent-client-protocol` crate — the only agent-session transport
-- Harness registry and TOML schema validation, refusing any entry that leaves an extension undeclared
+- Harness plugin registry and descriptor validation, refusing any entry that leaves an extension undeclared
 - **Settings → Harnesses**: the tier-to-model grid, populated from `[models].list_argv` where a harness
   can enumerate and free text where it cannot, stored in `core.settings`. Unset tiers pass no flag, so
   a freshly registered harness runs on its own default rather than not running
 - **Materializers**, **byte-deterministic**: sorted order, no timestamps, no run id — two runs of the
   same agent produce an identical config tree, which is what makes the prompt prefix cacheable. The
   four generic strategies (`dir`, `merged-into`, `listed-in`, `entries-in`), plus
-  the `plugin` host and **one** real plugin — pi's, because a generated TypeScript extension is the
-  furthest a harness gets from copying a directory, so it proves the contract at its hardest point
+  the common plugin host and **one** first-party plugin — Pi's, because a generated TypeScript extension
+  is the furthest a harness gets from copying a directory, so it proves the contract at its hardest point.
+  The same host admits trusted user-written CLI-tool, harness, and provider plugins through capability
+  negotiation.
 - **Agent definitions**: Markdown + frontmatter, versioned, materialized per run. Because agents are
   not a graph, they land here rather than waiting for M4 — the product is usable four milestones
   earlier than the previous draft implied
@@ -2492,7 +2499,7 @@ Daemon, store, registry, containers, and ACP conversations.
 - Run supervisor: spawn → stream → normalize → persist → cancel
 - Credential broker and egress policy, whichever shape Spike 1 settles on
 - **Wire the M0.5 screens whose data M1 makes real** — Automate Agents and its transcript, the Inbox,
-  Status, Workshop Extensions and Workshop Harnesses. Each swaps its fixture accessor for a Tauri
+  Status, Workshop Extensions and Workshop Plugins. Each swaps its fixture accessor for a Tauri
   command; the shell, the rail, the navigation and the locator resolver already exist and are not
   rebuilt. Screens whose backend is still ahead of them keep their fixtures and say so on screen
 - JS-side pane manager over **one webview per window**, one window holding every project, ACP event
@@ -2503,9 +2510,10 @@ Daemon, store, registry, containers, and ACP conversations.
   smoke test on every push. Cheap now, and the smoke test is the only thing standing between a harness
   release and a silent non-load
 
-`verify:` two agents from different harnesses run concurrently as ACP conversations in their own
-containers against the same repo, and a third on a **different project** appears in the same tile strip
-beside them; their events are indistinguishable downstream; every event lands in Postgres;
+`verify:` the first-party Pi harness and one trusted user harness plugin run concurrently as ACP
+conversations in their own containers against the same repo, and a third on a **different project**
+appears in the same tile strip beside them; their events are indistinguishable downstream; every event
+lands in Postgres;
 both minimize to informative tiles. A canary skill and a canary rule materialize into **every**
 registered harness and the agent can see both — including pi, where they arrive as generated
 TypeScript rather than as files. Materializing the same agent twice produces byte-identical trees:
@@ -2720,7 +2728,8 @@ the agent's context.
 Nothing exists yet, so all of these are new:
 
 - `.specs/<feature>/{spec.md,tasks.md}` — one directory per feature, every milestone; M0's whole output
-- `harnesses/*` — one entry per harness, file or directory; what keeps harness names out of core
+- `harnesses/pi/` plus the trusted user-plugin directory — first-party and user harness descriptors;
+  what keeps harness names out of core
 - `crates/locus-core/src/harness/materialize/` — the generic strategies and the plugin host, naming no harness
 - `crates/locus-core/` — registry, adapters, supervisors, store, **and every shared service:
   `memory/`, `mail/`, `board/`, `wiki/`, `telemetry/`, `tools/`**
@@ -2738,9 +2747,8 @@ Reuse rather than rebuild:
   closest prior art for board-drives-agents UX, open source and free to read.
 - **Sculptor** (Imbue, MIT) — container-per-agent and the local-git-remote handoff pattern.
 
-- `~/Repos/local-dx/config/harnesses.json` — the field-by-field description of how each of seven
-  harnesses reads each feature. The single most valuable input to `harnesses/*.toml`; read it before
-  writing the first one.
+- `~/Repos/local-dx/config/harnesses.json` — prior-art field descriptions for harness configuration.
+  Use it as input to the generic plugin descriptor, not as a first-party roster.
 - **`SamurAIGPT/llm-wiki-agent`** (MIT) — typed page namespaces, ingest-time contradiction flagging,
   the wiki linter, and the wikilink graph. Read it before writing the wiki schema.
 - **Hermes Agent** (Nous Research) — the bounded-core memory mechanics: hard caps, refuse-don't-evict,
@@ -2758,8 +2766,8 @@ Reuse rather than rebuild:
 
 **How Locus is tested: event-based.** Every run normalizes into `memory.event` regardless of harness,
 capture path, or container — so a test is *"run this, assert these events appeared."* That works
-identically across all eleven harnesses and needs no test-only instrumentation, because the substrate
-is the one telemetry already requires. Unit tests cover the pure parts; everything above them asserts
+identically across the first-party Pi harness and trusted user harness plugins and needs no test-only
+instrumentation, because the substrate is the one telemetry already requires. Unit tests cover the pure parts; everything above them asserts
 on the event stream.
 
 M0 is complete when:

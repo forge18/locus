@@ -235,18 +235,11 @@ impl ArtifactStore {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct CompactionSettings {
-    pub threshold: usize,
-}
-impl Default for CompactionSettings {
-    fn default() -> Self {
-        Self {
-            threshold: DEFAULT_COMPACTION_THRESHOLD,
-        }
-    }
-}
+pub use crate::services::compact::CompactionSettings;
 
+/// Compatibility wrapper for callers that only need the compacted body. The compaction
+/// policy and artifact creation live in `services::compact`, so artifacts and the hook cannot
+/// drift to separate thresholds.
 pub fn compact_tool_result(
     store: &mut ArtifactStore,
     project_id: ProjectId,
@@ -254,14 +247,7 @@ pub fn compact_tool_result(
     body: String,
     settings: &CompactionSettings,
 ) -> String {
-    if body.len() <= settings.threshold {
-        return body;
-    }
-    let mut row = ArtifactRow::text(project_id, run_id, ArtifactKind::Payload, body);
-    row.summary = Some(format!("Tool result compacted; artifact {}", row.id));
-    let summary = row.summary.clone().expect("summary set");
-    store.put(row);
-    summary
+    crate::services::compact::compact_result(store, project_id, run_id, body, *settings).body
 }
 
 pub fn walkthrough(store: &ArtifactStore, project_id: ProjectId, run_id: RunId) -> ArtifactRow {

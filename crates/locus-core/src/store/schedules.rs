@@ -2,10 +2,11 @@
 
 use crate::{
     runtime::dispatch::{ScheduleGuardrailOverrides, ScheduleMode},
+    services::workflow::ExecutionEntryPayload,
     store::Store,
 };
 use anyhow::{bail, Context, Result};
-use sqlx::query;
+use sqlx::{query, query_scalar};
 use uuid::Uuid;
 
 fn mode_name(mode: ScheduleMode) -> &'static str {
@@ -50,8 +51,45 @@ impl Store {
         scheduled_for: Option<String>,
         status: &str,
     ) -> Result<Uuid> {
+        if status.trim().is_empty() {
+            bail!("schedule execution status is required");
+        }
+        if let Some(scheduled_for) = scheduled_for.as_deref() {
+            if let Some(existing) = query_scalar::<_, Uuid>(
+                "SELECT id FROM workflows.executions
+                 WHERE schedule_id = $1 AND scheduled_for = $2::timestamptz",
+            )
+            .bind(id)
+            .bind(scheduled_for)
+            .fetch_optional(self.pool())
+            .await
+            .context("find existing schedule execution")?
+            {
+                return Ok(existing);
+            }
+        }
+        let project_id: Uuid =
+            query_scalar("SELECT project_id FROM workflows.workflow_defs WHERE id = $1")
+                .bind(workflow_def_id)
+                .fetch_one(self.pool())
+                .await
+                .context("find workflow project for schedule execution")?;
         let execution_id = Uuid::new_v4();
-        query("INSERT INTO workflows.executions (id, workflow_def_id, schedule_id, status, scheduled_for) VALUES ($1, $2, $3, $4, $5::timestamptz) ON CONFLICT (schedule_id, scheduled_for) WHERE schedule_id IS NOT NULL AND scheduled_for IS NOT NULL DO NOTHING").bind(execution_id).bind(workflow_def_id).bind(id).bind(status).bind(scheduled_for).execute(self.pool()).await.context("record schedule execution")?;
+        self.append_execution_entry(
+            project_id.into(),
+            ExecutionEntryPayload {
+                execution_id,
+                workflow_def_id,
+                schedule_id: Some(id),
+                status: status.to_owned(),
+                scheduled_for,
+                started_at: None,
+                ended_at: None,
+            },
+            "system",
+        )
+        .await
+        .context("record schedule execution through workflow log")?;
         Ok(execution_id)
     }
 }

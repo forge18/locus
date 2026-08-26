@@ -42,8 +42,9 @@ routable on its own; no two views may share a route. The inventory is:
 
 `inbox`, `status` (Analytics), `telemetry`, `mail`, `projects` (Setup), `plan`, `sessions` (Manage),
 `interact`, `qa` (Review), `autorun`, `schedule`, `runs`, `short`, `memory`, `artifact`, `wiki`,
-`settings`, and the twelve Workshop views `agents`, `cli`, `commands`, `harnesses`, `hooks`,
-`linters`, `styles`, `providers`, `rules`, `skills`, `canvas`, plus the Workflows list.
+`settings`, and the twelve Workshop views. Workshop groups `cli`, `harnesses`, and `providers` under
+Plugins; `agents`, `commands`, `hooks`, `linters`, `styles`, `rules`, `skills`, `canvas`, and the
+Workflows list under Extensions.
 
 ### Decisions
 
@@ -53,9 +54,9 @@ routable on its own; no two views may share a route. The inventory is:
    ratchet and the `open[n]` gap counters survive inside Recommend.
 2. **ACP is the only capture source.** The mockup's Telemetry facet listing hooks, acp, stream-json,
    and session-log is stale fixture content. `.specs/acp-client` and `.specs/telemetry` stand.
-3. **The registry decides the harness roster.** The mockup lists `hermes` and hardcodes twelve
-   harnesses; the registry loads eleven and refuses `hermes` as ACP-incapable. Counts rendered in
-   any surface derive from the registry, never from a constant.
+3. **The plugin registry decides the harness roster.** The first-party roster contains Pi only; a
+   trusted user harness plugin may add another entry. Counts rendered in any surface derive from the
+   registry, never from a constant.
 
 ### Tokens
 
@@ -80,8 +81,8 @@ spec cannot be mistaken for a current one.
 4. Every spec this milestone supersedes carries a pointer line naming its replacement.
 5. The plan pipeline is described as seven stages in `PLAN.md`, `.specs/plan-revision`, and
    `crates/locus-core`; `Audit` and `Override` appear only as the auditor-role note.
-6. Harness and downgrade counts in prose match the registry — eleven harnesses, twenty-nine
-   downgrades.
+6. Harness and downgrade counts in prose are derived from the registry; no prose assumes a fixed
+   first-party harness count or downgrade total.
 
 ## Open
 

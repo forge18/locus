@@ -1,4 +1,4 @@
-import { invoke, isTauri } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke, isTauri } from "@tauri-apps/api/core";
 import {
  ARTIFACTS,
  ARTIFACT_COMMENTS,
@@ -63,6 +63,15 @@ export function useUnifiedDiff(): UnifiedRow[] {
 /** Fixture fallback until the Tauri runtime connects. */
 export function useArtifactComments(artifactId: string): ArtifactComment[] {
  return ARTIFACT_COMMENTS.filter((c) => c.artifactId === artifactId);
+}
+
+/** Resolve a host-owned blob path for the human media viewer. */
+export function artifactMediaUrl(
+ artifact: Artifact,
+ fallback: string,
+): string {
+ if (!isTauri() || !artifact.blobPath) return fallback;
+ return convertFileSrc(artifact.blobPath);
 }
 
 /**

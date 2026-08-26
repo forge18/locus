@@ -9,8 +9,10 @@ pub mod audits;
 pub mod backup;
 pub mod bus;
 pub mod dispatch;
+pub mod handoff;
 pub mod interact;
 pub mod mail;
+pub mod market;
 pub mod memory;
 pub mod model_tiers;
 pub mod planning;
@@ -20,12 +22,15 @@ pub mod qa;
 pub mod restore;
 pub mod routing;
 pub mod schedules;
+pub mod session_controls;
 pub mod wiki;
+pub mod workflow_log;
+pub mod workflows;
 
 #[cfg(test)]
 include!("m07_schema_tests.rs");
 
-use crate::ids::{EventId, RunId};
+use crate::ids::{EventId, ProjectId, RunId};
 use std::{
     future::Future,
     path::Path,
@@ -37,7 +42,7 @@ use anyhow::{bail, Context, Result};
 use sqlx::{migrate::Migrator, postgres::PgPoolOptions, PgPool};
 
 use crate::{
-    services::telemetry::Event,
+    services::{compact::ToolOffender, telemetry::Event},
     store::backup::{gate_migration, MigrationBackup, MigrationRunner, RetainedBackupConfig},
 };
 use tokio::{process::Command, time::sleep};
@@ -397,6 +402,55 @@ impl Store {
     pub async fn persist_event(&self, event_id: EventId, event: &Event) -> Result<()> {
         self.persist_events([(event_id, event)]).await
     }
+
+    /// Rank tool-result payloads from normalized events without adding compaction telemetry.
+    pub async fn tool_result_offender_ranking(&self) -> Result<Vec<ToolOffender>> {
+        let rows = sqlx::query_as::<_, PersistedToolOffender>(
+            "SELECT s.project_id,
+                    ad.name AS agent,
+                    COALESCE(ad.frontmatter ->> 'harness', 'unknown') AS harness,
+                    COALESCE(e.payload ->> 'tool', 'unknown') AS tool,
+                    COALESCE(SUM(length(COALESCE(e.payload ->> 'text', ''))), 0)::BIGINT AS payload_bytes,
+                    COUNT(*)::BIGINT AS calls
+             FROM agents.events e
+             JOIN agents.runs r ON r.id = e.run_id
+             JOIN agents.sessions s ON s.id = r.session_id
+             JOIN agents.agent_defs ad ON ad.id = s.agent_def_id
+             WHERE e.verb = 'tool_result'
+             GROUP BY s.project_id, ad.name, harness, tool
+             ORDER BY payload_bytes DESC, s.project_id, ad.name, harness, tool",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .context("rank tool-result offenders")?;
+        rows.into_iter().map(TryInto::try_into).collect()
+    }
+}
+
+#[derive(sqlx::FromRow)]
+struct PersistedToolOffender {
+    project_id: ProjectId,
+    agent: String,
+    harness: String,
+    tool: String,
+    payload_bytes: i64,
+    calls: i64,
+}
+
+impl TryFrom<PersistedToolOffender> for ToolOffender {
+    type Error = anyhow::Error;
+
+    fn try_from(row: PersistedToolOffender) -> Result<Self> {
+        Ok(Self {
+            project_id: row.project_id,
+            agent: row.agent,
+            harness: row.harness,
+            tool: row.tool,
+            payload_bytes: usize::try_from(row.payload_bytes)
+                .context("tool payload total exceeds usize")?,
+            calls: usize::try_from(row.calls).context("tool call count exceeds usize")?,
+        })
+    }
 }
 
 struct SqlxMigrationRunner<'a> {
@@ -618,7 +672,7 @@ mod migrate_from_empty {
             SELECT schema_name
             FROM information_schema.schemata
             WHERE schema_name IN (
-                'agents', 'board', 'core', 'mail', 'market', 'memory', 'wiki', 'workflows'
+                'agents', 'board', 'core', 'log', 'mail', 'market', 'memory', 'wiki', 'workflows'
             )
             ORDER BY schema_name
         ";
@@ -650,6 +704,7 @@ mod migrate_from_empty {
                 "agents",
                 "board",
                 "core",
+                "log",
                 "mail",
                 "market",
                 "memory",

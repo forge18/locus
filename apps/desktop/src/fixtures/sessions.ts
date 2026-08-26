@@ -95,6 +95,7 @@ export const RUNS: Run[] = SESSIONS.flatMap((s, i) => {
     startedAt: s.startedAt,
     endedAt: s.status === "running" ? null : s.lastEventAt,
     resolvedModel: pick(next, MODELS),
+    permissionPosture: "bypass" as const,
     exitCode: s.status === "running" ? null : Math.floor(next() * 2),
     usage: s.usage,
     artifactIds: [],

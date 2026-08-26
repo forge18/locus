@@ -1,0 +1,5 @@
+{
+  "wkwebview": { "status": "untested", "checks": ["completion", "diagnostics", "mergeview"] },
+  "webview2": { "status": "untested", "checks": ["completion", "diagnostics", "mergeview"] },
+  "webkitgtk": { "status": "untested", "checks": ["completion", "diagnostics", "mergeview"] }
+}

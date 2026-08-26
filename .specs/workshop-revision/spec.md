@@ -5,12 +5,11 @@
 ## Purpose
 
 Workshop is the meta-harness: the one place every extension is authored once and materialized fresh
-into whatever a harness reads. `design-revision` fixed the rail vocabulary and the 29-view inventory
-but explicitly deferred Workshop's own contract — nine extension types sharing one editor, plus
-Harnesses, Providers, CLI, and Workflows as bespoke screens — to this feature, and left one open
-question for it to close: the autorouting bands read `minimal` while Plan → Decompose cycles
-`low / medium / high / xhigh`. This spec is the full contract for all twelve Workshop views and settles
-that vocabulary.
+into whatever a harness reads. `design-revision` fixed the rail vocabulary and the 29-view inventory.
+This spec governs the **Extensions** subgroup: the eight extension-editor types and Workflows. The
+**Plugins** subgroup (CLI Tool, Harness, and Provider) has its own contract in
+[`.specs/workshop-plugins/spec.md`](../workshop-plugins/spec.md). The effort vocabulary remains
+`low / medium / high / xhigh`.
 
 It changes no runtime behavior beyond what its own tasks implement; the screen-by-screen prose lives in
 [`docs/UI_MOCKUP_REVIEW.md`](../../docs/UI_MOCKUP_REVIEW.md) § Workshop, and this spec does not restate
@@ -29,31 +28,36 @@ draws and what `locus-core` already enforces.
 
 ## Contract
 
+### Workshop subgroups
+
+Workshop exposes two subgroups:
+
+- **Extensions** — the shared extension editor for eight types plus Workflows.
+- **Plugins** — CLI Tool, Harness, and Provider, governed by `workshop-plugins`.
+
 ### The shared extension editor
 
-One three-pane component serves nine types: **skills, rules, context, commands, hooks, styles,
-linters, agents, harnesses**. A type is a fixture switch on the component, not nine components.
+One three-pane component serves eight types: **skills, rules, context, commands, hooks, styles,
+linters, agents**. A type is a fixture switch on the component, not eight components.
 
 - **Left rail** — icon, label, total count, a one-line blurb, **New `<singular>`**, a sort control,
   the item list, and a footer naming the storage unit (`One directory per skill, entry point
   SKILL.md.`).
 - **Center** — title and meta, **History** and **Save**. Save is manual on every type in this group —
   the contrast is deliberate: Workflows autosaves, the extension editor does not, because an extension
-  edit is reviewed before it reaches a materialized tree and a workflow edit is not. Up to six blocks
-  follow: a frontmatter key/value table, an autorouting section (harnesses only), an adapter-config
-  table (harnesses only), an optional segmented field, an optional checklist, and the rendered file
-  body.
+  edit is reviewed before it reaches a materialized tree and a workflow edit is not. Up to four blocks
+  follow: a frontmatter key/value table, an optional segmented field, an optional checklist, and the
+  rendered file body. Plugin adapter configuration is owned by the Plugins subgroup, not this editor.
 - **Frontmatter table** — field kind (`text`, `select`, `number`, `toggle`, `chips`) is inferred from
   the field **name**, not declared per type: a name ending in `_tokens` or matching a numeric budget
   renders `number`; `tools`, `roles`, and other list-shaped names render `chips`; a name whose value
   set the registry can enumerate (harness, provider) renders `select`; anything boolean-named renders
-  `toggle`; everything else renders `text`. One inference table, shared by all nine types.
+  `toggle`; everything else renders `text`. One inference table, shared by all eight types.
 - **Right — Materialization** — native and downgraded counts derived from the harness registry (never
   a literal, per `design-revision` Decision 3), a per-harness segment bar, the downgrade explanation,
   a byte-determinism note (`Sorted order, no timestamps, no run id. The materialized tree *is* the
   prompt prefix, so an unstable one costs cache on every run that follows it.`), and version history.
-  **Harnesses is the one type with no Materialization rail** — a harness record configures the
-  mechanism, it is not itself materialized into one.
+  Plugin records are outside this editor and do not receive a Materialization rail here.
 
 Per-type contract detail, carried from the review because each is a distinct invariant a test must
 hold:
@@ -69,7 +73,13 @@ hold:
 | linters | Native 0 / downgraded 0, by design — a human-and-CLI surface (`locus lint`), not materialized into any harness, so there is nothing to downgrade. A violation choice of `warn` or `fail`; a rule nobody can fail is a preference. |
 | agents | Frontmatter plus a tool allowlist. The allowlist **is** the privilege set: changing it rebuilds `locus/agent-<hash>` and invalidates the prefix cache. Editing the prose below rebuilds nothing. Native in every harness. |
 
-### Harnesses
+### Historical plugin surfaces
+
+The former bespoke Harnesses, Providers, and CLI sections are retained below as M0.7 history only.
+Their current subgroup, admission, first-party roster, and executable contract live in
+[`.specs/workshop-plugins/spec.md`](../workshop-plugins/spec.md).
+
+### Harnesses (historical; superseded)
 
 Harnesses has no Materialization rail (above) and no downgrade vocabulary — "All eight extension types
 are supported on every harness. What differs is the mechanism, and the mechanism is the adapter's
@@ -161,9 +171,9 @@ mapping is per-band and per-harness, set in the Harnesses band table, never fixe
 - **Image card** — "Enabled tools are baked into the base image, not installed per run. A change
   rebuilds it once." — size and last rebuild. **Most reached for**, from telemetry tool-call counts.
 
-### Workflows
+### Workflows under Extensions
 
-Header: editable title, a **Visual / Governance** switch, an autosave chip (`saved 2s ago`), an
+Workflows are the second surface in the Extensions subgroup. Header: editable title, a **Visual / Governance** switch, an autosave chip (`saved 2s ago`), an
 **Inspector** toggle. No Save, no Validate — a workflow definition is either being edited live or it
 is not open; there is no separate commit step to skip. List grouped **Published / Draft / Archived**,
 each row carrying node count, edit time, and references (`referenced by 1 schedule`).
@@ -207,6 +217,7 @@ that same assertion to the Visual graph's serialized form.
 | Existing feature | Replacement |
 | --- | --- |
 | `desktop-workshop-runtime` | this spec, in full |
+| `workshop-plugins` — plugin subgroup | the current Plugins subgroup contract; this spec retains only the Extensions subgroup |
 | `workflow-canvas` — node vocabulary only (the `Goal` node) | this spec's Workflows → Visual contract; `workflow-canvas`'s graph-validation, live-overlay, and role-contamination contract stands unchanged |
 
 Every spec superseded by an M0.7 feature carries a pointer line to its replacement, per
@@ -214,42 +225,26 @@ Every spec superseded by an M0.7 feature carries a pointer line to its replaceme
 
 ## Acceptance
 
-1. All nine extension-editor types render from one shared three-pane component; Harnesses is the only
-   type whose right rail has no Materialization block.
-2. The extension editor's Save is manual on every type in that group; Workflows shows an autosave chip
+1. Workshop exposes Plugins and Extensions as the only two subgroups.
+2. Plugins contains only CLI Tool, Harness, and Provider; plugin behavior is verified by
+   `.specs/workshop-plugins/`.
+3. Extensions contains exactly eight extension-editor types and Workflows.
+4. All eight extension-editor types render from one shared three-pane component.
+5. The extension editor's Save is manual on every type in that group; Workflows shows an autosave chip
    and no Save control anywhere in its header.
-3. The frontmatter field-kind inference table is shared code, not per-type duplication — one field
+6. The frontmatter field-kind inference table is shared code, not per-type duplication — one field
    named `budget_tokens` and one named `tools` on two different types resolve through the same
    function.
-4. No surface in the product renders the value `minimal` for effort; `low`, `medium`, `high`, `xhigh`
-   are the only effort values offered on the Harnesses band table, the Harness record's default effort,
-   and Plan → Decompose.
-5. `RoutingBand.effort` and `RoutingDefaults.effort` are a four-value type, not `String`; a value
-   outside the four fails to construct.
-6. `routing_effort` in `agents.runs` is constrained to the four values at the database level.
-7. A band with `model_id: None` still falls to the next band up — `AutoroutingPolicy::route`'s existing
-   behavior is unchanged by the type narrowing.
-8. No harness is selectable without a registered adapter — `ProjectHarnessPolicy::select` still returns
-   `AdapterUnavailable` for an adapter-less harness, and the Harnesses UI never offers one.
-9. `core.providers` and every table added by this feature store a keychain reference only; no column
-   anywhere holds a raw secret.
-10. A disabled built-in tool is absent from `ToolCatalog::enabled_image_set`.
-11. An uploaded tool with a missing, invalid, or untrusted signature is rejected before catalog or image
-    admission; the UI offers signing rather than a read-only-role exception.
-12. The Workflows palette offers exactly six node kinds — Agent, Task, Loop, Condition, Gate, Verify —
-    and no Goal node, in the palette component and in `.specs/workflow-canvas/spec.md`'s node table.
-13. A `SuccessCriterionKind::Human` criterion has no core-checked path; its only evaluation route is a
+7. Materialization totals and downgrade explanations are derived from the registry, not literals.
+8. No surface in the product renders the value `minimal` for effort; the canonical values remain
+   `low`, `medium`, `high`, and `xhigh`.
+9. The Workflows palette offers exactly six node kinds — Agent, Task, Loop, Condition, Gate, Verify —
+   and no Goal node, in the palette component and in `.specs/workflow-canvas/spec.md`'s node table.
+10. A `SuccessCriterionKind::Human` criterion has no core-checked path; its only evaluation route is a
     gate carrying evidence.
-14. Serialized Governance and the serialized Visual graph both carry no `execution` or `results` key.
+11. Serialized Governance and the serialized Visual graph both carry no `execution` or `results` key.
 
 ## Open
 
-- The Providers `warn` status needs a staleness or expiry signal `ProviderVerificationMetadata` does
-  not carry today (it holds `verified_at` and a two-state `status`, not an expiry). This feature adds
-  the signal; the exact staleness window (mirroring the mockup's "6 days") is a product default set
-  during implementation, not fixed by this spec.
-- The 30-day spend figure on Providers reads an aggregate the metrics spec computes. This spec
-  defines only its consumption on the Providers right rail, not the aggregate itself.
-- Adapter config (`Key · Value · Type`) has no `locus-core` struct today; this feature ships it as a
-  JSONB blob read by the adapter. Whether it earns a typed schema is deferred until a second adapter
-  needs config the free-form table cannot express.
+- The exact plugin signature/trust UX is owned by `workshop-plugins` and the marketplace installer.
+- The workflow condition and governance details remain owned by the workflow engine/canvas specs.

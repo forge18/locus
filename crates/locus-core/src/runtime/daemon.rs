@@ -3,7 +3,10 @@
 use crate::ids::RunId;
 use std::{
     collections::{BTreeMap, BTreeSet},
-    path::Path,
+    fs::{self, OpenOptions},
+    io::Write,
+    path::{Path, PathBuf},
+    sync::{Arc, RwLock},
 };
 
 use anyhow::{bail, Context, Result};
@@ -13,10 +16,12 @@ use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{UnixListener, UnixStream},
 };
+use uuid::Uuid;
 
 use crate::{
     runtime::{
         container::ContainerRuntime,
+        dap::DebugSessionRegistry,
         run::{self, SpawnRequest, SpawnedRun},
         session::Run,
     },
@@ -88,14 +93,30 @@ pub enum AgentSocketVerb {
     LspHover,
     #[serde(rename = "lsp.symbols")]
     LspSymbols,
+    #[serde(rename = "lsp.diagnostics")]
+    LspDiagnostics,
     #[serde(rename = "lsp.rename")]
     LspRename,
+    /// Internal host authorization used by the container-local LSP client. It is not exposed
+    /// through the agent CLI verb allow-list.
+    #[serde(rename = "lsp.lease")]
+    LspLease,
     #[serde(rename = "debug.start")]
     DebugStart,
     #[serde(rename = "debug.break")]
     DebugBreak,
     #[serde(rename = "debug.step")]
     DebugStep,
+    #[serde(rename = "debug.run")]
+    DebugRun,
+    #[serde(rename = "debug.next")]
+    DebugNext,
+    #[serde(rename = "debug.finish")]
+    DebugFinish,
+    #[serde(rename = "debug.continue")]
+    DebugContinue,
+    #[serde(rename = "debug.stop")]
+    DebugStop,
     #[serde(rename = "debug.stack")]
     DebugStack,
     #[serde(rename = "debug.vars")]
@@ -108,6 +129,8 @@ pub enum AgentSocketVerb {
     BrowseClick,
     #[serde(rename = "browse.fill")]
     BrowseFill,
+    #[serde(rename = "browse.press")]
+    BrowsePress,
     #[serde(rename = "browse.assert")]
     BrowseAssert,
     #[serde(rename = "browse.screenshot")]
@@ -198,9 +221,18 @@ impl std::error::Error for AgentSocketError {}
 pub struct Daemon {
     active_runs: BTreeSet<RunId>,
     attached_windows: usize,
+    debug: DebugSessionRegistry,
 }
 
 impl Daemon {
+    pub fn with_debug(debug: DebugSessionRegistry) -> Self {
+        Self {
+            active_runs: BTreeSet::new(),
+            attached_windows: 0,
+            debug,
+        }
+    }
+
     pub fn attach_window(&mut self) {
         self.attached_windows += 1;
     }
@@ -212,9 +244,14 @@ impl Daemon {
     }
     pub fn finish_run(&mut self, run_id: RunId) {
         self.active_runs.remove(&run_id);
+        self.debug.end_run(run_id);
     }
     pub fn tracks(&self, run_id: RunId) -> bool {
         self.active_runs.contains(&run_id)
+    }
+
+    pub fn debug(&self) -> &DebugSessionRegistry {
+        &self.debug
     }
     pub fn attached_windows(&self) -> usize {
         self.attached_windows
@@ -272,13 +309,342 @@ pub trait AgentSocketRouter: Send + Sync {
 }
 
 /// Bind a daemon-owned socket. Its parent must be host-owned and inaccessible to agents.
+#[derive(Clone, Default)]
+pub struct AgentSocketCapabilities {
+    runs: Arc<RwLock<BTreeMap<String, RunId>>>,
+    lsp_runs: Arc<RwLock<BTreeSet<RunId>>>,
+    debug_adapters: Arc<RwLock<BTreeMap<RunId, BTreeSet<String>>>>,
+    debug_configs:
+        Arc<RwLock<BTreeMap<RunId, BTreeMap<String, crate::services::project::DebugRunConfig>>>>,
+    handoff_contexts: Arc<RwLock<BTreeMap<RunId, crate::services::handoff::HandoffContext>>>,
+}
+
+impl AgentSocketCapabilities {
+    pub fn register(&self, nonce: impl Into<String>, run_id: RunId) -> Result<()> {
+        self.runs
+            .write()
+            .map_err(|_| anyhow::anyhow!("agent capability lock is poisoned"))?
+            .insert(nonce.into(), run_id);
+        self.debug_adapters
+            .write()
+            .map_err(|_| anyhow::anyhow!("agent debug capability lock is poisoned"))?
+            .entry(run_id)
+            .or_default();
+        self.debug_configs
+            .write()
+            .map_err(|_| anyhow::anyhow!("agent debug config lock is poisoned"))?
+            .entry(run_id)
+            .or_default();
+        Ok(())
+    }
+
+    /// Register a run with the optional LSP capability already checked by the run supervisor.
+    pub fn register_lsp(&self, nonce: impl Into<String>, run_id: RunId) -> Result<()> {
+        self.register(nonce, run_id)?;
+        self.lsp_runs
+            .write()
+            .map_err(|_| anyhow::anyhow!("agent LSP capability lock is poisoned"))?
+            .insert(run_id);
+        Ok(())
+    }
+
+    pub fn revoke(&self, nonce: &str) -> Result<()> {
+        let run_id = self
+            .runs
+            .write()
+            .map_err(|_| anyhow::anyhow!("agent capability lock is poisoned"))?
+            .remove(nonce);
+        if let Some(run_id) = run_id {
+            self.lsp_runs
+                .write()
+                .map_err(|_| anyhow::anyhow!("agent LSP capability lock is poisoned"))?
+                .remove(&run_id);
+            self.debug_adapters
+                .write()
+                .map_err(|_| anyhow::anyhow!("agent debug capability lock is poisoned"))?
+                .remove(&run_id);
+            self.debug_configs
+                .write()
+                .map_err(|_| anyhow::anyhow!("agent debug config lock is poisoned"))?
+                .remove(&run_id);
+            self.handoff_contexts
+                .write()
+                .map_err(|_| anyhow::anyhow!("agent handoff context lock is poisoned"))?
+                .remove(&run_id);
+        }
+        Ok(())
+    }
+
+    /// Atomically replace registrations discovered by the run supervisor.
+    pub fn replace(&self, registrations: &[AgentRunRegistration]) -> Result<()> {
+        let mut runs = BTreeMap::new();
+        let mut run_ids = BTreeSet::new();
+        let mut lsp_runs = BTreeSet::new();
+        let mut debug_adapters = BTreeMap::new();
+        let mut debug_configs = BTreeMap::new();
+        let mut handoff_contexts = BTreeMap::new();
+        for registration in registrations {
+            if registration.nonce.trim().is_empty() {
+                bail!("agent registration nonce must not be empty")
+            }
+            if !run_ids.insert(registration.run_id) {
+                bail!("duplicate agent registration run id")
+            }
+            if runs
+                .insert(registration.nonce.clone(), registration.run_id)
+                .is_some()
+            {
+                bail!("duplicate agent registration nonce")
+            }
+            if registration.lsp_enabled {
+                lsp_runs.insert(registration.run_id);
+            }
+            debug_adapters.insert(
+                registration.run_id,
+                registration.debug_adapters.iter().cloned().collect(),
+            );
+            debug_configs.insert(registration.run_id, registration.debug_configs.clone());
+            if let Some(context) = &registration.handoff_context {
+                if context.run_id != registration.run_id {
+                    bail!("handoff context run id does not match registration")
+                }
+                handoff_contexts.insert(registration.run_id, context.clone());
+            }
+        }
+        *self
+            .runs
+            .write()
+            .map_err(|_| anyhow::anyhow!("agent capability lock is poisoned"))? = runs;
+        *self
+            .lsp_runs
+            .write()
+            .map_err(|_| anyhow::anyhow!("agent LSP capability lock is poisoned"))? = lsp_runs;
+        *self
+            .debug_adapters
+            .write()
+            .map_err(|_| anyhow::anyhow!("agent debug capability lock is poisoned"))? =
+            debug_adapters;
+        *self
+            .debug_configs
+            .write()
+            .map_err(|_| anyhow::anyhow!("agent debug config lock is poisoned"))? = debug_configs;
+        *self
+            .handoff_contexts
+            .write()
+            .map_err(|_| anyhow::anyhow!("agent handoff context lock is poisoned"))? =
+            handoff_contexts;
+        Ok(())
+    }
+
+    pub fn set_debug_adapters(
+        &self,
+        run_id: RunId,
+        adapters: impl IntoIterator<Item = String>,
+    ) -> Result<()> {
+        self.debug_adapters
+            .write()
+            .map_err(|_| anyhow::anyhow!("agent debug capability lock is poisoned"))?
+            .insert(run_id, adapters.into_iter().collect());
+        Ok(())
+    }
+
+    pub fn run_ids(&self) -> Result<BTreeSet<RunId>> {
+        Ok(self
+            .runs
+            .read()
+            .map_err(|_| anyhow::anyhow!("agent capability lock is poisoned"))?
+            .values()
+            .copied()
+            .collect())
+    }
+
+    pub fn debug_adapters(&self, run_id: RunId) -> Result<BTreeSet<String>> {
+        Ok(self
+            .debug_adapters
+            .read()
+            .map_err(|_| anyhow::anyhow!("agent debug capability lock is poisoned"))?
+            .get(&run_id)
+            .cloned()
+            .unwrap_or_default())
+    }
+
+    pub fn set_handoff_context(
+        &self,
+        context: crate::services::handoff::HandoffContext,
+    ) -> Result<()> {
+        self.handoff_contexts
+            .write()
+            .map_err(|_| anyhow::anyhow!("agent handoff context lock is poisoned"))?
+            .insert(context.run_id, context);
+        Ok(())
+    }
+
+    pub fn handoff_context(
+        &self,
+        run_id: RunId,
+    ) -> Result<Option<crate::services::handoff::HandoffContext>> {
+        Ok(self
+            .handoff_contexts
+            .read()
+            .map_err(|_| anyhow::anyhow!("agent handoff context lock is poisoned"))?
+            .get(&run_id)
+            .cloned())
+    }
+
+    pub fn debug_config(
+        &self,
+        run_id: RunId,
+        name: &str,
+    ) -> Result<Option<crate::services::project::DebugRunConfig>> {
+        Ok(self
+            .debug_configs
+            .read()
+            .map_err(|_| anyhow::anyhow!("agent debug config lock is poisoned"))?
+            .get(&run_id)
+            .and_then(|configs| configs.get(name).cloned()))
+    }
+
+    fn snapshot(&self) -> Result<(BTreeMap<String, RunId>, BTreeSet<RunId>)> {
+        Ok((
+            self.runs
+                .read()
+                .map_err(|_| anyhow::anyhow!("agent capability lock is poisoned"))?
+                .clone(),
+            self.lsp_runs
+                .read()
+                .map_err(|_| anyhow::anyhow!("agent LSP capability lock is poisoned"))?
+                .clone(),
+        ))
+    }
+}
+
+/// Host-written registration consumed by `locusd`; the agent cannot create one because the
+/// registration directory is outside the container mounts.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentRunRegistration {
+    pub run_id: RunId,
+    pub nonce: String,
+    pub lsp_enabled: bool,
+    #[serde(default)]
+    pub debug_adapters: Vec<String>,
+    #[serde(default)]
+    pub debug_configs: BTreeMap<String, crate::services::project::DebugRunConfig>,
+    #[serde(default)]
+    pub handoff_context: Option<crate::services::handoff::HandoffContext>,
+}
+
+pub fn agent_registration_root(socket_source: impl AsRef<Path>) -> PathBuf {
+    socket_source
+        .as_ref()
+        .parent()
+        .unwrap_or_else(|| Path::new("."))
+        .join("locus-runs")
+}
+
+fn secure_registration_root(root: &Path) -> Result<()> {
+    fs::create_dir_all(root).with_context(|| format!("create {}", root.display()))?;
+    if fs::symlink_metadata(root)?.file_type().is_symlink() {
+        bail!("agent registration root must not be a symlink")
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(root, fs::Permissions::from_mode(0o700))
+            .with_context(|| format!("restrict agent registration root {}", root.display()))?;
+    }
+    Ok(())
+}
+
+/// Atomically publish one host-owned run registration beside the daemon socket.
+pub fn write_agent_registration(
+    socket_source: impl AsRef<Path>,
+    registration: &AgentRunRegistration,
+) -> Result<PathBuf> {
+    if registration.nonce.trim().is_empty() {
+        bail!("agent registration nonce must not be empty")
+    }
+    let root = std::env::var_os("LOCUS_RUN_REGISTRY")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| agent_registration_root(socket_source));
+    write_agent_registration_to(root, registration)
+}
+
+pub fn write_agent_registration_to(
+    root: impl AsRef<Path>,
+    registration: &AgentRunRegistration,
+) -> Result<PathBuf> {
+    let root = root.as_ref();
+    if registration.nonce.trim().is_empty() {
+        bail!("agent registration nonce must not be empty")
+    }
+    secure_registration_root(root)?;
+    let destination = root.join(format!("{}.json", registration.run_id));
+    let temporary = root.join(format!(".{}.{}.tmp", registration.run_id, Uuid::new_v4()));
+    let bytes = serde_json::to_vec(registration)?;
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&temporary)
+        .with_context(|| format!("create {}", temporary.display()))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        file.set_permissions(fs::Permissions::from_mode(0o600))?;
+    }
+    file.write_all(&bytes)?;
+    file.sync_all()?;
+    fs::rename(&temporary, &destination)?;
+    Ok(destination)
+}
+
+pub fn remove_agent_registration(path: impl AsRef<Path>) {
+    let _ = fs::remove_file(path);
+}
+
+pub fn read_agent_registrations(root: impl AsRef<Path>) -> Result<Vec<AgentRunRegistration>> {
+    let root = root.as_ref();
+    if !root.exists() {
+        return Ok(Vec::new());
+    }
+    secure_registration_root(root)?;
+    let mut registrations = Vec::new();
+    for entry in fs::read_dir(root)? {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        if !file_type.is_file() || entry.path().extension().is_none_or(|ext| ext != "json") {
+            continue;
+        }
+        registrations.push(serde_json::from_slice(&fs::read(entry.path())?)?);
+    }
+    registrations.sort_by_key(|registration: &AgentRunRegistration| registration.run_id);
+    Ok(registrations)
+}
+
 pub fn bind_agent_socket(path: impl AsRef<Path>) -> Result<UnixListener> {
     let path = path.as_ref();
+    if let Some(parent) = path.parent() {
+        if fs::symlink_metadata(parent)
+            .with_context(|| format!("inspect socket parent {}", parent.display()))?
+            .file_type()
+            .is_symlink()
+        {
+            bail!("agent socket parent must not be a symlink")
+        }
+    }
     if path.exists() {
         std::fs::remove_file(path)
             .with_context(|| format!("remove stale socket {}", path.display()))?;
     }
-    UnixListener::bind(path).with_context(|| format!("bind agent socket {}", path.display()))
+    let listener = UnixListener::bind(path)
+        .with_context(|| format!("bind agent socket {}", path.display()))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(path, fs::Permissions::from_mode(0o600))
+            .with_context(|| format!("restrict agent socket {}", path.display()))?;
+    }
+    Ok(listener)
 }
 
 /// Serve a single connection, which makes the boundary independently testable. A daemon calls
@@ -288,12 +654,48 @@ pub async fn serve_agent_socket_once(
     capabilities: &BTreeMap<String, RunId>,
     router: &impl AgentSocketRouter,
 ) -> Result<()> {
-    let (mut stream, _) = listener
+    let (stream, _) = listener
         .accept()
         .await
         .context("accept agent socket client")?;
+    // The legacy single-snapshot API has no way to prove an LSP capability. Keep it
+    // non-LSP-only rather than silently authorizing every authenticated run.
+    let no_lsp_runs = BTreeSet::new();
+    serve_agent_socket_stream(stream, capabilities, Some(&no_lsp_runs), router).await
+}
+
+fn is_lsp_socket_verb(verb: AgentSocketVerb) -> bool {
+    matches!(
+        verb,
+        AgentSocketVerb::LspDef
+            | AgentSocketVerb::LspRefs
+            | AgentSocketVerb::LspHover
+            | AgentSocketVerb::LspSymbols
+            | AgentSocketVerb::LspDiagnostics
+            | AgentSocketVerb::LspRename
+            | AgentSocketVerb::LspLease
+    )
+}
+
+async fn serve_agent_socket_stream(
+    mut stream: UnixStream,
+    capabilities: &BTreeMap<String, RunId>,
+    lsp_runs: Option<&BTreeSet<RunId>>,
+    router: &impl AgentSocketRouter,
+) -> Result<()> {
     let request: AgentSocketRequest = read_frame(&mut stream).await?;
     let response = match capabilities.get(&request.nonce) {
+        Some(run_id)
+            if lsp_runs
+                .is_some_and(|runs| is_lsp_socket_verb(request.verb) && !runs.contains(run_id)) =>
+        {
+            AgentSocketResponse {
+                result: None,
+                error: Some(AgentSocketError::permission_denied(
+                    "the authenticated run has no LSP capability",
+                )),
+            }
+        }
         Some(run_id) => match router.authorize(*run_id, request.verb, &request.args) {
             Err(error) => AgentSocketResponse {
                 result: None,
@@ -318,6 +720,43 @@ pub async fn serve_agent_socket_once(
         },
     };
     write_frame(&mut stream, &response).await
+}
+
+/// Concurrent accept loop for the long-lived daemon. Capability registration is shared so a
+/// supervisor can add and revoke runs without replacing the listener.
+pub async fn serve_agent_socket_shared<R>(
+    listener: &UnixListener,
+    capabilities: AgentSocketCapabilities,
+    router: Arc<R>,
+) -> Result<()>
+where
+    R: AgentSocketRouter + 'static,
+{
+    loop {
+        let (stream, _) = listener
+            .accept()
+            .await
+            .context("accept agent socket client")?;
+        let capabilities = capabilities.clone();
+        let router = Arc::clone(&router);
+        tokio::spawn(async move {
+            match capabilities.snapshot() {
+                Ok((snapshot, lsp_runs)) => {
+                    if let Err(error) = serve_agent_socket_stream(
+                        stream,
+                        &snapshot,
+                        Some(&lsp_runs),
+                        router.as_ref(),
+                    )
+                    .await
+                    {
+                        tracing::warn!(%error, "agent socket request failed");
+                    }
+                }
+                Err(error) => tracing::warn!(%error, "agent socket capability snapshot failed"),
+            }
+        });
+    }
 }
 
 /// The accept loop `serve_agent_socket_once` was always meant to sit inside.
@@ -387,12 +826,15 @@ mod outlives_window {
 #[cfg(test)]
 mod agent_socket {
     use super::{
-        bind_agent_socket, read_frame, serve_agent_socket_once, AgentSocketRouter,
-        MAX_AGENT_SOCKET_FRAME_BYTES,
+        bind_agent_socket, read_frame, serve_agent_socket_once, serve_agent_socket_stream,
+        AgentSocketRouter, MAX_AGENT_SOCKET_FRAME_BYTES,
     };
     use crate::ids::RunId;
     use serde_json::json;
-    use std::{collections::BTreeMap, path::PathBuf};
+    use std::{
+        collections::{BTreeMap, BTreeSet},
+        path::PathBuf,
+    };
     use tokio::{
         io::{AsyncReadExt, AsyncWriteExt},
         net::UnixStream,
@@ -440,6 +882,37 @@ mod agent_socket {
         stream.read_exact(&mut response).await.unwrap();
         serde_json::from_slice(&response).unwrap()
     }
+    #[tokio::test]
+    async fn refuses_lsp_before_routing_when_the_run_lacks_the_capability() {
+        let path = path();
+        let listener = bind_agent_socket(&path).unwrap();
+        let run_id = RunId::generate();
+        let capabilities = BTreeMap::from([(String::from("nonce"), run_id)]);
+        let no_lsp_runs = BTreeSet::new();
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            serve_agent_socket_stream(stream, &capabilities, Some(&no_lsp_runs), &Router)
+                .await
+                .unwrap();
+        });
+        let response = request(
+            &path,
+            json!({
+                "nonce": "nonce",
+                "verb": "lsp.lease",
+                "args": ["lsp.def", "main.rs", "1", "0"]
+            }),
+        )
+        .await;
+        server.await.unwrap();
+        assert_eq!(response["error"]["kind"], "permission_denied");
+        assert_eq!(
+            response["error"]["message"],
+            "the authenticated run has no LSP capability"
+        );
+        std::fs::remove_file(path).unwrap();
+    }
+
     #[tokio::test]
     async fn refuses_an_oversized_frame_before_allocating_it() {
         let path = path();
@@ -541,5 +1014,80 @@ mod agent_socket {
             "agent socket capability refused"
         );
         let _ = std::fs::remove_file(path);
+    }
+}
+
+#[cfg(test)]
+mod registration {
+    use super::*;
+
+    #[test]
+    fn host_registration_round_trips_and_replaces_capabilities() {
+        let root = std::env::temp_dir().join(format!("locus-run-registry-{}", Uuid::new_v4()));
+        let socket = root.join("locus.sock");
+        let registration = AgentRunRegistration {
+            run_id: RunId::generate(),
+            nonce: "nonce".into(),
+            lsp_enabled: true,
+            debug_adapters: vec!["debugpy".into()],
+            debug_configs: BTreeMap::from([(
+                "python".into(),
+                crate::services::project::DebugRunConfig::new("debugpy", "python -m app").unwrap(),
+            )]),
+            handoff_context: None,
+        };
+        let path = write_agent_registration(&socket, &registration).unwrap();
+        let registrations = read_agent_registrations(agent_registration_root(&socket)).unwrap();
+        assert_eq!(
+            registrations.as_slice(),
+            std::slice::from_ref(&registration)
+        );
+        let capabilities = AgentSocketCapabilities::default();
+        capabilities.replace(&registrations).unwrap();
+        let (runs, lsp_runs) = capabilities.snapshot().unwrap();
+        assert_eq!(runs["nonce"], registration.run_id);
+        assert!(lsp_runs.contains(&registration.run_id));
+        assert!(capabilities
+            .debug_adapters(registration.run_id)
+            .unwrap()
+            .contains("debugpy"));
+        assert_eq!(
+            capabilities
+                .debug_config(registration.run_id, "python")
+                .unwrap()
+                .unwrap()
+                .command(),
+            "python -m app"
+        );
+        remove_agent_registration(path);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn reconciliation_rejects_multiple_nonces_for_one_run() {
+        let run_id = RunId::generate();
+        let registrations = vec![
+            AgentRunRegistration {
+                run_id,
+                nonce: "first".into(),
+                lsp_enabled: false,
+                debug_adapters: Vec::new(),
+                debug_configs: BTreeMap::new(),
+                handoff_context: None,
+            },
+            AgentRunRegistration {
+                run_id,
+                nonce: "second".into(),
+                lsp_enabled: true,
+                debug_adapters: Vec::new(),
+                debug_configs: BTreeMap::new(),
+                handoff_context: None,
+            },
+        ];
+        let capabilities = AgentSocketCapabilities::default();
+        let error = capabilities.replace(&registrations).unwrap_err();
+        assert!(error
+            .to_string()
+            .contains("duplicate agent registration run id"));
     }
 }

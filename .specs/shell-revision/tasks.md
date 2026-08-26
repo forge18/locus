@@ -3,7 +3,7 @@
 | # | Task | Deps | verify |
 | --- | --- | --- | --- |
 | 1 | Register the nine-category rail model — five Project categories, four Cross-Project — replacing the seven-category union | — | `pnpm -C apps/desktop test -- shell/rail-nine-categories` |
-| 2 | Purge retired category names from shell fixtures, route ids, and component names | 1 | `! grep -rqE "\\b($(printf '\\x44evelop|\\x41utomate|\\x44ashboard'))\\b" apps/desktop/src/shell apps/desktop/src/screens/{analytics,inbox,interact,manage,memory,plan,projects,review,workshop}` |
+| 2 | Purge retired category names from shell fixtures, route ids, and component names | 1 | `! grep -rqE "\\b($(printf '\\x44evelop | \\x41utomate | \\x44ashboard'))\\b" apps/desktop/src/shell apps/desktop/src/screens/{analytics,inbox,interact,manage,memory,plan,projects,review,workshop}` |
 | 3 | Build the 42px title bar — traffic lights, `LOCUS` wordmark, category/view label slot | 1 | `pnpm -C apps/desktop test -- shell/desktop-titlebar` |
 | 4 | Render the current category and view label in the title bar | 3 | `pnpm -C apps/desktop test -- shell/desktop-title-labels` |
 | 5 | Add the Dispatch pill — running count, pulsing dot while a run is active | 3 | `pnpm -C apps/desktop test -- shell/dispatch-dot` |
@@ -19,7 +19,7 @@
 | 15 | Render the Setup / Plan / Manage / Interact / Review project links | 12 | `pnpm -C apps/desktop test -- shell/project-rail-links` |
 | 16 | Render the Analytics and Settings Cross-Project links | 12 | `pnpm -C apps/desktop test -- shell/global-rail-items` |
 | 17 | Add the Memory expander — Short-term, Long-term, Artifacts, Wiki | 12 | `pnpm -C apps/desktop test -- shell/memory-expander` |
-| 18 | Add the Workshop expander — eleven items, Agents first | 12 | `pnpm -C apps/desktop test -- shell/workshop-expander` |
+| 18 | Add the Workshop expander with Plugins and Extensions subgroups | 12 | `pnpm -C apps/desktop test -- shell/workshop-expander` |
 | 19 | Persist rail expansion state across restart | 17,18 | `pnpm -C apps/desktop test -- shell/rail-expansion-persists` |
 | 20 | Route every rail category to its landing view on first click | 15,16,17,18 | `pnpm -C apps/desktop test -- nav/category-landing-view` |
 | 21 | Assert Dispatch and Inbox views are unreachable from the rail | 20 | `pnpm -C apps/desktop test -- nav/pill-only-views` |
