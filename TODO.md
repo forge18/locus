@@ -207,10 +207,11 @@ edges. Items 32–33 are intentionally last because they depend on later plannin
   *Depends on:* `repo-manager` and `board`
   *Completed:* five provider identities/adapters, capability contract, immutable issue snapshots, provider close references, normalized change/CI data, broker-scoped credentials, HMAC webhook verification/routing, no-polling gate, and CI surfaces on board/status.
 
-- [ ] **28. M8 — [marketplace-installer](.specs/marketplace-installer/spec.md)** · [tasks](.specs/marketplace-installer/tasks.md) · 11 tasks
+- [x] **28. M8 — [marketplace-installer](.specs/marketplace-installer/spec.md)** · [tasks](.specs/marketplace-installer/tasks.md) · 11 tasks
   *First-party CLI scope is `gh`; the installer remains open to trusted user-authored tool plugins.*
   Install pinned tools into agent images.
   *Depends on:* `marketplace-index`
+  *Completed:* argv-only install methods, allowlist-enforced deterministic image baking, verify-gated builds, shared image keys, pin/prose rebuild semantics, catalog docs injection, on-demand tool docs, and the trusted selection model in `TRUST-MODEL.md`.
 
 - [ ] **29. M7 — [agent-prs](.specs/agent-prs/spec.md)** · [tasks](.specs/agent-prs/tasks.md) · 14 tasks
   Agent-authored provider change requests.

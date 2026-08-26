@@ -21,6 +21,7 @@ pub mod editor;
 pub mod forge;
 pub mod harness;
 pub mod ids;
+pub mod install;
 pub mod ipc;
 pub mod lsp;
 pub mod palette;

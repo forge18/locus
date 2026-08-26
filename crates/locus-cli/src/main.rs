@@ -590,6 +590,19 @@ mod tools {
         assert_eq!(dispatch.verb, AgentSocketVerb::ToolsDocs);
         assert_eq!(args, ["rg"]);
     }
+
+    #[test]
+    fn docs_on_demand() {
+        let manifest = locus_core::install::InstallManifest::new(
+            locus_core::services::tools::ImageTool::new("gh", "2"),
+            locus_core::install::InstallMethod::Brew {
+                formula: "gh".into(),
+            },
+            ["gh --version".into()],
+            "GitHub CLI documentation",
+        );
+        assert!(locus_core::install::docs_on_demand(&manifest).contains("documentation"));
+    }
 }
 
 #[cfg(test)]
