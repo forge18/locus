@@ -166,9 +166,10 @@ edges. Items 32–33 are intentionally last because they depend on later plannin
   *Depends on:* `workflow-engine`
   *Completed:* event-fed BoardTask projection with fixed In Progress columns, actor/evidence gates, workflow-generated dependencies, auto-unblock, approval items, stateless task CLI validation, and Kanban projection. Database-backed rebuild remains Docker-dependent.
 
-- [ ] **20. M6 — [schedules](.specs/schedules/spec.md)** · [tasks](.specs/schedules/tasks.md) · 12 tasks
+- [x] **20. M6 — [schedules](.specs/schedules/spec.md)** · [tasks](.specs/schedules/tasks.md) · 12 tasks
   Turn cron schedules into recorded workflows.
   *Depends on:* `workflow-engine`
+  *Completed:* UTC five-field cron parser, next-fire computation, overlap skip/drop with visible counts and no backlog, verify-result recording, restart snapshots, pause/resume, and Store-side cron validation. Timezone/DST is explicitly UTC until a product timezone field exists.
 
 - [ ] **21. M6 — [dashboard-metrics](.specs/dashboard-metrics/spec.md)** · [tasks](.specs/dashboard-metrics/tasks.md) · 20 tasks
   Query telemetry, spend, cache, and run metrics.
