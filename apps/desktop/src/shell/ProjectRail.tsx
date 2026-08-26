@@ -21,6 +21,20 @@ const MEMORY_ROUTES = Desktop_ALL_ROUTE_KINDS.filter(
 const WORKSHOP_ROUTES = Desktop_APP_ROUTE_KINDS.filter(
       (route) => route.category === "workshop",
 );
+const WORKSHOP_PLUGIN_ROUTES = WORKSHOP_ROUTES.filter((route) =>
+      ["cli", "harnesses", "providers"].includes(route.id),
+);
+const WORKSHOP_EXTENSION_LINKS = [
+      ["Agents", "agents"],
+      ["Commands", "commands"],
+      ["Base context", "projects"],
+      ["Hooks", "hooks"],
+      ["Linters", "linters"],
+      ["Output styles", "styles"],
+      ["Rules", "rules"],
+      ["Skills", "skills"],
+      ["Workflows", "workflows"],
+] as const;
 
 const readExpansion = (): Record<string, boolean> => {
       try {
@@ -48,6 +62,80 @@ export interface ProjectRailProps {
             spend: string;
       }[];
       onNavigate?: (locator: string) => void;
+}
+
+function WorkshopRailLinks(
+      props: Pick<ProjectRailProps, "selectedProject" | "onNavigate"> & {
+            hidden: boolean;
+      },
+) {
+      const pluginLabel = (id: string) =>
+            id === "cli"
+                  ? "CLI Tool"
+                  : id === "harnesses"
+                    ? "Harness"
+                    : "Provider";
+      const extensionLocator = (
+            route: (typeof WORKSHOP_EXTENSION_LINKS)[number][1],
+      ) =>
+            route === "projects"
+                  ? destinationDesktop(route, props.selectedProject)
+                  : destinationDesktop(route);
+
+      return (
+            <div data-testid="workshop-rail-links" hidden={props.hidden}>
+                  <section data-testid="workshop-plugins-group">
+                        <div class="rail-subgroup-label">Plugins</div>
+                        <div data-testid="workshop-plugin-links">
+                              <For each={WORKSHOP_PLUGIN_ROUTES}>
+                                    {(route) => {
+                                          const locator = destinationDesktop(
+                                                route.id,
+                                          );
+                                          return (
+                                                <button
+                                                      type="button"
+                                                      data-locator={locator}
+                                                      onClick={() =>
+                                                            props.onNavigate?.(
+                                                                  locator,
+                                                            )
+                                                      }
+                                                >
+                                                      {pluginLabel(route.id)}
+                                                </button>
+                                          );
+                                    }}
+                              </For>
+                        </div>
+                  </section>
+                  <section data-testid="workshop-extensions-group">
+                        <div class="rail-subgroup-label">Extensions</div>
+                        <div data-testid="workshop-extension-links">
+                              <For each={WORKSHOP_EXTENSION_LINKS}>
+                                    {(link) => {
+                                          const locator = extensionLocator(
+                                                link[1],
+                                          );
+                                          return (
+                                                <button
+                                                      type="button"
+                                                      data-locator={locator}
+                                                      onClick={() =>
+                                                            props.onNavigate?.(
+                                                                  locator,
+                                                            )
+                                                      }
+                                                >
+                                                      {link[0]}
+                                                </button>
+                                          );
+                                    }}
+                              </For>
+                        </div>
+                  </section>
+            </div>
+      );
 }
 
 export function ProjectRail(props: ProjectRailProps) {
@@ -289,27 +377,11 @@ export function ProjectRail(props: ProjectRailProps) {
                         >
                               Workshop
                         </button>
-                        <div
-                              data-testid="workshop-rail-links"
+                        <WorkshopRailLinks
                               hidden={!workshopExpanded()}
-                        >
-                              <For each={WORKSHOP_ROUTES}>
-                                    {(route) => (
-                                          <button
-                                                type="button"
-                                                onClick={() =>
-                                                      props.onNavigate?.(
-                                                            destinationDesktop(
-                                                                  route.id,
-                                                            ),
-                                                      )
-                                                }
-                                          >
-                                                {route.label}
-                                          </button>
-                                    )}
-                              </For>
-                        </div>
+                              selectedProject={props.selectedProject}
+                              onNavigate={props.onNavigate}
+                        />
                   </section>
             </nav>
       );

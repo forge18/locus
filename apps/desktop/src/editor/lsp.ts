@@ -8,10 +8,23 @@ import {
   serverCompletion,
   signatureHelp,
 } from "@codemirror/lsp-client";
-import { javascriptLanguage, typescriptLanguage } from "@codemirror/lang-javascript";
+import {
+  javascriptLanguage,
+  typescriptLanguage,
+} from "@codemirror/lang-javascript";
 import { ChangeSet, EditorState, type Extension } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import type { LanguageDescriptor } from "./types";
+
+export interface LspDiagnostics {
+  uri: string;
+  diagnostics: readonly unknown[];
+  version?: number;
+}
+
+export interface LspClientOptions {
+  onDiagnostics?: (diagnostics: LspDiagnostics) => void;
+}
 
 /** The host-side LSP supervisor bridge. It deliberately knows no harness. */
 export interface HostLspSupervisor {
@@ -28,7 +41,14 @@ export function supervisorTransport(supervisor: HostLspSupervisor): Transport {
   };
 }
 
-type OpenFile = WorkspaceFile & { view: EditorView | null };
+type OpenFile = WorkspaceFile & {
+  view: EditorView | null;
+  views: Set<EditorView>;
+};
+
+// Multiple panes can own clients connected to the same project server. Keep the server-side
+// document open until the last pane releases the URI instead of sending an early didClose.
+const documentReferences = new Map<string, number>();
 
 /** Tracks all open files for one project rather than limiting LSP to one editor. */
 export class MultiFileWorkspace extends Workspace {
@@ -37,6 +57,7 @@ export class MultiFileWorkspace extends Workspace {
   openFile(uri: string, languageId: string, view: EditorView): void {
     const current = this.files.find((file) => file.uri === uri);
     if (current) {
+      current.views.add(view);
       current.view = view;
       return;
     }
@@ -46,15 +67,30 @@ export class MultiFileWorkspace extends Workspace {
       version: 1,
       doc: view.state.doc,
       view,
+      views: new Set([view]),
       getView: () => file.view,
     };
     this.files = [...this.files, file];
-    if (this.client.connected) this.client.didOpen(file);
+    const references = documentReferences.get(uri) ?? 0;
+    documentReferences.set(uri, references + 1);
+    if (this.client.connected && references === 0) this.client.didOpen(file);
   }
 
-  closeFile(uri: string, _view: EditorView): void {
+  closeFile(uri: string, view: EditorView): void {
     const file = this.files.find((candidate) => candidate.uri === uri);
-    if (file && this.client.connected) this.client.didClose(uri);
+    if (!file) return;
+    file.views.delete(view);
+    if (file.views.size > 0) {
+      file.view = file.views.values().next().value ?? null;
+      return;
+    }
+    const references = documentReferences.get(uri) ?? 1;
+    if (references <= 1) {
+      documentReferences.delete(uri);
+      if (this.client.connected) this.client.didClose(uri);
+    } else {
+      documentReferences.set(uri, references - 1);
+    }
     this.files = this.files.filter((candidate) => candidate.uri !== uri);
   }
 
@@ -64,7 +100,13 @@ export class MultiFileWorkspace extends Workspace {
       if (!file.view || file.view.state.doc.eq(file.doc)) continue;
       const previous = file.doc;
       const changes = ChangeSet.of(
-        [{ from: 0, to: previous.length, insert: file.view.state.doc.toString() }],
+        [
+          {
+            from: 0,
+            to: previous.length,
+            insert: file.view.state.doc.toString(),
+          },
+        ],
         previous.length,
       );
       file.doc = file.view.state.doc;
@@ -75,14 +117,40 @@ export class MultiFileWorkspace extends Workspace {
   }
 
   displayFile(uri: string): Promise<EditorView | null> {
-    return Promise.resolve(this.files.find((file) => file.uri === uri)?.view ?? null);
+    return Promise.resolve(
+      this.files.find((file) => file.uri === uri)?.view ?? null,
+    );
   }
 }
 
-export function createLspClient(rootUri: string, transport?: Transport): LSPClient {
+export function createLspClient(
+  rootUri: string,
+  transport?: Transport,
+  options: LspClientOptions = {},
+): LSPClient {
   const client = new LSPClient({
     rootUri,
-    extensions: languageServerExtensions(),
+    extensions: [
+      ...languageServerExtensions(),
+      {
+        clientCapabilities: {
+          textDocument: {
+            semanticTokens: {
+              dynamicRegistration: false,
+              requests: { full: { delta: true } },
+            },
+          },
+        },
+      },
+    ],
+    notificationHandlers: options.onDiagnostics
+      ? {
+          "textDocument/publishDiagnostics": (_client, params) => {
+            options.onDiagnostics?.(params as LspDiagnostics);
+            return false;
+          },
+        }
+      : undefined,
     workspace: (connected) => new MultiFileWorkspace(connected),
   });
   if (transport) client.connect(transport);

@@ -91,6 +91,35 @@ mod project {
     }
 
     #[test]
+    fn workflows() {
+        let execution_id = uuid::Uuid::new_v4();
+        let payload = locus_core::services::workflow::ExecutionEntryPayload {
+            execution_id,
+            workflow_def_id: uuid::Uuid::new_v4(),
+            schedule_id: None,
+            status: "running".into(),
+            scheduled_for: None,
+            started_at: None,
+            ended_at: None,
+        };
+        let entry = locus_core::services::workflow::WorkflowEntry::new(
+            locus_core::ids::ProjectId::generate(),
+            1,
+            locus_core::services::workflow::WorkflowEntryKind::Execution,
+            1,
+            serde_json::to_value(payload).expect("payload"),
+            "system",
+            None,
+        );
+        let projection = locus_core::services::workflow::WorkflowsProjection::rebuild([entry])
+            .expect("workflow projection");
+        assert_eq!(
+            projection.execution(execution_id).unwrap().status,
+            "running"
+        );
+    }
+
+    #[test]
     fn one_agent_default() {
         let settings = ProjectSettings::new()
             .with_harness_allow_list(["claude", "codex"])

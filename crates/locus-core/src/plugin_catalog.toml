@@ -1,0 +1,44 @@
+[[plugins]]
+protocol = "locus.plugin.v1"
+kind = "cli_tool"
+id = "gh"
+version = "1.0.0"
+executable = "plugins/first-party/gh"
+capabilities = ["cli_tool.install", "cli_tool.verify", "cli_tool.docs", "cli_tool.digest"]
+permissions = ["network", "repository_read"]
+
+[[plugins]]
+protocol = "locus.plugin.v1"
+kind = "harness"
+id = "pi"
+version = "1.0.0"
+executable = "harnesses/pi/materialize"
+capabilities = ["harness.session", "harness.launch", "harness.events", "harness.materialize"]
+permissions = ["model_catalog"]
+
+[[plugins]]
+protocol = "locus.plugin.v1"
+kind = "provider"
+id = "openai"
+version = "1.0.0"
+executable = "plugins/first-party/openai"
+capabilities = ["provider.models", "provider.verify", "provider.aliases"]
+permissions = ["keychain_reference"]
+
+[[plugins]]
+protocol = "locus.plugin.v1"
+kind = "provider"
+id = "anthropic"
+version = "1.0.0"
+executable = "plugins/first-party/anthropic"
+capabilities = ["provider.models", "provider.verify", "provider.aliases"]
+permissions = ["keychain_reference"]
+
+[[plugins]]
+protocol = "locus.plugin.v1"
+kind = "provider"
+id = "openrouter"
+version = "1.0.0"
+executable = "plugins/first-party/openrouter"
+capabilities = ["provider.models", "provider.verify", "provider.aliases"]
+permissions = ["keychain_reference"]

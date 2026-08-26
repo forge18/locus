@@ -20,7 +20,8 @@ use anyhow::{Context, Result};
 use crate::{
     harness::registry::{load_from_directory, HarnessRegistry},
     ipc::{EventChannel, PtyChannel},
-    runtime::daemon::Daemon,
+    lsp::{LanguageCatalog, LspHost},
+    runtime::{daemon::Daemon, dap::DebugSessionRegistry},
     services::telemetry::EventCollector,
     store::Store,
 };
@@ -37,6 +38,8 @@ pub struct Core {
     collector: EventCollector,
     pty: PtyChannel,
     events: EventChannel,
+    lsp: LspHost,
+    debug: DebugSessionRegistry,
     /// Set once, by [`Core::connect`]. `Core` is shared as `Arc`, so the store cannot be
     /// assigned through `&mut self`.
     store: OnceLock<Store>,
@@ -52,13 +55,25 @@ impl Core {
     pub fn load(harnesses: impl AsRef<Path>) -> Result<Arc<Self>> {
         let registry =
             load_from_directory(harnesses.as_ref()).context("load the harness registry")?;
+        let mut language_catalog = LanguageCatalog::builtin().context("load language catalog")?;
+        if let Some(root) = std::env::var_os("LOCUS_LSP_USER_CATALOG") {
+            let root = Path::new(&root);
+            if root.exists() {
+                language_catalog
+                    .merge_user_catalog(LanguageCatalog::load_user_catalog(root)?)
+                    .context("merge user language catalog")?;
+            }
+        }
+        let debug = DebugSessionRegistry::default();
         Ok(Arc::new(Self {
             registry,
             collector: EventCollector::new(CHANNEL_CAPACITY),
             pty: PtyChannel::new(CHANNEL_CAPACITY),
             events: EventChannel::new(CHANNEL_CAPACITY),
+            lsp: LspHost::new(language_catalog),
+            debug: debug.clone(),
             store: OnceLock::new(),
-            daemon: Mutex::new(Daemon::default()),
+            daemon: Mutex::new(Daemon::with_debug(debug)),
         }))
     }
 
@@ -88,6 +103,14 @@ impl Core {
 
     pub fn events(&self) -> &EventChannel {
         &self.events
+    }
+
+    pub fn lsp(&self) -> &LspHost {
+        &self.lsp
+    }
+
+    pub fn debug(&self) -> &DebugSessionRegistry {
+        &self.debug
     }
 
     /// The store, once [`Core::connect`] has run. `None` means the shell is up but

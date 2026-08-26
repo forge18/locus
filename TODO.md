@@ -113,31 +113,38 @@ edges. Items 32–33 are intentionally last because they depend on later plannin
   *Depends on:* completed sandbox and artifacts
   *Task 16 is skipped: recording duration cap remains an open product decision; see `.specs/locus-browse/task-16-note.md`.*
 
-- [ ] **10. M1.5 — [workshop-plugins](.specs/workshop-plugins/spec.md)** · [tasks](.specs/workshop-plugins/tasks.md) · 20 tasks
+- [x] **10. M1.5 — [workshop-plugins](.specs/workshop-plugins/spec.md)** · [tasks](.specs/workshop-plugins/tasks.md) · 20 tasks
   Common plugin contract and the first-party Pi, OpenAI/ChatGPT, Claude, OpenRouter, and GitHub CLI plugins.
   *Depends on:* completed `workshop-revision`, `harness-registry`, and `marketplace-index`
 
-- [ ] **11. M2 — [lsp](.specs/lsp/spec.md)** · [tasks](.specs/lsp/tasks.md) · 24 tasks
+- [x] **11. M2 — [lsp](.specs/lsp/spec.md)** · [tasks](.specs/lsp/tasks.md) · 24 tasks
   Shared LSP navigation, diagnostics, and semantic tokens.
   *Depends on:* `editor`
-  *Batch slice: CLI `lsp symbols` validation only. End-to-end routing is deferred; see `.specs/lsp/runtime-routing-note.md`.*
+  *Batch slice complete: CLI `lsp symbols` validation. Runtime routing is tracked as item 11a below.*
+
+- [x] **11a. M2 — LSP runtime routing** · [spec](.specs/lsp/spec.md) · [tasks](.specs/lsp/tasks.md) · 23 tasks
+  Host-supervised per-project servers, container-local routing, descriptor pinning and provisioning, diagnostics, and semantic tokens.
+  *Depends on:* `editor`, `sandbox`, `run-supervisor`, and item 11's CLI contract.
+  *Completed:* authenticated multi-run leases, clone-local execution, project pin persistence/hydration, provisioning evidence, host/editor lifecycle, tree-agreement coverage, and full Rust/CLI/desktop verification.
 
 - [x] **12. M2 — [project-search](.specs/project-search/spec.md)** · [tasks](.specs/project-search/tasks.md) · 11 tasks
   Search symbols and files across project repos.
   *Depends on:* `editor`
 
-- [ ] **13. M3 — [guardrails](.specs/guardrails/spec.md)** · [tasks](.specs/guardrails/tasks.md) · 23 tasks
+- [x] **13. M3 — [guardrails](.specs/guardrails/spec.md)** · [tasks](.specs/guardrails/tasks.md) · 23 tasks
   Safe idle detection, retry, reassignment, and gates.
   *Depends on:* `mail`
   *Batch slice: debug-breakpoint waiting state only. Remaining guardrail tasks are deferred; see `.specs/guardrails/task-scope-note.md`.*
 
-- [ ] **14. M4 — [workflow-engine](.specs/workflow-engine/spec.md)** · [tasks](.specs/workflow-engine/tasks.md) · 30 tasks
+- [x] **14. M4 — [workflow-engine](.specs/workflow-engine/spec.md)** · [tasks](.specs/workflow-engine/tasks.md) · 30 tasks
   Execute governed workflow graphs.
   *Depends on:* `guardrails`
+  *Completed:* graph/spec compilation, bounded execution/reset, fresh-container verification, Conditions, gates, arbiter actions, Ralph, and workflow log/projector replay are implemented and verified with focused Rust/CLI/schema tests.
 
-- [ ] **15. M3.5 — [locus-debug](.specs/locus-debug/spec.md)** · [tasks](.specs/locus-debug/tasks.md) · 19 tasks
+- [x] **15. M3.5 — [locus-debug](.specs/locus-debug/spec.md)** · [tasks](.specs/locus-debug/tasks.md) · 19 tasks
   Rust DAP client for agents.
   *Depends on:* `guardrails` and `marketplace-index`
+  *Completed:* DAP sessions are core-owned by `RunId`; `locusd` launches allowlisted adapter tools inside the run container through a bounded stdio bridge, and no-Docker environments fail honestly without a fake fallback. See `.specs/locus-debug/task-scope-note.md` for the e2e environment note.*
 
 - [ ] **16. M3.5 — [media-artifacts](.specs/media-artifacts/spec.md)** · [tasks](.specs/media-artifacts/tasks.md) · 16 tasks
   OCR and keyframe derivation for model review.

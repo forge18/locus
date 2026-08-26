@@ -1524,25 +1524,40 @@ mod stop_all_restores {
         .execute(store.pool())
         .await
         .expect("insert workflow");
-        query(
-            "INSERT INTO workflows.executions (id, workflow_def_id, status)
-             VALUES ($1, $2, 'running')",
-        )
-        .bind(execution)
-        .bind(workflow)
-        .execute(store.pool())
-        .await
-        .expect("insert execution");
-        query(
-            "INSERT INTO workflows.iterations (id, execution_id, run_id, number, ended_at)
-             VALUES ($1, $2, $3, 1, now())",
-        )
-        .bind(Uuid::new_v4())
-        .bind(execution)
-        .bind(run)
-        .execute(store.pool())
-        .await
-        .expect("complete iteration");
+        store
+            .append_execution_entry(
+                project,
+                crate::services::workflow::ExecutionEntryPayload {
+                    execution_id: execution,
+                    workflow_def_id: workflow,
+                    schedule_id: None,
+                    status: "running".into(),
+                    scheduled_for: None,
+                    started_at: None,
+                    ended_at: None,
+                },
+                "system",
+            )
+            .await
+            .expect("append execution");
+        store
+            .append_iteration_entry(
+                project,
+                crate::services::workflow::IterationEntryPayload {
+                    iteration_id: Uuid::new_v4(),
+                    execution_id: execution,
+                    run_id: Some(run.as_uuid()),
+                    number: 1,
+                    arbiter_class: None,
+                    counts_toward_iteration_budget: true,
+                    started_at: None,
+                    ended_at: Some("now".into()),
+                },
+                "system",
+                None,
+            )
+            .await
+            .expect("append complete iteration");
 
         assert_eq!(
             store

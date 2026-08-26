@@ -403,14 +403,24 @@ export function MemoryArtifactsFixture() {
           <ins>+ .bind(id.to_string())</ins>
           {`\n`} .execute(&self.pool).await?;
         </pre>
-        <section class="desktop-memory-media-viewers" data-testid="artifacts-media-viewers">
+        <section
+          class="desktop-memory-media-viewers"
+          data-testid="artifacts-media-viewers"
+        >
           <figure data-media-kind="image">
-            <img alt="Derived screenshot preview" src="data:image/webp;base64,UklGRg==" />
-            <figcaption>image · original preserved · derived preview</figcaption>
+            <img
+              alt="Derived screenshot preview"
+              src="data:image/webp;base64,UklGRg=="
+            />
+            <figcaption>
+              image · original preserved · derived preview
+            </figcaption>
           </figure>
           <figure data-media-kind="recording">
             <video controls aria-label="Recording keyframes" />
-            <figcaption>recording · keyframes for context · clip stays human-only</figcaption>
+            <figcaption>
+              recording · keyframes for context · clip stays human-only
+            </figcaption>
           </figure>
         </section>
       </section>

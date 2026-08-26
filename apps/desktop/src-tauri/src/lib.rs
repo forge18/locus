@@ -1,9 +1,17 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    path::PathBuf,
+    sync::{
+        atomic::{AtomicBool, AtomicU64, Ordering},
+        Arc, Mutex,
+    },
+};
 
 use locus_core::{
     core::Core,
     harness::materialize::report::{reports_for_registry, MaterializationReport},
     ids::{ArtifactId, ProjectId, RunId},
+    lsp::{DescriptorPin, LspDiagnostic},
     repo::GitState,
     services::{
         agents::{seeded_definitions, AgentDefinition},
@@ -22,6 +30,39 @@ use tauri::{
 const MODEL_TIERS: [&str; 4] = ["low", "medium", "high", "xhigh"];
 const HARNESS_REGISTRY: &str = "../../../harnesses";
 const COMMAND_PALETTE_ACCELERATOR: &str = "CmdOrCtrl+K";
+
+#[derive(Default)]
+struct LspDiagnosticsSubscriptions {
+    next_id: AtomicU64,
+    active: Mutex<BTreeMap<u64, Arc<AtomicBool>>>,
+}
+
+impl LspDiagnosticsSubscriptions {
+    fn start(&self) -> Result<(u64, Arc<AtomicBool>), IpcError> {
+        let id = self
+            .next_id
+            .fetch_add(1, Ordering::Relaxed)
+            .saturating_add(1);
+        let stop = Arc::new(AtomicBool::new(false));
+        self.active
+            .lock()
+            .map_err(|_| IpcError::internal("LSP diagnostics subscription lock is poisoned"))?
+            .insert(id, stop.clone());
+        Ok((id, stop))
+    }
+
+    fn stop(&self, id: u64) -> Result<(), IpcError> {
+        if let Some(stop) = self
+            .active
+            .lock()
+            .map_err(|_| IpcError::internal("LSP diagnostics subscription lock is poisoned"))?
+            .remove(&id)
+        {
+            stop.store(true, Ordering::Release);
+        }
+        Ok(())
+    }
+}
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -289,6 +330,216 @@ pub struct HarnessTierGridHarness {
     pub tiers: Vec<ModelTierSetting>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LspAttachRequest {
+    pub project_root: String,
+    pub pane_id: String,
+    pub file_path: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LspAttachResponse {
+    pub project_root: String,
+    pub pane_id: String,
+    pub descriptor_id: String,
+}
+
+#[tauri::command]
+fn lsp_attach(
+    core: State<'_, Arc<Core>>,
+    request: LspAttachRequest,
+) -> Result<LspAttachResponse, IpcError> {
+    let pane = core
+        .lsp()
+        .attach(&request.project_root, request.pane_id, &request.file_path)
+        .map_err(IpcError::internal)?;
+    let descriptor = core
+        .lsp()
+        .descriptor_for_project_path(
+            &pane.project_root,
+            &std::path::Path::new(&request.project_root).join(&request.file_path),
+        )
+        .map_err(IpcError::internal)?;
+    Ok(LspAttachResponse {
+        project_root: pane.project_root.display().to_string(),
+        pane_id: pane.pane_id,
+        descriptor_id: descriptor.id,
+    })
+}
+
+#[tauri::command]
+async fn lsp_enable_descriptor(
+    core: State<'_, Arc<Core>>,
+    project_root: String,
+    pin: DescriptorPin,
+    project_id: Option<String>,
+) -> Result<String, IpcError> {
+    let project_root = std::fs::canonicalize(&project_root).map_err(IpcError::internal)?;
+    let descriptor = core
+        .lsp()
+        .catalog()
+        .descriptor_for_pin(&pin)
+        .map_err(IpcError::internal)?;
+    if let Some(project_id) = project_id {
+        let project_id = project_id
+            .parse::<ProjectId>()
+            .map_err(|error| IpcError::invalid_argument(format!("invalid project id: {error}")))?;
+        let store = core
+            .store()
+            .ok_or_else(|| IpcError::internal("project settings store is not connected"))?;
+        let mut pins = store
+            .project_lsp_descriptors(project_id)
+            .await
+            .map_err(IpcError::internal)?;
+        pins.insert(pin.id.clone(), pin.clone());
+        store
+            .set_project_lsp_descriptors(project_id, pins.into_values())
+            .await
+            .map_err(IpcError::internal)?;
+    }
+    core.lsp()
+        .enable_project_descriptor(project_root, pin)
+        .map(|_| descriptor.id)
+        .map_err(IpcError::internal)
+}
+
+#[tauri::command]
+async fn lsp_disable_descriptor(
+    core: State<'_, Arc<Core>>,
+    project_root: String,
+    descriptor_id: String,
+    project_id: Option<String>,
+) -> Result<(), IpcError> {
+    let project_root = std::fs::canonicalize(&project_root).map_err(IpcError::internal)?;
+    if let Some(project_id) = project_id {
+        let project_id = project_id
+            .parse::<ProjectId>()
+            .map_err(|error| IpcError::invalid_argument(format!("invalid project id: {error}")))?;
+        let store = core
+            .store()
+            .ok_or_else(|| IpcError::internal("project settings store is not connected"))?;
+        let mut pins = store
+            .project_lsp_descriptors(project_id)
+            .await
+            .map_err(IpcError::internal)?;
+        pins.remove(&descriptor_id);
+        store
+            .set_project_lsp_descriptors(project_id, pins.into_values())
+            .await
+            .map_err(IpcError::internal)?;
+    }
+    core.lsp()
+        .disable_project_descriptor(project_root, &descriptor_id)
+        .map_err(IpcError::internal)
+}
+
+#[tauri::command]
+async fn lsp_load_project_descriptors(
+    core: State<'_, Arc<Core>>,
+    project_root: String,
+    project_id: String,
+) -> Result<Vec<String>, IpcError> {
+    let project_id = project_id
+        .parse::<ProjectId>()
+        .map_err(|error| IpcError::invalid_argument(format!("invalid project id: {error}")))?;
+    let store = core
+        .store()
+        .ok_or_else(|| IpcError::internal("project settings store is not connected"))?;
+    let pins = store
+        .project_lsp_descriptors(project_id)
+        .await
+        .map_err(IpcError::internal)?;
+    let mut ids = Vec::with_capacity(pins.len());
+    for pin in pins.into_values() {
+        ids.push(
+            core.lsp()
+                .enable_project_descriptor(&project_root, pin)
+                .map_err(IpcError::internal)?
+                .id,
+        );
+    }
+    Ok(ids)
+}
+
+#[tauri::command]
+fn lsp_detach(
+    core: State<'_, Arc<Core>>,
+    project_root: String,
+    pane_id: String,
+) -> Result<(), IpcError> {
+    core.lsp()
+        .detach(project_root, pane_id)
+        .map_err(IpcError::internal)
+}
+
+#[tauri::command]
+fn lsp_request(
+    core: State<'_, Arc<Core>>,
+    project_root: String,
+    method: String,
+    params: serde_json::Value,
+) -> Result<serde_json::Value, IpcError> {
+    core.lsp()
+        .request(project_root, &method, params)
+        .map_err(IpcError::internal)
+}
+
+#[tauri::command]
+fn lsp_notify(
+    core: State<'_, Arc<Core>>,
+    project_root: String,
+    method: String,
+    params: serde_json::Value,
+) -> Result<(), IpcError> {
+    core.lsp()
+        .notify(project_root, &method, params)
+        .map_err(IpcError::internal)
+}
+
+#[tauri::command]
+fn lsp_diagnostics_subscribe(
+    core: State<'_, Arc<Core>>,
+    subscriptions: State<'_, Arc<LspDiagnosticsSubscriptions>>,
+    project_root: String,
+    channel: Channel<LspDiagnostic>,
+) -> Result<u64, IpcError> {
+    let project_root = std::fs::canonicalize(project_root).map_err(IpcError::internal)?;
+    let core = core.inner().clone();
+    let mut diagnostics = core.lsp().subscribe_diagnostics();
+    let (id, stop) = subscriptions.start()?;
+    let subscriptions = subscriptions.inner().clone();
+    tauri::async_runtime::spawn(async move {
+        let mut ticker = tokio::time::interval(std::time::Duration::from_millis(50));
+        loop {
+            ticker.tick().await;
+            if stop.load(Ordering::Acquire) || core.lsp().poll_notifications().is_err() {
+                break;
+            }
+            while let Ok(diagnostic) = diagnostics.try_recv() {
+                if diagnostic.project_root != project_root {
+                    continue;
+                }
+                if channel.send(diagnostic).is_err() {
+                    stop.store(true, Ordering::Release);
+                    break;
+                }
+            }
+        }
+        let _ = subscriptions.stop(id);
+    });
+    Ok(id)
+}
+
+#[tauri::command]
+fn lsp_diagnostics_unsubscribe(
+    subscriptions: State<'_, Arc<LspDiagnosticsSubscriptions>>,
+    subscription_id: u64,
+) -> Result<(), IpcError> {
+    subscriptions.stop(subscription_id)
+}
+
 #[tauri::command]
 fn pty_subscribe(core: State<'_, Arc<Core>>, channel: Channel<Vec<u8>>) {
     let mut bytes = core.pty().subscribe();
@@ -400,6 +651,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .manage(core)
+        .manage(Arc::new(LspDiagnosticsSubscriptions::default()))
         .manage(seeded_artifact_store())
         .setup(|app| {
             let command_palette = MenuItem::with_id(
@@ -420,6 +672,15 @@ pub fn run() {
             harness_tier_grid,
             pty_subscribe,
             telemetry_subscribe,
+            lsp_attach,
+            lsp_enable_descriptor,
+            lsp_disable_descriptor,
+            lsp_load_project_descriptors,
+            lsp_detach,
+            lsp_request,
+            lsp_notify,
+            lsp_diagnostics_subscribe,
+            lsp_diagnostics_unsubscribe,
             detach_pane,
             linter_count,
             artifacts_list,

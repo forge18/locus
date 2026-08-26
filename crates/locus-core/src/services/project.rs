@@ -10,10 +10,78 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{
-    harness::materialize::extensions::ProjectExtensionScope, services::tools::ProjectToolScope,
+    harness::materialize::extensions::ProjectExtensionScope, lsp::DescriptorPin,
+    services::tools::ProjectToolScope,
 };
 
 const SETTINGS_VERSION: u16 = 1;
+
+/// A project-owned command and the DAP adapter used to launch it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DebugRunConfig {
+    adapter: String,
+    command: String,
+    /// The argv used to start the admitted adapter inside the run container. An omitted value
+    /// defaults to the adapter id, which is also the marketplace tool executable.
+    #[serde(default)]
+    adapter_command: Vec<String>,
+}
+
+impl DebugRunConfig {
+    pub fn new(adapter: impl Into<String>, command: impl Into<String>) -> Result<Self> {
+        let adapter = adapter.into();
+        let config = Self {
+            adapter_command: vec![adapter.clone()],
+            adapter,
+            command: command.into(),
+        };
+        config.validate()?;
+        Ok(config)
+    }
+
+    pub fn with_adapter_command(
+        mut self,
+        adapter_command: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Result<Self> {
+        self.adapter_command = adapter_command.into_iter().map(Into::into).collect();
+        self.validate()?;
+        Ok(self)
+    }
+
+    fn validate(&self) -> Result<()> {
+        if self.adapter.trim().is_empty() || self.command.trim().is_empty() {
+            bail!("debug adapter and command must not be empty");
+        }
+        if let Some(executable) = self.adapter_command.first() {
+            if executable != &self.adapter
+                || self
+                    .adapter_command
+                    .iter()
+                    .any(|part| part.trim().is_empty())
+            {
+                bail!("debug adapter command must start with the configured adapter");
+            }
+        }
+        Ok(())
+    }
+
+    pub fn adapter(&self) -> &str {
+        &self.adapter
+    }
+
+    pub fn command(&self) -> &str {
+        &self.command
+    }
+
+    pub fn adapter_command(&self) -> Vec<String> {
+        if self.adapter_command.is_empty() {
+            vec![self.adapter.clone()]
+        } else {
+            self.adapter_command.clone()
+        }
+    }
+}
 
 /// Token and spend facts emitted by one project run.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -147,6 +215,10 @@ pub struct ProjectSettings {
     extension_overrides: ProjectExtensionScope,
     #[serde(default)]
     tool_scope: ProjectToolScope,
+    #[serde(default)]
+    lsp_descriptors: BTreeMap<String, DescriptorPin>,
+    #[serde(default)]
+    debug_configs: BTreeMap<String, DebugRunConfig>,
 }
 
 impl ProjectSettings {
@@ -159,6 +231,8 @@ impl ProjectSettings {
             base_context_token_budget: None,
             extension_overrides: ProjectExtensionScope::default(),
             tool_scope: ProjectToolScope::default(),
+            lsp_descriptors: BTreeMap::new(),
+            debug_configs: BTreeMap::new(),
         }
     }
 
@@ -233,6 +307,52 @@ impl ProjectSettings {
         &self.tool_scope
     }
 
+    pub fn with_lsp_descriptors(
+        mut self,
+        descriptors: impl IntoIterator<Item = DescriptorPin>,
+    ) -> Result<Self> {
+        let mut pins = BTreeMap::new();
+        for pin in descriptors {
+            if pin.id.trim().is_empty()
+                || pin.version == 0
+                || !pin.content_hash.starts_with("sha256:")
+            {
+                bail!("project LSP descriptor pins must contain an id, version, and SHA-256 hash");
+            }
+            if pins.insert(pin.id.clone(), pin).is_some() {
+                bail!("project LSP descriptor pins cannot contain duplicate ids");
+            }
+        }
+        self.lsp_descriptors = pins;
+        self.validate()?;
+        Ok(self)
+    }
+
+    pub fn lsp_descriptors(&self) -> &BTreeMap<String, DescriptorPin> {
+        &self.lsp_descriptors
+    }
+
+    pub fn with_debug_config(
+        mut self,
+        name: impl Into<String>,
+        config: DebugRunConfig,
+    ) -> Result<Self> {
+        let name = name.into();
+        if name.trim().is_empty() || self.debug_configs.insert(name, config).is_some() {
+            bail!("project debug config names must be non-empty and unique");
+        }
+        self.validate()?;
+        Ok(self)
+    }
+
+    pub fn debug_config(&self, name: &str) -> Option<&DebugRunConfig> {
+        self.debug_configs.get(name)
+    }
+
+    pub fn debug_configs(&self) -> &BTreeMap<String, DebugRunConfig> {
+        &self.debug_configs
+    }
+
     pub fn to_stored_value(&self) -> Result<Value> {
         self.validate()?;
         serde_json::to_value(self).context("serialize project settings")
@@ -279,6 +399,9 @@ impl ProjectSettings {
         {
             bail!("base context and a nonzero token budget must be set together");
         }
+        for config in self.debug_configs.values() {
+            config.validate()?;
+        }
         Ok(())
     }
 }
@@ -287,6 +410,21 @@ impl Default for ProjectSettings {
     fn default() -> Self {
         Self::new()
     }
+}
+
+#[cfg(test)]
+#[test]
+fn lsp_descriptor_pins_round_trip_in_project_settings() {
+    let pin = DescriptorPin {
+        id: "rust".into(),
+        version: 1,
+        content_hash: "sha256:pin".into(),
+    };
+    let settings = ProjectSettings::new()
+        .with_lsp_descriptors([pin.clone()])
+        .expect("valid LSP descriptor pin");
+    let restored = ProjectSettings::from_stored_value(settings.to_stored_value().unwrap()).unwrap();
+    assert_eq!(restored.lsp_descriptors().get("rust"), Some(&pin));
 }
 
 #[cfg(test)]
@@ -321,4 +459,31 @@ fn base_context_single_file_metadata() {
 #[test]
 fn persistence_page_size() {
     assert_eq!(4usize, 4);
+}
+
+#[cfg(test)]
+#[test]
+fn debug_configs_round_trip() {
+    let settings = ProjectSettings::new()
+        .with_debug_config(
+            "app",
+            DebugRunConfig::new("python-debug-adapter", "python -m app").unwrap(),
+        )
+        .unwrap();
+    let restored = ProjectSettings::from_stored_value(settings.to_stored_value().unwrap()).unwrap();
+    let config = restored.debug_config("app").unwrap();
+    assert_eq!(config.adapter(), "python-debug-adapter");
+    assert_eq!(config.command(), "python -m app");
+    assert_eq!(config.adapter_command(), ["python-debug-adapter"]);
+}
+
+#[cfg(test)]
+#[test]
+fn debug_adapter_command_must_use_the_allowlisted_tool() {
+    let config = DebugRunConfig::new("debugpy", "python -m app").unwrap();
+    assert!(config
+        .clone()
+        .with_adapter_command(["python", "-m", "debugpy.adapter"])
+        .is_err());
+    assert!(config.with_adapter_command(["debugpy", "--stdio"]).is_ok());
 }

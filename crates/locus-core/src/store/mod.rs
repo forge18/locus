@@ -23,6 +23,8 @@ pub mod routing;
 pub mod schedules;
 pub mod session_controls;
 pub mod wiki;
+pub mod workflow_log;
+pub mod workflows;
 
 #[cfg(test)]
 include!("m07_schema_tests.rs");
@@ -669,7 +671,7 @@ mod migrate_from_empty {
             SELECT schema_name
             FROM information_schema.schemata
             WHERE schema_name IN (
-                'agents', 'board', 'core', 'mail', 'market', 'memory', 'wiki', 'workflows'
+                'agents', 'board', 'core', 'log', 'mail', 'market', 'memory', 'wiki', 'workflows'
             )
             ORDER BY schema_name
         ";
@@ -701,6 +703,7 @@ mod migrate_from_empty {
                 "agents",
                 "board",
                 "core",
+                "log",
                 "mail",
                 "market",
                 "memory",

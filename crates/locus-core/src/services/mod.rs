@@ -8,11 +8,13 @@
 
 pub mod agents;
 pub mod analytics;
+pub mod arbiter;
 pub mod artifact;
 pub mod ask;
 pub mod board;
 pub mod browse;
 pub mod compact;
+pub mod condition;
 pub mod inbox;
 pub mod interact;
 pub mod lint;

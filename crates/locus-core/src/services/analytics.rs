@@ -1,4 +1,5 @@
 //! Read-only Analytics and Telemetry projections.
+use super::arbiter::Iteration;
 use crate::ids::ProjectId;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -238,6 +239,15 @@ pub fn median_and_p90(values: impl IntoIterator<Item = u64>) -> (Option<u64>, Op
         Some(v[((v.len() - 1) * 90) / 100]),
     )
 }
+/// Pure workflow quality queries over projected iteration rows.
+pub fn spec_gap_rate(iterations: &[Iteration]) -> u8 {
+    crate::services::arbiter::spec_gap_rate(iterations)
+}
+
+pub fn ambiguity_rate(iterations: &[Iteration]) -> u8 {
+    crate::services::arbiter::ambiguity_rate(iterations)
+}
+
 pub fn current_unix_seconds() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)

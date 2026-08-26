@@ -11,6 +11,26 @@ export {
   languageExtensions,
   supervisorTransport,
 } from "./lsp";
-export type { HostLspSupervisor } from "./lsp";
+export type {
+  HostLspSupervisor,
+  LspClientOptions,
+  LspDiagnostics,
+} from "./lsp";
+export { attachTauriLsp } from "./tauriLsp";
+export type { TauriLspOptions } from "./tauriLsp";
+export {
+  applySemanticTokenDelta,
+  applySemanticTokens,
+  decodeSemanticTokens,
+  requestSemanticTokens,
+  semanticTokenField,
+  semanticTokensExtension,
+} from "./semanticTokens";
+export type {
+  SemanticToken,
+  SemanticTokenDeltaEdit,
+  SemanticTokenDeltaResult,
+  SemanticTokenResult,
+} from "./semanticTokens";
 export type { EditorFile, LanguageDescriptor } from "./types";
 export { descriptorForPath, plainTextDescriptor } from "./types";
