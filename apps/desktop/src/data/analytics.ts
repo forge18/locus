@@ -2,6 +2,7 @@ import {
   ANALYTICS_BREAKDOWN,
   ANALYTICS_RANGES,
   ANALYTICS_STATS,
+  AT_A_GLANCE_METRICS,
   BREAKDOWN_DIMENSIONS,
   EXTENSION_KINDS,
   EXTENSION_USAGE,
@@ -22,6 +23,11 @@ import type {
 } from "../fixtures/analytics";
 
 export * from "../fixtures/analytics";
+
+/** Becomes: invoke('analytics_at_a_glance', { query }) */
+export function useAtAGlanceMetrics(_query: AnalyticsQuery = { scope: "all", range: "30d" }) {
+  return AT_A_GLANCE_METRICS;
+}
 
 export function resolveAnalyticsRange(range: AnalyticsRange) {
   return (

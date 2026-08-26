@@ -6,6 +6,7 @@ import {
   ANALYTICS_MEASURES,
   ANALYTICS_RANGES,
   useAnalyticsStats,
+  useAtAGlanceMetrics,
   useBreakdown,
   useBreakdownDimensions,
   useExtensionKinds,
@@ -38,6 +39,7 @@ export function AnalyticsView(props: AnalyticsViewProps) {
 
   const query = createMemo(() => ({ scope: scope(), range: range() }))
   const stats = () => useAnalyticsStats(query())
+  const atAGlance = () => useAtAGlanceMetrics(query())
   const breakdown = () => useBreakdown(query(), dimension(), measure())
   const outcomes = () => useTaskOutcomes(query())
   const extensions = () => useExtensionUsage(query(), extensionKind())
@@ -84,6 +86,17 @@ export function AnalyticsView(props: AnalyticsViewProps) {
               </button>}
             </For>
           </section>
+          <section class="analytics-metric-rail" data-testid="status-metrics">
+            <For each={atAGlance()}>
+              {(metric) => (
+                <div data-metric={metric.id}>
+                  <span>{metric.label}</span>
+                  <strong>{metric.value}</strong>
+                  <small>{metric.note}</small>
+                </div>
+              )}
+            </For>
+          </section>
           <section class="analytics-card analytics-trend" data-testid="analytics-trend">
             <header><h2>Trend</h2><span>Selected measure: {measure()}</span></header>
             <div class="analytics-measure-tabs"><For each={ANALYTICS_MEASURES.filter((item) => item.value !== 'runs')}>{(item) => <button type="button" aria-pressed={measure() === item.value} onClick={() => setMeasure(item.value as AnalyticsMeasure)}>{item.label}</button>}</For></div>
@@ -121,9 +134,10 @@ interface TelemetryPanelProps {
 }
 function TelemetryPanel(props: TelemetryPanelProps) {
   const maxAction = Math.max(...props.actions.map((action) => action.count))
+  const metrics = useAtAGlanceMetrics(props.query)
   return <main class="telemetry-analytics" data-testid="analytics-telemetry">
-    <aside class="analytics-facets"><h2>Filters</h2><For each={props.facets}>{(group) => <div class="analytics-facet"><span>{group.label}</span><For each={group.values}>{(value) => <button type="button" aria-pressed={props.selectedFacets.includes(value)} onClick={() => props.toggleFacet(value)}>{value}</button>}</For></div>}</For><p>Every facet is a column on the normalized event log. Counts are the result set, not the corpus.</p></aside>
-    <section class="analytics-telemetry-main"><div class="analytics-search"><Input value={props.search} onInput={(event) => props.setSearch(event.currentTarget.value)} placeholder="BM25 search over the normalized event log" /><Button variant="ghost" onClick={props.reset}>Reset filters</Button></div><div class="analytics-filter-chips"><For each={props.selectedFacets}>{(chip) => <button type="button" onClick={() => props.toggleFacet(chip)}>{chip} ×</button>}</For></div><div class="analytics-stat-grid"><For each={[['Sessions', '641'], ['Events', '154,385'], ['Tool errors', '2,190'], ['Output tokens', '77.46M']]}>{(metric) => <div class="analytics-stat"><span>{metric[0]}</span><strong>{metric[1]}</strong></div>}</For></div><section class="analytics-card analytics-actions"><header><h2>Actions</h2><span>canonical vocabulary · missing verbs stay absent</span></header><For each={props.actions}>{(action) => <div class={action.verb === 'permission_request' ? 'analytics-action analytics-alarm' : 'analytics-action'}><span>{action.verb}</span><i><b style={{ width: `${(action.count / maxAction) * 100}%` }} /></i><strong>{action.count.toLocaleString()}</strong></div>}</For><p class="analytics-note">A nonzero permission_request count is a misconfiguration alarm, not a success metric.</p></section><section class="analytics-card"><header><h2>Tools</h2><span>allowlisted payload with anomaly notes</span></header><p class="analytics-note">Anomaly: researcher@1 ran web_fetch 4.1× its own baseline on 19 Aug.</p></section><section class="analytics-card"><h2>Sessions</h2><table><thead><tr><th>When</th><th>Harness</th><th>Project</th><th>repo</th><th>Agent</th><th>role</th><th>Model(s)</th><th>Runs</th><th>Events</th><th>Errors</th><th>Tokens</th><th>Status</th><th>Id</th></tr></thead><tbody><For each={props.sessions}>{(row) => <tr><td>{row.when}</td><td>{row.harness}</td><td>{row.project}</td><td>{row.repo}</td><td>{row.agent}</td><td>{row.role}</td><td>{row.models}</td><td>{row.runs}</td><td>{row.events}</td><td>{row.errors}</td><td>{row.tokens}</td><td>{row.status}</td><td>{row.id}</td></tr>}</For></tbody></table></section></section>
+    <aside class="analytics-facets" data-testid="analytics-facets"><h2>Filters</h2><For each={props.facets}>{(group) => <div class="analytics-facet"><span>{group.label}</span><For each={group.values}>{(value) => <button type="button" aria-pressed={props.selectedFacets.includes(value)} onClick={() => props.toggleFacet(value)}>{value}</button>}</For></div>}</For><p>Every facet is a column on the normalized event log. Counts are the result set, not the corpus.</p></aside>
+    <section class="analytics-telemetry-main"><div class="analytics-search"><Input value={props.search} onInput={(event) => props.setSearch(event.currentTarget.value)} placeholder="BM25 search over the normalized event log" /><Button variant="ghost" onClick={props.reset}>Reset filters</Button></div><div class="analytics-filter-chips"><For each={props.selectedFacets}>{(chip) => <button type="button" onClick={() => props.toggleFacet(chip)}>{chip} ×</button>}</For></div><div class="analytics-stat-grid"><For each={[['Sessions', '641'], ['Events', '154,385'], ['Tool errors', '2,190'], ['Output tokens', '77.46M']]}>{(metric) => <div class="analytics-stat"><span>{metric[0]}</span><strong>{metric[1]}</strong></div>}</For></div><section class="analytics-card analytics-metric-set" data-testid="telemetry-metrics"><header><h2>Workflow metrics</h2><span>same rows, with facets applied</span></header><For each={metrics}>{(metric) => <div data-metric={metric.id}><span>{metric.label}</span><strong>{metric.value}</strong><small>{metric.note}</small></div>}</For></section><section class="analytics-card analytics-actions"><header><h2>Actions</h2><span>canonical vocabulary · missing verbs stay absent</span></header><For each={props.actions}>{(action) => <div class={action.verb === 'permission_request' ? 'analytics-action analytics-alarm' : 'analytics-action'}><span>{action.verb}</span><i><b style={{ width: `${(action.count / maxAction) * 100}%` }} /></i><strong>{action.count.toLocaleString()}</strong></div>}</For><p class="analytics-note">A nonzero permission_request count is a misconfiguration alarm, not a success metric.</p></section><section class="analytics-card"><header><h2>Tools</h2><span>allowlisted payload with anomaly notes</span></header><p class="analytics-note">Anomaly: researcher@1 ran web_fetch 4.1× its own baseline on 19 Aug.</p></section><section class="analytics-card"><h2>Sessions</h2><table><thead><tr><th>When</th><th>Harness</th><th>Project</th><th>repo</th><th>Agent</th><th>role</th><th>Model(s)</th><th>Runs</th><th>Events</th><th>Errors</th><th>Tokens</th><th>Status</th><th>Id</th></tr></thead><tbody><For each={props.sessions}>{(row) => <tr><td>{row.when}</td><td>{row.harness}</td><td>{row.project}</td><td>{row.repo}</td><td>{row.agent}</td><td>{row.role}</td><td>{row.models}</td><td>{row.runs}</td><td>{row.events}</td><td>{row.errors}</td><td>{row.tokens}</td><td>{row.status}</td><td>{row.id}</td></tr>}</For></tbody></table></section></section>
   </main>
 }
 

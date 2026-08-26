@@ -24,6 +24,7 @@ pub mod manage;
 pub mod market;
 pub mod media;
 pub mod memory;
+pub mod metrics;
 pub mod planning;
 pub mod project;
 pub mod provider;

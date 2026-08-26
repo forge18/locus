@@ -30,6 +30,14 @@ export const ANALYTICS_STATS: readonly AnalyticsStat[] = Object.freeze([
   { id: 'runs', label: 'Runs', value: '612', note: 'scheduled and manual' },
 ])
 
+export interface AtAGlanceMetric { id: string; label: string; value: string; note: string }
+export const AT_A_GLANCE_METRICS: readonly AtAGlanceMetric[] = Object.freeze([
+  { id: 'verify-pass-rate', label: 'Verify pass rate', value: '79%', note: '484 / 612 runs' },
+  { id: 'guardrail-trips', label: 'Guardrail trips', value: '38', note: 'last 30 days' },
+  { id: 'spec-gap-rate', label: 'Spec-gap rate', value: '7.4%', note: 'arbiter classifications' },
+  { id: 'agent-trust', label: 'Agent trust', value: '0.82', note: 'last 20 runs · token-discounted' },
+])
+
 export interface BreakdownRow { dimension: string; tokens: string; cache: string; spend: string; runs: number; perRun: string }
 export const ANALYTICS_BREAKDOWN: readonly BreakdownRow[] = Object.freeze([
   { dimension: 'claude-opus-5', tokens: '4.8M', cache: '91%', spend: '$82.40', runs: 188, perRun: '$0.44' },
