@@ -11,7 +11,7 @@ use super::planning::PlanTask;
 
 pub const MAX_EVIDENCE_BYTES: usize = 16 * 1024;
 
-#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FailureClass {
     Bug,

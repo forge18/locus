@@ -6,6 +6,7 @@ const KIND_ICON: Record<InboxKind, { name: string; weight: 'regular' | 'fill'; c
   gate: { name: 'seal-check', weight: 'fill', color: 'var(--action-attention)' },
   ask: { name: 'question', weight: 'regular', color: 'var(--text-secondary)' },
   guardrail: { name: 'warning-octagon', weight: 'fill', color: 'var(--status-danger)' },
+  reflection: { name: 'sparkle', weight: 'fill', color: 'var(--action-attention)' },
 }
 
 export interface InboxCardProps {

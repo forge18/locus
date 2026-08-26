@@ -4,7 +4,7 @@
 import type { ArtifactKind } from '../types/agents'
 
 /** What kind of interruption this is. The inbox is the only interruption surface. */
-export type InboxKind = 'gate' | 'ask' | 'guardrail'
+export type InboxKind = 'gate' | 'ask' | 'guardrail' | 'reflection'
 
 export interface InboxItem {
   id: string
@@ -76,6 +76,23 @@ export const INBOX_ITEMS: InboxItem[] = [
       'The guardrail has stopped the loop rather than spending a fourth.',
     ],
     callout: 'Reassigning opens a new session on the same task and branch, carrying a handoff.',
+  },
+  {
+    id: 'in-reflection-1',
+    kind: 'reflection',
+    title: 'Reflection — review recurring parser failures',
+    project: 'weaver',
+    agent: 'retro@1',
+    role: 'calibration',
+    branch: 'agent/calibration-parser',
+    opensAt: 'locus://weaver/view/plan',
+    ageMinutes: 7,
+    artifactKind: 'plan',
+    body: [
+      'A recurring arbiter cluster proposes a change to the project context.',
+      'Accept or reject it here; nothing applies automatically.',
+    ],
+    callout: 'This proposal is shared with memory promotion review and is human-gated.',
   },
 ]
 

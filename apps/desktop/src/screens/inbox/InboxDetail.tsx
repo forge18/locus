@@ -17,6 +17,7 @@ const BODY_LABEL: Record<InboxItem['kind'], string> = {
   gate: 'Plan',
   ask: 'Question',
   guardrail: 'What happened',
+  reflection: 'Reflection proposal',
 }
 const age = (minutes: number) => minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h`
 

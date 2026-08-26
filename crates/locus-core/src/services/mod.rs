@@ -13,6 +13,7 @@ pub mod artifact;
 pub mod ask;
 pub mod board;
 pub mod browse;
+pub mod calibration;
 pub mod compact;
 pub mod condition;
 pub mod handoff;
