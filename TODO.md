@@ -156,9 +156,10 @@ edges. Items 32–33 are intentionally last because they depend on later plannin
   *Depends on:* `mail` and `guardrails`
   *Completed:* core payloads, artifact/run/session links, same-branch successor priming, trigger shape, CLI validation/routing, transcript exclusion, and stuck footer. Cross-project transfers are rejected per project-scoped session ownership.
 
-- [ ] **18. M4 — [workflow-canvas](.specs/workflow-canvas/spec.md)** · [tasks](.specs/workflow-canvas/tasks.md) · 24 tasks
+- [x] **18. M4 — [workflow-canvas](.specs/workflow-canvas/spec.md)** · [tasks](.specs/workflow-canvas/tasks.md) · 24 tasks
   Author and validate workflow graphs.
   *Depends on:* `workflow-engine`
+  *Completed:* renderer-independent versioned graph JSONB with positions and named handles, save-time validation, permission narrowing, role contamination checks, board dependency projection, Solid Flow canvas/node handles, loop grouping, viewport controls, Ralph expansion, condition inspector, guardrail binding, and one normalized live-event source. Full core integration remains Docker-dependent.
 
 - [ ] **19. M5 — [board](.specs/board/spec.md)** · [tasks](.specs/board/tasks.md) · 23 tasks
   Fixed columns and evidence-gated completion.

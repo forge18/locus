@@ -9,6 +9,9 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use thiserror::Error;
 use uuid::Uuid;
 
+#[path = "workflow_graph.rs"]
+pub mod graph;
+
 use crate::{
     ids::{ProjectId, RunId, SessionId},
     runtime::session::{resume_from_events, ResumePlan, Session},
@@ -349,6 +352,16 @@ pub struct WorkflowGovernance {
     pub success_criteria: Vec<SuccessCriterion>,
 }
 
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize)]
+pub struct WorkflowAgentPermissions {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tools: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub network: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub write_scope: Option<String>,
+}
+
 /// A typed executable step produced by compiling one graph.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -356,6 +369,10 @@ pub enum WorkflowStep {
     Agent {
         node_id: String,
         role: String,
+        permissions: WorkflowAgentPermissions,
+    },
+    Task {
+        node_id: String,
     },
     Verify {
         node_id: String,
@@ -380,6 +397,7 @@ impl WorkflowStep {
     fn node_id(&self) -> &str {
         match self {
             Self::Agent { node_id, .. }
+            | Self::Task { node_id }
             | Self::Verify { node_id, .. }
             | Self::Condition { node_id, .. }
             | Self::Gate { node_id, .. }
@@ -730,6 +748,8 @@ struct GraphNode {
     #[serde(default)]
     role: Option<String>,
     #[serde(default)]
+    data: Value,
+    #[serde(default)]
     command: Option<String>,
     #[serde(default)]
     expression: Option<String>,
@@ -749,8 +769,30 @@ struct GraphNode {
 
 #[derive(Clone, Debug, Default, Deserialize)]
 struct GraphEdge {
-    from: String,
-    to: String,
+    #[serde(default)]
+    from: Option<String>,
+    #[serde(default)]
+    to: Option<String>,
+    #[serde(default)]
+    source: Option<String>,
+    #[serde(default)]
+    target: Option<String>,
+    #[serde(rename = "loopBack", default)]
+    loop_back: Option<bool>,
+}
+
+impl GraphEdge {
+    fn from(&self) -> Option<&str> {
+        self.from.as_deref().or(self.source.as_deref())
+    }
+
+    fn to(&self) -> Option<&str> {
+        self.to.as_deref().or(self.target.as_deref())
+    }
+
+    fn loop_back(&self) -> bool {
+        self.loop_back.unwrap_or(false)
+    }
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -759,6 +801,87 @@ struct AuthoringGraph {
     nodes: Vec<GraphNode>,
     #[serde(default)]
     edges: Vec<GraphEdge>,
+}
+
+fn node_text(node: &GraphNode, key: &str) -> Option<String> {
+    let direct = match key {
+        "role" => node.role.clone(),
+        "command" => node.command.clone(),
+        "expression" => node.expression.clone(),
+        "reset_to" => node.reset_to.clone(),
+        "gate" => node.gate.clone(),
+        "prompt" => node.prompt.clone(),
+        "reviewer_role" => node.reviewer_role.clone(),
+        _ => None,
+    };
+    direct.filter(|value| !value.trim().is_empty()).or_else(|| {
+        node.data
+            .get(key)
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+    })
+}
+
+fn node_string_list(node: &GraphNode, key: &str) -> Vec<String> {
+    let Some(value) = node.data.get(key) else {
+        return Vec::new();
+    };
+    let mut values = match value {
+        Value::Array(values) => values
+            .iter()
+            .filter_map(Value::as_str)
+            .map(str::to_owned)
+            .collect(),
+        Value::String(value) => value
+            .split(',')
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned)
+            .collect(),
+        _ => Vec::new(),
+    };
+    values.sort();
+    values.dedup();
+    values
+}
+
+fn node_permissions_spec(node: &GraphNode) -> WorkflowAgentPermissions {
+    WorkflowAgentPermissions {
+        tools: node_string_list(node, "tools"),
+        network: node_text(node, "network"),
+        write_scope: node_text(node, "write_scope").or_else(|| node_text(node, "write")),
+    }
+}
+
+fn node_u32(node: &GraphNode, key: &str) -> Option<u32> {
+    let direct = match key {
+        "max_iterations" => node.max_iterations,
+        "max_review_rounds" => node.max_review_rounds,
+        _ => None,
+    };
+    direct.or_else(|| {
+        node.data
+            .get(key)
+            .or_else(|| {
+                (key == "max_iterations")
+                    .then_some(())
+                    .and_then(|_| node.data.get("maxIterations"))
+            })
+            .and_then(|value| value.as_u64())
+            .and_then(|value| u32::try_from(value).ok())
+    })
+}
+
+fn is_typed_graph(value: &Value) -> bool {
+    value.get("version").is_some()
+        || value
+            .get("nodes")
+            .and_then(Value::as_array)
+            .is_some_and(|nodes| nodes.iter().any(|node| node.get("position").is_some()))
+        || value
+            .get("edges")
+            .and_then(Value::as_array)
+            .is_some_and(|edges| edges.iter().any(|edge| edge.get("source").is_some()))
 }
 
 /// Compile graph plus Governance into the typed unit consumed at runtime.
@@ -786,14 +909,15 @@ pub fn compile_workflow(
         let step = match kind.as_str() {
             "agent" => WorkflowStep::Agent {
                 node_id: node.id.clone(),
-                role: node.role.clone().unwrap_or_default(),
+                role: node_text(node, "role").unwrap_or_default(),
+                permissions: node_permissions_spec(node),
+            },
+            "task" => WorkflowStep::Task {
+                node_id: node.id.clone(),
             },
             "verify" => {
-                let command = node
-                    .command
-                    .clone()
-                    .filter(|value| !value.trim().is_empty())
-                    .ok_or(WorkflowError::MissingVerifyCommand)?;
+                let command =
+                    node_text(node, "command").ok_or(WorkflowError::MissingVerifyCommand)?;
                 if verify_command.replace(command.clone()).is_some() {
                     return Err(WorkflowError::MultipleVerifyNodes);
                 }
@@ -803,11 +927,8 @@ pub fn compile_workflow(
                 }
             }
             "condition" => {
-                let expression = node
-                    .expression
-                    .clone()
-                    .filter(|value| !value.trim().is_empty())
-                    .ok_or(WorkflowError::MissingCondition)?;
+                let expression =
+                    node_text(node, "expression").ok_or(WorkflowError::MissingCondition)?;
                 crate::services::condition::Condition::parse(&expression)
                     .map_err(|_| WorkflowError::InvalidCondition)?;
                 WorkflowStep::Condition {
@@ -821,29 +942,30 @@ pub fn compile_workflow(
             },
             "loop" => WorkflowStep::Loop {
                 node_id: node.id.clone(),
-                max_iterations: node.max_iterations.unwrap_or(1).max(1),
-                reset_to: node.reset_to.clone(),
+                max_iterations: node_u32(node, "max_iterations").unwrap_or(1).max(1),
+                reset_to: node_text(node, "reset_to"),
             },
             _ => return Err(WorkflowError::UnknownNodeKind(node.kind.clone())),
         };
         steps.push(step);
     }
     let node_ids = seen;
-    if authoring
-        .edges
-        .iter()
-        .any(|edge| !node_ids.contains(&edge.from) || !node_ids.contains(&edge.to))
-    {
+    if authoring.edges.iter().any(|edge| {
+        edge.from().is_none_or(|from| !node_ids.contains(from))
+            || edge.to().is_none_or(|to| !node_ids.contains(to))
+    }) {
         return Err(WorkflowError::UnknownEdgeEndpoint);
     }
-    let mut edges: Vec<WorkflowEdge> = authoring
-        .edges
-        .iter()
-        .map(|edge| WorkflowEdge {
-            from: edge.from.clone(),
-            to: edge.to.clone(),
-        })
-        .collect();
+    let mut edges = Vec::new();
+    for edge in authoring.edges.iter().filter(|edge| !edge.loop_back()) {
+        let (Some(from), Some(to)) = (edge.from(), edge.to()) else {
+            return Err(WorkflowError::UnknownEdgeEndpoint);
+        };
+        edges.push(WorkflowEdge {
+            from: from.to_owned(),
+            to: to.to_owned(),
+        });
+    }
     edges.sort_by(|left, right| (&left.from, &left.to).cmp(&(&right.from, &right.to)));
     validate_control_flow(&steps, &edges)?;
     let verify_command = verify_command.ok_or(WorkflowError::MissingVerifyCommand)?;
@@ -864,27 +986,18 @@ pub fn compile_workflow(
 }
 
 fn parse_gate_kind(node: &GraphNode) -> Result<GateKind, WorkflowError> {
-    match node
-        .gate
-        .as_deref()
-        .unwrap_or("human")
+    match node_text(node, "gate")
+        .unwrap_or_else(|| "human".into())
         .to_ascii_lowercase()
         .as_str()
     {
         "human" => Ok(GateKind::Human {
-            prompt: node
-                .prompt
-                .clone()
-                .filter(|value| !value.trim().is_empty())
-                .ok_or(WorkflowError::MissingGatePrompt)?,
+            prompt: node_text(node, "prompt").ok_or(WorkflowError::MissingGatePrompt)?,
         }),
         "reviewer_agent" | "reviewer-agent" => {
-            let role = node
-                .reviewer_role
-                .clone()
-                .filter(|value| !value.trim().is_empty())
-                .ok_or(WorkflowError::MissingReviewerRole)?;
-            let max_rounds = node.max_review_rounds.unwrap_or(1);
+            let role =
+                node_text(node, "reviewer_role").ok_or(WorkflowError::MissingReviewerRole)?;
+            let max_rounds = node_u32(node, "max_review_rounds").unwrap_or(1);
             if max_rounds == 0 || max_rounds > MAX_REVIEW_ROUNDS {
                 return Err(WorkflowError::GateBoundExceeded);
             }
@@ -923,10 +1036,14 @@ fn validate_control_flow(
     }
     for step in steps {
         let targets = &adjacency[step.node_id()];
-        if !matches!(step, WorkflowStep::Loop { .. }) && targets.len() > 1 {
-            return Err(WorkflowError::UnsupportedBranching);
-        }
-        if matches!(step, WorkflowStep::Loop { .. }) && targets.len() > 2 {
+        let target_limit = match step {
+            WorkflowStep::Condition { .. }
+            | WorkflowStep::Gate { .. }
+            | WorkflowStep::Loop { .. }
+            | WorkflowStep::Verify { .. } => 2,
+            WorkflowStep::Agent { .. } | WorkflowStep::Task { .. } => 1,
+        };
+        if targets.len() > target_limit {
             return Err(WorkflowError::UnsupportedBranching);
         }
         if let WorkflowStep::Loop {
@@ -1037,7 +1154,22 @@ pub fn validate_authoring_graph(graph: &serde_json::Value) -> Result<(), Workflo
     if contains_goal_node(graph) {
         return Err(WorkflowError::GoalNodeNotAllowed);
     }
+    if is_typed_graph(graph) {
+        let typed =
+            graph::WorkflowGraph::from_value(graph).map_err(WorkflowError::GraphValidation)?;
+        typed
+            .validate()
+            .map_err(|errors| WorkflowError::GraphValidation(format_graph_errors(&errors)))?;
+    }
     Ok(())
+}
+
+fn format_graph_errors(errors: &[graph::GraphValidationError]) -> String {
+    errors
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("; ")
 }
 
 /// Backwards-compatible authoring entry point. New callers should use [`compile_workflow`]
@@ -1110,6 +1242,8 @@ pub enum WorkflowError {
     EmptyGoal,
     #[error("workflow graph is malformed")]
     MalformedGraph,
+    #[error("workflow graph validation failed: {0}")]
+    GraphValidation(String),
     #[error("workflow node ids must be unique and non-empty")]
     InvalidNodeId,
     #[error("workflow graph contains an unknown node kind `{0}`")]

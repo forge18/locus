@@ -1,15 +1,12 @@
-import { For, Show } from 'solid-js'
+import { createSignal, For, Show } from 'solid-js'
 import { Icon } from '../../ui/Icon'
 import {
-  ARROW_MARKERS,
   BUDGET_NOTE,
   COMPILED,
   COMPILED_NOTE,
-  NO_MODEL_NOTE,
   OPERAND_NOTE,
   PRESET_NOTE,
   WAITING_NOTE,
-  ZOOM,
   useCanvas,
   useExpression,
   useGuardrails,
@@ -17,9 +14,7 @@ import {
   usePalette,
   usePresets,
 } from '../../data/workflow'
-
-const NODE_W = 168
-const NODE_H = 46
+import { WorkflowCanvas } from '../../workflow-canvas/WorkflowCanvas'
 
 /**
  * Layout and inspector on fixture data. Real graph editing, compile and the live
@@ -27,11 +22,7 @@ const NODE_H = 46
  */
 export function WorkflowView() {
   const canvas = useCanvas()
-  const byId = new Map(canvas.nodes.map((n) => [n.id, n]))
-  const centre = (id: string) => {
-    const n = byId.get(id)!
-    return { x: n.x + NODE_W / 2, y: n.y + NODE_H / 2 }
-  }
+  const [expandedPreset, setExpandedPreset] = createSignal<string>()
 
   return (
     <div class="wf" data-testid="workflow">
@@ -64,118 +55,43 @@ export function WorkflowView() {
         </span>
         <For each={usePresets()}>
           {(preset) => (
-            <div class="wf-preset" data-testid={`wf-preset-${preset.name.replace(/\W+/g, '-')}`}>
+            <button
+              type="button"
+              class="wf-preset"
+              data-testid={`wf-preset-${preset.name.replace(/\W+/g, '-')}`}
+              aria-expanded={expandedPreset() === preset.name}
+              onClick={() => setExpandedPreset(preset.name)}
+            >
               {preset.name}
               <div class="wf-preset-note">{preset.note}</div>
-            </div>
+            </button>
           )}
         </For>
+        <Show when={expandedPreset()}>
+          <div
+            class="wf-preset-expanded"
+            data-testid="wf-preset-expanded"
+            data-preset={expandedPreset()}
+          >
+            <span>ordinary nodes</span>
+            <span>pick</span>
+            <span>act</span>
+            <span>validate</span>
+            <span>commit</span>
+            <span>reset</span>
+          </div>
+        </Show>
         <span class="wf-preset-note" data-testid="wf-preset-note">
           {PRESET_NOTE}
         </span>
       </aside>
 
-      <div class="wf-canvas" data-testid="wf-canvas">
-        <svg class="wf-edges" data-testid="wf-edges">
-          <defs>
-            <For each={ARROW_MARKERS}>
-              {(marker) => (
-                <marker
-                  id={marker}
-                  data-testid={`wf-marker-${marker}`}
-                  viewBox="0 0 8 8"
-                  refX="7"
-                  refY="4"
-                  markerWidth="6"
-                  markerHeight="6"
-                  orient="auto"
-                >
-                  <path d="M0,0 L8,4 L0,8 z" fill="currentColor" />
-                </marker>
-              )}
-            </For>
-          </defs>
-          <For each={canvas.edges}>
-            {(edge) => {
-              const a = centre(edge.from)
-              const b = centre(edge.to)
-              return (
-                <line
-                  class="graph-edge"
-                  data-testid={`wf-edge-${edge.from}-${edge.to}`}
-                  data-dashed={edge.dashed ? 'true' : undefined}
-                  x1={a.x}
-                  y1={a.y}
-                  x2={b.x}
-                  y2={b.y}
-                  stroke-dasharray={edge.dashed ? '4 3' : undefined}
-                  marker-end={`url(#${edge.dashed ? 'arrow-loop' : 'arrow-default'})`}
-                />
-              )
-            }}
-          </For>
-        </svg>
-
-        <div
-          class="wf-loop-group"
-          data-testid="wf-loop-group"
-          style={{
-            left: `${canvas.loop.x}px`,
-            top: `${canvas.loop.y}px`,
-            width: `${canvas.loop.width}px`,
-            height: `${canvas.loop.height}px`,
-          }}
-        >
-          <span class="wf-loop-label">{canvas.loop.label}</span>
-        </div>
-
-        <For each={canvas.nodes}>
-          {(node) => (
-            <div
-              class={['wf-node', node.tone !== 'default' ? `wf-node-${node.tone}` : '']
-                .filter(Boolean)
-                .join(' ')}
-              data-testid={`wf-node-${node.id}`}
-              data-tone={node.tone}
-              style={{ left: `${node.x}px`, top: `${node.y}px` }}
-            >
-              <div class="wf-node-strip" data-testid={`wf-node-strip-${node.id}`}>
-                <Icon name="cube" size={7} style={{ color: 'var(--text-muted)' }} />
-                <span class="wf-node-kind">{node.kind}</span>
-                <span class="wf-node-state" data-testid={`wf-node-state-${node.id}`}>
-                  {node.state}
-                </span>
-              </div>
-              <div class="wf-node-label">{node.label}</div>
-            </div>
-          )}
-        </For>
-
-        <For each={canvas.edges.filter((e) => e.label)}>
-          {(edge) => {
-            const a = centre(edge.from)
-            const b = centre(edge.to)
-            return (
-              <span
-                class="wf-edge-label"
-                data-testid={`wf-edge-label-${edge.from}-${edge.to}`}
-                style={{ left: `${(a.x + b.x) / 2 - 20}px`, top: `${(a.y + b.y) / 2 - 8}px` }}
-              >
-                {edge.label}
-              </span>
-            )
-          }}
-        </For>
-
-        <div class="wf-canvas-foot">
-          <span class="wf-zoom" data-testid="wf-zoom">
-            {ZOOM}
-          </span>
-          <span class="wf-canvas-note" data-testid="wf-no-model-note">
-            {NO_MODEL_NOTE}
-          </span>
-        </div>
-      </div>
+      <WorkflowCanvas
+        nodes={canvas.nodes}
+        edges={canvas.edges}
+        loop={canvas.loop}
+        events={canvas.events}
+      />
 
       <aside class="wf-inspector" data-testid="wf-inspector">
         <div class="wf-inspector-body">

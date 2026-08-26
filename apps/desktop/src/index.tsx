@@ -1,4 +1,5 @@
 /* @refresh reload */
+import "./workflow-canvas/polyfills";
 import { render } from "solid-js/web";
 import App from "./App";
 
