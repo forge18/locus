@@ -176,9 +176,10 @@ edges. Items 32–33 are intentionally last because they depend on later plannin
   *Depends on:* `workflow-engine`
   *Completed:* query-only metric projections for cache/spend/offenders/verify/guardrails/board/arbiter/iterations/gates/trust/prefix drift, read-only lint gate, Status at-a-glance rail, and faceted Telemetry metric set.
 
-- [ ] **22. M5 — [wiki](.specs/wiki/spec.md)** · [tasks](.specs/wiki/tasks.md) · 26 tasks
+- [x] **22. M5 — [wiki](.specs/wiki/spec.md)** · [tasks](.specs/wiki/tasks.md) · 26 tasks
   Ingest typed knowledge and generate a durable wiki.
   *Depends on:* `workflow-canvas`
+  *Completed:* six backend page kinds with hidden Overview, bounded MarkItDown ingest plans, auto entity/concept pages, wikilinks, overview revisions, embeddings/KNN/adjudication/contradictions, memory conflict and seed discovery, event/run attribution, stateless CLI validation, and shared graph rendering. Persistent pgvector execution remains Docker-dependent.
 
 - [ ] **23. M5 — [task-orchestration](.specs/task-orchestration/spec.md)** · [tasks](.specs/task-orchestration/tasks.md) · 18 tasks
   Make Automate task-centric.
