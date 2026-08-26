@@ -186,9 +186,10 @@ edges. Items 32–33 are intentionally last because they depend on later plannin
   *Depends on:* `board` and `workflow-engine`
   *Completed:* project-scoped workflow confirmation and root-session ownership, task-owned reset/child run trees, detail/control summaries, shared Kanban/List task locators and drafts, and running-strip links.
 
-- [ ] **24. M5 — [planning-module](.specs/planning-module/spec.md)** · [tasks](.specs/planning-module/tasks.md) · 40 tasks
+- [x] **24. M5 — [planning-module](.specs/planning-module/spec.md)** · [tasks](.specs/planning-module/tasks.md) · 40 tasks
   Guided planning with research, audit, and approval.
   *Depends on:* `board` and `wiki`
+  *Completed:* isolated interviewer/researcher/auditor contracts, bounded orientation and fact research, scope/reduction/audit/reader/ratcher/recommendation/approval models, traceability anchors, replanning rules, specialization output, and Plan ACP/draft surface coverage. The seven-stage UI remains authoritative.
 
 - [ ] **25. M5 — [calibration-loop](.specs/calibration-loop/spec.md)** · [tasks](.specs/calibration-loop/tasks.md) · 20 tasks
   Learn from failures through specialization.
