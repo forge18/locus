@@ -104,6 +104,16 @@ fn dispatch(arguments: &[String]) -> Result<()> {
     }
     if matches!(
         verb.verb,
+        locus_core::runtime::daemon::AgentSocketVerb::TaskList
+            | locus_core::runtime::daemon::AgentSocketVerb::TaskShow
+            | locus_core::runtime::daemon::AgentSocketVerb::TaskMove
+            | locus_core::runtime::daemon::AgentSocketVerb::TaskAssign
+            | locus_core::runtime::daemon::AgentSocketVerb::TaskComment
+    ) {
+        sock::validate_task_args(verb.verb, args)?;
+    }
+    if matches!(
+        verb.verb,
         locus_core::runtime::daemon::AgentSocketVerb::DebugStart
             | locus_core::runtime::daemon::AgentSocketVerb::DebugBreak
             | locus_core::runtime::daemon::AgentSocketVerb::DebugStep
@@ -382,6 +392,38 @@ mod handoff {
         let (dispatch, args) = sock::allowed_verb(&command).expect("handoff is allowlisted");
         assert_eq!(dispatch.verb, AgentSocketVerb::Handoff);
         sock::validate_handoff_args(args).expect("handoff requires a reason");
+    }
+}
+
+#[cfg(test)]
+mod task {
+    use super::sock;
+    use locus_core::runtime::daemon::AgentSocketVerb;
+
+    #[test]
+    fn verbs() {
+        let cases = [
+            (vec!["task", "list"], AgentSocketVerb::TaskList),
+            (vec!["task", "show", "task-1"], AgentSocketVerb::TaskShow),
+            (
+                vec!["task", "move", "task-1", "in_progress"],
+                AgentSocketVerb::TaskMove,
+            ),
+            (
+                vec!["task", "assign", "task-1", "builder"],
+                AgentSocketVerb::TaskAssign,
+            ),
+            (
+                vec!["task", "comment", "task-1", "blocked", "on", "approval"],
+                AgentSocketVerb::TaskComment,
+            ),
+        ];
+        for (command, expected) in cases {
+            let command = command.into_iter().map(String::from).collect::<Vec<_>>();
+            let (dispatch, args) = sock::allowed_verb(&command).expect("task verb allowlisted");
+            assert_eq!(dispatch.verb, expected);
+            sock::validate_task_args(dispatch.verb, args).expect("task args valid");
+        }
     }
 }
 

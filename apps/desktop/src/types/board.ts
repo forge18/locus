@@ -8,7 +8,7 @@
  */
 export const BOARD_COLUMNS = [
   'ready',
-  'building',
+  'in_progress',
   'testing',
   'reviewing',
   'waiting_for_approval',

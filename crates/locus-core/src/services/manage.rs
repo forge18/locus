@@ -3,6 +3,7 @@
 //! These helpers accept folds and transition rows, never fixture-only screen state.  Kanban and
 //! Timeline intentionally share [`dwell_by_column`] so their durations cannot drift.
 
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
@@ -10,7 +11,8 @@ use crate::{
     runtime::dispatch::{PriorityMethod, QueuedRun},
 };
 
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum TaskColumn {
     Ready,
     InProgress,

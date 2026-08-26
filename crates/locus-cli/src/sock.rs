@@ -374,6 +374,50 @@ pub fn allowed_verb(arguments: &[String]) -> Result<(&'static VerbDispatch, &[St
         .ok_or_else(|| anyhow::anyhow!("command is not allowlisted: {}", arguments.join(" ")))
 }
 
+/// Validate the stateless task CLI shape before the authenticated socket round trip.
+pub fn validate_task_args(verb: AgentSocketVerb, args: &[String]) -> anyhow::Result<()> {
+    let positional = args.iter().filter(|arg| !arg.starts_with("--")).count();
+    let required = |count: usize| {
+        if positional < count {
+            anyhow::bail!("{verb} requires task arguments")
+        }
+        Ok(())
+    };
+    match verb {
+        AgentSocketVerb::TaskList => {
+            if args.iter().any(|arg| arg.starts_with("--")) {
+                anyhow::bail!("task list takes no options")
+            }
+        }
+        AgentSocketVerb::TaskShow => {
+            required(1)?;
+            if positional != 1 {
+                anyhow::bail!("task show requires exactly <task>")
+            }
+        }
+        AgentSocketVerb::TaskMove => {
+            required(2)?;
+            if positional != 2 {
+                anyhow::bail!("task move requires <task> <column>")
+            }
+        }
+        AgentSocketVerb::TaskAssign => {
+            required(2)?;
+            if positional != 2 {
+                anyhow::bail!("task assign requires <task> <agent>")
+            }
+        }
+        AgentSocketVerb::TaskComment => {
+            required(2)?;
+        }
+        _ => anyhow::bail!("not a task verb: {verb}"),
+    }
+    if args.iter().any(|arg| arg.trim().is_empty()) {
+        anyhow::bail!("task arguments must not be empty")
+    }
+    Ok(())
+}
+
 /// `textDocument/documentSymbol` needs the document it should inspect. Keep the CLI contract
 /// explicit while leaving symbol resolution and server capabilities in the daemon/client layer.
 pub fn validate_lsp_args(verb: AgentSocketVerb, args: &[String]) -> anyhow::Result<()> {

@@ -1,17 +1,12 @@
 import { For, Show, createSignal } from "solid-js";
 import { Button } from "../../ui/Button";
 import { Segmented } from "../../ui/Segmented";
+import { Tag } from "../../ui/Tag";
+import { COLUMN_LABELS, COLUMN_ORDER, useTasksByColumn } from "../../data/board";
+import type { BoardColumn } from "../../types/board";
 import "./manage.css";
 
 type ManageViewKind = "kanban" | "list" | "graph" | "timeline";
-const COLUMNS = [
-  "Ready",
-  "In Progress",
-  "Testing",
-  "Reviewing",
-  "Pending Approval",
-  "Done",
-] as const;
 const TASKS = [
   {
     id: "t-1184",
@@ -39,6 +34,7 @@ const TASKS = [
 export function ManageView() {
   const [view, setView] = createSignal<ManageViewKind>("kanban");
   const [hideDone, setHideDone] = createSignal(false);
+  const tasksByColumn = useTasksByColumn();
   return (
     <div class="manage-view" data-testid="manage" data-view={view()}>
       <header class="manage-toolbar">
@@ -73,31 +69,28 @@ export function ManageView() {
             </label>
           </header>
           <div class="manage-columns">
-            <For each={COLUMNS}>
-              {(column) => (
-                <section data-column={column}>
+            <For each={COLUMN_ORDER}>
+              {(column: BoardColumn) => (
+                <section
+                  data-column={column}
+                  data-column-label={COLUMN_LABELS[column]}
+                >
                   <h2>
-                    {column}{" "}
-                    <small>
-                      {TASKS.filter((task) => task.column === column).length}
-                    </small>
+                    {COLUMN_LABELS[column]}{" "}
+                    <small>{tasksByColumn[column].length}</small>
                   </h2>
-                  <For
-                    each={TASKS.filter(
-                      (task) =>
-                        task.column === column &&
-                        (!hideDone() || column !== "Done"),
-                    )}
-                  >
+                  <For each={hideDone() && column === "done" ? [] : tasksByColumn[column]}>
                     {(task) => (
                       <article
                         class="manage-task-card"
                         data-testid={`manage-task-${task.id}`}
                       >
                         <strong>{task.title}</strong>
-                        <small>{task.state}</small>
-                        <Show when={task.blocked}>
-                          <Tag>blocked: approval</Tag>
+                        <small>{task.assignee ?? "unassigned"} · {task.verifyCommand}</small>
+                        <Show when={task.status !== "ok"}>
+                          <Tag variant="neutral">
+                            {task.status}
+                          </Tag>
                         </Show>
                       </article>
                     )}
@@ -181,8 +174,5 @@ export function ManageView() {
       </Show>
     </div>
   );
-}
-function Tag(props: { children: string }) {
-  return <span class="manage-tag">{props.children}</span>;
 }
 export default ManageView;

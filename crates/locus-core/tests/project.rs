@@ -120,6 +120,23 @@ mod project {
     }
 
     #[test]
+    fn board() {
+        let task = locus_core::services::board::BoardTask::new(
+            locus_core::ids::ProjectId::generate(),
+            locus_core::ids::TaskId::generate(),
+            "board task",
+            Some("cargo test".into()),
+        );
+        let mut projection = locus_core::services::board::BoardProjection::default();
+        projection
+            .apply(locus_core::services::board::BoardEvent::Created {
+                task: Box::new(task.clone()),
+            })
+            .expect("project board task");
+        assert_eq!(projection.task(task.id).unwrap().summary, "board task");
+    }
+
+    #[test]
     fn one_agent_default() {
         let settings = ProjectSettings::new()
             .with_harness_allow_list(["claude", "codex"])

@@ -1,6 +1,6 @@
 # board — tasks
 
-Carried from `screens-automate`: column 2 is "Building" in the handoff and "In Progress" in PLAN.md.
+Settled: column 2 is **In Progress**, matching PLAN.md; the handoff's "Building" label is retired.
 Task 1 settles it and updates whichever document loses.
 
 | # | Task | Deps | verify |

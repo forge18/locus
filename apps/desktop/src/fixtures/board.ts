@@ -20,8 +20,8 @@ export const TASKS: Task[] = [
   { id: 't-001', projectId: 'p-tapestry', repoId: 'r-tapestry-app', title: 'Notification channel behind the Sink trait', column: 'ready', status: 'ok', verifyCommand: 'cargo test -p tapestry-core notify::', assignee: null, gate: 'reviewer agent', stuckIterations: null, maxIterations: 3, tools: 'read-only tools', tokens: null },
   { id: 't-002', projectId: 'p-loom-db', repoId: 'r-loom-db', title: 'Online index rebuild', column: 'ready', status: 'blocked', verifyCommand: 'cargo test -p loom-db index::', assignee: null, gate: 'human', stuckIterations: null, maxIterations: 3, tools: 'read-only tools', tokens: null },
   { id: 't-003', projectId: 'p-weaver', repoId: 'r-weaver', title: 'Drop the legacy parser branch', column: 'ready', status: 'ok', verifyCommand: 'cargo test -p weaver parser::', assignee: null, gate: 'reviewer agent', stuckIterations: null, maxIterations: 3, tools: 'read-only tools', tokens: null },
-  { id: 't-004', projectId: 'p-tapestry', repoId: 'r-tapestry-app', title: 'Thread the channel through Supervisor::spawn', column: 'building', status: 'ok', verifyCommand: 'cargo test -p tapestry-core supervisor::', assignee: 'builder@4', gate: 'reviewer agent', stuckIterations: null, maxIterations: 3, tools: 'read-only tools', tokens: null },
-  { id: 't-005', projectId: 'p-weaver', repoId: 'r-weaver', title: 'Parser: recover from an unterminated block', column: 'building', status: 'stuck', verifyCommand: 'cargo test -p weaver parser::', assignee: 'builder@4', gate: 'reviewer agent', stuckIterations: 3, maxIterations: 3, tools: 'full tools', tokens: '102.3k' },
+  { id: 't-004', projectId: 'p-tapestry', repoId: 'r-tapestry-app', title: 'Thread the channel through Supervisor::spawn', column: 'in_progress', status: 'ok', verifyCommand: 'cargo test -p tapestry-core supervisor::', assignee: 'builder@4', gate: 'reviewer agent', stuckIterations: null, maxIterations: 3, tools: 'read-only tools', tokens: null },
+  { id: 't-005', projectId: 'p-weaver', repoId: 'r-weaver', title: 'Parser: recover from an unterminated block', column: 'in_progress', status: 'stuck', verifyCommand: 'cargo test -p weaver parser::', assignee: 'builder@4', gate: 'reviewer agent', stuckIterations: 3, maxIterations: 3, tools: 'full tools', tokens: '102.3k' },
   { id: 't-006', projectId: 'p-texere', repoId: 'r-texere', title: 'Ingest: dedupe on sha256 rather than path', column: 'testing', status: 'ok', verifyCommand: 'pnpm test -- ingest', assignee: 'builder@3', gate: 'reviewer agent', stuckIterations: null, maxIterations: 3, tools: 'read-only tools', tokens: null },
   { id: 't-007', projectId: 'p-tapestry', repoId: 'r-tapestry-web', title: 'Retry policy on the payments client', column: 'reviewing', status: 'ok', verifyCommand: 'pnpm test -- payments/retry', assignee: 'reviewer@2', gate: 'reviewer agent', stuckIterations: null, maxIterations: 3, tools: 'read-only tools', tokens: null },
   { id: 't-008', projectId: 'p-loom-db', repoId: 'r-loom-db', title: 'Vacuum schedule for the events table', column: 'reviewing', status: 'ok', verifyCommand: 'cargo test -p loom-db vacuum::', assignee: 'reviewer@2', gate: 'reviewer agent', stuckIterations: null, maxIterations: 3, tools: 'read-only tools', tokens: null },
@@ -32,7 +32,7 @@ export const TASKS: Task[] = [
 /** Fixed columns, in board order. There is no add-column affordance. */
 export const COLUMN_ORDER: BoardColumn[] = [
   'ready',
-  'building',
+  'in_progress',
   'testing',
   'reviewing',
   'waiting_for_approval',
@@ -41,7 +41,7 @@ export const COLUMN_ORDER: BoardColumn[] = [
 
 export const COLUMN_LABELS: Record<BoardColumn, string> = {
   ready: 'Ready',
-  building: SECOND_COLUMN_LABEL,
+  in_progress: SECOND_COLUMN_LABEL,
   testing: 'Testing',
   reviewing: 'Reviewing',
   waiting_for_approval: 'Waiting For Approval',
