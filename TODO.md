@@ -161,9 +161,10 @@ edges. Items 32–33 are intentionally last because they depend on later plannin
   *Depends on:* `workflow-engine`
   *Completed:* renderer-independent versioned graph JSONB with positions and named handles, save-time validation, permission narrowing, role contamination checks, board dependency projection, Solid Flow canvas/node handles, loop grouping, viewport controls, Ralph expansion, condition inspector, guardrail binding, and one normalized live-event source. Full core integration remains Docker-dependent.
 
-- [ ] **19. M5 — [board](.specs/board/spec.md)** · [tasks](.specs/board/tasks.md) · 23 tasks
+- [x] **19. M5 — [board](.specs/board/spec.md)** · [tasks](.specs/board/tasks.md) · 23 tasks
   Fixed columns and evidence-gated completion.
   *Depends on:* `workflow-engine`
+  *Completed:* event-fed BoardTask projection with fixed In Progress columns, actor/evidence gates, workflow-generated dependencies, auto-unblock, approval items, stateless task CLI validation, and Kanban projection. Database-backed rebuild remains Docker-dependent.
 
 - [ ] **20. M6 — [schedules](.specs/schedules/spec.md)** · [tasks](.specs/schedules/tasks.md) · 12 tasks
   Turn cron schedules into recorded workflows.
