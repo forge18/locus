@@ -201,10 +201,11 @@ edges. Items 32–33 are intentionally last because they depend on later plannin
   *Depends on:* `project-search`, `wiki`, and `board`
   *Completed:* unified locator-shaped global search over project-search code, wiki pages, board tasks, and run history with cross-project ranking, Cmd-K/Cmd-P opening, object-locator delegation, history traversal, and single-resolver gate.
 
-- [ ] **27. M7 — [forge-providers](.specs/forge-providers/spec.md)** · [tasks](.specs/forge-providers/tasks.md) · 30 tasks
+- [x] **27. M7 — [forge-providers](.specs/forge-providers/spec.md)** · [tasks](.specs/forge-providers/tasks.md) · 30 tasks
   *This is the separate remote-forge integration boundary, not a Workshop model-provider plugin.*
   Provider-neutral PR, CI, review, and issue integration.
   *Depends on:* `repo-manager` and `board`
+  *Completed:* five provider identities/adapters, capability contract, immutable issue snapshots, provider close references, normalized change/CI data, broker-scoped credentials, HMAC webhook verification/routing, no-polling gate, and CI surfaces on board/status.
 
 - [ ] **28. M8 — [marketplace-installer](.specs/marketplace-installer/spec.md)** · [tasks](.specs/marketplace-installer/tasks.md) · 11 tasks
   *First-party CLI scope is `gh`; the installer remains open to trusted user-authored tool plugins.*

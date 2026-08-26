@@ -18,6 +18,7 @@
 pub mod bus;
 pub mod core;
 pub mod editor;
+pub mod forge;
 pub mod harness;
 pub mod ids;
 pub mod ipc;
