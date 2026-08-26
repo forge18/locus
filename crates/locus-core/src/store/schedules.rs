@@ -2,7 +2,7 @@
 
 use crate::{
     runtime::dispatch::{ScheduleGuardrailOverrides, ScheduleMode},
-    services::workflow::ExecutionEntryPayload,
+    services::{schedule::CronExpression, workflow::ExecutionEntryPayload},
     store::Store,
 };
 use anyhow::{bail, Context, Result};
@@ -34,6 +34,8 @@ impl Store {
         if cron_expression.trim().is_empty() {
             bail!("schedule expression is required");
         }
+        CronExpression::parse(cron_expression)
+            .map_err(|error| anyhow::anyhow!(error.to_string()))?;
         query("INSERT INTO workflows.schedules (id, workflow_def_id, cron_expression, run_mode, project_id, agent_def_id, harness, prompt, guardrail_overrides) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)")
             .bind(id).bind(workflow_def_id).bind(cron_expression).bind(mode_name(mode)).bind(project_id).bind(agent_def_id).bind(harness).bind(prompt).bind(serde_json::to_value(overrides)?).execute(self.pool()).await.context("create schedule")?;
         Ok(())

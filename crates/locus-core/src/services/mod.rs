@@ -28,6 +28,7 @@ pub mod planning;
 pub mod project;
 pub mod provider;
 pub mod qa;
+pub mod schedule;
 pub mod telemetry;
 pub mod tools;
 pub mod wiki;
