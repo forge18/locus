@@ -418,6 +418,41 @@ pub fn validate_task_args(verb: AgentSocketVerb, args: &[String]) -> anyhow::Res
     Ok(())
 }
 
+/// Validate wiki commands without reading or mutating local files in the CLI process.
+pub fn validate_wiki_args(verb: AgentSocketVerb, args: &[String]) -> anyhow::Result<()> {
+    let positional = args.iter().filter(|arg| !arg.starts_with("--")).count();
+    let require = |minimum: usize| {
+        if positional < minimum {
+            anyhow::bail!("{verb} requires wiki arguments")
+        }
+        Ok(())
+    };
+    match verb {
+        AgentSocketVerb::WikiLint => {
+            if !args.is_empty() {
+                anyhow::bail!("wiki lint takes no arguments")
+            }
+        }
+        AgentSocketVerb::WikiSearch | AgentSocketVerb::WikiIngest | AgentSocketVerb::WikiQuery => {
+            require(1)?;
+        }
+        AgentSocketVerb::WikiRead | AgentSocketVerb::WikiHistory => {
+            require(1)?;
+            if positional != 1 {
+                anyhow::bail!("{verb} requires exactly one page")
+            }
+        }
+        AgentSocketVerb::WikiWrite => {
+            require(2)?;
+        }
+        _ => anyhow::bail!("not a wiki verb: {verb}"),
+    }
+    if args.iter().any(|arg| arg.trim().is_empty()) {
+        anyhow::bail!("wiki arguments must not be empty")
+    }
+    Ok(())
+}
+
 /// `textDocument/documentSymbol` needs the document it should inspect. Keep the CLI contract
 /// explicit while leaving symbol resolution and server capabilities in the daemon/client layer.
 pub fn validate_lsp_args(verb: AgentSocketVerb, args: &[String]) -> anyhow::Result<()> {

@@ -114,6 +114,18 @@ fn dispatch(arguments: &[String]) -> Result<()> {
     }
     if matches!(
         verb.verb,
+        locus_core::runtime::daemon::AgentSocketVerb::WikiSearch
+            | locus_core::runtime::daemon::AgentSocketVerb::WikiRead
+            | locus_core::runtime::daemon::AgentSocketVerb::WikiWrite
+            | locus_core::runtime::daemon::AgentSocketVerb::WikiHistory
+            | locus_core::runtime::daemon::AgentSocketVerb::WikiIngest
+            | locus_core::runtime::daemon::AgentSocketVerb::WikiQuery
+            | locus_core::runtime::daemon::AgentSocketVerb::WikiLint
+    ) {
+        sock::validate_wiki_args(verb.verb, args)?;
+    }
+    if matches!(
+        verb.verb,
         locus_core::runtime::daemon::AgentSocketVerb::DebugStart
             | locus_core::runtime::daemon::AgentSocketVerb::DebugBreak
             | locus_core::runtime::daemon::AgentSocketVerb::DebugStep
@@ -424,6 +436,54 @@ mod task {
             assert_eq!(dispatch.verb, expected);
             sock::validate_task_args(dispatch.verb, args).expect("task args valid");
         }
+    }
+}
+
+#[cfg(test)]
+mod wiki {
+    use super::sock;
+    use locus_core::runtime::daemon::AgentSocketVerb;
+
+    fn check(command: &[&str], expected: AgentSocketVerb) {
+        let command = command
+            .iter()
+            .map(|value| (*value).into())
+            .collect::<Vec<String>>();
+        let (dispatch, args) = sock::allowed_verb(&command).expect("wiki verb allowlisted");
+        assert_eq!(dispatch.verb, expected);
+        sock::validate_wiki_args(dispatch.verb, args).expect("wiki arguments valid");
+    }
+
+    #[test]
+    fn ingest() {
+        check(
+            &["wiki", "ingest", "README.md"],
+            AgentSocketVerb::WikiIngest,
+        );
+    }
+
+    #[test]
+    fn lint() {
+        check(&["wiki", "lint"], AgentSocketVerb::WikiLint);
+    }
+
+    #[test]
+    fn verbs() {
+        check(&["wiki", "search", "daemon"], AgentSocketVerb::WikiSearch);
+        check(&["wiki", "read", "daemon"], AgentSocketVerb::WikiRead);
+        check(
+            &["wiki", "write", "daemon", "body"],
+            AgentSocketVerb::WikiWrite,
+        );
+        check(&["wiki", "history", "daemon"], AgentSocketVerb::WikiHistory);
+    }
+
+    #[test]
+    fn query_files_synthesis() {
+        check(
+            &["wiki", "query", "how", "does", "isolation", "work"],
+            AgentSocketVerb::WikiQuery,
+        );
     }
 }
 
