@@ -99,6 +99,9 @@ fn dispatch(arguments: &[String]) -> Result<()> {
         parse_assert_args(args).context("invalid browse assert arguments")?;
         return dispatch_assert(&runtime, &nonce, verb, args);
     }
+    if verb.verb == locus_core::runtime::daemon::AgentSocketVerb::Handoff {
+        sock::validate_handoff_args(args)?;
+    }
     if matches!(
         verb.verb,
         locus_core::runtime::daemon::AgentSocketVerb::DebugStart
@@ -360,6 +363,26 @@ fn env_path(variable: &str, default: &str) -> PathBuf {
     env::var_os(variable)
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(default))
+}
+
+#[cfg(test)]
+mod handoff {
+    use super::sock;
+    use locus_core::runtime::daemon::AgentSocketVerb;
+
+    #[test]
+    fn ends_session() {
+        let command = [
+            "handoff".into(),
+            "auditor".into(),
+            "--why".into(),
+            "context".into(),
+            "exhausted".into(),
+        ];
+        let (dispatch, args) = sock::allowed_verb(&command).expect("handoff is allowlisted");
+        assert_eq!(dispatch.verb, AgentSocketVerb::Handoff);
+        sock::validate_handoff_args(args).expect("handoff requires a reason");
+    }
 }
 
 #[cfg(test)]

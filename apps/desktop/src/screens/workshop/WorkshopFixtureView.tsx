@@ -87,8 +87,13 @@ function ExtensionFixture(props: {
 
 function AgentsFixture() {
     return (
-        <div data-testid="workshop-agents" class="ws-fixture">
+        <div data-testid="workshop-agents" class="ws-fixture agents-screen">
             <ExtensionEditor type="agents" />
+            <footer class="agents-handoff-footer" data-testid="agents-handoff-summary">
+                <strong>Stuck run · handoff ready</strong>
+                <span>3 iterations without progress · 2 attempted · 1 artifact reference</span>
+                <Button variant="secondary">Open handoff</Button>
+            </footer>
         </div>
     );
 }

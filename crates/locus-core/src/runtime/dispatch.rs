@@ -1043,6 +1043,7 @@ mod preempts_at_boundary {
             memory_base: json!({"decision": "keep the migration additive"}),
             pane_state: json!({}),
             status: SessionStatus::Active,
+            handed_off_from: None,
         };
         let mut run = Run {
             id: RunId::generate(),

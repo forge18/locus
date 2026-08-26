@@ -9,6 +9,7 @@
 //! the desktop host reads.
 
 use std::{
+    collections::BTreeMap,
     env,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
@@ -17,7 +18,7 @@ use std::{
 use anyhow::{Context, Result};
 use locus_core::{
     core::Core,
-    ids::RunId,
+    ids::{RunId, SessionId},
     lsp::{parse_cli_request, LanguageCatalog},
     runtime::{
         container::{ContainerRuntime, DebugAdapterLaunch, DockerContainerRuntime},
@@ -28,6 +29,7 @@ use locus_core::{
         },
         dap::{DapError, DebugSessionRegistry},
     },
+    services::handoff::{HandoffContext, HandoffPayload, HandoffRegistry, HandoffTrigger},
 };
 
 const DEFAULT_HARNESS_REGISTRY: &str = "harnesses";
@@ -426,9 +428,110 @@ impl DebugRouter {
     }
 }
 
+struct HandoffRouter {
+    registry: Arc<Mutex<HandoffRegistry>>,
+    capabilities: AgentSocketCapabilities,
+    successor_contexts: Arc<Mutex<BTreeMap<RunId, HandoffContext>>>,
+}
+
+impl HandoffRouter {
+    fn parse(args: &[String]) -> std::result::Result<(String, String), AgentSocketError> {
+        if args.len() < 3 || args[1] != "--why" {
+            return Err(AgentSocketError::unavailable(
+                "handoff requires <agent> --why <reason>",
+            ));
+        }
+        let target = args[0].trim();
+        let reason = args[2..].join(" ");
+        if target.is_empty() || target.starts_with("--") {
+            return Err(AgentSocketError::unavailable(
+                "handoff requires a target agent",
+            ));
+        }
+        if reason.trim().is_empty() {
+            return Err(AgentSocketError::unavailable(
+                "handoff reason must not be empty",
+            ));
+        }
+        Ok((target.to_owned(), reason))
+    }
+
+    fn authorize(
+        &self,
+        _run_id: RunId,
+        args: &[String],
+    ) -> std::result::Result<(), AgentSocketError> {
+        Self::parse(args).map(|_| ())
+    }
+
+    fn context(&self, run_id: RunId) -> std::result::Result<HandoffContext, AgentSocketError> {
+        if let Some(context) = self
+            .successor_contexts
+            .lock()
+            .map_err(|_| AgentSocketError::unavailable("handoff context lock is poisoned"))?
+            .get(&run_id)
+            .cloned()
+        {
+            return Ok(context);
+        }
+        self.capabilities
+            .handoff_context(run_id)
+            .map_err(|error| AgentSocketError::unavailable(error.to_string()))?
+            .ok_or_else(|| {
+                AgentSocketError::unavailable(format!(
+                    "handoff context for run {run_id} is unavailable"
+                ))
+            })
+    }
+
+    fn route(
+        &self,
+        run_id: RunId,
+        args: &[String],
+    ) -> std::result::Result<serde_json::Value, AgentSocketError> {
+        let (target_agent, reason) = Self::parse(args)?;
+        let predecessor = self.context(run_id)?;
+        let successor = HandoffContext::new(
+            predecessor.project_id,
+            SessionId::generate(),
+            RunId::generate(),
+            predecessor.branch.clone(),
+            predecessor.task.clone(),
+        )
+        .map_err(|error| AgentSocketError::unavailable(error.to_string()))?;
+        let payload = HandoffPayload::new(
+            format!("Continue task {}", predecessor.task),
+            predecessor.branch.clone(),
+            predecessor.task.clone(),
+        )
+        .and_then(|payload| payload.with_attempted(reason, None::<String>))
+        .and_then(|payload| payload.with_open("successor must continue from this payload"))
+        .map_err(|error| AgentSocketError::unavailable(error.to_string()))?;
+        let record = self
+            .registry
+            .lock()
+            .map_err(|_| AgentSocketError::unavailable("handoff registry lock is poisoned"))?
+            .transfer(
+                predecessor.clone(),
+                successor.clone(),
+                target_agent,
+                HandoffTrigger::HumanReassignment,
+                payload,
+            )
+            .map_err(|error| AgentSocketError::unavailable(error.to_string()))?;
+        self.successor_contexts
+            .lock()
+            .map_err(|_| AgentSocketError::unavailable("handoff context lock is poisoned"))?
+            .insert(successor.run_id, successor);
+        serde_json::to_value(record)
+            .map_err(|error| AgentSocketError::unavailable(error.to_string()))
+    }
+}
+
 struct DaemonRouter {
     lsp: LspRouter,
     debug: DebugRouter,
+    handoff: HandoffRouter,
 }
 
 impl AgentSocketRouter for DaemonRouter {
@@ -439,8 +542,10 @@ impl AgentSocketRouter for DaemonRouter {
         args: &[String],
     ) -> std::result::Result<(), AgentSocketError> {
         if DebugRouter::is_debug(verb) {
-            let _ = run_id;
             return self.debug.authorize_debug(run_id, verb, args);
+        }
+        if verb == AgentSocketVerb::Handoff {
+            return self.handoff.authorize(run_id, args);
         }
         self.lsp.authorize(run_id, verb, args)
     }
@@ -453,6 +558,9 @@ impl AgentSocketRouter for DaemonRouter {
     ) -> std::result::Result<serde_json::Value, AgentSocketError> {
         if DebugRouter::is_debug(verb) {
             return self.debug.route_debug(run_id, verb, args);
+        }
+        if verb == AgentSocketVerb::Handoff {
+            return self.handoff.route(run_id, args);
         }
         self.lsp.route(run_id, verb, args)
     }
@@ -525,6 +633,11 @@ fn main() -> Result<()> {
                 container_runtime,
                 recording_for_tests: false,
             },
+            handoff: HandoffRouter {
+                registry: core.handoffs(),
+                capabilities: capabilities.clone(),
+                successor_contexts: Arc::new(Mutex::new(BTreeMap::new())),
+            },
         });
         serve_agent_socket_shared(&listener, capabilities, router).await
     })
@@ -596,6 +709,7 @@ mod tests {
                     .with_adapter_command(["python-debug-adapter", "--stdio"])
                     .unwrap(),
                 )]),
+                handoff_context: None,
             }])
             .unwrap();
         (
@@ -723,6 +837,68 @@ mod tests {
             )
             .unwrap_err();
         assert!(error.to_string().contains("no container runtime"));
+    }
+
+    #[test]
+    fn handoff_route_closes_predecessor_and_opens_successor() {
+        let run_id = RunId::generate();
+        let project_id = locus_core::ids::ProjectId::generate();
+        let session_id = SessionId::generate();
+        let context =
+            HandoffContext::new(project_id, session_id, run_id, "agent/feature", "task-17")
+                .unwrap();
+        let capabilities = AgentSocketCapabilities::default();
+        capabilities
+            .replace(&[locus_core::runtime::daemon::AgentRunRegistration {
+                run_id,
+                nonce: "nonce".into(),
+                lsp_enabled: false,
+                debug_adapters: Vec::new(),
+                debug_configs: BTreeMap::new(),
+                handoff_context: Some(context),
+            }])
+            .unwrap();
+        let registry = Arc::new(Mutex::new(HandoffRegistry::default()));
+        let router = HandoffRouter {
+            registry: registry.clone(),
+            capabilities,
+            successor_contexts: Arc::new(Mutex::new(BTreeMap::new())),
+        };
+        router
+            .authorize(
+                run_id,
+                &[
+                    "auditor".into(),
+                    "--why".into(),
+                    "context".into(),
+                    "exhausted".into(),
+                ],
+            )
+            .unwrap();
+        let result = router
+            .route(
+                run_id,
+                &[
+                    "auditor".into(),
+                    "--why".into(),
+                    "context".into(),
+                    "exhausted".into(),
+                ],
+            )
+            .unwrap();
+        let successor = result["successor_session_id"]
+            .as_str()
+            .unwrap()
+            .parse()
+            .unwrap();
+        let state = registry.lock().unwrap();
+        assert_eq!(state.predecessor(successor), Some(session_id));
+        assert_eq!(
+            state.session(session_id).unwrap().status,
+            locus_core::services::handoff::HandoffSessionStatus::Closed
+        );
+        assert_eq!(state.session(successor).unwrap().branch, "agent/feature");
+        assert_eq!(state.session(successor).unwrap().task, "task-17");
     }
 
     #[test]

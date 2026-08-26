@@ -9,6 +9,7 @@ pub mod audits;
 pub mod backup;
 pub mod bus;
 pub mod dispatch;
+pub mod handoff;
 pub mod interact;
 pub mod mail;
 pub mod market;

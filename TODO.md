@@ -151,9 +151,10 @@ edges. Items 32–33 are intentionally last because they depend on later plannin
   *Depends on:* `locus-browse`
   *Completed:* host-side derivation and Tauri-backed image/recording viewers use original media paths while keeping derived forms agent-facing. The OCR-confidence default remains open; see `.specs/media-artifacts/task-7-note.md` and `.specs/media-artifacts/task-scope-note.md`.*
 
-- [ ] **17. M3 — [handoffs](.specs/handoffs/spec.md)** · [tasks](.specs/handoffs/tasks.md) · 17 tasks
+- [x] **17. M3 — [handoffs](.specs/handoffs/spec.md)** · [tasks](.specs/handoffs/tasks.md) · 17 tasks
   Transfer ownership with a bounded handoff payload.
   *Depends on:* `mail` and `guardrails`
+  *Completed:* core payloads, artifact/run/session links, same-branch successor priming, trigger shape, CLI validation/routing, transcript exclusion, and stuck footer. Cross-project transfers are rejected per project-scoped session ownership.
 
 - [ ] **18. M4 — [workflow-canvas](.specs/workflow-canvas/spec.md)** · [tasks](.specs/workflow-canvas/tasks.md) · 24 tasks
   Author and validate workflow graphs.

@@ -15,6 +15,7 @@ pub mod board;
 pub mod browse;
 pub mod compact;
 pub mod condition;
+pub mod handoff;
 pub mod inbox;
 pub mod interact;
 pub mod lint;

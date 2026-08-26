@@ -397,6 +397,23 @@ pub fn validate_symbols_args(args: &[String]) -> anyhow::Result<()> {
     validate_lsp_args(AgentSocketVerb::LspSymbols, args)
 }
 
+/// Validate the ownership-transfer contract before opening the authenticated socket.
+pub fn validate_handoff_args(args: &[String]) -> anyhow::Result<()> {
+    if args.len() < 3 {
+        anyhow::bail!("handoff requires <agent> --why <reason>");
+    }
+    if args[0].trim().is_empty() || args[0].starts_with("--") {
+        anyhow::bail!("handoff requires a target agent");
+    }
+    if args[1] != "--why" || args[2..].iter().any(|value| value.starts_with("--")) {
+        anyhow::bail!("handoff requires <agent> --why <reason>");
+    }
+    if args[2..].iter().all(|value| value.trim().is_empty()) {
+        anyhow::bail!("handoff reason must not be empty");
+    }
+    Ok(())
+}
+
 /// Validate debug arguments before opening the authenticated socket. The CLI retains no
 /// session state; every accepted request is routed to the run-owned core session.
 pub fn validate_debug_args(verb: AgentSocketVerb, args: &[String]) -> anyhow::Result<()> {
@@ -709,6 +726,16 @@ async fn rejects_an_oversized_response_frame_before_allocating() {
 #[test]
 fn stateless() {
     assert_eq!(std::mem::size_of::<SocketClient>(), 0);
+}
+
+#[test]
+fn handoff_requires_a_target_and_reason() {
+    assert!(validate_handoff_args(
+        &["auditor".into(), "--why".into(), "context exhausted".into(),]
+    )
+    .is_ok());
+    assert!(validate_handoff_args(&["auditor".into()]).is_err());
+    assert!(validate_handoff_args(&["auditor".into(), "--why".into(), "--bad".into(),]).is_err());
 }
 
 #[tokio::test]

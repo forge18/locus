@@ -20,6 +20,9 @@ pub struct Session {
     pub memory_base: Value,
     pub pane_state: Value,
     pub status: SessionStatus,
+    /// Set on a successor session created by an ownership transfer.
+    #[serde(default)]
+    pub handed_off_from: Option<SessionId>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -188,6 +191,7 @@ mod model {
             memory_base: serde_json::json!({}),
             pane_state: serde_json::json!({}),
             status: SessionStatus::Active,
+            handed_off_from: None,
         };
         let run = Run {
             id: run_id,
@@ -312,6 +316,7 @@ mod resume_without_native_id {
             memory_base: json!({}),
             pane_state: json!({}),
             status: SessionStatus::Active,
+            handed_off_from: None,
         };
 
         let plan = resume_from_events(&session, [], "harness-without-native-session");
@@ -341,6 +346,7 @@ mod resume_from_events {
             memory_base: json!({}),
             pane_state: json!({}),
             status: SessionStatus::Active,
+            handed_off_from: None,
         };
         let history = vec![Event {
             run_id: RunId::generate(),
@@ -382,6 +388,7 @@ mod survives_reset {
             memory_base: json!({"focus": ["src/lib.rs"]}),
             pane_state: json!({}),
             status: SessionStatus::Active,
+            handed_off_from: None,
         };
 
         let next = start_next_run(&session, "test-model");
@@ -445,6 +452,7 @@ mod holds {
             memory_base: memory_base.clone(),
             pane_state: pane_state.clone(),
             status: SessionStatus::Active,
+            handed_off_from: None,
         };
 
         assert_eq!(session.agent_def_id, agent_def_id, "pins agent@version");

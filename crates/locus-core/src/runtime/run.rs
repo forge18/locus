@@ -29,6 +29,7 @@ use crate::{
         ports::PortAllocator,
     },
     services::{
+        handoff::HandoffContext,
         project::ProjectSettings,
         tools::{ProjectToolScope, RoleToolScope},
     },
@@ -168,6 +169,8 @@ pub struct SpawnRequest<'a> {
     /// Project settings for this run. The persisted spawn path refreshes this from `core.settings`
     /// before writing the host-owned registration; it is never supplied by the CLI.
     pub project_settings: ProjectSettings,
+    /// Optional session context used by the ownership-transfer route.
+    pub handoff_context: Option<HandoffContext>,
     pub plugin: Option<&'a PluginHost>,
 }
 
@@ -310,6 +313,7 @@ fn spawn_at_port(
             lsp_enabled,
             debug_adapters,
             debug_configs,
+            handoff_context: request.handoff_context.clone(),
         },
     )?;
     let registration =
@@ -940,6 +944,7 @@ mod spawns {
             project_tool_scope: ProjectToolScope::new(["sqlx"]),
             role_tool_scope: RoleToolScope::new(["git"]),
             project_settings,
+            handoff_context: None,
             plugin: None,
         }
     }

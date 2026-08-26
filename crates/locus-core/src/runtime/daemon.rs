@@ -316,6 +316,7 @@ pub struct AgentSocketCapabilities {
     debug_adapters: Arc<RwLock<BTreeMap<RunId, BTreeSet<String>>>>,
     debug_configs:
         Arc<RwLock<BTreeMap<RunId, BTreeMap<String, crate::services::project::DebugRunConfig>>>>,
+    handoff_contexts: Arc<RwLock<BTreeMap<RunId, crate::services::handoff::HandoffContext>>>,
 }
 
 impl AgentSocketCapabilities {
@@ -366,6 +367,10 @@ impl AgentSocketCapabilities {
                 .write()
                 .map_err(|_| anyhow::anyhow!("agent debug config lock is poisoned"))?
                 .remove(&run_id);
+            self.handoff_contexts
+                .write()
+                .map_err(|_| anyhow::anyhow!("agent handoff context lock is poisoned"))?
+                .remove(&run_id);
         }
         Ok(())
     }
@@ -377,6 +382,7 @@ impl AgentSocketCapabilities {
         let mut lsp_runs = BTreeSet::new();
         let mut debug_adapters = BTreeMap::new();
         let mut debug_configs = BTreeMap::new();
+        let mut handoff_contexts = BTreeMap::new();
         for registration in registrations {
             if registration.nonce.trim().is_empty() {
                 bail!("agent registration nonce must not be empty")
@@ -398,6 +404,12 @@ impl AgentSocketCapabilities {
                 registration.debug_adapters.iter().cloned().collect(),
             );
             debug_configs.insert(registration.run_id, registration.debug_configs.clone());
+            if let Some(context) = &registration.handoff_context {
+                if context.run_id != registration.run_id {
+                    bail!("handoff context run id does not match registration")
+                }
+                handoff_contexts.insert(registration.run_id, context.clone());
+            }
         }
         *self
             .runs
@@ -416,6 +428,11 @@ impl AgentSocketCapabilities {
             .debug_configs
             .write()
             .map_err(|_| anyhow::anyhow!("agent debug config lock is poisoned"))? = debug_configs;
+        *self
+            .handoff_contexts
+            .write()
+            .map_err(|_| anyhow::anyhow!("agent handoff context lock is poisoned"))? =
+            handoff_contexts;
         Ok(())
     }
 
@@ -449,6 +466,29 @@ impl AgentSocketCapabilities {
             .get(&run_id)
             .cloned()
             .unwrap_or_default())
+    }
+
+    pub fn set_handoff_context(
+        &self,
+        context: crate::services::handoff::HandoffContext,
+    ) -> Result<()> {
+        self.handoff_contexts
+            .write()
+            .map_err(|_| anyhow::anyhow!("agent handoff context lock is poisoned"))?
+            .insert(context.run_id, context);
+        Ok(())
+    }
+
+    pub fn handoff_context(
+        &self,
+        run_id: RunId,
+    ) -> Result<Option<crate::services::handoff::HandoffContext>> {
+        Ok(self
+            .handoff_contexts
+            .read()
+            .map_err(|_| anyhow::anyhow!("agent handoff context lock is poisoned"))?
+            .get(&run_id)
+            .cloned())
     }
 
     pub fn debug_config(
@@ -490,6 +530,8 @@ pub struct AgentRunRegistration {
     pub debug_adapters: Vec<String>,
     #[serde(default)]
     pub debug_configs: BTreeMap<String, crate::services::project::DebugRunConfig>,
+    #[serde(default)]
+    pub handoff_context: Option<crate::services::handoff::HandoffContext>,
 }
 
 pub fn agent_registration_root(socket_source: impl AsRef<Path>) -> PathBuf {
@@ -992,6 +1034,7 @@ mod registration {
                 "python".into(),
                 crate::services::project::DebugRunConfig::new("debugpy", "python -m app").unwrap(),
             )]),
+            handoff_context: None,
         };
         let path = write_agent_registration(&socket, &registration).unwrap();
         let registrations = read_agent_registrations(agent_registration_root(&socket)).unwrap();
@@ -1030,6 +1073,7 @@ mod registration {
                 lsp_enabled: false,
                 debug_adapters: Vec::new(),
                 debug_configs: BTreeMap::new(),
+                handoff_context: None,
             },
             AgentRunRegistration {
                 run_id,
@@ -1037,6 +1081,7 @@ mod registration {
                 lsp_enabled: true,
                 debug_adapters: Vec::new(),
                 debug_configs: BTreeMap::new(),
+                handoff_context: None,
             },
         ];
         let capabilities = AgentSocketCapabilities::default();

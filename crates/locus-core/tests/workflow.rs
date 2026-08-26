@@ -347,6 +347,7 @@ mod workflow {
             memory_base: json!({"carry": true}),
             pane_state: json!({}),
             status: SessionStatus::Active,
+            handed_off_from: None,
         }
     }
 

@@ -22,7 +22,7 @@ use crate::{
     ipc::{EventChannel, PtyChannel},
     lsp::{LanguageCatalog, LspHost},
     runtime::{daemon::Daemon, dap::DebugSessionRegistry},
-    services::telemetry::EventCollector,
+    services::{handoff::HandoffRegistry, telemetry::EventCollector},
     store::Store,
 };
 
@@ -40,6 +40,7 @@ pub struct Core {
     events: EventChannel,
     lsp: LspHost,
     debug: DebugSessionRegistry,
+    handoffs: Arc<Mutex<HandoffRegistry>>,
     /// Set once, by [`Core::connect`]. `Core` is shared as `Arc`, so the store cannot be
     /// assigned through `&mut self`.
     store: OnceLock<Store>,
@@ -72,6 +73,7 @@ impl Core {
             events: EventChannel::new(CHANNEL_CAPACITY),
             lsp: LspHost::new(language_catalog),
             debug: debug.clone(),
+            handoffs: Arc::new(Mutex::new(HandoffRegistry::default())),
             store: OnceLock::new(),
             daemon: Mutex::new(Daemon::with_debug(debug)),
         }))
@@ -111,6 +113,10 @@ impl Core {
 
     pub fn debug(&self) -> &DebugSessionRegistry {
         &self.debug
+    }
+
+    pub fn handoffs(&self) -> Arc<Mutex<HandoffRegistry>> {
+        self.handoffs.clone()
     }
 
     /// The store, once [`Core::connect`] has run. `None` means the shell is up but
