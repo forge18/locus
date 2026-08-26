@@ -146,10 +146,10 @@ edges. Items 32–33 are intentionally last because they depend on later plannin
   *Depends on:* `guardrails` and `marketplace-index`
   *Completed:* DAP sessions are core-owned by `RunId`; `locusd` launches allowlisted adapter tools inside the run container through a bounded stdio bridge, and no-Docker environments fail honestly without a fake fallback. See `.specs/locus-debug/task-scope-note.md` for the e2e environment note.*
 
-- [ ] **16. M3.5 — [media-artifacts](.specs/media-artifacts/spec.md)** · [tasks](.specs/media-artifacts/tasks.md) · 16 tasks
+- [x] **16. M3.5 — [media-artifacts](.specs/media-artifacts/spec.md)** · [tasks](.specs/media-artifacts/tasks.md) · 16 tasks
   OCR and keyframe derivation for model review.
   *Depends on:* `locus-browse`
-  *Batch slice complete except the open OCR-confidence default; explicit thresholds and fallback are implemented. See `.specs/media-artifacts/task-7-note.md`.*
+  *Completed:* host-side derivation and Tauri-backed image/recording viewers use original media paths while keeping derived forms agent-facing. The OCR-confidence default remains open; see `.specs/media-artifacts/task-7-note.md` and `.specs/media-artifacts/task-scope-note.md`.*
 
 - [ ] **17. M3 — [handoffs](.specs/handoffs/spec.md)** · [tasks](.specs/handoffs/tasks.md) · 17 tasks
   Transfer ownership with a bounded handoff payload.

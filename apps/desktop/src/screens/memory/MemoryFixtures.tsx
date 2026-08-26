@@ -1,7 +1,11 @@
-import { For, type JSX } from "solid-js";
+import { For, createSignal, onMount, type JSX } from "solid-js";
 import { Button } from "../../ui/Button";
 import { Tag } from "../../ui/Tag";
-import { ARTIFACT_LOCATOR } from "../../data/artifacts";
+import {
+  ARTIFACT_LOCATOR,
+  artifactMediaUrl,
+  fetchArtifactsFromCore,
+} from "../../data/artifacts";
 import {
   COMPACTED_CONTEXT,
   CURATION_COPY,
@@ -13,7 +17,9 @@ import {
   WIKI_INGEST_COPY,
   WIKI_KIND_CHIPS,
 } from "../../data/knowledge";
+import { ARTIFACTS } from "../../fixtures/artifacts";
 import { MailView } from "../mail/MailView";
+import type { Artifact } from "../../types/agents";
 
 const sessions = [
   ["tapestry · builder@4", "r-9f21 · iteration 3 · 41.2k resident"],
@@ -358,6 +364,21 @@ export function MemoryLongTermFixture() {
 
 /** Reviewable artifacts retain their source while comments steer their session. */
 export function MemoryArtifactsFixture() {
+  const [coreArtifacts, setCoreArtifacts] = createSignal<Artifact[]>([]);
+  onMount(() => {
+    void fetchArtifactsFromCore()
+      .then(setCoreArtifacts)
+      .catch(() => undefined);
+  });
+
+  const mediaArtifact = (kind: "image" | "recording") =>
+    coreArtifacts().find((artifact) => artifact.kind === kind) ??
+    ARTIFACTS.find((artifact) => artifact.kind === kind)!;
+  const image = () => mediaArtifact("image");
+  const recording = () => mediaArtifact("recording");
+  const imageFallback = "data:image/webp;base64,UklGRg==";
+  const recordingFallback = "data:video/webm;base64,GkXfo0AgQoaBAULygQ==";
+
   return (
     <MemoryFrame
       testId="desktop-memory-artifacts"
@@ -410,14 +431,25 @@ export function MemoryArtifactsFixture() {
           <figure data-media-kind="image">
             <img
               alt="Derived screenshot preview"
-              src="data:image/webp;base64,UklGRg=="
+              data-artifact-id={image().id}
+              src={artifactMediaUrl(image(), imageFallback)}
             />
             <figcaption>
               image · original preserved · derived preview
             </figcaption>
           </figure>
           <figure data-media-kind="recording">
-            <video controls aria-label="Recording keyframes" />
+            <video
+              controls
+              aria-label="Recording keyframes"
+              data-artifact-id={recording().id}
+              preload="metadata"
+            >
+              <source
+                src={artifactMediaUrl(recording(), recordingFallback)}
+                type={recording().mediaType}
+              />
+            </video>
             <figcaption>
               recording · keyframes for context · clip stays human-only
             </figcaption>
