@@ -15,6 +15,7 @@
 //! rest behave identically no matter which harness a run uses. See PLAN.md §"Shared
 //! services — one Rust implementation, every harness".
 
+pub mod babysit;
 pub mod bus;
 pub mod core;
 pub mod editor;
