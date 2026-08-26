@@ -191,9 +191,10 @@ edges. Items 32–33 are intentionally last because they depend on later plannin
   *Depends on:* `board` and `wiki`
   *Completed:* isolated interviewer/researcher/auditor contracts, bounded orientation and fact research, scope/reduction/audit/reader/ratcher/recommendation/approval models, traceability anchors, replanning rules, specialization output, and Plan ACP/draft surface coverage. The seven-stage UI remains authoritative.
 
-- [ ] **25. M5 — [calibration-loop](.specs/calibration-loop/spec.md)** · [tasks](.specs/calibration-loop/tasks.md) · 20 tasks
+- [x] **25. M5 — [calibration-loop](.specs/calibration-loop/spec.md)** · [tasks](.specs/calibration-loop/tasks.md) · 20 tasks
   Learn from failures through specialization.
   *Depends on:* `workflow-engine`, `planning-module`, and `memory`
+  *Completed:* watermark-scoped recurring arbiter clusters, exactly four human-gated proposal types, shared reflection Inbox queue, acceptance effects for regression/wiki/noise/ambiguity, sticky rejections, and confidence-gated specialization injection.
 
 - [ ] **26. M6 — [command-palette](.specs/command-palette/spec.md)** · [tasks](.specs/command-palette/tasks.md) · 14 tasks
   Search wiki, code, tasks, and runs globally.
