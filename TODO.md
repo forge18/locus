@@ -171,9 +171,10 @@ edges. Items 32–33 are intentionally last because they depend on later plannin
   *Depends on:* `workflow-engine`
   *Completed:* UTC five-field cron parser, next-fire computation, overlap skip/drop with visible counts and no backlog, verify-result recording, restart snapshots, pause/resume, and Store-side cron validation. Timezone/DST is explicitly UTC until a product timezone field exists.
 
-- [ ] **21. M6 — [dashboard-metrics](.specs/dashboard-metrics/spec.md)** · [tasks](.specs/dashboard-metrics/tasks.md) · 20 tasks
+- [x] **21. M6 — [dashboard-metrics](.specs/dashboard-metrics/spec.md)** · [tasks](.specs/dashboard-metrics/tasks.md) · 20 tasks
   Query telemetry, spend, cache, and run metrics.
   *Depends on:* `workflow-engine`
+  *Completed:* query-only metric projections for cache/spend/offenders/verify/guardrails/board/arbiter/iterations/gates/trust/prefix drift, read-only lint gate, Status at-a-glance rail, and faceted Telemetry metric set.
 
 - [ ] **22. M5 — [wiki](.specs/wiki/spec.md)** · [tasks](.specs/wiki/tasks.md) · 26 tasks
   Ingest typed knowledge and generate a durable wiki.
