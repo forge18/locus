@@ -213,9 +213,10 @@ edges. Items 32–33 are intentionally last because they depend on later plannin
   *Depends on:* `marketplace-index`
   *Completed:* argv-only install methods, allowlist-enforced deterministic image baking, verify-gated builds, shared image keys, pin/prose rebuild semantics, catalog docs injection, on-demand tool docs, and the trusted selection model in `TRUST-MODEL.md`.
 
-- [ ] **29. M7 — [agent-prs](.specs/agent-prs/spec.md)** · [tasks](.specs/agent-prs/tasks.md) · 14 tasks
+- [x] **29. M7 — [agent-prs](.specs/agent-prs/spec.md)** · [tasks](.specs/agent-prs/tasks.md) · 14 tasks
   Agent-authored provider change requests.
   *Depends on:* `forge-providers` and `locus-browse`
+  *Completed:* goal/task/evidence PR drafts with browse attachments, self-review before offer, 500-line slicing, shared forge/artifact comment routing, follow-up commit/reply, deferred post-exit delivery, and two-sided conflict resolution proposals.
 
 - [ ] **30. M7 — [ci-babysitter](.specs/ci-babysitter/spec.md)** · [tasks](.specs/ci-babysitter/tasks.md) · 14 tasks
   Bounded CI repair and escalation loop.

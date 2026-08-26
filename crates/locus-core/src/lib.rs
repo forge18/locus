@@ -26,6 +26,7 @@ pub mod ipc;
 pub mod lsp;
 pub mod palette;
 pub mod plugin;
+pub mod pr;
 pub mod repo;
 pub mod runtime;
 pub mod sandbox;
