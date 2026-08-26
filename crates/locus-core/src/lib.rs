@@ -22,6 +22,7 @@ pub mod harness;
 pub mod ids;
 pub mod ipc;
 pub mod lsp;
+pub mod palette;
 pub mod plugin;
 pub mod repo;
 pub mod runtime;

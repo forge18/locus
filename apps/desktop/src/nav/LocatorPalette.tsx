@@ -21,6 +21,8 @@ export interface LocatorPaletteProps {
   onOpenChange: (open: boolean) => void
   current: string
   onResolve: (target: DesktopNavTarget) => void
+  /** Object locators use the shared NavStore resolver rather than the view-only adapter. */
+  onOpenLocator?: (locator: string) => void
 }
 
 export function LocatorPalette(props: LocatorPaletteProps) {
@@ -28,7 +30,8 @@ export function LocatorPalette(props: LocatorPaletteProps) {
   const [error, setError] = createSignal<string | null>(null)
   const submit = () => {
     try {
-      props.onResolve(navigateDesktop(value()))
+      if (props.onOpenLocator) props.onOpenLocator(value())
+      else props.onResolve(navigateDesktop(value()))
       setError(null)
       props.onOpenChange(false)
     } catch (e) { setError(e instanceof Error ? e.message : String(e)) }

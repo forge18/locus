@@ -196,9 +196,10 @@ edges. Items 32–33 are intentionally last because they depend on later plannin
   *Depends on:* `workflow-engine`, `planning-module`, and `memory`
   *Completed:* watermark-scoped recurring arbiter clusters, exactly four human-gated proposal types, shared reflection Inbox queue, acceptance effects for regression/wiki/noise/ambiguity, sticky rejections, and confidence-gated specialization injection.
 
-- [ ] **26. M6 — [command-palette](.specs/command-palette/spec.md)** · [tasks](.specs/command-palette/tasks.md) · 14 tasks
+- [x] **26. M6 — [command-palette](.specs/command-palette/spec.md)** · [tasks](.specs/command-palette/tasks.md) · 14 tasks
   Search wiki, code, tasks, and runs globally.
   *Depends on:* `project-search`, `wiki`, and `board`
+  *Completed:* unified locator-shaped global search over project-search code, wiki pages, board tasks, and run history with cross-project ranking, Cmd-K/Cmd-P opening, object-locator delegation, history traversal, and single-resolver gate.
 
 - [ ] **27. M7 — [forge-providers](.specs/forge-providers/spec.md)** · [tasks](.specs/forge-providers/tasks.md) · 30 tasks
   *This is the separate remote-forge integration boundary, not a Workshop model-provider plugin.*
