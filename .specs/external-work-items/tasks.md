@@ -5,8 +5,8 @@
 | 1 | Define opaque plugin identity, normalized snapshot, and completion capabilities | — | `cargo test -p locus-core work_item::contract_types` |
 | 2 | Persist configured work-item plugin ID, host, and project identity | 1 | `cargo test -p locus-core work_item::provider_configuration` |
 | 3 | Implement the external-work-item plugin registry and capability refusal | 1,2 | `cargo test -p locus-core work_item::adapter_selection` |
-| 4 | Expose forge integrations through the work-item plugin port | 3, forge-providers:26 | `cargo test -p locus-core work_item::plugin_adapter_bridge` |
-| 5 | Implement Jira Cloud and Data Center work-item plugin import | 3 | `cargo test -p locus-core work_item::plugin_snapshot_contract` |
+| 4 | Expose GitHub through the work-item plugin port | 3, forge-providers:26 | `cargo test -p locus-core work_item::plugin_adapter_bridge` |
+| 5 | Implement GitHub issue import through the `gh` CLI plugin | 3 | `cargo test -p locus-core work_item::plugin_snapshot_contract` |
 | 6 | Preview a normalized external item without creating local state | 3 | `cargo test -p locus-core work_item::preview` |
 | 7 | Import a confirmed snapshot as a local task with selected workflow | 6, task-orchestration:5 | `cargo test -p locus-core work_item::import_creates_task` |
 | 8 | Refuse duplicate plugin-identity import and open the existing task | 7 | `cargo test -p locus-core work_item::deduplicates_import` |

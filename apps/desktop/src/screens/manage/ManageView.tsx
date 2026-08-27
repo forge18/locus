@@ -1,4 +1,12 @@
-import { For, Show, createSignal } from "solid-js";
+import {
+  For,
+  Show,
+  createEffect,
+  createMemo,
+  createSignal,
+  onCleanup,
+  onMount,
+} from "solid-js";
 import { Button } from "../../ui/Button";
 import { Segmented } from "../../ui/Segmented";
 import { Tag } from "../../ui/Tag";
@@ -9,8 +17,21 @@ import {
   taskLocator,
   useDependencies,
   useTasks,
-  useTasksByColumn,
 } from "../../data/board";
+import {
+  completeExternalWorkItem,
+  importExternalWorkItem,
+  loadConfiguredWorkItemProviders,
+  loadImportedExternalWorkItemTasks,
+  loadExternalWorkItemCompletionStatus,
+  loadExternalWorkItemWorkflows,
+  previewExternalWorkItem,
+  retryExternalWorkItemCompletion,
+  type ExternalWorkItemCompletionStatus,
+  type ExternalWorkItemPreview,
+  type WorkflowDefinitionRecord,
+  type WorkItemProviderRecord,
+} from "../../data/work-items";
 import type { BoardColumn, Task } from "../../types/board";
 import "./manage.css";
 
@@ -25,6 +46,22 @@ function taskStatus(task: Task): string {
   return task.assignee
     ? `${task.assignee} · ${task.tokens ?? "ready"}`
     : "unassigned";
+}
+
+function safeExternalUrl(task: Task): string | undefined {
+  if (!task.externalLink) return undefined;
+  try {
+    const url = new URL(task.externalLink);
+    const expectedHost = task.externalHost ?? "github.com";
+    const defaultPort = url.port === "" || url.port === "443";
+    return url.protocol === "https:" &&
+      url.hostname.toLowerCase() === expectedHost.toLowerCase() &&
+      defaultPort
+      ? url.href
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function TaskDraft(props: { source: DraftSource; onClose: () => void }) {
@@ -58,17 +95,89 @@ function TaskDraft(props: { source: DraftSource; onClose: () => void }) {
   );
 }
 
-function TaskImport(props: { source: DraftSource; onClose: () => void }) {
-  const providers = [
-    "GitHub",
-    "GitLab",
-    "Codeberg",
-    "Bitbucket Cloud",
-    "Bitbucket Data Center",
-    "Jira Cloud",
-    "Jira Data Center",
-  ];
-  const [provider, setProvider] = createSignal(providers[0]);
+function TaskImport(props: {
+  source: DraftSource;
+  onClose: () => void;
+  providers: WorkItemProviderRecord[];
+  workflows: WorkflowDefinitionRecord[];
+  projectId?: string;
+  onExistingTask?: (taskId: string) => void;
+  onImported?: (task: Task) => void;
+}) {
+  const [provider, setProvider] = createSignal(props.providers[0]);
+  const [issueNumber, setIssueNumber] = createSignal("");
+  const [workflowDefId, setWorkflowDefId] = createSignal(
+    props.workflows[0]?.id ?? "",
+  );
+  const [preview, setPreview] = createSignal<ExternalWorkItemPreview>();
+  const [error, setError] = createSignal<string>();
+  const [busy, setBusy] = createSignal(false);
+  const [existingTaskId, setExistingTaskId] = createSignal<string>();
+  createEffect(() => {
+    if (!provider() && props.providers[0]) setProvider(props.providers[0]);
+    if (!workflowDefId() && props.workflows[0]) {
+      setWorkflowDefId(props.workflows[0].id);
+    }
+  });
+
+  const loadPreview = async (selected: WorkItemProviderRecord) => {
+    if (!props.projectId) {
+      setError("A local project is required before importing an issue.");
+      return;
+    }
+    setBusy(true);
+    setError(undefined);
+    try {
+      setPreview(
+        await previewExternalWorkItem({
+          pluginId: selected.pluginId,
+          host: selected.host,
+          project: selected.project,
+          nativeId: issueNumber(),
+          projectId: props.projectId,
+          workflowDefId: workflowDefId() || undefined,
+        }),
+      );
+    } catch (caught) {
+      setError(String(caught));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const confirmImport = async (selected: WorkItemProviderRecord) => {
+    const current = preview();
+    if (!current) {
+      await loadPreview(selected);
+      return;
+    }
+    if (!workflowDefId().trim()) {
+      setError("A workflow definition is required before import.");
+      return;
+    }
+    setBusy(true);
+    setError(undefined);
+    try {
+      const result = await importExternalWorkItem({
+        ...current,
+        workflow: {
+          ...current.workflow,
+          workflowDefId: workflowDefId().trim(),
+          confirmed: true,
+        },
+      });
+      if (result.outcome === "existing") {
+        setExistingTaskId(result.taskId);
+      } else {
+        props.onImported?.(result.task);
+        props.onClose();
+      }
+    } catch (caught) {
+      setError(String(caught));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <section
@@ -80,58 +189,177 @@ function TaskImport(props: { source: DraftSource; onClose: () => void }) {
         <h2>Import work item</h2>
         <span>configured provider · preview before local task creation</span>
       </header>
-      <div
-        class="manage-import-providers"
-        data-testid="automate-import-providers"
+      <Show
+        when={provider()}
+        fallback={
+          <p data-testid="automate-import-no-provider">
+            No work-item plugin is configured for this project.
+          </p>
+        }
       >
-        <For each={providers}>
-          {(candidate) => (
-            <button
-              type="button"
-              aria-pressed={provider() === candidate}
-              onClick={() => setProvider(candidate)}
+        {(selected) => (
+          <>
+            <div
+              class="manage-import-providers"
+              data-testid="automate-import-providers"
             >
-              {candidate}
-            </button>
-          )}
-        </For>
-      </div>
-      <article
-        class="manage-import-preview"
-        data-testid="automate-import-preview"
-        data-provider={provider()}
-      >
-        <strong>{provider()} · Issue #42 · Normalize event delivery</strong>
-        <p>
-          Snapshot imported once; provider edits do not synchronize into Locus.
-        </p>
-      </article>
-      <label>
-        Workflow
-        <select
-          aria-label="Import workflow"
-          data-testid="automate-import-workflow"
-        >
-          <option>Project default · confirm before start</option>
-        </select>
-      </label>
-      <p data-testid="automate-import-one-way">
-        No source write before local Done.
-      </p>
-      <div>
-        <Button variant="primary" onClick={props.onClose}>
-          Preview and confirm
-        </Button>
-        <Button variant="ghost" onClick={props.onClose}>
-          Cancel
-        </Button>
-      </div>
+              <For each={props.providers}>
+                {(candidate) => (
+                  <button
+                    type="button"
+                    aria-pressed={
+                      `${selected().pluginId}:${selected().host}/${selected().project}` ===
+                      `${candidate.pluginId}:${candidate.host}/${candidate.project}`
+                    }
+                    data-plugin-id={candidate.pluginId}
+                    onClick={() => {
+                      setProvider(candidate);
+                      setPreview(undefined);
+                      setExistingTaskId(undefined);
+                    }}
+                  >
+                    {candidate.label}
+                  </button>
+                )}
+              </For>
+            </div>
+            <article
+              class="manage-import-preview"
+              data-testid="automate-import-preview"
+              data-provider={selected().pluginId}
+            >
+              <label>
+                Issue number
+                <input
+                  aria-label="GitHub issue number"
+                  value={issueNumber()}
+                  onInput={(event) => {
+                    setIssueNumber(event.currentTarget.value);
+                    setPreview(undefined);
+                    setExistingTaskId(undefined);
+                    setError(undefined);
+                  }}
+                />
+              </label>
+              <Show
+                when={preview()}
+                fallback={
+                  <strong>
+                    {selected().label} · Issue #{issueNumber() || "…"} ·
+                    Normalize event delivery
+                  </strong>
+                }
+              >
+                {(loaded) => (
+                  <strong>
+                    {selected().label} · Issue #
+                    {loaded().snapshot.identity.native_id} ·{" "}
+                    {loaded().snapshot.title}
+                  </strong>
+                )}
+              </Show>
+              <p>
+                {selected().host}/{selected().project} ·{" "}
+                {selected().resolutionSupported
+                  ? "comment and resolution supported"
+                  : "comment only; resolution unsupported"}
+              </p>
+              <p>
+                Snapshot imported once; provider edits do not synchronize into
+                Locus.
+              </p>
+            </article>
+            <label>
+              Workflow
+              <select
+                aria-label="Import workflow"
+                data-testid="automate-import-workflow"
+                value={workflowDefId()}
+                onChange={(event) =>
+                  setWorkflowDefId(event.currentTarget.value)
+                }
+              >
+                <option value="">Select a workflow definition</option>
+                <For each={props.workflows}>
+                  {(workflow) => (
+                    <option value={workflow.id}>
+                      {workflow.name} · v{workflow.version}
+                    </option>
+                  )}
+                </For>
+              </select>
+            </label>
+            <Show when={!props.workflows.length}>
+              <p data-testid="automate-import-no-workflow">
+                No workflow definition is available for this project.
+              </p>
+            </Show>
+            <p data-testid="automate-import-one-way">
+              No source write before local Done.
+            </p>
+            <Show when={error()}>
+              {(message) => <p role="alert">{message()}</p>}
+            </Show>
+            <Show when={existingTaskId()}>
+              {(taskId) => (
+                <p data-testid="automate-import-existing">
+                  Already imported as task {taskId()}.{" "}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      props.onExistingTask?.(taskId());
+                      props.onClose();
+                    }}
+                  >
+                    Open existing task
+                  </button>
+                </p>
+              )}
+            </Show>
+            <div>
+              <Button
+                variant="primary"
+                disabled={busy()}
+                onClick={() => void confirmImport(selected())}
+              >
+                {preview() ? "Confirm import" : "Load preview"}
+              </Button>
+              <Button variant="ghost" onClick={props.onClose}>
+                Cancel
+              </Button>
+            </div>
+          </>
+        )}
+      </Show>
     </section>
   );
 }
 
 function TaskDetail(props: { task: Task }) {
   const task = props.task;
+  const externalUrl = safeExternalUrl(task);
+  const [completion, setCompletion] =
+    createSignal<ExternalWorkItemCompletionStatus>();
+  const [completionError, setCompletionError] = createSignal<string>();
+  const applyCompletion = (result: ExternalWorkItemCompletionStatus) => {
+    setCompletion(result);
+    setCompletionError(result.error ?? undefined);
+  };
+  const refreshCompletion = () => {
+    if (!externalUrl) return;
+    void loadExternalWorkItemCompletionStatus(task.id)
+      .then(applyCompletion)
+      .catch((caught) => setCompletionError(String(caught)));
+  };
+  onMount(refreshCompletion);
+  const completionStatus = () =>
+    completion()?.status ??
+    task.completionStatus ??
+    "pending";
+  const completionAttempts = () =>
+    completion()?.attempts ?? task.completionAttempts ?? 0;
+  const resolutionSupported = () =>
+    completion()?.resolutionSupported ?? task.resolutionSupported;
   return (
     <section
       class="manage-task-detail"
@@ -170,6 +398,19 @@ function TaskDetail(props: { task: Task }) {
         </div>
       </Show>
       <div class="manage-detail-actions" data-testid="automate-task-controls">
+        <Show when={externalUrl && task.column !== "done"}>
+          <Button
+            variant="primary"
+            onClick={() => {
+              setCompletionError(undefined);
+              void completeExternalWorkItem(task.id, task.evidenceIds ?? [])
+                .then(applyCompletion)
+                .catch((caught) => setCompletionError(String(caught)));
+            }}
+          >
+            Mark Done and deliver
+          </Button>
+        </Show>
         <Button variant="secondary">Pause</Button>
         <Button variant="secondary">Cancel</Button>
         <Button variant="secondary">Hand off</Button>
@@ -178,34 +419,114 @@ function TaskDetail(props: { task: Task }) {
       <div
         class="manage-import-completion"
         data-testid="automate-import-completion-status"
-        data-completion-status={
-          task.completionStatus ?? (task.externalLink ? "resolved" : "pending")
-        }
+        data-completion-status={completionStatus()}
       >
-        Completion delivery:{" "}
-        {task.completionStatus ?? (task.externalLink ? "resolved" : "pending")}{" "}
-        · {task.completionAttempts ?? 0} attempts ·{" "}
-        {task.resolutionSupported === false
+        Completion delivery: {completionStatus()} · {completionAttempts()}{" "}
+        attempts ·{" "}
+        {resolutionSupported() === false
           ? "resolution unsupported"
           : "one idempotent comment after local Done"}
+        <Show when={completionError()}>
+          {(message) => <span role="alert"> · {message()}</span>}
+        </Show>
+        <Show
+          when={
+            externalUrl &&
+            task.column === "done" &&
+            (completionStatus() === "failed" ||
+              completionStatus() === "pending")
+          }
+        >
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setCompletionError(undefined);
+              void retryExternalWorkItemCompletion(task.id)
+                .then(applyCompletion)
+                .catch((caught) => setCompletionError(String(caught)));
+            }}
+          >
+            Retry delivery
+          </Button>
+        </Show>
       </div>
-      <Show when={task.externalLink}>
-        <a href={task.externalLink!}>External work item</a>
+      <Show when={externalUrl}>
+        <a href={externalUrl}>External work item</a>
       </Show>
     </section>
   );
 }
 
-export function ManageView() {
+export interface ManageViewProps {
+  workItemProviders?: WorkItemProviderRecord[];
+  workflowDefinitions?: WorkflowDefinitionRecord[];
+  projectId?: string;
+}
+
+export function ManageView(props: ManageViewProps = {}) {
   const [view, setView] = createSignal<ManageViewKind>("kanban");
+  const [loadedWorkItemProviders, setLoadedWorkItemProviders] = createSignal<
+    WorkItemProviderRecord[]
+  >([]);
+  const [loadedWorkflows, setLoadedWorkflows] = createSignal<
+    WorkflowDefinitionRecord[]
+  >([]);
+  const [importedTasks, setImportedTasks] = createSignal<Task[]>([]);
+  onMount(() => {
+    if (props.workItemProviders === undefined) {
+      void loadConfiguredWorkItemProviders()
+        .then(setLoadedWorkItemProviders)
+        .catch(() => setLoadedWorkItemProviders([]));
+    }
+  });
+  createEffect(() => {
+    const projectId = props.projectId;
+    setImportedTasks([]);
+    setSelectedTaskId(null);
+    if (props.workflowDefinitions === undefined) setLoadedWorkflows([]);
+    if (!projectId) {
+      if (props.workflowDefinitions === undefined) setLoadedWorkflows([]);
+      return;
+    }
+    let active = true;
+    void loadImportedExternalWorkItemTasks(projectId)
+      .then((tasks) => {
+        if (active) setImportedTasks(tasks);
+      })
+      .catch(() => {
+        if (active) setImportedTasks([]);
+      });
+    if (props.workflowDefinitions === undefined) {
+      void loadExternalWorkItemWorkflows(projectId)
+        .then((workflows) => {
+          if (active) setLoadedWorkflows(workflows);
+        })
+        .catch(() => {
+          if (active) setLoadedWorkflows([]);
+        });
+    }
+    onCleanup(() => {
+      active = false;
+    });
+  });
   const [hideDone, setHideDone] = createSignal(false);
   const [selectedTaskId, setSelectedTaskId] = createSignal<string | null>(null);
   const [draftSource, setDraftSource] = createSignal<DraftSource>();
   const [importSource, setImportSource] = createSignal<DraftSource>();
-  const tasks = useTasks();
-  const tasksByColumn = useTasksByColumn();
-  const selectedTask = () =>
-    tasks.find((task) => task.id === selectedTaskId()) ?? tasks[0];
+  const tasks = createMemo(() => [...useTasks(), ...importedTasks()]);
+  const tasksByColumn = createMemo(() => {
+    const grouped = Object.fromEntries(
+      COLUMN_ORDER.map((column) => [column, [] as Task[]]),
+    ) as Record<BoardColumn, Task[]>;
+    for (const task of tasks()) grouped[task.column].push(task);
+    return grouped;
+  });
+  const selectedTask = () => {
+    const taskId = selectedTaskId();
+    return taskId
+      ? tasks().find((task) => task.id === taskId)
+      : tasks()[0];
+  };
   const openTask = (task: Task) => setSelectedTaskId(task.id);
   const openDraft = () => {
     const current = view();
@@ -252,6 +573,14 @@ export function ManageView() {
           <TaskImport
             source={source()}
             onClose={() => setImportSource(undefined)}
+            providers={props.workItemProviders ?? loadedWorkItemProviders()}
+            workflows={props.workflowDefinitions ?? loadedWorkflows()}
+            projectId={props.projectId}
+            onExistingTask={(taskId) => setSelectedTaskId(taskId)}
+            onImported={(task) => {
+              setImportedTasks((current) => [...current, task]);
+              setSelectedTaskId(task.id);
+            }}
           />
         )}
       </Show>
@@ -260,7 +589,7 @@ export function ManageView() {
         <main class="manage-kanban">
           <header>
             <h1>Tasks</h1>
-            <span>{tasks.length} tasks · 3 in flight per person</span>
+            <span>{tasks().length} tasks · 3 in flight per person</span>
             <label>
               <input
                 type="checkbox"
@@ -279,13 +608,13 @@ export function ManageView() {
                 >
                   <h2>
                     {COLUMN_LABELS[column]}{" "}
-                    <small>{tasksByColumn[column].length}</small>
+                    <small>{tasksByColumn()[column].length}</small>
                   </h2>
                   <For
                     each={
                       hideDone() && column === "done"
                         ? []
-                        : tasksByColumn[column]
+                        : tasksByColumn()[column]
                     }
                   >
                     {(task) => (
@@ -328,7 +657,7 @@ export function ManageView() {
             <span>Same project-scoped task query as Kanban.</span>
           </header>
           <section class="manage-task-list" data-testid="automate-list-tasks">
-            <For each={tasks}>
+            <For each={tasks()}>
               {(task) => (
                 <button
                   type="button"
@@ -373,7 +702,7 @@ export function ManageView() {
           <h1>Timeline</h1>
           <p>grouped by task · last 7 days</p>
           <div class="manage-axis">Mon · Tue · Wed · Thu · Fri · Sat · Sun</div>
-          <For each={tasks}>
+          <For each={tasks()}>
             {(task) => (
               <div
                 class="manage-swimlane"
@@ -392,8 +721,11 @@ export function ManageView() {
         </main>
       </Show>
 
-      <Show when={(view() === "kanban" || view() === "list") && selectedTask()}>
-        {(task) => <TaskDetail task={task()} />}
+      <Show
+        keyed
+        when={(view() === "kanban" || view() === "list") && selectedTask()}
+      >
+        {(task) => <TaskDetail task={task} />}
       </Show>
     </div>
   );

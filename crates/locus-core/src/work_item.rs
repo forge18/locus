@@ -16,6 +16,7 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use url::Url;
 use uuid::Uuid;
 
 #[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
@@ -25,7 +26,7 @@ pub struct WorkItemProviderId(String);
 impl WorkItemProviderId {
     pub fn new(value: impl Into<String>) -> Result<Self, WorkItemError> {
         let value = value.into();
-        if value.trim().is_empty() {
+        if value.trim().is_empty() || value.contains('\0') {
             return Err(WorkItemError::InvalidConfiguration);
         }
         Ok(Self(value))
@@ -49,6 +50,23 @@ pub const WORK_ITEM_SNAPSHOT_CAPABILITY: &str = "work_item.snapshot";
 pub const WORK_ITEM_COMMENT_CAPABILITY: &str = "work_item.comment";
 pub const WORK_ITEM_RESOLVE_CAPABILITY: &str = "work_item.resolve";
 
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct WorkItemProviderKey {
+    plugin_id: WorkItemProviderId,
+    host: String,
+    project: String,
+}
+
+impl WorkItemProviderKey {
+    fn new(plugin_id: &WorkItemProviderId, host: &str, project: &str) -> Self {
+        Self {
+            plugin_id: plugin_id.clone(),
+            host: host.into(),
+            project: project.into(),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct WorkItemProviderConfig {
     pub plugin_id: WorkItemProviderId,
@@ -67,10 +85,18 @@ impl WorkItemProviderConfig {
             host: host.into(),
             project: project.into(),
         };
-        if config.host.trim().is_empty() || config.project.trim().is_empty() {
+        if config.host.trim().is_empty()
+            || config.project.trim().is_empty()
+            || config.host.contains('\0')
+            || config.project.contains('\0')
+        {
             return Err(WorkItemError::InvalidConfiguration);
         }
         Ok(config)
+    }
+
+    fn key(&self) -> WorkItemProviderKey {
+        WorkItemProviderKey::new(&self.plugin_id, &self.host, &self.project)
     }
 }
 
@@ -180,11 +206,26 @@ pub async fn snapshot_from_plugin(
 
 impl WorkItemSnapshot {
     pub fn validate(&self) -> Result<(), WorkItemError> {
-        if self.identity.host.trim().is_empty()
+        let valid_url = Url::parse(&self.url).is_ok_and(|url| {
+            url.scheme() == "https"
+                && url
+                    .host_str()
+                    .is_some_and(|host| host.eq_ignore_ascii_case(&self.identity.host))
+                && url.port().is_none_or(|port| port == 443)
+                && url.username().is_empty()
+                && url.password().is_none()
+        });
+        if self.identity.plugin_id.as_str().trim().is_empty()
+            || self.identity.host.trim().is_empty()
             || self.identity.project.trim().is_empty()
             || self.identity.native_id.trim().is_empty()
-            || self.url.trim().is_empty()
+            || !valid_url
             || self.title.trim().is_empty()
+            || self.status.trim().is_empty()
+            || self
+                .labels
+                .iter()
+                .any(|label| label.trim().is_empty() || label.contains('\0'))
         {
             return Err(WorkItemError::InvalidSnapshot);
         }
@@ -233,6 +274,8 @@ pub enum WorkItemError {
     InvalidSnapshot,
     #[error("external work-item provider is unsupported")]
     UnsupportedProvider,
+    #[error("external work-item provider has multiple configured instances")]
+    AmbiguousProvider(WorkItemProviderId),
     #[error("external work-item plugin failed: {0}")]
     Plugin(String),
     #[error("external work-item persistence failed: {0}")]
@@ -253,13 +296,13 @@ pub enum WorkItemError {
     DeliveryFailed,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct WorkItemPreview {
     pub snapshot: WorkItemSnapshot,
     pub workflow: WorkflowSelection,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct ImportedWorkItem {
     pub local_task: BoardTask,
     pub snapshot: WorkItemSnapshot,
@@ -268,7 +311,7 @@ pub struct ImportedWorkItem {
 
 #[derive(Clone, Debug, Default)]
 pub struct WorkItemRegistry {
-    configured: BTreeMap<WorkItemProviderId, WorkItemProviderConfig>,
+    configured: BTreeMap<WorkItemProviderKey, WorkItemProviderConfig>,
     imported: BTreeMap<WorkItemIdentity, ImportedWorkItem>,
     board: BoardProjection,
     orchestrator: TaskOrchestrator,
@@ -276,16 +319,43 @@ pub struct WorkItemRegistry {
 
 impl WorkItemRegistry {
     pub fn configure(&mut self, config: WorkItemProviderConfig) {
-        self.configured.insert(config.plugin_id.clone(), config);
+        self.configured.insert(config.key(), config);
     }
 
     pub fn select(
         &self,
         plugin_id: &WorkItemProviderId,
     ) -> Result<&WorkItemProviderConfig, WorkItemError> {
-        self.configured
-            .get(plugin_id)
-            .ok_or(WorkItemError::UnsupportedProvider)
+        let mut matches = self
+            .configured
+            .values()
+            .filter(|config| &config.plugin_id == plugin_id);
+        match (matches.next(), matches.next()) {
+            (Some(config), None) => Ok(config),
+            (Some(_), Some(_)) => Err(WorkItemError::AmbiguousProvider(plugin_id.clone())),
+            (None, _) => Err(WorkItemError::UnsupportedProvider),
+        }
+    }
+
+    pub fn select_for(
+        &self,
+        identity: &WorkItemIdentity,
+    ) -> Result<&WorkItemProviderConfig, WorkItemError> {
+        if let Some(config) = self.configured.get(&WorkItemProviderKey::new(
+            &identity.plugin_id,
+            &identity.host,
+            &identity.project,
+        )) {
+            return Ok(config);
+        }
+        if self
+            .configured
+            .values()
+            .any(|config| config.plugin_id == identity.plugin_id)
+        {
+            return Err(WorkItemError::ProviderIdentityMismatch);
+        }
+        Err(WorkItemError::UnsupportedProvider)
     }
 
     pub fn preview(
@@ -295,11 +365,7 @@ impl WorkItemRegistry {
         workflow_def_id: Option<Uuid>,
     ) -> Result<WorkItemPreview, WorkItemError> {
         snapshot.validate()?;
-        let provider = self.select(&snapshot.identity.plugin_id)?;
-        if provider.host != snapshot.identity.host || provider.project != snapshot.identity.project
-        {
-            return Err(WorkItemError::ProviderIdentityMismatch);
-        }
+        self.select_for(&snapshot.identity)?;
         let task_id = TaskId::generate();
         Ok(WorkItemPreview {
             workflow: WorkflowSelection::default_for(task_id, project_id, workflow_def_id),
@@ -311,18 +377,10 @@ impl WorkItemRegistry {
         &self,
         process: &crate::plugin::PluginProcess,
         provider: &PluginWorkItemProvider,
-        host: impl Into<String>,
-        project: impl Into<String>,
-        native_id: impl Into<String>,
+        lookup: WorkItemLookup,
         project_id: ProjectId,
         workflow_def_id: Option<Uuid>,
     ) -> Result<WorkItemPreview, WorkItemError> {
-        let lookup = WorkItemLookup {
-            plugin_id: provider.plugin_id.clone(),
-            host: host.into(),
-            project: project.into(),
-            native_id: native_id.into(),
-        };
         let snapshot = provider.normalize(snapshot_from_plugin(process, &lookup).await?)?;
         self.preview(snapshot, project_id, workflow_def_id)
     }
@@ -360,20 +418,127 @@ impl WorkItemRegistry {
         imported: &ImportedWorkItem,
     ) -> Result<bool, WorkItemError> {
         store
-            .persist_external_work_item(imported.local_task.id, &imported.snapshot)
+            .persist_imported_task(&imported.local_task, &imported.snapshot, &imported.workflow)
             .await
             .map_err(|error| WorkItemError::Persistence(error.to_string()))
+    }
+
+    pub fn restore_imported(
+        &mut self,
+        task: BoardTask,
+        snapshot: WorkItemSnapshot,
+        workflow: WorkflowSelection,
+    ) -> Result<(), WorkItemError> {
+        self.restore_imported_with_state(task, snapshot, workflow, Vec::new(), Vec::new())
+    }
+
+    pub fn restore_imported_with_state(
+        &mut self,
+        task: BoardTask,
+        snapshot: WorkItemSnapshot,
+        workflow: WorkflowSelection,
+        runs: Vec<crate::services::task::TaskRunLink>,
+        evidence: Vec<crate::services::task::TaskEvidenceLink>,
+    ) -> Result<(), WorkItemError> {
+        snapshot.validate()?;
+        if self.imported.contains_key(&snapshot.identity) {
+            return Err(WorkItemError::DuplicateImport(
+                snapshot.identity.native_id.clone(),
+            ));
+        }
+        if task.external_work_item.as_ref() != Some(&snapshot) {
+            return Err(WorkItemError::ProviderIdentityMismatch);
+        }
+        if !workflow.confirmed
+            || workflow.task_id != task.id
+            || workflow.project_id != task.project_id
+            || workflow.workflow_def_id.is_none()
+        {
+            return Err(WorkItemError::WorkflowRequired);
+        }
+        let mut board = self.board.clone();
+        board
+            .apply(BoardEvent::Created {
+                task: Box::new(task.clone()),
+            })
+            .map_err(|_| WorkItemError::TaskProjection)?;
+        let mut orchestrator = self.orchestrator.clone();
+        let root_session_id = task
+            .session_id
+            .or_else(|| runs.first().map(|run| run.root_session_id));
+        orchestrator
+            .restore_task_state(
+                task.clone(),
+                workflow.clone(),
+                root_session_id,
+                runs,
+                evidence,
+                Some(snapshot.url.clone()),
+            )
+            .map_err(|_| WorkItemError::TaskProjection)?;
+        self.board = board;
+        self.orchestrator = orchestrator;
+        self.imported.insert(
+            snapshot.identity.clone(),
+            ImportedWorkItem {
+                local_task: task,
+                snapshot,
+                workflow,
+            },
+        );
+        Ok(())
+    }
+
+    pub fn move_to_done(
+        &mut self,
+        task_id: TaskId,
+        actor: crate::services::board::BoardActor,
+        evidence: Vec<crate::services::board::BoardEvidenceLink>,
+    ) -> Result<BoardTask, WorkItemError> {
+        let task = self
+            .board
+            .task(task_id)
+            .cloned()
+            .ok_or(WorkItemError::TaskProjection)?;
+        let identity = task
+            .external_work_item
+            .as_ref()
+            .map(|snapshot| snapshot.identity.clone())
+            .ok_or(WorkItemError::TaskProjection)?;
+        let event = task
+            .transition(TaskColumn::Done, actor, evidence)
+            .map_err(|_| WorkItemError::TaskProjection)?;
+        let mut board = self.board.clone();
+        board
+            .apply(event)
+            .map_err(|_| WorkItemError::TaskProjection)?;
+        let updated = board
+            .task(task_id)
+            .cloned()
+            .ok_or(WorkItemError::TaskProjection)?;
+        let mut orchestrator = self.orchestrator.clone();
+        orchestrator
+            .update_task(updated.clone())
+            .map_err(|_| WorkItemError::TaskProjection)?;
+        self.board = board;
+        self.orchestrator = orchestrator;
+        let imported = self
+            .imported
+            .get_mut(&identity)
+            .ok_or(WorkItemError::TaskProjection)?;
+        imported.local_task = updated.clone();
+        Ok(updated)
     }
 
     pub fn import_confirmed(
         &mut self,
         preview: WorkItemPreview,
     ) -> Result<ImportedWorkItem, WorkItemError> {
+        preview.snapshot.validate()?;
         let identity = preview.snapshot.identity.clone();
+        self.select_for(&identity)?;
         if self.imported.contains_key(&identity) {
-            return Err(WorkItemError::DuplicateImport(
-                identity.native_id.clone(),
-            ));
+            return Err(WorkItemError::DuplicateImport(identity.native_id.clone()));
         }
         if !preview.workflow.confirmed {
             return Err(WorkItemError::WorkflowRequired);
@@ -409,6 +574,10 @@ impl WorkItemRegistry {
 
     pub fn imported(&self, identity: &WorkItemIdentity) -> Option<&ImportedWorkItem> {
         self.imported.get(identity)
+    }
+
+    pub fn imported_tasks(&self) -> impl Iterator<Item = &ImportedWorkItem> {
+        self.imported.values()
     }
 
     pub fn board(&self) -> &BoardProjection {
@@ -458,44 +627,35 @@ pub struct CompletionOutbox {
 }
 
 impl CompletionOutbox {
-    pub fn enqueue_done(
-        &mut self,
-        task: &BoardTask,
-        evidence: Vec<ArtifactId>,
-        supports_resolution: bool,
-    ) -> Result<&CompletionEvent, WorkItemError> {
-        self.enqueue_done_at_state(
-            task,
-            LocalWorkState::Done,
-            evidence,
-            supports_resolution,
-        )
-    }
-
-    pub fn enqueue_done_at_state(
+    fn enqueue_done_at_state(
         &mut self,
         task: &BoardTask,
         state: LocalWorkState,
         evidence: Vec<ArtifactId>,
-        supports_resolution: bool,
+        capabilities: WorkItemCapabilities,
     ) -> Result<&CompletionEvent, WorkItemError> {
         if task.column != TaskColumn::Done || !state.permits_source_write() {
             return Err(WorkItemError::NotDone);
         }
+        if !capabilities.comments {
+            return Err(WorkItemError::CapabilityRefused);
+        }
         let entry = self.deliveries.entry(task.id).or_insert_with(|| {
             let locator = format!("locus://{}/task/{}", task.project_id, task.id);
+            let id = Uuid::new_v4();
             let comment = format!(
-                "Completed {} with evidence: {}",
+                "Completed {} with evidence: {}\n<!-- locus-completion:{} -->",
                 locator,
                 evidence
                     .iter()
                     .map(ToString::to_string)
                     .collect::<Vec<_>>()
-                    .join(", ")
+                    .join(", "),
+                id
             );
             CompletionDelivery {
                 event: CompletionEvent {
-                    id: Uuid::new_v4(),
+                    id,
                     task_id: task.id,
                     locator,
                     evidence,
@@ -503,32 +663,10 @@ impl CompletionOutbox {
                 },
                 attempts: 0,
                 commented: false,
-                resolved: supports_resolution.then_some(false),
+                resolved: capabilities.resolve.then_some(false),
             }
         });
         Ok(&entry.event)
-    }
-
-    pub fn deliver(
-        &mut self,
-        task_id: TaskId,
-        transport: &mut impl CompletionTransport,
-        supports_resolution: bool,
-    ) -> Result<(), WorkItemError> {
-        let delivery = self
-            .deliveries
-            .get_mut(&task_id)
-            .ok_or(WorkItemError::DeliveryFailed)?;
-        if !delivery.commented {
-            delivery.attempts += 1;
-            transport.comment(&delivery.event)?;
-            delivery.commented = true;
-        }
-        if supports_resolution && delivery.resolved != Some(true) {
-            transport.resolve(&delivery.event)?;
-            delivery.resolved = Some(true);
-        }
-        Ok(())
     }
 
     pub fn enqueue_done_with_provider(
@@ -537,11 +675,39 @@ impl CompletionOutbox {
         evidence: Vec<ArtifactId>,
         provider: &impl ExternalWorkItemProvider,
     ) -> Result<&CompletionEvent, WorkItemError> {
-        let capabilities = provider.capabilities();
+        self.enqueue_done_at_state(
+            task,
+            LocalWorkState::Done,
+            evidence,
+            provider.capabilities(),
+        )
+    }
+
+    fn deliver(
+        &mut self,
+        task_id: TaskId,
+        transport: &mut impl CompletionTransport,
+        capabilities: WorkItemCapabilities,
+    ) -> Result<(), WorkItemError> {
         if !capabilities.comments {
             return Err(WorkItemError::CapabilityRefused);
         }
-        self.enqueue_done(task, evidence, capabilities.resolve)
+        let delivery = self
+            .deliveries
+            .get_mut(&task_id)
+            .ok_or(WorkItemError::DeliveryFailed)?;
+        if !delivery.commented || (capabilities.resolve && delivery.resolved != Some(true)) {
+            delivery.attempts = delivery.attempts.saturating_add(1);
+        }
+        if !delivery.commented {
+            transport.comment(&delivery.event)?;
+            delivery.commented = true;
+        }
+        if capabilities.resolve && delivery.resolved != Some(true) {
+            transport.resolve(&delivery.event)?;
+            delivery.resolved = Some(true);
+        }
+        Ok(())
     }
 
     pub fn deliver_with_provider(
@@ -550,11 +716,7 @@ impl CompletionOutbox {
         transport: &mut impl CompletionTransport,
         provider: &impl ExternalWorkItemProvider,
     ) -> Result<(), WorkItemError> {
-        let capabilities = provider.capabilities();
-        if !capabilities.comments {
-            return Err(WorkItemError::CapabilityRefused);
-        }
-        self.deliver(task_id, transport, capabilities.resolve)
+        self.deliver(task_id, transport, provider.capabilities())
     }
 
     pub async fn deliver_via_plugin(
@@ -574,8 +736,8 @@ impl CompletionOutbox {
                 .deliveries
                 .get_mut(&task_id)
                 .ok_or(WorkItemError::DeliveryFailed)?;
-            if !delivery.commented {
-                delivery.attempts += 1;
+            if !delivery.commented || (capabilities.resolve && delivery.resolved != Some(true)) {
+                delivery.attempts = delivery.attempts.saturating_add(1);
             }
             (
                 delivery.event.clone(),
@@ -622,6 +784,30 @@ impl CompletionOutbox {
             .map_err(|error| WorkItemError::Persistence(error.to_string()))
     }
 
+    pub fn record_delivery_failure(
+        &mut self,
+        task_id: TaskId,
+    ) -> Result<CompletionDelivery, WorkItemError> {
+        let delivery = self
+            .deliveries
+            .get_mut(&task_id)
+            .ok_or(WorkItemError::DeliveryFailed)?;
+        delivery.attempts = delivery.attempts.saturating_add(1);
+        Ok(delivery.clone())
+    }
+
+    pub fn restore_delivery(&mut self, delivery: CompletionDelivery) -> Result<(), WorkItemError> {
+        if let Some(existing) = self.deliveries.get(&delivery.event.task_id) {
+            return if existing.event == delivery.event {
+                Ok(())
+            } else {
+                Err(WorkItemError::DeliveryFailed)
+            };
+        }
+        self.deliveries.insert(delivery.event.task_id, delivery);
+        Ok(())
+    }
+
     pub fn delivery(&self, task_id: TaskId) -> Option<&CompletionDelivery> {
         self.deliveries.get(&task_id)
     }
@@ -632,7 +818,11 @@ mod work_item {
     use super::*;
 
     fn config(plugin_id: &str) -> WorkItemProviderConfig {
-        WorkItemProviderConfig::new(plugin_id, "provider.example", "org/repo").unwrap()
+        config_at(plugin_id, "provider.example", "org/repo")
+    }
+
+    fn config_at(plugin_id: &str, host: &str, project: &str) -> WorkItemProviderConfig {
+        WorkItemProviderConfig::new(plugin_id, host, project).unwrap()
     }
 
     fn provider(plugin_id: &str, resolve: bool) -> PluginWorkItemProvider {
@@ -673,6 +863,14 @@ mod work_item {
         let migration = include_str!("../../../migrations/0023_external_work_items.up.sql");
         assert!(migration.contains("board.external_work_items"));
         assert!(migration.contains("board.external_completion_outbox"));
+        assert!(migration.contains("plugin_id"));
+        assert!(!migration.contains("resolution_supported"));
+        let upgrade =
+            include_str!("../../../migrations/0024_external_work_item_provider_instances.up.sql");
+        assert!(upgrade.contains("workflow_def_id"));
+        assert!(upgrade.contains("locator"));
+        assert!(upgrade.contains("resolution_supported"));
+        assert!(!migration.contains("provider_kind"));
     }
 
     #[test]
@@ -683,10 +881,46 @@ mod work_item {
     }
 
     #[test]
+    fn snapshot_url_requires_https_without_credentials() {
+        let mut snapshot = snapshot("fixture.provider");
+        snapshot.url = "javascript:alert(1)".into();
+        assert_eq!(snapshot.validate(), Err(WorkItemError::InvalidSnapshot));
+        snapshot.url = "https://user:pass@provider.example/item/42".into();
+        assert_eq!(snapshot.validate(), Err(WorkItemError::InvalidSnapshot));
+        snapshot.url = "https://attacker.example/item/42".into();
+        assert_eq!(snapshot.validate(), Err(WorkItemError::InvalidSnapshot));
+        snapshot.url = "https://provider.example/item/42".into();
+        snapshot.status.clear();
+        assert_eq!(snapshot.validate(), Err(WorkItemError::InvalidSnapshot));
+    }
+
+    #[test]
     fn provider_configuration() {
         assert_eq!(config("fixture.provider").project, "org/repo");
-        assert_eq!(config("fixture.provider").plugin_id.as_str(), "fixture.provider");
+        assert_eq!(
+            config("fixture.provider").plugin_id.as_str(),
+            "fixture.provider"
+        );
         assert_eq!(registry().providers().count(), 1);
+    }
+
+    #[test]
+    fn provider_instances_are_keyed_by_identity() {
+        let mut registry = WorkItemRegistry::default();
+        registry.configure(config_at("github", "github.com", "org/one"));
+        registry.configure(config_at("github", "github.com", "org/two"));
+        assert_eq!(registry.providers().count(), 2);
+        assert!(matches!(
+            registry.select(&WorkItemProviderId::new("github").unwrap()),
+            Err(WorkItemError::AmbiguousProvider(_))
+        ));
+        let identity = WorkItemIdentity {
+            plugin_id: WorkItemProviderId::new("github").unwrap(),
+            host: "github.com".into(),
+            project: "org/two".into(),
+            native_id: "42".into(),
+        };
+        assert_eq!(registry.select_for(&identity).unwrap().project, "org/two");
     }
 
     #[test]
@@ -762,6 +996,54 @@ mod work_item {
     }
 
     #[test]
+    fn restore_imported_preserves_confirmed_workflow() {
+        let mut source = registry();
+        let project_id = ProjectId::generate();
+        let mut preview = source
+            .preview(
+                snapshot("fixture.provider"),
+                project_id,
+                Some(Uuid::new_v4()),
+            )
+            .unwrap();
+        preview.workflow = preview.workflow.confirm().unwrap();
+        let imported = source.import_confirmed(preview).unwrap();
+
+        let mut restored = registry();
+        restored
+            .restore_imported(
+                imported.local_task,
+                imported.snapshot,
+                imported.workflow.clone(),
+            )
+            .unwrap();
+        let detail = restored
+            .orchestrator()
+            .detail(imported.workflow.task_id)
+            .unwrap();
+        assert_eq!(detail.workflow_def_id, imported.workflow.workflow_def_id);
+    }
+
+    #[test]
+    fn restore_survives_unconfigured_provider_instance() {
+        let mut source = registry();
+        let mut preview = source
+            .preview(
+                snapshot("fixture.provider"),
+                ProjectId::generate(),
+                Some(Uuid::new_v4()),
+            )
+            .unwrap();
+        preview.workflow = preview.workflow.confirm().unwrap();
+        let imported = source.import_confirmed(preview).unwrap();
+
+        let mut restored = WorkItemRegistry::default();
+        restored
+            .restore_imported(imported.local_task, imported.snapshot, imported.workflow)
+            .unwrap();
+    }
+
+    #[test]
     fn opaque_native_identity_is_preserved() {
         let mut registry = WorkItemRegistry::default();
         registry.configure(config("fixture.tracker"));
@@ -828,16 +1110,36 @@ mod work_item {
     #[test]
     fn no_write_before_done() {
         let task = done_task();
+        let capabilities = WorkItemCapabilities {
+            comments: true,
+            resolve: true,
+        };
         for state in LocalWorkState::ALL {
             let mut outbox = CompletionOutbox::default();
             assert_eq!(
                 outbox
-                    .enqueue_done_at_state(&task, state, vec![], true)
+                    .enqueue_done_at_state(&task, state, vec![], capabilities)
                     .is_ok(),
                 state == LocalWorkState::Done
             );
         }
         assert!(LocalWorkState::Done.permits_source_write());
+    }
+
+    #[test]
+    fn completion_requires_actual_done_column() {
+        let provider = provider("fixture.provider", true);
+        for column in TaskColumn::ALL {
+            let mut task = done_task();
+            task.column = column;
+            let mut outbox = CompletionOutbox::default();
+            assert_eq!(
+                outbox
+                    .enqueue_done_with_provider(&task, vec![], &provider)
+                    .is_ok(),
+                column == TaskColumn::Done
+            );
+        }
     }
 
     #[derive(Default)]
@@ -870,21 +1172,44 @@ mod work_item {
     #[test]
     fn completion_outbox() {
         let task = done_task();
+        let completion_provider = provider("fixture.provider", true);
         let mut outbox = CompletionOutbox::default();
         let first = outbox
-            .enqueue_done(&task, vec![ArtifactId::generate()], true)
+            .enqueue_done_with_provider(&task, vec![ArtifactId::generate()], &completion_provider)
             .unwrap()
             .id;
-        let second = outbox.enqueue_done(&task, vec![], true).unwrap().id;
+        let second = outbox
+            .enqueue_done_with_provider(&task, vec![], &completion_provider)
+            .unwrap()
+            .id;
         assert_eq!(first, second);
+    }
+
+    #[test]
+    fn completion_restore_is_idempotent() {
+        let task = done_task();
+        let completion_provider = provider("fixture.provider", false);
+        let mut original = CompletionOutbox::default();
+        original
+            .enqueue_done_with_provider(&task, vec![], &completion_provider)
+            .unwrap();
+        let delivery = original.delivery(task.id).unwrap().clone();
+        let mut restored = CompletionOutbox::default();
+        restored.restore_delivery(delivery.clone()).unwrap();
+        restored.restore_delivery(delivery).unwrap();
+        assert_eq!(
+            restored.delivery(task.id).unwrap().event.id,
+            original.delivery(task.id).unwrap().event.id
+        );
     }
 
     #[test]
     fn completion_comment() {
         let task = done_task();
+        let completion_provider = provider("fixture.provider", false);
         let mut outbox = CompletionOutbox::default();
         let event = outbox
-            .enqueue_done(&task, vec![ArtifactId::generate()], false)
+            .enqueue_done_with_provider(&task, vec![ArtifactId::generate()], &completion_provider)
             .unwrap();
         assert!(event.comment.contains("locus://"));
         assert!(event.comment.contains("evidence"));
@@ -893,40 +1218,62 @@ mod work_item {
     #[test]
     fn completion_resolves() {
         let task = done_task();
+        let completion_provider = provider("fixture.provider", true);
         let mut outbox = CompletionOutbox::default();
-        outbox.enqueue_done(&task, vec![], true).unwrap();
+        outbox
+            .enqueue_done_with_provider(&task, vec![], &completion_provider)
+            .unwrap();
         let mut transport = Transport::default();
-        outbox.deliver(task.id, &mut transport, true).unwrap();
+        outbox
+            .deliver_with_provider(task.id, &mut transport, &completion_provider)
+            .unwrap();
         assert_eq!(transport.resolves, 1);
     }
 
     #[test]
     fn resolution_capability_refused() {
         let task = done_task();
+        let completion_provider = provider("fixture.provider", false);
         let mut outbox = CompletionOutbox::default();
-        outbox.enqueue_done(&task, vec![], false).unwrap();
+        outbox
+            .enqueue_done_with_provider(&task, vec![], &completion_provider)
+            .unwrap();
         let mut transport = Transport::default();
-        outbox.deliver(task.id, &mut transport, false).unwrap();
+        outbox
+            .deliver_with_provider(task.id, &mut transport, &completion_provider)
+            .unwrap();
         assert_eq!(transport.resolves, 0);
     }
 
     #[test]
     fn completion_retry_is_one_way() {
         let task = done_task();
+        let completion_provider = provider("fixture.provider", false);
         let mut outbox = CompletionOutbox::default();
-        outbox.enqueue_done(&task, vec![], false).unwrap();
+        outbox
+            .enqueue_done_with_provider(&task, vec![], &completion_provider)
+            .unwrap();
         let mut transport = Transport {
             fail_once: true,
             ..Default::default()
         };
-        assert!(outbox.deliver(task.id, &mut transport, false).is_err());
-        outbox.deliver(task.id, &mut transport, false).unwrap();
+        assert!(outbox
+            .deliver_with_provider(task.id, &mut transport, &completion_provider)
+            .is_err());
+        outbox
+            .deliver_with_provider(task.id, &mut transport, &completion_provider)
+            .unwrap();
         assert_eq!(transport.comments, 1);
     }
 
     #[test]
     fn provider_conformance() {
-        for plugin_id in ["fixture.github", "fixture.gitlab", "fixture.jira", "user.tracker"] {
+        for plugin_id in [
+            "fixture.github",
+            "fixture.gitlab",
+            "fixture.jira",
+            "user.tracker",
+        ] {
             let provider = provider(plugin_id, true);
             assert_eq!(
                 provider

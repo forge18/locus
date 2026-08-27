@@ -48,6 +48,7 @@ export interface Task {
  childRunIds?: string[];
  evidenceIds?: string[];
  externalLink?: string | null;
+ externalHost?: string;
  /** Normalized forge check state, when the task has an external CI check. */
  ciStatus?: "pending" | "passed" | "failed";
  ciLog?: string;

@@ -30,6 +30,7 @@ Only these plugins ship with Locus for now:
 | --- | --- | --- |
 | CLI Tool | GitHub CLI | `gh` |
 | Harness | Pi | `pi` |
+| Provider | GitHub issues (work-item) | `github` |
 | Provider | OpenAI API / ChatGPT models | `openai` |
 | Provider | Claude models | `anthropic` |
 | Provider | OpenRouter | `openrouter` |
@@ -37,7 +38,9 @@ Only these plugins ship with Locus for now:
 "ChatGPT" means the OpenAI API provider and its ChatGPT model catalog. A separate ChatGPT consumer-app
 login integration is not part of this scope.
 
-The first-party roster is an allowlist of shipped plugins, not a limit on the architecture. User plugins
+The first-party roster is an allowlist of shipped plugins, not a limit on the architecture. Runtime
+work-item provider configurations are stored in Postgres by `plugin_id`, host, and project; the catalog
+only admits the executable. User plugins
 may add other CLI tools, harnesses, and providers through the same admission and capability contract.
 No user plugin may add UI code; the first-party UI renders manifest and RPC data through known views.
 
@@ -106,7 +109,7 @@ harnesses.
 1. Workshop navigation exposes exactly `Plugins` and `Extensions` subgroups.
 2. Plugins exposes only CLI Tool, Harness, and Provider; Extensions exposes the existing eight editor
    types plus Workflows.
-3. The shipped plugin catalog contains only `gh`, `pi`, `openai`, `anthropic`, and `openrouter`.
+3. The shipped plugin catalog contains only `gh`, `pi`, `github`, `openai`, `anthropic`, and `openrouter`.
 4. A user plugin with a valid trusted manifest can be discovered without a core source change.
 5. The host rejects a protocol/version or required-capability mismatch before dispatching a call.
 6. Unknown optional capabilities do not prevent a plugin from loading and remain available in diagnostics.

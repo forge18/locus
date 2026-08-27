@@ -128,8 +128,9 @@ renders UI or writes Locus persistence. Work-item plugins expose `work_item.snap
 comment and optional resolution operation; core stores only the opaque plugin identity and normalized
 snapshot. Harnesses use the same envelope but expose a flexible capability descriptor for launch,
 session, ACP events, materialization, model discovery, permissions, resume, checkpoints, and usage; only
-the minimum session capability is required for selection. First-party plugins are `pi`, `gh`, `openai`,
-`anthropic`, and `openrouter`; other plugins, including work-item providers, are user-supplied.
+the minimum session capability is required for selection. First-party plugins are `pi`, `gh`,
+`github` (work-item), `openai`, `anthropic`, and `openrouter`; other plugins, including future
+work-item providers, are user-supplied.
 
 ### desktop desktop revision
 

@@ -1159,6 +1159,20 @@ impl WorkItemProviderDescriptor {
         Ok(descriptor)
     }
 
+    pub fn from_plugin_descriptor(descriptor: &PluginDescriptor) -> Result<Self, PluginError> {
+        descriptor.validate()?;
+        let manifest = PluginManifest {
+            protocol: descriptor.protocol.clone(),
+            kind: descriptor.kind,
+            id: descriptor.id.clone(),
+            version: descriptor.version.clone(),
+            executable: "descriptor".into(),
+            capabilities: descriptor.capabilities.clone(),
+            permissions: descriptor.permissions.clone(),
+        };
+        Self::from_manifest(&manifest)
+    }
+
     pub fn validate(&self) -> Result<(), PluginError> {
         if self.manifest.kind != PluginKind::Provider {
             return Err(PluginError::InvalidManifest(
@@ -1451,6 +1465,13 @@ pub fn first_party_runtime(kind: PluginKind, id: &str) -> Result<DescriptorPlugi
             )?;
         }
         PluginKind::Provider => {
+            if manifest
+                .capabilities
+                .iter()
+                .any(|capability| capability.starts_with("work_item."))
+            {
+                return Ok(runtime);
+            }
             let provider = first_party_providers()
                 .into_iter()
                 .find(|provider| provider.manifest.id == id)
@@ -1541,6 +1562,49 @@ done
         .into()
     }
 
+    fn work_item_plugin_script() -> String {
+        r#"
+while IFS= read -r line; do
+  id=$(printf '%s' "$line" | sed -n 's/.*"id":\([0-9][0-9]*\).*/\1/p')
+  case "$line" in
+    *plugin.initialize*) printf '{"jsonrpc":"2.0","id":%s,"result":{"protocol":"locus.plugin.v1"}}\n' "$id" ;;
+    *plugin.describe*) printf '{"jsonrpc":"2.0","id":%s,"result":{"protocol":"locus.plugin.v1","kind":"provider","id":"fixture.work-items","version":"1.0.0","capabilities":["work_item.snapshot","work_item.comment","work_item.resolve"],"schema_versions":{"plugin":"v1"}}}\n' "$id" ;;
+    *plugin.health*) printf '{"jsonrpc":"2.0","id":%s,"result":{"ready":true}}\n' "$id" ;;
+    *work_item.snapshot*) printf '{"jsonrpc":"2.0","id":%s,"result":{"identity":{"plugin_id":"fixture.work-items","host":"provider.example","project":"org/repo","native_id":"42"},"url":"https://provider.example/item/42","title":"Imported issue","body":"Body","labels":["bug"],"status":"open"}}\n' "$id" ;;
+    *work_item.comment*|*work_item.resolve*) printf '{"jsonrpc":"2.0","id":%s,"result":{}}\n' "$id" ;;
+    *plugin.shutdown*) printf '{"jsonrpc":"2.0","id":%s,"result":{"stopped":true}}\n' "$id"; break ;;
+  esac
+done
+"#
+        .into()
+    }
+
+    fn fake_github_cli() -> PathBuf {
+        let directory =
+            std::env::temp_dir().join(format!("locus-github-plugin-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let executable = directory.join("gh");
+        fs::write(
+            &executable,
+            r#"#!/bin/sh
+case "$*" in
+  *issue\ view*--json\ comments*) printf '{"comments":[]}' ;;
+  *issue\ view*--repo*github.com/org/repo*) printf '{"number":42,"url":"https://github.com/org/repo/issues/42","title":"GitHub issue","body":"Issue body","labels":[{"name":"bug"}],"state":"OPEN"}' ;;
+  *issue\ comment*--repo*github.com/org/repo*) : ;;
+  *issue\ close*--repo*github.com/org/repo*) : ;;
+  *) exit 1 ;;
+esac
+"#,
+        )
+        .unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&executable, fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        executable
+    }
+
     #[test]
     fn manifest_schema() {
         let parsed = test_ok(PluginManifest::from_toml(
@@ -1582,6 +1646,159 @@ permissions = ["keychain_reference"]
                 crate::services::telemetry::EventVerb::Assistant
             );
             assert_eq!(test_ok(process.shutdown().await)["stopped"], true);
+        });
+    }
+
+    #[test]
+    fn work_item_plugin_rpc_roundtrip() {
+        test_ok(tokio::runtime::Runtime::new()).block_on(async {
+            let script = work_item_plugin_script();
+            let mut command = Command::new("sh");
+            command.args(["-c", script.as_str()]);
+            let process =
+                test_ok(PluginProcess::spawn_command(command, Duration::from_millis(500)).await);
+            let handshake = test_ok(
+                process
+                    .handshake(
+                        &[
+                            crate::work_item::WORK_ITEM_SNAPSHOT_CAPABILITY.into(),
+                            crate::work_item::WORK_ITEM_COMMENT_CAPABILITY.into(),
+                        ],
+                        &[
+                            crate::work_item::WORK_ITEM_SNAPSHOT_CAPABILITY,
+                            crate::work_item::WORK_ITEM_COMMENT_CAPABILITY,
+                            crate::work_item::WORK_ITEM_RESOLVE_CAPABILITY,
+                        ],
+                    )
+                    .await,
+            );
+            let descriptor =
+                WorkItemProviderDescriptor::from_plugin_descriptor(&handshake.descriptor).unwrap();
+            let provider = descriptor.work_item_provider().unwrap();
+            let lookup = crate::work_item::WorkItemLookup {
+                plugin_id: crate::work_item::WorkItemProviderId::new("fixture.work-items").unwrap(),
+                host: "provider.example".into(),
+                project: "org/repo".into(),
+                native_id: "42".into(),
+            };
+            let mut registry = crate::work_item::WorkItemRegistry::default();
+            registry.configure(
+                crate::work_item::WorkItemProviderConfig::new(
+                    provider.plugin_id.as_str(),
+                    "provider.example",
+                    "org/repo",
+                )
+                .unwrap(),
+            );
+            let mut preview = test_ok(
+                registry
+                    .preview_from_plugin(
+                        &process,
+                        &provider,
+                        lookup,
+                        crate::ids::ProjectId::generate(),
+                        Some(uuid::Uuid::new_v4()),
+                    )
+                    .await,
+            );
+            assert_eq!(preview.snapshot.title, "Imported issue");
+            preview.workflow = preview.workflow.confirm().unwrap();
+            let imported = registry.import_confirmed(preview).unwrap();
+            let mut task = imported.local_task.clone();
+            task.column = crate::services::manage::TaskColumn::Done;
+            let mut outbox = crate::work_item::CompletionOutbox::default();
+            outbox
+                .enqueue_done_with_provider(&task, vec![], &provider)
+                .unwrap();
+            outbox
+                .deliver_via_plugin(task.id, &process, &provider, &imported.snapshot.identity)
+                .await
+                .unwrap();
+            assert!(outbox.delivery(task.id).unwrap().commented);
+            assert_eq!(outbox.delivery(task.id).unwrap().resolved, Some(true));
+            assert_eq!(test_ok(process.shutdown().await)["stopped"], true);
+        });
+    }
+
+    #[test]
+    fn github_work_item_plugin_uses_gh_cli() {
+        test_ok(tokio::runtime::Runtime::new()).block_on(async {
+            let fake_cli = fake_github_cli();
+            let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+            let mut command = Command::new(root.join("plugins/first-party/github"));
+            let current_path = std::env::var_os("PATH").unwrap_or_default();
+            command.env(
+                "PATH",
+                format!(
+                    "{}:{}",
+                    fake_cli.parent().unwrap().display(),
+                    current_path.to_string_lossy()
+                ),
+            );
+            let process =
+                test_ok(PluginProcess::spawn_command(command, Duration::from_secs(2)).await);
+            let handshake = test_ok(
+                process
+                    .handshake(
+                        &[
+                            crate::work_item::WORK_ITEM_SNAPSHOT_CAPABILITY.into(),
+                            crate::work_item::WORK_ITEM_COMMENT_CAPABILITY.into(),
+                        ],
+                        &[
+                            crate::work_item::WORK_ITEM_SNAPSHOT_CAPABILITY,
+                            crate::work_item::WORK_ITEM_COMMENT_CAPABILITY,
+                            crate::work_item::WORK_ITEM_RESOLVE_CAPABILITY,
+                        ],
+                    )
+                    .await,
+            );
+            let descriptor =
+                WorkItemProviderDescriptor::from_plugin_descriptor(&handshake.descriptor).unwrap();
+            let provider = descriptor.work_item_provider().unwrap();
+            let lookup = crate::work_item::WorkItemLookup {
+                plugin_id: crate::work_item::WorkItemProviderId::new("github").unwrap(),
+                host: "github.com".into(),
+                project: "org/repo".into(),
+                native_id: "42".into(),
+            };
+            let mut registry = crate::work_item::WorkItemRegistry::default();
+            registry.configure(
+                crate::work_item::WorkItemProviderConfig::new(
+                    provider.plugin_id.as_str(),
+                    "github.com",
+                    "org/repo",
+                )
+                .unwrap(),
+            );
+            let mut preview = test_ok(
+                registry
+                    .preview_from_plugin(
+                        &process,
+                        &provider,
+                        lookup,
+                        crate::ids::ProjectId::generate(),
+                        Some(uuid::Uuid::new_v4()),
+                    )
+                    .await,
+            );
+            assert_eq!(preview.snapshot.title, "GitHub issue");
+            assert_eq!(preview.snapshot.status, "open");
+            preview.workflow = preview.workflow.confirm().unwrap();
+            let imported = registry.import_confirmed(preview).unwrap();
+            let mut task = imported.local_task.clone();
+            task.column = crate::services::manage::TaskColumn::Done;
+            let mut outbox = crate::work_item::CompletionOutbox::default();
+            outbox
+                .enqueue_done_with_provider(&task, vec![], &provider)
+                .unwrap();
+            outbox
+                .deliver_via_plugin(task.id, &process, &provider, &imported.snapshot.identity)
+                .await
+                .unwrap();
+            assert!(outbox.delivery(task.id).unwrap().commented);
+            assert_eq!(outbox.delivery(task.id).unwrap().resolved, Some(true));
+            assert_eq!(test_ok(process.shutdown().await)["stopped"], true);
+            fs::remove_dir_all(fake_cli.parent().unwrap()).unwrap();
         });
     }
 
@@ -1799,13 +2016,18 @@ executable="example"
         assert!(descriptor.resolve);
         assert!(descriptor.validate().is_ok());
         assert_eq!(
-            descriptor
-                .work_item_provider()
-                .unwrap()
-                .plugin_id
-                .as_str(),
+            descriptor.work_item_provider().unwrap().plugin_id.as_str(),
             "fixture.work-items"
         );
+    }
+
+    #[test]
+    fn first_party_github_work_item_plugin() {
+        let manifest = catalog_manifest(PluginKind::Provider, Some("github"));
+        let descriptor = WorkItemProviderDescriptor::from_manifest(&manifest).unwrap();
+        assert!(descriptor.comments);
+        assert!(descriptor.resolve);
+        assert_eq!(manifest.executable, "plugins/first-party/github");
     }
 
     #[test]
@@ -1866,8 +2088,9 @@ executable="example"
     }
     #[test]
     fn contract_suite() {
-        assert_eq!(builtin_manifests().len(), 5);
+        assert_eq!(builtin_manifests().len(), 6);
         assert_eq!(first_party_providers().len(), 3);
+        assert!(first_party_runtime(PluginKind::Provider, "github").is_ok());
         assert!(first_party_runtime(PluginKind::Provider, "openrouter").is_ok());
         assert!(first_party_harness()
             .normalize_event(json!({"params":{"update":{"sessionUpdate":"agent_message_chunk"}}}))

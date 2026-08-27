@@ -4,8 +4,9 @@
 
 ## Purpose
 
-Import work from GitHub, GitLab, Codeberg, Bitbucket Cloud, Bitbucket Data Center, Jira, and future
-trackers into the same local task workflow as manually created work. Locus owns execution after import;
+Import GitHub issues from a configured work-item plugin into the same local task workflow as manually
+created work. This slice establishes the provider-neutral port; other trackers remain future plugins.
+Locus owns execution after import;
 the source system is not synchronized while work is in progress.
 
 ## Contract
@@ -13,8 +14,10 @@ the source system is not synchronized while work is in progress.
 An `ExternalWorkItemProvider` plugin port normalizes an opaque plugin ID, host/base URL, workspace or
 project, native ID, URL, title, body, labels, status, and completion capabilities. A provider plugin
 advertises `work_item.snapshot`, `work_item.comment`, and optional `work_item.resolve` capabilities
-through the common JSON-RPC executable contract. GitHub, GitLab, Jira, and later trackers are plugins;
-core task, workflow, board, and Automate code never matches on a provider name.
+through the common JSON-RPC executable contract. Its manifest uses `kind = "provider"` with the
+`work_item.*` capability namespace; it does not need model-provider capabilities. GitHub is the
+first-party work-item plugin; later trackers are separate plugins. Core task, workflow, board, and
+Automate code never matches on a provider name.
 
 Import is explicit. The user chooses a configured provider and item, previews the source snapshot and
 workflow, and confirms. Locus creates one local task with the imported snapshot and external identity,
@@ -35,7 +38,7 @@ completion transition receives the comment and records that resolution is unsupp
 
 1. Manual and imported tasks use the same task, workflow, root-session, run-tree, and Automate-detail contracts.
 2. The import surface lists configured work-item providers and previews an item before creating a task.
-3. GitHub, GitLab, Codeberg, Bitbucket Cloud, Bitbucket Data Center, and Jira provider plugins import a normalized snapshot.
+3. The first-party GitHub provider plugin imports a normalized issue snapshot through the common port.
 4. A later edit to the source item never changes the local task.
 5. Duplicate provider identity import opens the existing task and creates no second task.
 6. No source write occurs until the task reaches Done; tests cover every non-Done local state.

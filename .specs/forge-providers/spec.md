@@ -64,7 +64,8 @@ a change request, but never merges to `main` or `master`.
 10. Provider tokens are obtained only through the credential broker and are scoped by provider host.
 11. No Locus path merges `main` or `master`.
 12. Existing GitHub issue links migrate without losing their repository, number, URL, or snapshot.
-13. Each forge integration ships or selects a work-item provider plugin; the plugin passes the common work-item contract.
+13. The GitHub integration ships or selects the first-party GitHub work-item plugin; other forge
+integrations remain available for future work-item plugins.
 
 ## Open
 

@@ -223,9 +223,10 @@ edges. Items 32–33 are intentionally last because they depend on later plannin
   *Depends on:* `forge-providers`, `agent-prs`, and `guardrails`
   *Completed:* normalized failure detection, compact log fetch, container dispatch, branch-only fix push, shared guardrail budget, arbiter/noise handling, attempt-carrying Inbox escalation, ignored real-break/give-up checks, and ordinary-workflow decision.
 
-- [ ] **31. M7 — [external-work-items](.specs/external-work-items/spec.md)** · [tasks](.specs/external-work-items/tasks.md) · 20 tasks
-  Import tracker work into the local task workflow.
+- [x] **31. M7 — [external-work-items](.specs/external-work-items/spec.md)** · [tasks](.specs/external-work-items/tasks.md) · 20 tasks
+  Import GitHub issues through the first-party work-item plugin; other trackers remain future plugins.
   *Depends on:* `task-orchestration`, `forge-providers`, and `board`
+  *Completed:* GitHub JSON-RPC plugin, `gh` snapshot/comment/resolve operations, database-backed provider registration and hydration, transactional import persistence, Done completion delivery with retry/status, duplicate-task navigation, Tauri IPC, and configured-provider UI loading. Docker-backed database tests remain blocked while Colima is unavailable.
 
 - [ ] **32. M1.5 — [agent-session-research](.specs/agent-session-research/spec.md)** · [tasks](.specs/agent-session-research/tasks.md) · 4 tasks
   Session research feed and reviewed promotion.

@@ -9,10 +9,12 @@ use crate::{
     ids::{ProjectId, RunId, SessionId, TaskId},
     services::board::BoardTask,
 };
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct WorkflowSelection {
     pub task_id: TaskId,
     pub project_id: ProjectId,
@@ -186,6 +188,68 @@ impl TaskOrchestrator {
                 external_link: None,
             },
         );
+        Ok(())
+    }
+
+    pub fn update_task(&mut self, task: BoardTask) -> Result<(), TaskError> {
+        let record = self
+            .tasks
+            .get_mut(&task.id)
+            .ok_or(TaskError::TaskNotFound { task_id: task.id })?;
+        record.task = task;
+        Ok(())
+    }
+
+    pub fn restore_task_state(
+        &mut self,
+        task: BoardTask,
+        workflow: WorkflowSelection,
+        root_session_id: Option<SessionId>,
+        runs: Vec<TaskRunLink>,
+        evidence: Vec<TaskEvidenceLink>,
+        external_link: Option<String>,
+    ) -> Result<(), TaskError> {
+        if !workflow.confirmed {
+            return Err(TaskError::WorkflowRequired { task_id: task.id });
+        }
+        let workflow_def_id = workflow
+            .workflow_def_id
+            .ok_or(TaskError::WorkflowRequired { task_id: task.id })?;
+        self.register(task.clone(), workflow)?;
+        let record = self
+            .tasks
+            .get_mut(&task.id)
+            .ok_or(TaskError::TaskNotFound { task_id: task.id })?;
+        record.root = root_session_id.map(|session_id| TaskRootSession {
+            task_id: task.id,
+            workflow_def_id,
+            session_id,
+            execution_id: Uuid::nil(),
+        });
+        for run in runs {
+            if run.task_id != task.id {
+                return Err(TaskError::RunNotOwned {
+                    task_id: task.id,
+                    run_id: run.run_id,
+                });
+            }
+            if record.runs.insert(run.run_id, run.clone()).is_some() {
+                return Err(TaskError::DuplicateRun {
+                    task_id: task.id,
+                    run_id: run.run_id,
+                });
+            }
+        }
+        for item in evidence {
+            if !record.runs.contains_key(&item.run_id) {
+                return Err(TaskError::RunNotOwned {
+                    task_id: task.id,
+                    run_id: item.run_id,
+                });
+            }
+            record.evidence.push(item);
+        }
+        record.external_link = external_link;
         Ok(())
     }
 
