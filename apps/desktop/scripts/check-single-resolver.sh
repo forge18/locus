@@ -10,8 +10,8 @@ fail=0
 
 # Only the nav store may hold view state.
 holders=$(grep -rn 'createSignal<View>\|createSignal<NavTarget>' src \
-           --include='*.ts' --include='*.tsx' \
-           | grep -v '^src/nav/store.ts:' || true)
+  --include='*.ts' --include='*.tsx' |
+  grep -v '^src/nav/store.ts:' || true)
 if [ -n "$holders" ]; then
   echo "view state is held outside the nav store:"
   echo "$holders"
@@ -19,8 +19,8 @@ if [ -n "$holders" ]; then
 fi
 
 # Internal screens may have local tabs; only the navigation target setter is guarded.
-setters=$(grep -rn 'setTarget(' src --include='*.ts' --include='*.tsx' \
-           | grep -v '^src/nav/' || true)
+setters=$(grep -rn 'setTarget(' src --include='*.ts' --include='*.tsx' |
+  grep -v '^src/nav/' || true)
 if [ -n "$setters" ]; then
   echo "something outside src/nav/ sets the view directly:"
   echo "$setters"
@@ -28,8 +28,8 @@ if [ -n "$setters" ]; then
 fi
 
 # Navigation goes through the store's go/open, never through resolve() by hand.
-callers=$(grep -rnE '(^|[^.[:alnum:]_])resolve\(' src --include='*.ts' --include='*.tsx' \
-           | grep -v '^src/nav/' || true)
+callers=$(grep -rnE '(^|[^.[:alnum:]_])resolve\(' src --include='*.ts' --include='*.tsx' |
+  grep -v '^src/nav/' || true)
 if [ -n "$callers" ]; then
   echo "something outside src/nav/ calls the resolver directly instead of nav.open():"
   echo "$callers"

@@ -36,3 +36,4 @@ pub mod services;
 pub mod store;
 #[cfg(any(test, feature = "testkit"))]
 pub mod testkit;
+pub mod work_item;

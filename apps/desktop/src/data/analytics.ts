@@ -25,7 +25,9 @@ import type {
 export * from "../fixtures/analytics";
 
 /** Becomes: invoke('analytics_at_a_glance', { query }) */
-export function useAtAGlanceMetrics(_query: AnalyticsQuery = { scope: "all", range: "30d" }) {
+export function useAtAGlanceMetrics(
+  _query: AnalyticsQuery = { scope: "all", range: "30d" },
+) {
   return AT_A_GLANCE_METRICS;
 }
 

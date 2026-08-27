@@ -10,10 +10,11 @@ the source system is not synchronized while work is in progress.
 
 ## Contract
 
-An `ExternalWorkItemProvider` port normalizes provider kind, host/base URL, workspace or project,
-native ID, URL, title, body, labels, status, and completion capabilities. Forge adapters expose it for
-their issue trackers; Jira has its own adapter. Later trackers add an adapter without changing task,
-workflow, or Automate code.
+An `ExternalWorkItemProvider` plugin port normalizes an opaque plugin ID, host/base URL, workspace or
+project, native ID, URL, title, body, labels, status, and completion capabilities. A provider plugin
+advertises `work_item.snapshot`, `work_item.comment`, and optional `work_item.resolve` capabilities
+through the common JSON-RPC executable contract. GitHub, GitLab, Jira, and later trackers are plugins;
+core task, workflow, board, and Automate code never matches on a provider name.
 
 Import is explicit. The user chooses a configured provider and item, previews the source snapshot and
 workflow, and confirms. Locus creates one local task with the imported snapshot and external identity,
@@ -34,14 +35,14 @@ completion transition receives the comment and records that resolution is unsupp
 
 1. Manual and imported tasks use the same task, workflow, root-session, run-tree, and Automate-detail contracts.
 2. The import surface lists configured work-item providers and previews an item before creating a task.
-3. GitHub, GitLab, Codeberg, Bitbucket Cloud, Bitbucket Data Center, and Jira adapters import a normalized snapshot.
+3. GitHub, GitLab, Codeberg, Bitbucket Cloud, Bitbucket Data Center, and Jira provider plugins import a normalized snapshot.
 4. A later edit to the source item never changes the local task.
 5. Duplicate provider identity import opens the existing task and creates no second task.
 6. No source write occurs until the task reaches Done; tests cover every non-Done local state.
 7. Done emits exactly one idempotent completion comment containing the task locator and evidence.
 8. Done resolves the external item when supported; unsupported resolution is visible without failing local Done.
 9. A failed completion delivery retries the same durable completion event without fetching or synchronizing the source item.
-10. A new provider adapter passes the work-item conformance suite without changes to Automate or task orchestration.
+10. A new provider plugin passes the work-item conformance suite without changes to Automate or task orchestration.
 
 ## Open
 

@@ -108,6 +108,8 @@ pub struct BoardTask {
     pub evidence: Vec<BoardEvidenceLink>,
     pub comments: Vec<BoardComment>,
     pub external_issue: Option<BoardIssue>,
+    /// Full provider identity and imported snapshot; `external_issue` is legacy display data.
+    pub external_work_item: Option<crate::work_item::WorkItemSnapshot>,
 }
 
 impl BoardTask {
@@ -134,6 +136,7 @@ impl BoardTask {
             evidence: Vec::new(),
             comments: Vec::new(),
             external_issue: None,
+            external_work_item: None,
         }
     }
 

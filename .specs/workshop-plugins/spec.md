@@ -41,8 +41,9 @@ The first-party roster is an allowlist of shipped plugins, not a limit on the ar
 may add other CLI tools, harnesses, and providers through the same admission and capability contract.
 No user plugin may add UI code; the first-party UI renders manifest and RPC data through known views.
 
-`forge-providers` is a separate remote-forge integration boundary, not a Workshop model-provider plugin.
-Its provider-neutral port is not expanded or renamed by this scope reduction.
+`forge-providers` remains a separate remote-forge operation boundary, not a Workshop model-provider
+surface. The external-work-items port uses this common executable envelope for provider plugins, but
+work-item capabilities are not model-provider capabilities and remain governed by its own spec.
 
 ## Common plugin contract
 
@@ -69,7 +70,7 @@ The host performs this lifecycle before any kind-specific call:
 3. `plugin.health` — return readiness and a bounded diagnostic summary.
 4. `plugin.shutdown` — terminate cleanly at the end of the host session.
 
-Capability calls are namespaced (`harness.*`, `provider.*`, or `cli_tool.*`) and carry typed JSON
+Capability calls are namespaced (`harness.*`, `provider.*`, `work_item.*`, or `cli_tool.*`) and carry typed JSON
 objects. The host rejects malformed or required-unsupported capabilities, ignores optional capabilities
 it does not know, bounds every call, and never infers behavior from a plugin name. Responses are data;
 the first-party UI owns rendering.
@@ -92,10 +93,10 @@ harnesses.
 
 - **CLI tools** declare install, verify, documentation, digest, and runtime permission metadata. The
   existing Minisign and image-allowlist gates remain mandatory. `gh` is the only first-party tool.
-- **Providers** declare model discovery, verification, endpoint/authentication metadata, and model
-  aliases. Credentials remain OS-keychain references resolved by the host broker; raw secrets never
-  cross the plugin or persistence boundary. First-party providers are `openai`, `anthropic`, and
-  `openrouter`.
+- **Providers** declare either model discovery and verification metadata, or external work-item
+  capabilities. Model credentials remain OS-keychain references resolved by the host broker; raw
+  secrets never cross the plugin or persistence boundary. Work-item providers expose normalized
+  snapshots plus bounded comment and optional resolution calls.
 - **Harnesses** declare launch/session/materialization/event capabilities. The host owns run identity,
   container placement, ACP normalization, and policy; the plugin owns harness-specific mechanics.
   `pi` is the only first-party harness.

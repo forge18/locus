@@ -1,5 +1,5 @@
-import { createSignal, For, Show } from 'solid-js'
-import { Icon } from '../../ui/Icon'
+import { createSignal, For, Show } from "solid-js";
+import { Icon } from "../../ui/Icon";
 import {
   BUDGET_NOTE,
   COMPILED,
@@ -13,16 +13,16 @@ import {
   useOperands,
   usePalette,
   usePresets,
-} from '../../data/workflow'
-import { WorkflowCanvas } from '../../workflow-canvas/WorkflowCanvas'
+} from "../../data/workflow";
+import { WorkflowCanvas } from "../../workflow-canvas/WorkflowCanvas";
 
 /**
  * Layout and inspector on fixture data. Real graph editing, compile and the live
  * overlay are `workflow-canvas` at M4, gated by Spike 3.
  */
 export function WorkflowView() {
-  const canvas = useCanvas()
-  const [expandedPreset, setExpandedPreset] = createSignal<string>()
+  const canvas = useCanvas();
+  const [expandedPreset, setExpandedPreset] = createSignal<string>();
 
   return (
     <div class="wf" data-testid="workflow">
@@ -31,18 +31,28 @@ export function WorkflowView() {
         <For each={usePalette()}>
           {(node) => (
             <div
-              class={['wf-chip', node.tone !== 'default' ? `wf-chip-${node.tone}` : '']
+              class={[
+                "wf-chip",
+                node.tone !== "default" ? `wf-chip-${node.tone}` : "",
+              ]
                 .filter(Boolean)
-                .join(' ')}
+                .join(" ")}
               data-testid={`wf-chip-${node.kind}`}
               data-tone={node.tone}
               draggable="true"
             >
-              <Icon name="dots-six-vertical" size={10} style={{ color: 'var(--text-muted)' }} />
+              <Icon
+                name="dots-six-vertical"
+                size={10}
+                style={{ color: "var(--text-muted)" }}
+              />
               <Icon name={node.icon} size={11} />
               {node.label}
               <Show when={node.required}>
-                <span class="wf-chip-req" data-testid={`wf-chip-req-${node.kind}`}>
+                <span
+                  class="wf-chip-req"
+                  data-testid={`wf-chip-req-${node.kind}`}
+                >
                   req
                 </span>
               </Show>
@@ -58,7 +68,7 @@ export function WorkflowView() {
             <button
               type="button"
               class="wf-preset"
-              data-testid={`wf-preset-${preset.name.replace(/\W+/g, '-')}`}
+              data-testid={`wf-preset-${preset.name.replace(/\W+/g, "-")}`}
               aria-expanded={expandedPreset() === preset.name}
               onClick={() => setExpandedPreset(preset.name)}
             >
@@ -134,7 +144,10 @@ export function WorkflowView() {
           <div class="operands" data-testid="wf-operands">
             <For each={useOperands()}>
               {(operand) => (
-                <span class="operand" data-testid={`operand-${operand.replace(/\W+/g, '-')}`}>
+                <span
+                  class="operand"
+                  data-testid={`operand-${operand.replace(/\W+/g, "-")}`}
+                >
                   {operand}
                 </span>
               )}
@@ -149,15 +162,21 @@ export function WorkflowView() {
           </span>
           <For each={useGuardrails()}>
             {(guardrail) => (
-              <div class="guardrail-row" data-testid={`guardrail-${guardrail.key}`}>
+              <div
+                class="guardrail-row"
+                data-testid={`guardrail-${guardrail.key}`}
+              >
                 {guardrail.label}
                 <Show
-                  when={guardrail.kind === 'stepper'}
+                  when={guardrail.kind === "stepper"}
                   fallback={
                     <Show
-                      when={guardrail.kind === 'toggle'}
+                      when={guardrail.kind === "toggle"}
                       fallback={
-                        <span class="guardrail-value" data-testid={`guardrail-value-${guardrail.key}`}>
+                        <span
+                          class="guardrail-value"
+                          data-testid={`guardrail-value-${guardrail.key}`}
+                        >
                           {guardrail.value}
                         </span>
                       }
@@ -165,19 +184,31 @@ export function WorkflowView() {
                       <span
                         class="toggle"
                         data-testid={`guardrail-toggle-${guardrail.key}`}
-                        data-on={guardrail.value === 'on' ? 'true' : 'false'}
+                        data-on={guardrail.value === "on" ? "true" : "false"}
                       />
                     </Show>
                   }
                 >
-                  <span class="stepper" data-testid={`guardrail-stepper-${guardrail.key}`}>
-                    <button type="button" aria-label={`Decrease ${guardrail.label}`}>
+                  <span
+                    class="stepper"
+                    data-testid={`guardrail-stepper-${guardrail.key}`}
+                  >
+                    <button
+                      type="button"
+                      aria-label={`Decrease ${guardrail.label}`}
+                    >
                       −
                     </button>
-                    <span class="guardrail-value" data-testid={`guardrail-value-${guardrail.key}`}>
+                    <span
+                      class="guardrail-value"
+                      data-testid={`guardrail-value-${guardrail.key}`}
+                    >
                       {guardrail.value}
                     </span>
-                    <button type="button" aria-label={`Increase ${guardrail.label}`}>
+                    <button
+                      type="button"
+                      aria-label={`Increase ${guardrail.label}`}
+                    >
                       +
                     </button>
                   </span>
@@ -198,8 +229,8 @@ export function WorkflowView() {
         </footer>
       </aside>
     </div>
-  )
+  );
 }
 
 /** Default export so the view can be code-split at the route boundary. */
-export default WorkflowView
+export default WorkflowView;

@@ -1129,6 +1129,75 @@ pub struct ProviderModelDescriptor {
     pub context_window: Option<u64>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct WorkItemProviderDescriptor {
+    pub manifest: PluginManifest,
+    pub comments: bool,
+    pub resolve: bool,
+}
+
+impl WorkItemProviderDescriptor {
+    pub fn from_manifest(manifest: &PluginManifest) -> Result<Self, PluginError> {
+        manifest.validate()?;
+        if manifest.kind != PluginKind::Provider {
+            return Err(PluginError::InvalidManifest(
+                "descriptor kind is not provider".into(),
+            ));
+        }
+        let descriptor = Self {
+            manifest: manifest.clone(),
+            comments: manifest
+                .capabilities
+                .iter()
+                .any(|capability| capability == crate::work_item::WORK_ITEM_COMMENT_CAPABILITY),
+            resolve: manifest
+                .capabilities
+                .iter()
+                .any(|capability| capability == crate::work_item::WORK_ITEM_RESOLVE_CAPABILITY),
+        };
+        descriptor.validate()?;
+        Ok(descriptor)
+    }
+
+    pub fn validate(&self) -> Result<(), PluginError> {
+        if self.manifest.kind != PluginKind::Provider {
+            return Err(PluginError::InvalidManifest(
+                "descriptor kind is not provider".into(),
+            ));
+        }
+        require_capabilities(
+            &self.manifest,
+            &[
+                crate::work_item::WORK_ITEM_SNAPSHOT_CAPABILITY,
+                crate::work_item::WORK_ITEM_COMMENT_CAPABILITY,
+            ],
+        )?;
+        if self.resolve && !self.comments {
+            return Err(PluginError::InvalidManifest(
+                "work-item resolution requires comment capability".into(),
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn plugin_descriptor(&self) -> PluginDescriptor {
+        PluginDescriptor::from_manifest(&self.manifest)
+    }
+
+    pub fn work_item_provider(
+        &self,
+    ) -> Result<crate::work_item::PluginWorkItemProvider, PluginError> {
+        crate::work_item::PluginWorkItemProvider::new(
+            self.manifest.id.clone(),
+            crate::work_item::WorkItemCapabilities {
+                comments: self.comments,
+                resolve: self.resolve,
+            },
+        )
+        .map_err(|error| PluginError::InvalidManifest(error.to_string()))
+    }
+}
+
 fn require_capabilities(manifest: &PluginManifest, required: &[&str]) -> Result<(), PluginError> {
     let missing = required
         .iter()
@@ -1708,6 +1777,35 @@ executable="example"
                 .iter()
                 .any(|cap| cap == "provider.models"));
         }
+    }
+
+    #[test]
+    fn work_item_provider_contract() {
+        let manifest = PluginManifest::new(
+            PluginKind::Provider,
+            "fixture.work-items",
+            "1.0.0",
+            "fixture-work-items",
+            [
+                crate::work_item::WORK_ITEM_SNAPSHOT_CAPABILITY,
+                crate::work_item::WORK_ITEM_COMMENT_CAPABILITY,
+                crate::work_item::WORK_ITEM_RESOLVE_CAPABILITY,
+            ],
+            ["keychain_reference"],
+        )
+        .unwrap();
+        let descriptor = WorkItemProviderDescriptor::from_manifest(&manifest).unwrap();
+        assert!(descriptor.comments);
+        assert!(descriptor.resolve);
+        assert!(descriptor.validate().is_ok());
+        assert_eq!(
+            descriptor
+                .work_item_provider()
+                .unwrap()
+                .plugin_id
+                .as_str(),
+            "fixture.work-items"
+        );
     }
 
     #[test]

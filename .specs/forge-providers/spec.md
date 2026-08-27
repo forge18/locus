@@ -8,9 +8,9 @@ Connect Locus to GitHub, GitLab, Codeberg, Bitbucket Cloud, and Bitbucket Data C
 change requests, CI, and explicitly linked issues. Locus projects remain unrelated to provider project
 features.
 
-This is the remote-forge integration boundary, not a Workshop model-provider plugin. The Workshop
-provider roster (`openai`, `anthropic`, and `openrouter`) and its plugin contract are defined in
-`.specs/workshop-plugins/`; this feature's provider-neutral forge port remains separate.
+This is the remote-forge integration boundary, separate from Workshop model providers. Forge-specific
+repository, change-request, CI, and webhook operations remain behind `ForgeProvider`; issue import and
+completion are exposed through the plugin-backed work-item port defined in `external-work-items`.
 
 ## Governed by
 
@@ -20,19 +20,14 @@ provider roster (`openai`, `anthropic`, and `openrouter`) and its plugin contrac
 
 ## Contract
 
-Local repository work stays in `gix`. A provider-neutral `ForgeProvider` port owns only remote-forge
-operations: repository identity, issue import/create, change-request open/update, CI status and logs,
-review comments, signed webhook verification, and an `ExternalWorkItemProvider` bridge for import.
+Local repository work stays in `gix`. A provider-neutral `ForgeProvider` port owns remote-forge
+operations: repository identity, issue create/link lookup, change-request open/update, CI status and
+logs, review comments, and signed webhook verification. Work-item import and completion are delegated
+to an admitted provider plugin through `work_item.*` JSON-RPC capabilities.
 
-The adapter registry selects an implementation from a persisted provider kind and host/base URL:
-
-| Provider kind | Implementation |
-| --- | --- |
-| GitHub | GitHub API adapter; configured for GitHub.com or Enterprise host |
-| GitLab | GitLab API adapter; configured for GitLab.com or self-managed host |
-| Codeberg | Forgejo API adapter fixed to Codeberg's host |
-| Bitbucket Cloud | Bitbucket Cloud API adapter |
-| Bitbucket Data Center | Bitbucket Server/Data Center API adapter |
+The forge registry selects forge operations from persisted provider identity and host/base URL. The
+work-item registry selects an admitted plugin from its opaque plugin ID and host/base URL; neither
+registry changes task or Automate code when a provider is added.
 
 Every adapter declares capabilities. A UI or workflow requests a capability, not a provider name, and
 receives a clear refusal when the configured provider cannot perform it. Provider CLI tools (`gh`,
@@ -40,11 +35,11 @@ receives a clear refusal when the configured provider cannot perform it. Provide
 cross-provider contract.
 
 **Issues are explicitly linked once.** Attaching imports title, body, labels, URL, native identifier,
-provider kind, host, and repository identity at that moment. Creating an issue records the same link.
+provider plugin ID, host, and repository identity at that moment. Creating an issue records the same link.
 Nothing polls or synchronizes the issue afterward. Provider-specific close-reference syntax is generated
 by the adapter; it is never hard-coded as `Fixes #N`.
 
-**Credentials stay host-only.** A provider credential is keyed by provider kind and host/base URL, is
+**Credentials stay host-only.** A provider credential is keyed by plugin or forge identity and host/base URL, is
 retrieved through the credential broker, and never enters a container or persisted configuration.
 
 **Incoming events are webhooks.** Signed review-comment and CI events are verified by the selected
@@ -57,7 +52,7 @@ a change request, but never merges to `main` or `master`.
 ## Acceptance
 
 1. `gix` performs local Git work; no provider adapter owns clone, branch, or local merge operations.
-2. All five provider kinds resolve from persisted provider kind and host/base URL.
+2. All five forge integrations resolve from persisted forge identity and host/base URL; work-item plugins resolve from opaque plugin ID and host/base URL.
 3. Each adapter passes the same contract suite for supported capabilities and refuses unsupported ones.
 4. Attaching an external issue imports its snapshot once; a later provider-side edit never changes the
    Locus task.
@@ -69,7 +64,7 @@ a change request, but never merges to `main` or `master`.
 10. Provider tokens are obtained only through the credential broker and are scoped by provider host.
 11. No Locus path merges `main` or `master`.
 12. Existing GitHub issue links migrate without losing their repository, number, URL, or snapshot.
-13. Each forge adapter exposes its issue tracker through the external-work-item provider contract.
+13. Each forge integration ships or selects a work-item provider plugin; the plugin passes the common work-item contract.
 
 ## Open
 

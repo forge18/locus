@@ -19,7 +19,10 @@ import type {
   PaletteNode,
   Preset,
 } from "../fixtures/workflow";
-import { WORKFLOW_EVENTS, workflowEventsForTranscript } from "./workflow-events";
+import {
+  WORKFLOW_EVENTS,
+  workflowEventsForTranscript,
+} from "./workflow-events";
 import type { NormalizedWorkflowEvent } from "./workflow-events";
 import type { GuardrailTrip, WorkflowDef } from "../types/workflows";
 

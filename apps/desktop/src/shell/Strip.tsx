@@ -35,7 +35,11 @@ export function Strip(props: StripProps) {
               data-kind={card.kind}
               data-status={card.status ?? undefined}
               data-task-id={card.taskId}
-              data-task-locator={card.taskId ? `locus://${card.project}/task/${card.taskId}` : undefined}
+              data-task-locator={
+                card.taskId
+                  ? `locus://${card.project}/task/${card.taskId}`
+                  : undefined
+              }
             >
               <div class="strip-card-top">
                 <Show when={card.kind === "shell"}>

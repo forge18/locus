@@ -36,7 +36,10 @@ if (typeof globalThis.ResizeObserver !== "function") {
   } as typeof ResizeObserver;
 }
 
-if (typeof window !== "undefined" && typeof window.DOMMatrixReadOnly !== "function") {
+if (
+  typeof window !== "undefined" &&
+  typeof window.DOMMatrixReadOnly !== "function"
+) {
   window.DOMMatrixReadOnly = class {
     m22: number;
 

@@ -143,6 +143,8 @@ pub enum TaskError {
     WorkflowProjectMismatch { workflow_def_id: Uuid },
     #[error("task `{task_id}` does not exist")]
     TaskNotFound { task_id: TaskId },
+    #[error("task `{task_id}` is already registered")]
+    DuplicateTask { task_id: TaskId },
     #[error("run `{run_id}` is not owned by task `{task_id}`")]
     RunNotOwned { task_id: TaskId, run_id: RunId },
     #[error("run `{run_id}` is already linked to task `{task_id}`")]
@@ -170,6 +172,9 @@ impl TaskOrchestrator {
         task: BoardTask,
         workflow: WorkflowSelection,
     ) -> Result<(), TaskError> {
+        if self.tasks.contains_key(&task.id) {
+            return Err(TaskError::DuplicateTask { task_id: task.id });
+        }
         self.tasks.insert(
             task.id,
             TaskRecord {

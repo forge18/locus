@@ -85,7 +85,10 @@ export function Shell(props: ShellProps) {
     // ⌘K resolves a locator. It is bound here because the palette is shell
     // chrome, and there is one of it per window.
     const onKeyDown = (e: KeyboardEvent) => {
-        if ((e.key.toLowerCase() === "k" || e.key.toLowerCase() === "p") && (e.metaKey || e.ctrlKey)) {
+        if (
+            (e.key.toLowerCase() === "k" || e.key.toLowerCase() === "p") &&
+            (e.metaKey || e.ctrlKey)
+        ) {
             e.preventDefault();
             setPaletteOpen(true);
         }

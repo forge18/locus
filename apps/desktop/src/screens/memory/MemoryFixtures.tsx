@@ -20,7 +20,11 @@ import {
 import { ARTIFACTS } from "../../fixtures/artifacts";
 import { MailView } from "../mail/MailView";
 import type { Artifact } from "../../types/agents";
-import { GraphRenderer, type GraphEdgeShape, type GraphNodeShape } from "../../workflow-canvas/GraphRenderer";
+import {
+  GraphRenderer,
+  type GraphEdgeShape,
+  type GraphNodeShape,
+} from "../../workflow-canvas/GraphRenderer";
 
 const sessions = [
   ["tapestry · builder@4", "r-9f21 · iteration 3 · 41.2k resident"],

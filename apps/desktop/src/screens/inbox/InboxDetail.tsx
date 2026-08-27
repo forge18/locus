@@ -1,28 +1,29 @@
-import { For, Show, createSignal } from 'solid-js'
-import { Button } from '../../ui/Button'
-import { Icon } from '../../ui/Icon'
-import { Textarea } from '../../ui/Input'
-import type { InboxItem } from '../../data/inbox'
+import { For, Show, createSignal } from "solid-js";
+import { Button } from "../../ui/Button";
+import { Icon } from "../../ui/Icon";
+import { Textarea } from "../../ui/Input";
+import type { InboxItem } from "../../data/inbox";
 
 export interface InboxDetailProps {
-  item: InboxItem
+  item: InboxItem;
   /** Resolves the item in place. The view does not change. */
-  onApprove: (comment: string) => void
-  onSendBack: (comment: string) => void
+  onApprove: (comment: string) => void;
+  onSendBack: (comment: string) => void;
   /** Opens the item's work where that work lives, by locator. */
-  onOpenWork: (locator: string) => void
+  onOpenWork: (locator: string) => void;
 }
 
-const BODY_LABEL: Record<InboxItem['kind'], string> = {
-  gate: 'Plan',
-  ask: 'Question',
-  guardrail: 'What happened',
-  reflection: 'Reflection proposal',
-}
-const age = (minutes: number) => minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h`
+const BODY_LABEL: Record<InboxItem["kind"], string> = {
+  gate: "Plan",
+  ask: "Question",
+  guardrail: "What happened",
+  reflection: "Reflection proposal",
+};
+const age = (minutes: number) =>
+  minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h`;
 
 export function InboxDetail(props: InboxDetailProps) {
-  const [comment, setComment] = createSignal('')
+  const [comment, setComment] = createSignal("");
 
   return (
     <section class="inbox-detail" data-testid="inbox-detail">
@@ -50,7 +51,7 @@ export function InboxDetail(props: InboxDetailProps) {
           <span>·</span>
           <span>{props.item.role}</span>
           <span>·</span>
-          <span>Gate: {props.item.kind === 'gate' ? 'human' : 'agent'}</span>
+          <span>Gate: {props.item.kind === "gate" ? "human" : "agent"}</span>
         </div>
       </header>
 
@@ -66,13 +67,20 @@ export function InboxDetail(props: InboxDetailProps) {
 
         <Show when={props.item.callout}>
           <div class="inbox-callout" data-testid="inbox-callout">
-            <Icon name="info" size={12} style={{ 'flex-shrink': 0, 'margin-top': '1px' }} />
+            <Icon
+              name="info"
+              size={12}
+              style={{ "flex-shrink": 0, "margin-top": "1px" }}
+            />
             <span>{props.item.callout}</span>
           </div>
         </Show>
 
         <div class="inbox-comment">
-          <span class="inbox-comment-caption" data-testid="inbox-comment-caption">
+          <span
+            class="inbox-comment-caption"
+            data-testid="inbox-comment-caption"
+          >
             Comment steers the agent that made it
           </span>
           <Textarea
@@ -99,10 +107,18 @@ export function InboxDetail(props: InboxDetailProps) {
       </div>
 
       <footer class="inbox-footer" data-testid="inbox-footer">
-        <Button variant="primary" data-testid="inbox-approve" onClick={() => props.onApprove(comment())}>
+        <Button
+          variant="primary"
+          data-testid="inbox-approve"
+          onClick={() => props.onApprove(comment())}
+        >
           Approve &amp; release the loop
         </Button>
-        <Button variant="secondary" data-testid="inbox-send-back" onClick={() => props.onSendBack(comment())}>
+        <Button
+          variant="secondary"
+          data-testid="inbox-send-back"
+          onClick={() => props.onSendBack(comment())}
+        >
           Send back with comment
         </Button>
         <span class="inbox-footer-note" data-testid="inbox-footer-note">
@@ -110,7 +126,7 @@ export function InboxDetail(props: InboxDetailProps) {
         </span>
       </footer>
     </section>
-  )
+  );
 }
 
 /**
@@ -119,7 +135,7 @@ export function InboxDetail(props: InboxDetailProps) {
  */
 function monoPaths(text: string): string {
   return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/`([^`]+)`/g, '<code class="mono">$1</code>')
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/`([^`]+)`/g, '<code class="mono">$1</code>');
 }
