@@ -228,9 +228,10 @@ edges. Items 32–33 are intentionally last because they depend on later plannin
   *Depends on:* `task-orchestration`, `forge-providers`, and `board`
   *Completed:* GitHub JSON-RPC plugin, `gh` snapshot/comment/resolve operations, database-backed provider registration and hydration, transactional import persistence, Done completion delivery with retry/status, duplicate-task navigation, Tauri IPC, and configured-provider UI loading. Docker-backed database tests remain blocked while Colima is unavailable.
 
-- [ ] **32. M1.5 — [agent-session-research](.specs/agent-session-research/spec.md)** · [tasks](.specs/agent-session-research/tasks.md) · 4 tasks
+- [x] **32. M1.5 — [agent-session-research](.specs/agent-session-research/spec.md)** · [tasks](.specs/agent-session-research/tasks.md) · 4 tasks
   Session research feed and reviewed promotion.
   *Depends on:* `artifacts`, `memory`, and `planning-module`
+  *Completed:* session-scoped `finding` feed with seed/this-run/session-close provenance, planning inheritance without promotion, and explicit close-review promotion into long-term memory.
 
 - [ ] **33. M1.5 — [agent-interface](.specs/agent-interface/spec.md)** · [tasks](.specs/agent-interface/tasks.md) · 26 tasks
   One ACP Agent Pane for stream, gates, plan, and research.

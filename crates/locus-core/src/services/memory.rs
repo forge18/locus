@@ -4,7 +4,10 @@
 //! CLI, store adapters, and desktop projections.  Editing is append-only: revision one remains
 //! the agent's assertion and revision two is the human curation returned by recall.
 
-use crate::ids::{ProjectId, RunId};
+use crate::{
+    ids::{ProjectId, RunId},
+    services::artifact::{ArtifactContent, SessionResearchFeed},
+};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::f64::consts::LN_2;
@@ -212,6 +215,8 @@ pub enum MemoryError {
     ScopeMismatch,
     #[error("memory contains a credential-like value")]
     SecretRejected,
+    #[error("session research findings require a closed review")]
+    ResearchFeedNotClosed,
 }
 
 /// The small, run-local tier is deliberately bounded.  Refusing an insert preserves the
@@ -547,6 +552,60 @@ impl DurableMemoryStore {
     }
 }
 
+pub fn promote_reviewed_session_findings(
+    feed: &mut SessionResearchFeed,
+    memory: &mut DurableMemoryStore,
+) -> Result<usize, MemoryError> {
+    if !feed.is_closed() {
+        return Err(MemoryError::ResearchFeedNotClosed);
+    }
+    let candidates = feed
+        .reviewed_findings()
+        .filter(|finding| !finding.promoted)
+        .map(|finding| {
+            let body = match &finding.artifact.content {
+                ArtifactContent::Text(body) => body.clone(),
+                ArtifactContent::Blob { .. } => return Err(MemoryError::InvalidFact),
+            };
+            let artifact_id = finding.artifact.id;
+            let provenance = serde_json::json!({
+                "source": "session_research",
+                "session_id": feed.session_id().to_string(),
+                "artifact_id": artifact_id.to_string(),
+                "provenance": finding.provenance.label(),
+            });
+            let subject = finding
+                .artifact
+                .summary
+                .clone()
+                .unwrap_or_else(|| "Session research finding".into());
+            let candidate = MemoryEntry::new(
+                format!("finding-{artifact_id}"),
+                finding.artifact.project_id,
+                MemoryScopeKind::Project,
+                None,
+                format!("session-research/{artifact_id}"),
+                subject,
+                MemoryCategory::Fact,
+                body,
+                provenance,
+                Vec::new(),
+                "session-research",
+                0.5,
+            )?;
+            Ok((artifact_id, candidate))
+        })
+        .collect::<Result<Vec<_>, MemoryError>>()?;
+    let mut promoted = 0;
+    for (artifact_id, candidate) in candidates {
+        memory.promote(candidate)?;
+        feed.mark_promoted(artifact_id)
+            .map_err(|_| MemoryError::InvalidFact)?;
+        promoted += 1;
+    }
+    Ok(promoted)
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TaskClass {
     Code,
@@ -782,6 +841,49 @@ mod memory {
     fn delete_scoped_to_long_term_and_artifacts() {
         assert!(!PersistenceGroup::ShortTerm.can_delete());
         assert!(PersistenceGroup::Artifacts.can_delete());
+    }
+
+    #[test]
+    fn promotes_reviewed_session_findings() {
+        let project = ProjectId::generate();
+        let run = RunId::generate();
+        let first = crate::services::artifact::ArtifactRow::text(
+            project,
+            run,
+            crate::services::artifact::ArtifactKind::Finding,
+            "keep this finding",
+        );
+        let second = crate::services::artifact::ArtifactRow::text(
+            project,
+            run,
+            crate::services::artifact::ArtifactKind::Finding,
+            "leave this finding in the feed",
+        );
+        let first_id = first.id;
+        let mut feed = SessionResearchFeed::new(crate::ids::SessionId::generate());
+        feed.record_run_finding(first).unwrap();
+        feed.record_run_finding(second).unwrap();
+        let mut memory = DurableMemoryStore::default();
+        assert_eq!(
+            promote_reviewed_session_findings(&mut feed, &mut memory),
+            Err(MemoryError::ResearchFeedNotClosed)
+        );
+        assert_eq!(feed.review_at_close([first_id]).unwrap(), 1);
+        assert_eq!(
+            promote_reviewed_session_findings(&mut feed, &mut memory).unwrap(),
+            1
+        );
+        assert_eq!(memory.entries().count(), 1);
+        let promoted = feed
+            .findings()
+            .find(|finding| finding.artifact.id == first_id)
+            .unwrap();
+        assert!(promoted.reviewed);
+        assert!(promoted.promoted);
+        assert_eq!(
+            promoted.provenance,
+            crate::services::artifact::ResearchProvenance::SessionClose
+        );
     }
 
     fn entry(project: ProjectId, id: usize, path: &str) -> MemoryEntry {

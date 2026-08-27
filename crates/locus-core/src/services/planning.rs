@@ -7,6 +7,7 @@ use crate::{
     runtime::routing::RoutingEffort,
     services::{
         agents::TaskClass,
+        artifact::{ArtifactRow, ResearchFeedError, SessionResearchFeed},
         wiki::{PageKind, WikiEvent, WikiPage},
     },
 };
@@ -1202,6 +1203,13 @@ pub fn specialization_concept(project_id: ProjectId, body: impl Into<String>) ->
     }
 }
 
+pub fn findings_seed_task_session(
+    feed: &mut SessionResearchFeed,
+    findings: impl IntoIterator<Item = ArtifactRow>,
+) -> Result<usize, ResearchFeedError> {
+    feed.seed_from_plan(findings)
+}
+
 #[cfg(test)]
 mod revision_tests {
     use super::two_pass_synthesis as synthesize;
@@ -1294,6 +1302,29 @@ mod revision_tests {
 #[cfg(test)]
 mod planning {
     use super::*;
+
+    #[test]
+    fn findings_seed_task_session() {
+        let project = ProjectId::generate();
+        let finding = crate::services::artifact::ArtifactRow::text(
+            project,
+            crate::ids::RunId::generate(),
+            crate::services::artifact::ArtifactKind::Finding,
+            "planning evidence",
+        );
+        let mut feed =
+            crate::services::artifact::SessionResearchFeed::new(crate::ids::SessionId::generate());
+        assert_eq!(
+            super::findings_seed_task_session(&mut feed, [finding]).unwrap(),
+            1
+        );
+        let entry = feed.findings().next().unwrap();
+        assert_eq!(
+            entry.provenance,
+            crate::services::artifact::ResearchProvenance::Seed
+        );
+        assert!(!entry.reviewed);
+    }
 
     #[test]
     fn three_agents() {
