@@ -4,7 +4,7 @@ import { GITHUB_WORK_ITEM_PROVIDER_FIXTURE } from "../../src/data/work-items";
 import ManageView from "../../src/screens/manage/ManageView";
 
 describe("automate/import-confirmation", () => {
-  it("requires workflow selection and states the one-way completion boundary", async () => {
+  it("requires workflow selection and states the provider sync boundary", async () => {
     const { getByText, getByTestId } = render(() => (
       <ManageView
         workItemProviders={GITHUB_WORK_ITEM_PROVIDER_FIXTURE}
@@ -22,7 +22,7 @@ describe("automate/import-confirmation", () => {
     expect(getByTestId("automate-import-workflow")).toBeTruthy();
     expect(getByText("build-and-verify · v1")).toBeTruthy();
     expect(getByTestId("automate-import-one-way").textContent).toContain(
-      "No source write before local Done",
+      "Status and note synchronization is enabled",
     );
     expect(getByTestId("automate-import-kanban").textContent).toContain(
       "preview before local task creation",

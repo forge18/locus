@@ -38,3 +38,5 @@ superseded, not deleted — their history stays here. Tasks 21–32 carry the sy
 | 30 | Sync state on `board.external_work_items`: pull cursor, last-pushed status, note watermark | — | `cargo test -p locus-core store::external_sync_state` |
 | 31 | Render sync state, the conflict decision, and the Sync-now control in task detail | 23,26,27 | `pnpm -C apps/desktop test -- automate/sync-status` |
 | 32 | Conformance fixtures for sync-capable provider plugins | 4,5,21–24 | `cargo test -p locus-core work_item::provider_conformance_sync` |
+
+**Sync batch status:** tasks 21–32 are implemented. Docker-backed persistence verification remains environment-dependent when the local Docker daemon is unavailable.

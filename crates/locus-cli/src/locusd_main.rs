@@ -13,12 +13,13 @@ use std::{
     env,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
+    time::{Duration, Instant},
 };
 
 use anyhow::{Context, Result};
 use locus_core::{
     core::Core,
-    ids::{RunId, SessionId},
+    ids::{RunId, SessionId, TaskId},
     lsp::{parse_cli_request, LanguageCatalog},
     runtime::{
         container::{ContainerRuntime, DebugAdapterLaunch, DockerContainerRuntime},
@@ -585,6 +586,71 @@ fn main() -> Result<()> {
             core.connect(&database_url)
                 .await
                 .context("connect the store")?;
+            let sync_core = core.clone();
+            tokio::spawn(async move {
+                let mut ticker = tokio::time::interval(Duration::from_secs(1));
+                let mut next_sync_at = BTreeMap::<TaskId, Instant>::new();
+                loop {
+                    ticker.tick().await;
+                    let Some(store) = sync_core.store() else {
+                        continue;
+                    };
+                    let intervals = match store.load_external_work_item_providers().await {
+                        Ok(configs) => configs
+                            .into_iter()
+                            .map(|config| {
+                                (
+                                    (
+                                        config.plugin_id.as_str().to_owned(),
+                                        config.host,
+                                        config.project,
+                                    ),
+                                    config.sync_interval_seconds,
+                                )
+                            })
+                            .collect::<BTreeMap<_, _>>(),
+                        Err(error) => {
+                            eprintln!("external work-item sync configuration failed: {error}");
+                            continue;
+                        }
+                    };
+                    let items = match store.load_external_work_items().await {
+                        Ok(items) => items,
+                        Err(error) => {
+                            eprintln!("external work-item sync discovery failed: {error}");
+                            continue;
+                        }
+                    };
+                    let now = Instant::now();
+                    for item in items {
+                        let identity = &item.snapshot.identity;
+                        let interval = intervals
+                            .get(&(
+                                identity.plugin_id.as_str().to_owned(),
+                                identity.host.clone(),
+                                identity.project.clone(),
+                            ))
+                            .copied()
+                            .unwrap_or(60)
+                            .max(1);
+                        if next_sync_at
+                            .get(&item.task.id)
+                            .is_some_and(|due| *due > now)
+                        {
+                            continue;
+                        }
+                        next_sync_at
+                            .insert(item.task.id, now + Duration::from_secs(u64::from(interval)));
+                        let _operation_lock = sync_core.work_item_operation_lock().lock().await;
+                        if let Err(error) = sync_core.sync_external_work_item(item.task.id).await {
+                            eprintln!(
+                                "external work-item sync failed for {}: {error}",
+                                item.task.id
+                            );
+                        }
+                    }
+                }
+            });
         }
 
         let listener = bind_agent_socket(&socket)?;

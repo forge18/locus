@@ -12,22 +12,25 @@
 
 use std::{
     collections::BTreeMap,
-    path::Path,
+    path::{Path, PathBuf},
     sync::{Arc, Mutex, OnceLock},
+    time::Duration,
 };
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 
 use crate::{
     harness::registry::{load_from_directory, HarnessRegistry},
     ids::{ProjectId, TaskId},
     ipc::{EventChannel, PtyChannel},
     lsp::{LanguageCatalog, LspHost},
+    plugin::{builtin_manifests, PluginKind, PluginProcess, WorkItemProviderDescriptor},
     runtime::{daemon::Daemon, dap::DebugSessionRegistry},
     services::{handoff::HandoffRegistry, telemetry::EventCollector},
     store::Store,
     work_item::{
-        CompletionDelivery, CompletionEvent, CompletionOutbox, WorkItemRegistry, WorkItemSnapshot,
+        pull_from_plugin, sync_capability_from_plugin, CompletionDelivery, CompletionEvent,
+        CompletionOutbox, WorkItemRegistry, WorkItemSnapshot, WorkItemSyncApplication,
     },
 };
 
@@ -127,12 +130,13 @@ impl Core {
         }
         for item in imported {
             work_item_registry
-                .restore_imported_with_state(
+                .restore_imported_with_sync_state(
                     item.task,
                     item.snapshot,
                     item.workflow,
                     item.runs,
                     item.evidence,
+                    item.sync_state,
                 )
                 .map_err(|error| anyhow!("restore imported work item: {error}"))?;
         }
@@ -218,6 +222,118 @@ impl Core {
     /// Postgres is not, which is a state the UI is expected to render rather than crash on.
     pub fn store(&self) -> Option<&Store> {
         self.store.get()
+    }
+
+    /// Pull and fold one sync-capable external work item. The daemon and desktop host use
+    /// the same path so a window is not required for scheduled synchronization.
+    pub async fn sync_external_work_item(
+        &self,
+        task_id: TaskId,
+    ) -> Result<WorkItemSyncApplication> {
+        let store = self
+            .store()
+            .ok_or_else(|| anyhow!("Locus store is not connected"))?;
+        let (identity, cursor, before_registry) = {
+            let registry = self
+                .work_items
+                .lock()
+                .map_err(|_| anyhow!("external work-item registry lock is poisoned"))?;
+            let task = registry
+                .board()
+                .task(task_id)
+                .ok_or_else(|| anyhow!("task `{task_id}` was not found"))?;
+            let identity = task
+                .external_work_item
+                .as_ref()
+                .ok_or_else(|| anyhow!("task is not an imported work item"))?
+                .identity
+                .clone();
+            let cursor = registry
+                .sync_state(&identity)
+                .and_then(|state| state.pull_cursor.clone());
+            (identity, cursor, registry.clone())
+        };
+        let manifest = builtin_manifests()
+            .into_iter()
+            .find(|manifest| {
+                manifest.kind == PluginKind::Provider && manifest.id == identity.plugin_id.as_str()
+            })
+            .ok_or_else(|| anyhow!("work-item plugin is not admitted"))?;
+        let catalog = WorkItemProviderDescriptor::from_manifest(&manifest)?;
+        if !catalog.sync {
+            bail!("external work-item provider does not support synchronization")
+        }
+        let executable = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .join(&manifest.executable);
+        let process = PluginProcess::spawn(executable, Duration::from_secs(30)).await?;
+        let result: Result<WorkItemSyncApplication> = async {
+            let handshake = process
+                .handshake(
+                    &[
+                        crate::work_item::WORK_ITEM_SNAPSHOT_CAPABILITY.into(),
+                        crate::work_item::WORK_ITEM_COMMENT_CAPABILITY.into(),
+                    ],
+                    &[
+                        crate::work_item::WORK_ITEM_SNAPSHOT_CAPABILITY,
+                        crate::work_item::WORK_ITEM_COMMENT_CAPABILITY,
+                        crate::work_item::WORK_ITEM_RESOLVE_CAPABILITY,
+                        crate::work_item::WORK_ITEM_SYNC_CAPABILITY,
+                    ],
+                )
+                .await?;
+            let runtime =
+                WorkItemProviderDescriptor::from_plugin_descriptor(&handshake.descriptor)?;
+            let catalog_descriptor = catalog.plugin_descriptor();
+            if runtime.manifest.protocol != catalog.manifest.protocol
+                || runtime.manifest.kind != catalog.manifest.kind
+                || runtime.manifest.id != catalog.manifest.id
+                || runtime.manifest.version != catalog.manifest.version
+                || runtime.manifest.capabilities != catalog.manifest.capabilities
+                || runtime.manifest.permissions != catalog.manifest.permissions
+                || handshake.descriptor.schema_versions != catalog_descriptor.schema_versions
+            {
+                bail!("work-item plugin runtime does not match its admitted manifest")
+            }
+            let provider = runtime.work_item_provider()?;
+            let capability = sync_capability_from_plugin(&process).await?;
+            let pull = pull_from_plugin(&process, &identity, cursor).await?;
+            let synced_at = crate::services::telemetry::now_timestamp();
+            let (application, snapshot, state) = {
+                let mut registry = self
+                    .work_items
+                    .lock()
+                    .map_err(|_| anyhow!("external work-item registry lock is poisoned"))?;
+                let mut application =
+                    registry.apply_pull(&identity, &capability, pull, &synced_at)?;
+                application.resolution_supported = provider.capabilities.resolve;
+                let imported = registry
+                    .imported(&identity)
+                    .ok_or_else(|| anyhow!("imported work item disappeared during sync"))?;
+                (
+                    application,
+                    imported.snapshot.clone(),
+                    imported.sync_state.clone(),
+                )
+            };
+            store
+                .persist_external_sync(task_id, &snapshot, &application, &state)
+                .await?;
+            Ok(application)
+        }
+        .await;
+        let _ = process.shutdown().await;
+        if let Err(error) = &result {
+            *self
+                .work_items
+                .lock()
+                .map_err(|_| anyhow!("external work-item registry lock is poisoned"))? =
+                before_registry;
+            let _ = store
+                .record_external_sync_error(task_id, &error.to_string())
+                .await;
+        }
+        result
     }
 
     pub fn daemon(&self) -> &Mutex<Daemon> {

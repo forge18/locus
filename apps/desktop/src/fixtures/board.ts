@@ -174,6 +174,19 @@ export const TASKS: Task[] = [
   completionStatus: "resolved",
   completionAttempts: 1,
   resolutionSupported: true,
+  syncSupported: true,
+  syncState: {
+   pullCursor: "2026-08-28T00:00:00Z",
+   lastPushedStatus: "closed",
+   noteWatermark: null,
+   lastLocalStatusAt: null,
+   lastExternalStatusAt: "2026-08-28T00:00:00Z",
+   lastSyncError: null,
+   lastSyncedAt: "2026-08-28T00:01:00Z",
+   unmappedExternalStatus: null,
+   lastConflictWinner: "external",
+   lastConflictReason: "last-write-wins status conflict",
+  },
  },
 ];
 

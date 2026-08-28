@@ -251,10 +251,10 @@ edges. Items 32–33 are intentionally last because they depend on later plannin
   *Depends on:* `agent-definitions`, `agent-interface`, and `schedules`
   *Completed:* durable bot/home-session persistence, warm-container lifecycle, routine skip/drop and attribution, persistent bot branches, desktop routing/surface, and bot IPC.
 
-- [ ] **35. M7 — [external-work-items sync](.specs/external-work-items/spec.md)** · [tasks](.specs/external-work-items/tasks.md) · 12 tasks
+- [x] **35. M7 — [external-work-items sync](.specs/external-work-items/spec.md)** · [tasks](.specs/external-work-items/tasks.md) · 12 tasks
   Keep linked external items synchronized with the board — statuses and notes both ways, plugin-declared status mapping, all notes out with attribution and echo suppression, last-write-wins status conflicts, and an external close carrying Done's evidence.
   *Depends on:* completed external-work-items import and `board`
-  *Scope:* tasks 21–32 of the shared spec; the one-way contract was superseded by [IMPACT_EXTERNAL_SYNC](.specs/IMPACT_EXTERNAL_SYNC.md).
+  *Completed:* sync capability negotiation, cursor/state persistence, fold-owned status and note events, LWW evidence, external Done satisfaction, bounded headless polling, Sync-now/task-detail controls, and sync conformance fixtures. The one-way contract was superseded by [IMPACT_EXTERNAL_SYNC](.specs/IMPACT_EXTERNAL_SYNC.md).
 
 - [ ] **36. M1.6 — [sbx-runtime](.specs/sbx-runtime/spec.md)** · [tasks](.specs/sbx-runtime/tasks.md) · 17 tasks
   Docker's `sbx` sandboxes as a second agent runtime behind the sandbox contract: backend seam, template import, tier-mapped egress policy, TCP relay auth, clone-not-mount workspace, and one live ACP end-to-end.

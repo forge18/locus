@@ -1,15 +1,17 @@
-//! Provider-neutral external work-item import and one-way completion delivery.
+//! Provider-neutral external work-item import, synchronization, and completion delivery.
 //!
-//! Import snapshots become local task state. Source edits never synchronize back
-//! into that state; the only outbound operation is the idempotent completion event
-//! emitted after local Done.
+//! Import snapshots become local task state. Sync-capable providers exchange normalized
+//! statuses and notes through the provider port; completion remains durable and idempotent.
 
 use std::collections::BTreeMap;
 
 use crate::{
     ids::{ArtifactId, ProjectId, TaskId},
     services::{
-        board::{BoardEvent, BoardProjection, BoardTask},
+        board::{
+            BoardActor, BoardComment, BoardCommentOrigin, BoardEvent, BoardEvidenceLink,
+            BoardExternalEvidence, BoardProjection, BoardTask,
+        },
         manage::TaskColumn,
         task::{TaskOrchestrator, WorkflowSelection},
     },
@@ -43,12 +45,230 @@ pub struct WorkItemCapabilities {
     pub resolve: bool,
 }
 
+/// The provider-owned translation between its remote status vocabulary and the fixed board.
+/// `None` is intentional: an external status can be visible without being guessed into a
+/// local column.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct WorkItemStatusVocabulary {
+    pub external_to_local: BTreeMap<String, Option<TaskColumn>>,
+    pub local_to_external: BTreeMap<TaskColumn, String>,
+    #[serde(default)]
+    pub blocked_to_external: Option<String>,
+}
+
+impl WorkItemStatusVocabulary {
+    pub fn validate(&self) -> Result<(), WorkItemError> {
+        if self.external_to_local.iter().any(|(status, column)| {
+            status.trim().is_empty()
+                || status.contains('\0')
+                || column.is_some_and(|column| !TaskColumn::ALL.contains(&column))
+        }) || self.local_to_external.iter().any(|(column, status)| {
+            !TaskColumn::ALL.contains(column) || status.trim().is_empty() || status.contains('\0')
+        }) || self
+            .blocked_to_external
+            .as_deref()
+            .is_some_and(|status| status.trim().is_empty() || status.contains('\0'))
+        {
+            return Err(WorkItemError::InvalidSyncCapability);
+        }
+        Ok(())
+    }
+
+    pub fn local_status(&self, column: TaskColumn, blocked: bool) -> Result<&str, WorkItemError> {
+        if blocked {
+            if let Some(status) = self.blocked_to_external.as_deref() {
+                return Ok(status);
+            }
+        }
+        self.local_to_external
+            .get(&column)
+            .map(String::as_str)
+            .ok_or(WorkItemError::UnmappedLocalStatus(column))
+    }
+
+    pub fn external_status(&self, status: &str) -> Option<TaskColumn> {
+        self.external_to_local.get(status).copied().flatten()
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct WorkItemSyncCapability {
+    pub vocabulary: WorkItemStatusVocabulary,
+}
+
+impl WorkItemSyncCapability {
+    pub fn validate(&self) -> Result<(), WorkItemError> {
+        self.vocabulary.validate()
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct WorkItemPullRequest {
+    pub identity: WorkItemIdentity,
+    pub cursor: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum WorkItemPullChange {
+    Status {
+        id: String,
+        status: String,
+        occurred_at: String,
+        author: String,
+    },
+    Note {
+        id: String,
+        body: String,
+        occurred_at: String,
+        author: String,
+    },
+}
+
+impl WorkItemPullChange {
+    pub fn id(&self) -> &str {
+        match self {
+            Self::Status { id, .. } | Self::Note { id, .. } => id,
+        }
+    }
+
+    pub fn occurred_at(&self) -> &str {
+        match self {
+            Self::Status { occurred_at, .. } | Self::Note { occurred_at, .. } => occurred_at,
+        }
+    }
+
+    pub fn validate(&self) -> Result<(), WorkItemError> {
+        let (id, author) = match self {
+            Self::Status {
+                id, status, author, ..
+            } => {
+                if status.trim().is_empty() || status.contains('\0') {
+                    return Err(WorkItemError::InvalidSyncChange);
+                }
+                (id, author)
+            }
+            Self::Note {
+                id, body, author, ..
+            } => {
+                if body.trim().is_empty() || body.contains('\0') {
+                    return Err(WorkItemError::InvalidSyncChange);
+                }
+                (id, author)
+            }
+        };
+        if id.trim().is_empty()
+            || author.trim().is_empty()
+            || id.contains('\0')
+            || author.contains('\0')
+            || self.occurred_at().contains('\0')
+        {
+            return Err(WorkItemError::InvalidSyncChange);
+        }
+        time::OffsetDateTime::parse(
+            self.occurred_at(),
+            &time::format_description::well_known::Rfc3339,
+        )
+        .map_err(|_| WorkItemError::InvalidSyncChange)?;
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct WorkItemPullResult {
+    pub next_cursor: Option<String>,
+    pub changes: Vec<WorkItemPullChange>,
+}
+
+impl WorkItemPullResult {
+    pub fn validate(&self) -> Result<(), WorkItemError> {
+        if self
+            .next_cursor
+            .as_deref()
+            .is_some_and(|cursor| cursor.trim().is_empty() || cursor.contains('\0'))
+        {
+            return Err(WorkItemError::InvalidSyncChange);
+        }
+        self.changes
+            .iter()
+            .try_for_each(WorkItemPullChange::validate)
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct WorkItemPushStatusRequest {
+    pub identity: WorkItemIdentity,
+    pub column: TaskColumn,
+    pub blocked: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct WorkItemNote {
+    pub id: String,
+    pub body: String,
+    pub author: String,
+    pub occurred_at: String,
+}
+
+impl WorkItemNote {
+    pub fn validate(&self) -> Result<(), WorkItemError> {
+        if self.id.trim().is_empty()
+            || self.body.trim().is_empty()
+            || self.author.trim().is_empty()
+            || self.id.contains('\0')
+            || self.body.contains('\0')
+            || self.author.contains('\0')
+        {
+            return Err(WorkItemError::InvalidSyncChange);
+        }
+        time::OffsetDateTime::parse(
+            &self.occurred_at,
+            &time::format_description::well_known::Rfc3339,
+        )
+        .map_err(|_| WorkItemError::InvalidSyncChange)?;
+        Ok(())
+    }
+}
+
+pub const LOCUS_NOTE_MARKER_PREFIX: &str = "<!-- locus-note:";
+
+pub fn locus_note_marker(note_id: &str) -> String {
+    format!("{LOCUS_NOTE_MARKER_PREFIX}{note_id} -->")
+}
+
+pub fn note_body_with_locus_marker(body: &str, note_id: &str) -> String {
+    format!("{body}\n{}", locus_note_marker(note_id))
+}
+
+pub fn locus_note_marker_id(body: &str) -> Option<&str> {
+    let start = body.find(LOCUS_NOTE_MARKER_PREFIX)? + LOCUS_NOTE_MARKER_PREFIX.len();
+    let rest = &body[start..];
+    let end = rest.find(" -->")?;
+    (!rest[..end].is_empty()).then_some(&rest[..end])
+}
+
+fn parse_sync_timestamp(value: &str) -> Result<time::OffsetDateTime, WorkItemError> {
+    time::OffsetDateTime::parse(value, &time::format_description::well_known::Rfc3339)
+        .map_err(|_| WorkItemError::InvalidSyncChange)
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct WorkItemPushNoteRequest {
+    pub identity: WorkItemIdentity,
+    pub note: WorkItemNote,
+}
+
 pub const WORK_ITEM_SNAPSHOT_METHOD: &str = "work_item.snapshot";
 pub const WORK_ITEM_COMMENT_METHOD: &str = "work_item.comment";
 pub const WORK_ITEM_RESOLVE_METHOD: &str = "work_item.resolve";
+pub const WORK_ITEM_SYNC_CAPABILITY_METHOD: &str = "work_item.sync_capability";
+pub const WORK_ITEM_PULL_METHOD: &str = "work_item.pull";
+pub const WORK_ITEM_PUSH_STATUS_METHOD: &str = "work_item.push_status";
+pub const WORK_ITEM_PUSH_NOTE_METHOD: &str = "work_item.push_note";
 pub const WORK_ITEM_SNAPSHOT_CAPABILITY: &str = "work_item.snapshot";
 pub const WORK_ITEM_COMMENT_CAPABILITY: &str = "work_item.comment";
 pub const WORK_ITEM_RESOLVE_CAPABILITY: &str = "work_item.resolve";
+pub const WORK_ITEM_SYNC_CAPABILITY: &str = "work_item.sync";
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct WorkItemProviderKey {
@@ -72,6 +292,8 @@ pub struct WorkItemProviderConfig {
     pub plugin_id: WorkItemProviderId,
     pub host: String,
     pub project: String,
+    #[serde(default = "default_sync_interval_seconds")]
+    pub sync_interval_seconds: u32,
 }
 
 impl WorkItemProviderConfig {
@@ -84,6 +306,7 @@ impl WorkItemProviderConfig {
             plugin_id: WorkItemProviderId::new(plugin_id)?,
             host: host.into(),
             project: project.into(),
+            sync_interval_seconds: default_sync_interval_seconds(),
         };
         if config.host.trim().is_empty()
             || config.project.trim().is_empty()
@@ -95,9 +318,21 @@ impl WorkItemProviderConfig {
         Ok(config)
     }
 
+    pub fn with_sync_interval(mut self, seconds: u32) -> Result<Self, WorkItemError> {
+        if !(1..=86_400).contains(&seconds) {
+            return Err(WorkItemError::InvalidConfiguration);
+        }
+        self.sync_interval_seconds = seconds;
+        Ok(self)
+    }
+
     fn key(&self) -> WorkItemProviderKey {
         WorkItemProviderKey::new(&self.plugin_id, &self.host, &self.project)
     }
+}
+
+fn default_sync_interval_seconds() -> u32 {
+    60
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Ord, PartialOrd, Serialize)]
@@ -106,6 +341,22 @@ pub struct WorkItemIdentity {
     pub host: String,
     pub project: String,
     pub native_id: String,
+}
+
+impl WorkItemIdentity {
+    pub fn validate(&self) -> Result<(), WorkItemError> {
+        if self.plugin_id.as_str().trim().is_empty()
+            || self.host.trim().is_empty()
+            || self.project.trim().is_empty()
+            || self.native_id.trim().is_empty()
+            || self.host.contains('\0')
+            || self.project.contains('\0')
+            || self.native_id.contains('\0')
+        {
+            return Err(WorkItemError::InvalidSyncChange);
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -122,12 +373,17 @@ pub trait ExternalWorkItemProvider {
     fn plugin_id(&self) -> &WorkItemProviderId;
     fn capabilities(&self) -> WorkItemCapabilities;
     fn normalize(&self, snapshot: WorkItemSnapshot) -> Result<WorkItemSnapshot, WorkItemError>;
+
+    fn sync_capability(&self) -> Option<&WorkItemSyncCapability> {
+        None
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PluginWorkItemProvider {
     pub plugin_id: WorkItemProviderId,
     pub capabilities: WorkItemCapabilities,
+    pub sync: Option<WorkItemSyncCapability>,
 }
 
 impl PluginWorkItemProvider {
@@ -138,7 +394,21 @@ impl PluginWorkItemProvider {
         Ok(Self {
             plugin_id: WorkItemProviderId::new(plugin_id)?,
             capabilities,
+            sync: None,
         })
+    }
+
+    pub fn with_sync_capability(
+        mut self,
+        sync: WorkItemSyncCapability,
+    ) -> Result<Self, WorkItemError> {
+        sync.validate()?;
+        self.sync = Some(sync);
+        Ok(self)
+    }
+
+    pub fn sync_capability(&self) -> Option<&WorkItemSyncCapability> {
+        self.sync.as_ref()
     }
 }
 
@@ -157,6 +427,10 @@ impl ExternalWorkItemProvider for PluginWorkItemProvider {
             return Err(WorkItemError::ProviderIdentityMismatch);
         }
         Ok(snapshot)
+    }
+
+    fn sync_capability(&self) -> Option<&WorkItemSyncCapability> {
+        self.sync.as_ref()
     }
 }
 
@@ -202,6 +476,79 @@ pub async fn snapshot_from_plugin(
     }
     snapshot.validate()?;
     Ok(snapshot)
+}
+
+/// Read the provider-owned status mapping. Core never infers a remote vocabulary.
+pub async fn sync_capability_from_plugin(
+    process: &crate::plugin::PluginProcess,
+) -> Result<WorkItemSyncCapability, WorkItemError> {
+    let response = process
+        .call(WORK_ITEM_SYNC_CAPABILITY_METHOD, serde_json::json!({}))
+        .await
+        .map_err(|error| WorkItemError::Plugin(error.to_string()))?;
+    let capability: WorkItemSyncCapability = serde_json::from_value(response)
+        .map_err(|error| WorkItemError::Plugin(error.to_string()))?;
+    capability.validate()?;
+    Ok(capability)
+}
+
+/// Pull changes after the opaque cursor persisted by the host.
+pub async fn pull_from_plugin(
+    process: &crate::plugin::PluginProcess,
+    identity: &WorkItemIdentity,
+    cursor: Option<String>,
+) -> Result<WorkItemPullResult, WorkItemError> {
+    identity.validate()?;
+    let response = process
+        .call(
+            WORK_ITEM_PULL_METHOD,
+            serde_json::to_value(WorkItemPullRequest {
+                identity: identity.clone(),
+                cursor,
+            })
+            .map_err(|error| WorkItemError::Plugin(error.to_string()))?,
+        )
+        .await
+        .map_err(|error| WorkItemError::Plugin(error.to_string()))?;
+    let result: WorkItemPullResult = serde_json::from_value(response)
+        .map_err(|error| WorkItemError::Plugin(error.to_string()))?;
+    result.validate()?;
+    Ok(result)
+}
+
+/// Ask the provider to apply its own mapping for a normalized local status.
+pub async fn push_status_to_plugin(
+    process: &crate::plugin::PluginProcess,
+    request: &WorkItemPushStatusRequest,
+) -> Result<(), WorkItemError> {
+    request.identity.validate()?;
+    process
+        .call(
+            WORK_ITEM_PUSH_STATUS_METHOD,
+            serde_json::to_value(request)
+                .map_err(|error| WorkItemError::Plugin(error.to_string()))?,
+        )
+        .await
+        .map_err(|error| WorkItemError::Plugin(error.to_string()))?;
+    Ok(())
+}
+
+/// Post an attributed local note; the provider owns the remote representation.
+pub async fn push_note_to_plugin(
+    process: &crate::plugin::PluginProcess,
+    request: &WorkItemPushNoteRequest,
+) -> Result<(), WorkItemError> {
+    request.identity.validate()?;
+    request.note.validate()?;
+    process
+        .call(
+            WORK_ITEM_PUSH_NOTE_METHOD,
+            serde_json::to_value(request)
+                .map_err(|error| WorkItemError::Plugin(error.to_string()))?,
+        )
+        .await
+        .map_err(|error| WorkItemError::Plugin(error.to_string()))?;
+    Ok(())
 }
 
 impl WorkItemSnapshot {
@@ -272,6 +619,12 @@ pub enum WorkItemError {
     InvalidConfiguration,
     #[error("external work-item snapshot is invalid")]
     InvalidSnapshot,
+    #[error("external work-item sync capability is invalid")]
+    InvalidSyncCapability,
+    #[error("external work-item sync change is invalid")]
+    InvalidSyncChange,
+    #[error("external status has no mapping for local column `{0:?}`")]
+    UnmappedLocalStatus(TaskColumn),
     #[error("external work-item provider is unsupported")]
     UnsupportedProvider,
     #[error("external work-item provider has multiple configured instances")]
@@ -288,6 +641,10 @@ pub enum WorkItemError {
     TaskProjection,
     #[error("external work-item capability is unsupported")]
     CapabilityRefused,
+    #[error("external work-item sync capability is required")]
+    SyncCapabilityRequired,
+    #[error("external work item is not imported")]
+    ImportedWorkItemNotFound,
     #[error("external work item requires a confirmed workflow")]
     WorkflowRequired,
     #[error("external work item task is not Done")]
@@ -302,11 +659,37 @@ pub struct WorkItemPreview {
     pub workflow: WorkflowSelection,
 }
 
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct WorkItemSyncState {
+    pub pull_cursor: Option<String>,
+    pub last_pushed_status: Option<String>,
+    pub note_watermark: Option<String>,
+    pub last_local_status_at: Option<String>,
+    pub last_external_status_at: Option<String>,
+    pub last_sync_error: Option<String>,
+    pub last_synced_at: Option<String>,
+    pub unmapped_external_status: Option<String>,
+    pub last_conflict_winner: Option<String>,
+    pub last_conflict_reason: Option<String>,
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct ImportedWorkItem {
     pub local_task: BoardTask,
     pub snapshot: WorkItemSnapshot,
     pub workflow: WorkflowSelection,
+    #[serde(default)]
+    pub sync_state: WorkItemSyncState,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct WorkItemSyncApplication {
+    pub events: Vec<BoardEvent>,
+    pub unmapped_statuses: Vec<String>,
+    pub echo_suppressed_notes: Vec<String>,
+    pub next_cursor: Option<String>,
+    pub external_done_change_id: Option<String>,
+    pub resolution_supported: bool,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -440,6 +823,25 @@ impl WorkItemRegistry {
         runs: Vec<crate::services::task::TaskRunLink>,
         evidence: Vec<crate::services::task::TaskEvidenceLink>,
     ) -> Result<(), WorkItemError> {
+        self.restore_imported_with_sync_state(
+            task,
+            snapshot,
+            workflow,
+            runs,
+            evidence,
+            WorkItemSyncState::default(),
+        )
+    }
+
+    pub fn restore_imported_with_sync_state(
+        &mut self,
+        task: BoardTask,
+        snapshot: WorkItemSnapshot,
+        workflow: WorkflowSelection,
+        runs: Vec<crate::services::task::TaskRunLink>,
+        evidence: Vec<crate::services::task::TaskEvidenceLink>,
+        sync_state: WorkItemSyncState,
+    ) -> Result<(), WorkItemError> {
         snapshot.validate()?;
         if self.imported.contains_key(&snapshot.identity) {
             return Err(WorkItemError::DuplicateImport(
@@ -484,6 +886,7 @@ impl WorkItemRegistry {
                 local_task: task,
                 snapshot,
                 workflow,
+                sync_state,
             },
         );
         Ok(())
@@ -565,6 +968,7 @@ impl WorkItemRegistry {
             local_task: task,
             snapshot: preview.snapshot,
             workflow: preview.workflow,
+            sync_state: WorkItemSyncState::default(),
         };
         self.board = board;
         self.orchestrator = orchestrator;
@@ -580,6 +984,322 @@ impl WorkItemRegistry {
         self.imported.values()
     }
 
+    pub fn sync_state(&self, identity: &WorkItemIdentity) -> Option<&WorkItemSyncState> {
+        self.imported.get(identity).map(|item| &item.sync_state)
+    }
+
+    pub fn sync_state_mut(
+        &mut self,
+        identity: &WorkItemIdentity,
+    ) -> Result<&mut WorkItemSyncState, WorkItemError> {
+        self.imported
+            .get_mut(identity)
+            .map(|item| &mut item.sync_state)
+            .ok_or(WorkItemError::TaskProjection)
+    }
+
+    pub fn local_status_push_request(
+        &mut self,
+        identity: &WorkItemIdentity,
+        capability: &WorkItemSyncCapability,
+        occurred_at: &str,
+    ) -> Result<WorkItemPushStatusRequest, WorkItemError> {
+        capability.validate()?;
+        parse_sync_timestamp(occurred_at)?;
+        let imported = self
+            .imported
+            .get_mut(identity)
+            .ok_or(WorkItemError::ImportedWorkItemNotFound)?;
+        capability
+            .vocabulary
+            .local_status(imported.local_task.column, imported.local_task.blocked)?;
+        imported.sync_state.last_local_status_at = Some(occurred_at.into());
+        imported.sync_state.last_sync_error = None;
+        Ok(WorkItemPushStatusRequest {
+            identity: identity.clone(),
+            column: imported.local_task.column,
+            blocked: imported.local_task.blocked,
+        })
+    }
+
+    pub fn record_status_push(
+        &mut self,
+        identity: &WorkItemIdentity,
+        external_status: &str,
+    ) -> Result<(), WorkItemError> {
+        if external_status.trim().is_empty() || external_status.contains('\0') {
+            return Err(WorkItemError::InvalidSyncChange);
+        }
+        self.sync_state_mut(identity)?.last_pushed_status = Some(external_status.into());
+        Ok(())
+    }
+
+    pub fn local_note_push_request(
+        &self,
+        identity: &WorkItemIdentity,
+        id: impl Into<String>,
+        body: impl Into<String>,
+        author: impl Into<String>,
+        occurred_at: impl Into<String>,
+    ) -> Result<WorkItemPushNoteRequest, WorkItemError> {
+        if !self.imported.contains_key(identity) {
+            return Err(WorkItemError::ImportedWorkItemNotFound);
+        }
+        let id = id.into();
+        let note = WorkItemNote {
+            body: note_body_with_locus_marker(&body.into(), &id),
+            id,
+            author: author.into(),
+            occurred_at: occurred_at.into(),
+        };
+        note.validate()?;
+        Ok(WorkItemPushNoteRequest {
+            identity: identity.clone(),
+            note,
+        })
+    }
+
+    pub fn append_local_note(
+        &mut self,
+        identity: &WorkItemIdentity,
+        author: impl Into<String>,
+        body: impl Into<String>,
+    ) -> Result<BoardComment, WorkItemError> {
+        let author = author.into();
+        let body = body.into();
+        if author.trim().is_empty()
+            || body.trim().is_empty()
+            || author.contains('\0')
+            || body.contains('\0')
+        {
+            return Err(WorkItemError::InvalidSyncChange);
+        }
+        let imported = self
+            .imported
+            .get(identity)
+            .cloned()
+            .ok_or(WorkItemError::ImportedWorkItemNotFound)?;
+        let mut board = self.board.clone();
+        let mut task = imported.local_task.clone();
+        let comment = BoardComment {
+            author,
+            body,
+            origin: BoardCommentOrigin::Local,
+        };
+        let event = BoardEvent::Commented {
+            task_id: task.id,
+            comment: comment.clone(),
+            actor: BoardActor::Human,
+        };
+        board
+            .apply(event)
+            .map_err(|_| WorkItemError::TaskProjection)?;
+        task = board
+            .task(task.id)
+            .cloned()
+            .ok_or(WorkItemError::TaskProjection)?;
+        let mut orchestrator = self.orchestrator.clone();
+        orchestrator
+            .update_task(task.clone())
+            .map_err(|_| WorkItemError::TaskProjection)?;
+        self.board = board;
+        self.orchestrator = orchestrator;
+        self.imported.insert(
+            identity.clone(),
+            ImportedWorkItem {
+                local_task: task,
+                snapshot: imported.snapshot,
+                workflow: imported.workflow,
+                sync_state: imported.sync_state,
+            },
+        );
+        Ok(comment)
+    }
+
+    pub fn apply_pull(
+        &mut self,
+        identity: &WorkItemIdentity,
+        capability: &WorkItemSyncCapability,
+        result: WorkItemPullResult,
+        synced_at: &str,
+    ) -> Result<WorkItemSyncApplication, WorkItemError> {
+        capability.validate()?;
+        result.validate()?;
+        parse_sync_timestamp(synced_at)?;
+        let imported = self
+            .imported
+            .get(identity)
+            .cloned()
+            .ok_or(WorkItemError::ImportedWorkItemNotFound)?;
+        let mut task = imported.local_task.clone();
+        let mut snapshot = imported.snapshot.clone();
+        let mut sync_state = imported.sync_state.clone();
+        let mut board = self.board.clone();
+        let mut orchestrator = self.orchestrator.clone();
+        let mut application = WorkItemSyncApplication {
+            next_cursor: result.next_cursor.clone(),
+            ..Default::default()
+        };
+
+        for change in &result.changes {
+            match change {
+                WorkItemPullChange::Status {
+                    id,
+                    status,
+                    occurred_at,
+                    ..
+                } => {
+                    let occurred = parse_sync_timestamp(occurred_at)?;
+                    let local = sync_state
+                        .last_local_status_at
+                        .as_deref()
+                        .map(parse_sync_timestamp)
+                        .transpose()?;
+                    let external_wins = local.is_none_or(|local| occurred >= local);
+                    snapshot.status = status.clone();
+                    if sync_state
+                        .last_external_status_at
+                        .as_deref()
+                        .is_none_or(|previous| occurred_at.as_str() > previous)
+                    {
+                        sync_state.last_external_status_at = Some(occurred_at.clone());
+                    }
+                    let Some(column) = capability.vocabulary.external_status(status) else {
+                        sync_state.unmapped_external_status = Some(status.clone());
+                        application.unmapped_statuses.push(status.clone());
+                        continue;
+                    };
+                    sync_state.unmapped_external_status = None;
+                    let conflict = local.is_some();
+                    let winner = if external_wins { "external" } else { "local" };
+                    if conflict {
+                        sync_state.last_conflict_winner = Some(winner.into());
+                        sync_state.last_conflict_reason =
+                            Some("last-write-wins status conflict".into());
+                    }
+                    let target_column = if external_wins { column } else { task.column };
+                    if external_wins && column == TaskColumn::Done {
+                        application.external_done_change_id = Some(id.clone());
+                    }
+                    let should_record = conflict || task.column != target_column;
+                    if should_record {
+                        let evidence = BoardEvidenceLink {
+                            run_id: None,
+                            event_ids: Vec::new(),
+                            artifact_ids: Vec::new(),
+                            external: Some(BoardExternalEvidence {
+                                provider: identity.plugin_id.as_str().into(),
+                                native_id: identity.native_id.clone(),
+                                change_id: id.clone(),
+                                status: status.clone(),
+                                occurred_at: occurred_at.clone(),
+                                done: column == TaskColumn::Done,
+                                winner: Some(winner.into()),
+                                local_status_at: sync_state.last_local_status_at.clone(),
+                                reason: Some(if conflict {
+                                    "last-write-wins status conflict".into()
+                                } else {
+                                    "external status changed".into()
+                                }),
+                            }),
+                        };
+                        let event = task
+                            .transition(
+                                target_column,
+                                BoardActor::Sync {
+                                    provider: identity.plugin_id.as_str().into(),
+                                },
+                                vec![evidence],
+                            )
+                            .map_err(|_| WorkItemError::TaskProjection)?;
+                        board
+                            .apply(event.clone())
+                            .map_err(|_| WorkItemError::TaskProjection)?;
+                        application.events.push(event);
+                        task = board
+                            .task(task.id)
+                            .cloned()
+                            .ok_or(WorkItemError::TaskProjection)?;
+                    }
+                }
+                WorkItemPullChange::Note {
+                    id,
+                    body,
+                    author,
+                    occurred_at,
+                } => {
+                    parse_sync_timestamp(occurred_at)?;
+                    if locus_note_marker_id(body).is_some() {
+                        application.echo_suppressed_notes.push(id.clone());
+                    } else {
+                        let event = BoardEvent::Commented {
+                            task_id: task.id,
+                            comment: BoardComment {
+                                author: author.clone(),
+                                body: body.clone(),
+                                origin: BoardCommentOrigin::External {
+                                    provider: identity.plugin_id.as_str().into(),
+                                    note_id: id.clone(),
+                                },
+                            },
+                            actor: BoardActor::Sync {
+                                provider: identity.plugin_id.as_str().into(),
+                            },
+                        };
+                        board
+                            .apply(event.clone())
+                            .map_err(|_| WorkItemError::TaskProjection)?;
+                        application.events.push(event);
+                        task = board
+                            .task(task.id)
+                            .cloned()
+                            .ok_or(WorkItemError::TaskProjection)?;
+                    }
+                    if sync_state
+                        .note_watermark
+                        .as_deref()
+                        .is_none_or(|watermark| occurred_at.as_str() > watermark)
+                    {
+                        sync_state.note_watermark = Some(occurred_at.clone());
+                    }
+                }
+            }
+        }
+
+        sync_state.pull_cursor = result.next_cursor;
+        sync_state.last_synced_at = Some(synced_at.into());
+        sync_state.last_sync_error = None;
+        if task.external_work_item.as_ref() != Some(&snapshot) {
+            let event = BoardEvent::ExternalSnapshotUpdated {
+                task_id: task.id,
+                snapshot: snapshot.clone(),
+            };
+            board
+                .apply(event.clone())
+                .map_err(|_| WorkItemError::TaskProjection)?;
+            application.events.push(event);
+            task = board
+                .task(task.id)
+                .cloned()
+                .ok_or(WorkItemError::TaskProjection)?;
+        }
+        orchestrator
+            .update_task(task.clone())
+            .map_err(|_| WorkItemError::TaskProjection)?;
+        self.board = board;
+        self.orchestrator = orchestrator;
+        self.imported.insert(
+            identity.clone(),
+            ImportedWorkItem {
+                local_task: task,
+                snapshot,
+                workflow: imported.workflow,
+                sync_state,
+            },
+        );
+        Ok(application)
+    }
+
     pub fn board(&self) -> &BoardProjection {
         &self.board
     }
@@ -590,12 +1310,6 @@ impl WorkItemRegistry {
 
     pub fn providers(&self) -> impl Iterator<Item = &WorkItemProviderConfig> {
         self.configured.values()
-    }
-
-    /// Source-side edits are intentionally ignored after import.
-    pub fn source_edit_does_not_sync(&self, identity: &WorkItemIdentity, title: &str) -> bool {
-        self.imported(identity)
-            .is_some_and(|item| item.local_task.summary != title)
     }
 }
 
@@ -870,6 +1584,11 @@ mod work_item {
         assert!(upgrade.contains("workflow_def_id"));
         assert!(upgrade.contains("locator"));
         assert!(upgrade.contains("resolution_supported"));
+        let sync = include_str!("../../../migrations/0026_external_work_item_sync.up.sql");
+        assert!(sync.contains("pull_cursor"));
+        assert!(sync.contains("sync_interval_seconds"));
+        assert!(sync.contains("external_sync_changes"));
+        assert!(sync.contains("task_comments"));
         assert!(!migration.contains("provider_kind"));
     }
 
@@ -901,6 +1620,8 @@ mod work_item {
             config("fixture.provider").plugin_id.as_str(),
             "fixture.provider"
         );
+        assert_eq!(config("fixture.provider").sync_interval_seconds, 60);
+        assert!(config("fixture.provider").with_sync_interval(0).is_err());
         assert_eq!(registry().providers().count(), 1);
     }
 
@@ -1092,22 +1813,6 @@ mod work_item {
     }
 
     #[test]
-    fn no_source_sync() {
-        let mut registry = registry();
-        let mut preview = registry
-            .preview(
-                snapshot("fixture.provider"),
-                ProjectId::generate(),
-                Some(Uuid::new_v4()),
-            )
-            .unwrap();
-        let identity = preview.snapshot.identity.clone();
-        preview.workflow = preview.workflow.confirm().unwrap();
-        registry.import_confirmed(preview).unwrap();
-        assert!(registry.source_edit_does_not_sync(&identity, "edited upstream"));
-    }
-
-    #[test]
     fn no_write_before_done() {
         let task = done_task();
         let capabilities = WorkItemCapabilities {
@@ -1285,6 +1990,296 @@ mod work_item {
                 plugin_id
             );
         }
+    }
+
+    fn sync_capability_fixture() -> WorkItemSyncCapability {
+        WorkItemSyncCapability {
+            vocabulary: WorkItemStatusVocabulary {
+                external_to_local: BTreeMap::from([
+                    ("open".into(), Some(TaskColumn::Ready)),
+                    ("closed".into(), Some(TaskColumn::Done)),
+                    ("triage".into(), None),
+                ]),
+                local_to_external: BTreeMap::from([
+                    (TaskColumn::Ready, "open".into()),
+                    (TaskColumn::InProgress, "open".into()),
+                    (TaskColumn::Testing, "open".into()),
+                    (TaskColumn::Reviewing, "open".into()),
+                    (TaskColumn::PendingApproval, "open".into()),
+                    (TaskColumn::Done, "closed".into()),
+                ]),
+                blocked_to_external: None,
+            },
+        }
+    }
+
+    #[test]
+    fn sync_capability() {
+        let provider = provider("fixture.provider", true)
+            .with_sync_capability(sync_capability_fixture())
+            .unwrap();
+        let capability = provider.sync_capability().expect("sync capability");
+        assert_eq!(
+            capability.vocabulary.external_status("open"),
+            Some(TaskColumn::Ready)
+        );
+        assert_eq!(
+            capability
+                .vocabulary
+                .local_status(TaskColumn::Done, false)
+                .unwrap(),
+            "closed"
+        );
+        assert_eq!(
+            capability.vocabulary.external_status("triage"),
+            None,
+            "unmapped statuses stay visible without a guessed column"
+        );
+    }
+
+    #[test]
+    fn sync_capability_rejects_empty_mapping_values() {
+        let mut capability = sync_capability_fixture();
+        capability
+            .vocabulary
+            .local_to_external
+            .insert(TaskColumn::Done, String::new());
+        assert_eq!(
+            capability.validate(),
+            Err(WorkItemError::InvalidSyncCapability)
+        );
+    }
+
+    fn imported_for_sync() -> (WorkItemRegistry, WorkItemIdentity, TaskId) {
+        let mut registry = registry();
+        let mut preview = registry
+            .preview(
+                snapshot("fixture.provider"),
+                ProjectId::generate(),
+                Some(Uuid::new_v4()),
+            )
+            .unwrap();
+        preview.workflow = preview.workflow.confirm().unwrap();
+        let identity = preview.snapshot.identity.clone();
+        let task_id = preview.workflow.task_id;
+        registry.import_confirmed(preview).unwrap();
+        (registry, identity, task_id)
+    }
+
+    #[test]
+    fn sync_pull() {
+        let (mut registry, identity, task_id) = imported_for_sync();
+        let result = WorkItemPullResult {
+            next_cursor: Some("2026-08-28T00:02:00Z".into()),
+            changes: vec![
+                WorkItemPullChange::Status {
+                    id: "status-1".into(),
+                    status: "closed".into(),
+                    occurred_at: "2026-08-28T00:01:00Z".into(),
+                    author: "octocat".into(),
+                },
+                WorkItemPullChange::Note {
+                    id: "comment-1".into(),
+                    body: "External context".into(),
+                    occurred_at: "2026-08-28T00:01:30Z".into(),
+                    author: "octocat".into(),
+                },
+            ],
+        };
+        let applied = registry
+            .apply_pull(
+                &identity,
+                &sync_capability_fixture(),
+                result,
+                "2026-08-28T00:03:00Z",
+            )
+            .unwrap();
+        assert_eq!(
+            registry.board().task(task_id).unwrap().column,
+            TaskColumn::Done
+        );
+        assert_eq!(registry.board().task(task_id).unwrap().comments.len(), 1);
+        assert_eq!(
+            applied.events.len(),
+            3,
+            "move, note, and snapshot fold events"
+        );
+        assert_eq!(applied.external_done_change_id.as_deref(), Some("status-1"));
+        assert_eq!(
+            registry
+                .sync_state(&identity)
+                .unwrap()
+                .pull_cursor
+                .as_deref(),
+            Some("2026-08-28T00:02:00Z")
+        );
+        assert_eq!(
+            registry
+                .sync_state(&identity)
+                .unwrap()
+                .note_watermark
+                .as_deref(),
+            Some("2026-08-28T00:01:30Z")
+        );
+    }
+
+    #[test]
+    fn external_done_satisfied() {
+        let (mut registry, identity, task_id) = imported_for_sync();
+        let applied = registry
+            .apply_pull(
+                &identity,
+                &sync_capability_fixture(),
+                WorkItemPullResult {
+                    next_cursor: Some("2026-08-28T00:20:00Z".into()),
+                    changes: vec![WorkItemPullChange::Status {
+                        id: "close-1".into(),
+                        status: "closed".into(),
+                        occurred_at: "2026-08-28T00:19:00Z".into(),
+                        author: "octocat".into(),
+                    }],
+                },
+                "2026-08-28T00:21:00Z",
+            )
+            .unwrap();
+        assert_eq!(
+            registry.board().task(task_id).unwrap().column,
+            TaskColumn::Done
+        );
+        assert_eq!(applied.external_done_change_id.as_deref(), Some("close-1"));
+        assert!(!applied.resolution_supported);
+    }
+
+    #[test]
+    fn sync_push_status() {
+        let (mut registry, identity, task_id) = imported_for_sync();
+        let request = registry
+            .local_status_push_request(
+                &identity,
+                &sync_capability_fixture(),
+                "2026-08-28T00:04:00Z",
+            )
+            .unwrap();
+        assert_eq!(request.identity, identity);
+        assert_eq!(request.column, TaskColumn::Ready);
+        assert!(!request.blocked);
+        assert_eq!(
+            registry
+                .sync_state(&identity)
+                .unwrap()
+                .last_local_status_at
+                .as_deref(),
+            Some("2026-08-28T00:04:00Z")
+        );
+        assert_eq!(registry.board().task(task_id).unwrap().id, task_id);
+    }
+
+    #[test]
+    fn sync_push_note() {
+        let (registry, identity, _) = imported_for_sync();
+        let request = registry
+            .local_note_push_request(
+                &identity,
+                "note-42",
+                "Local update",
+                "human",
+                "2026-08-28T00:05:00Z",
+            )
+            .unwrap();
+        assert!(request.note.body.contains("<!-- locus-note:note-42 -->"));
+    }
+
+    #[test]
+    fn local_note_enters_the_task_stream() {
+        let (mut registry, identity, task_id) = imported_for_sync();
+        let comment = registry
+            .append_local_note(&identity, "human", "Local context")
+            .unwrap();
+        assert!(matches!(comment.origin, BoardCommentOrigin::Local));
+        assert_eq!(registry.board().task(task_id).unwrap().comments.len(), 1);
+    }
+
+    #[test]
+    fn echo_suppression() {
+        let (mut registry, identity, task_id) = imported_for_sync();
+        let result = WorkItemPullResult {
+            next_cursor: Some("2026-08-28T00:06:00Z".into()),
+            changes: vec![WorkItemPullChange::Note {
+                id: "note-42".into(),
+                body: note_body_with_locus_marker("Local update", "note-42"),
+                occurred_at: "2026-08-28T00:05:30Z".into(),
+                author: "human".into(),
+            }],
+        };
+        let applied = registry
+            .apply_pull(
+                &identity,
+                &sync_capability_fixture(),
+                result,
+                "2026-08-28T00:07:00Z",
+            )
+            .unwrap();
+        assert_eq!(applied.echo_suppressed_notes, vec!["note-42"]);
+        assert!(applied
+            .events
+            .iter()
+            .all(|event| !matches!(event, BoardEvent::Commented { .. })));
+        assert!(registry.board().task(task_id).unwrap().comments.is_empty());
+    }
+
+    #[test]
+    fn status_conflict_lww() {
+        let (mut registry, identity, task_id) = imported_for_sync();
+        registry
+            .local_status_push_request(
+                &identity,
+                &sync_capability_fixture(),
+                "2026-08-28T00:10:00Z",
+            )
+            .unwrap();
+        let applied = registry
+            .apply_pull(
+                &identity,
+                &sync_capability_fixture(),
+                WorkItemPullResult {
+                    next_cursor: Some("2026-08-28T00:11:00Z".into()),
+                    changes: vec![WorkItemPullChange::Status {
+                        id: "status-old".into(),
+                        status: "closed".into(),
+                        occurred_at: "2026-08-28T00:09:00Z".into(),
+                        author: "octocat".into(),
+                    }],
+                },
+                "2026-08-28T00:12:00Z",
+            )
+            .unwrap();
+        assert_eq!(
+            registry.board().task(task_id).unwrap().column,
+            TaskColumn::Ready
+        );
+        let BoardEvent::Moved { evidence, .. } = &applied.events[0] else {
+            panic!("status conflict should be a task.moved event")
+        };
+        assert_eq!(
+            evidence[0].external.as_ref().unwrap().winner.as_deref(),
+            Some("local")
+        );
+        assert_eq!(
+            evidence[0]
+                .external
+                .as_ref()
+                .unwrap()
+                .local_status_at
+                .as_deref(),
+            Some("2026-08-28T00:10:00Z")
+        );
+    }
+
+    #[test]
+    fn sync_note_marker_round_trip() {
+        let body = note_body_with_locus_marker("Local note", "note-42");
+        assert_eq!(locus_note_marker_id(&body), Some("note-42"));
+        assert_eq!(locus_note_marker_id("external note"), None);
     }
 
     #[test]

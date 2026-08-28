@@ -63,22 +63,62 @@ pub fn task_outcomes(
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct BoardExternalEvidence {
+    pub provider: String,
+    pub native_id: String,
+    pub change_id: String,
+    pub status: String,
+    pub occurred_at: String,
+    #[serde(default)]
+    pub done: bool,
+    #[serde(default)]
+    pub winner: Option<String>,
+    #[serde(default)]
+    pub local_status_at: Option<String>,
+    #[serde(default)]
+    pub reason: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct BoardEvidenceLink {
     pub run_id: Option<RunId>,
     pub event_ids: Vec<EventId>,
     pub artifact_ids: Vec<ArtifactId>,
+    #[serde(default)]
+    pub external: Option<BoardExternalEvidence>,
 }
 
 impl BoardEvidenceLink {
     pub fn proves_done(&self) -> bool {
         self.run_id.is_some() && (!self.event_ids.is_empty() || !self.artifact_ids.is_empty())
     }
+
+    pub fn proves_external_done(&self) -> bool {
+        self.external.as_ref().is_some_and(|evidence| {
+            evidence.done
+                || evidence.status.eq_ignore_ascii_case("done")
+                || evidence.status.eq_ignore_ascii_case("closed")
+                || evidence.status.eq_ignore_ascii_case("resolved")
+        })
+    }
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub enum BoardCommentOrigin {
+    #[default]
+    Local,
+    External {
+        provider: String,
+        note_id: String,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct BoardComment {
     pub author: String,
     pub body: String,
+    #[serde(default)]
+    pub origin: BoardCommentOrigin,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -152,11 +192,17 @@ impl BoardTask {
         actor: BoardActor,
         evidence: Vec<BoardEvidenceLink>,
     ) -> Result<BoardEvent, BoardError> {
-        if to == TaskColumn::Done
-            && matches!(actor, BoardActor::Agent { .. })
-            && !evidence.iter().any(BoardEvidenceLink::proves_done)
-        {
-            return Err(BoardError::AgentDoneNeedsEvidence { task_id: self.id });
+        if to == TaskColumn::Done && self.column != TaskColumn::Done {
+            if matches!(actor, BoardActor::Agent { .. })
+                && !evidence.iter().any(BoardEvidenceLink::proves_done)
+            {
+                return Err(BoardError::AgentDoneNeedsEvidence { task_id: self.id });
+            }
+            if matches!(actor, BoardActor::Sync { .. })
+                && !evidence.iter().any(BoardEvidenceLink::proves_external_done)
+            {
+                return Err(BoardError::SyncDoneNeedsExternalEvidence { task_id: self.id });
+            }
         }
         Ok(BoardEvent::Moved {
             task_id: self.id,
@@ -172,6 +218,7 @@ impl BoardTask {
 pub enum BoardActor {
     Human,
     Agent { run_id: RunId },
+    Sync { provider: String },
 }
 
 #[derive(Clone, Debug, Error, Eq, PartialEq)]
@@ -180,6 +227,8 @@ pub enum BoardError {
     TaskNotFound { task_id: TaskId },
     #[error("agent cannot move task `{task_id}` to Done without run and event evidence")]
     AgentDoneNeedsEvidence { task_id: TaskId },
+    #[error("sync cannot move task `{task_id}` to Done without external evidence")]
+    SyncDoneNeedsExternalEvidence { task_id: TaskId },
     #[error("blocked status is derived from dependencies and cannot be cleared manually")]
     ManualBlockedClear,
     #[error("board task `{task_id}` already exists")]
@@ -211,6 +260,10 @@ pub enum BoardEvent {
         task_id: TaskId,
         comment: BoardComment,
         actor: BoardActor,
+    },
+    ExternalSnapshotUpdated {
+        task_id: TaskId,
+        snapshot: crate::work_item::WorkItemSnapshot,
     },
     /// This is the only dependency event. Its workflow node id is the source of truth;
     /// there is no hand-drawn edge operation in the board API.
@@ -318,6 +371,12 @@ impl BoardProjection {
                     .ok_or(BoardError::TaskNotFound { task_id })?
                     .comments
                     .push(comment);
+            }
+            BoardEvent::ExternalSnapshotUpdated { task_id, snapshot } => {
+                self.tasks
+                    .get_mut(&task_id)
+                    .ok_or(BoardError::TaskNotFound { task_id })?
+                    .external_work_item = Some(snapshot);
             }
             BoardEvent::WorkflowDependency {
                 task_id,
@@ -440,6 +499,7 @@ mod board {
             run_id: Some(RunId::generate()),
             event_ids: vec![EventId::generate()],
             artifact_ids: vec![],
+            external: None,
         }
     }
 
@@ -674,6 +734,102 @@ mod board {
             })
             .expect("completion");
         assert_eq!(projection.next_unblocked(agent), Some(dependent.id));
+    }
+
+    fn external_proof(status: &str) -> BoardEvidenceLink {
+        BoardEvidenceLink {
+            run_id: None,
+            event_ids: vec![],
+            artifact_ids: vec![],
+            external: Some(BoardExternalEvidence {
+                provider: "github".into(),
+                native_id: "42".into(),
+                change_id: "status:2026-08-28T00:00:00Z".into(),
+                status: status.into(),
+                occurred_at: "2026-08-28T00:00:00Z".into(),
+                done: status.eq_ignore_ascii_case("done") || status.eq_ignore_ascii_case("closed"),
+                winner: None,
+                local_status_at: None,
+                reason: None,
+            }),
+        }
+    }
+
+    #[test]
+    fn sync_moves_through_fold() {
+        let task = board_task(TaskColumn::Reviewing);
+        let mut projection = BoardProjection::default();
+        projection
+            .apply(BoardEvent::Created {
+                task: Box::new(task.clone()),
+            })
+            .expect("create");
+        let event = task
+            .transition(
+                TaskColumn::Done,
+                BoardActor::Sync {
+                    provider: "github".into(),
+                },
+                vec![external_proof("done")],
+            )
+            .expect("external close is evidence");
+        projection.apply(event).expect("fold sync move");
+        assert_eq!(
+            projection.task(task.id).expect("task").column,
+            TaskColumn::Done
+        );
+        assert!(projection
+            .task(task.id)
+            .expect("task")
+            .evidence
+            .iter()
+            .any(BoardEvidenceLink::proves_external_done));
+    }
+
+    #[test]
+    fn sync_done_requires_external_evidence() {
+        let task = board_task(TaskColumn::Reviewing);
+        assert_eq!(
+            task.transition(
+                TaskColumn::Done,
+                BoardActor::Sync {
+                    provider: "github".into(),
+                },
+                vec![],
+            ),
+            Err(BoardError::SyncDoneNeedsExternalEvidence { task_id: task.id })
+        );
+    }
+
+    #[test]
+    fn external_note_origin_is_preserved() {
+        let task = board_task(TaskColumn::Reviewing);
+        let mut projection = BoardProjection::default();
+        projection
+            .apply(BoardEvent::Created {
+                task: Box::new(task.clone()),
+            })
+            .expect("create");
+        projection
+            .apply(BoardEvent::Commented {
+                task_id: task.id,
+                comment: BoardComment {
+                    author: "octocat".into(),
+                    body: "external note".into(),
+                    origin: BoardCommentOrigin::External {
+                        provider: "github".into(),
+                        note_id: "comment-7".into(),
+                    },
+                },
+                actor: BoardActor::Sync {
+                    provider: "github".into(),
+                },
+            })
+            .expect("fold external note");
+        assert!(matches!(
+            &projection.task(task.id).expect("task").comments[0].origin,
+            BoardCommentOrigin::External { note_id, .. } if note_id == "comment-7"
+        ));
     }
 
     #[test]

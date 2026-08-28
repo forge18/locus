@@ -1134,6 +1134,7 @@ pub struct WorkItemProviderDescriptor {
     pub manifest: PluginManifest,
     pub comments: bool,
     pub resolve: bool,
+    pub sync: bool,
 }
 
 impl WorkItemProviderDescriptor {
@@ -1154,6 +1155,10 @@ impl WorkItemProviderDescriptor {
                 .capabilities
                 .iter()
                 .any(|capability| capability == crate::work_item::WORK_ITEM_RESOLVE_CAPABILITY),
+            sync: manifest
+                .capabilities
+                .iter()
+                .any(|capability| capability == crate::work_item::WORK_ITEM_SYNC_CAPABILITY),
         };
         descriptor.validate()?;
         Ok(descriptor)
@@ -1568,10 +1573,12 @@ while IFS= read -r line; do
   id=$(printf '%s' "$line" | sed -n 's/.*"id":\([0-9][0-9]*\).*/\1/p')
   case "$line" in
     *plugin.initialize*) printf '{"jsonrpc":"2.0","id":%s,"result":{"protocol":"locus.plugin.v1"}}\n' "$id" ;;
-    *plugin.describe*) printf '{"jsonrpc":"2.0","id":%s,"result":{"protocol":"locus.plugin.v1","kind":"provider","id":"fixture.work-items","version":"1.0.0","capabilities":["work_item.snapshot","work_item.comment","work_item.resolve"],"schema_versions":{"plugin":"v1"}}}\n' "$id" ;;
+    *plugin.describe*) printf '{"jsonrpc":"2.0","id":%s,"result":{"protocol":"locus.plugin.v1","kind":"provider","id":"fixture.work-items","version":"1.0.0","capabilities":["work_item.snapshot","work_item.comment","work_item.resolve","work_item.sync"],"schema_versions":{"plugin":"v1"}}}\n' "$id" ;;
     *plugin.health*) printf '{"jsonrpc":"2.0","id":%s,"result":{"ready":true}}\n' "$id" ;;
     *work_item.snapshot*) printf '{"jsonrpc":"2.0","id":%s,"result":{"identity":{"plugin_id":"fixture.work-items","host":"provider.example","project":"org/repo","native_id":"42"},"url":"https://provider.example/item/42","title":"Imported issue","body":"Body","labels":["bug"],"status":"open"}}\n' "$id" ;;
-    *work_item.comment*|*work_item.resolve*) printf '{"jsonrpc":"2.0","id":%s,"result":{}}\n' "$id" ;;
+    *work_item.sync_capability*) printf '{"jsonrpc":"2.0","id":%s,"result":{"vocabulary":{"external_to_local":{"open":"ready","closed":"done"},"local_to_external":{"ready":"open","in_progress":"open","testing":"open","reviewing":"open","pending_approval":"open","done":"closed"},"blocked_to_external":null}}}\n' "$id" ;;
+    *work_item.pull*) printf '{"jsonrpc":"2.0","id":%s,"result":{"next_cursor":"2026-08-28T00:02:00Z","changes":[]}}\n' "$id" ;;
+    *work_item.push_status*|*work_item.push_note*|*work_item.comment*|*work_item.resolve*) printf '{"jsonrpc":"2.0","id":%s,"result":{}}\n' "$id" ;;
     *plugin.shutdown*) printf '{"jsonrpc":"2.0","id":%s,"result":{"stopped":true}}\n' "$id"; break ;;
   esac
 done
@@ -1589,6 +1596,7 @@ done
             r#"#!/bin/sh
 case "$*" in
   *issue\ view*--json\ comments*) printf '{"comments":[]}' ;;
+  *issue\ view*--json\ state,updatedAt,comments*) printf '{"state":"OPEN","updatedAt":"2026-08-28T00:00:00Z","comments":[]}' ;;
   *issue\ view*--repo*github.com/org/repo*) printf '{"number":42,"url":"https://github.com/org/repo/issues/42","title":"GitHub issue","body":"Issue body","labels":[{"name":"bug"}],"state":"OPEN"}' ;;
   *issue\ comment*--repo*github.com/org/repo*) : ;;
   *issue\ close*--repo*github.com/org/repo*) : ;;
@@ -1721,6 +1729,91 @@ permissions = ["keychain_reference"]
     }
 
     #[test]
+    fn provider_conformance_sync() {
+        test_ok(tokio::runtime::Runtime::new()).block_on(async {
+            let script = work_item_plugin_script();
+            let mut command = Command::new("sh");
+            command.args(["-c", script.as_str()]);
+            let process =
+                test_ok(PluginProcess::spawn_command(command, Duration::from_millis(500)).await);
+            let handshake = test_ok(
+                process
+                    .handshake(
+                        &[
+                            crate::work_item::WORK_ITEM_SNAPSHOT_CAPABILITY.into(),
+                            crate::work_item::WORK_ITEM_COMMENT_CAPABILITY.into(),
+                        ],
+                        &[
+                            crate::work_item::WORK_ITEM_SNAPSHOT_CAPABILITY,
+                            crate::work_item::WORK_ITEM_COMMENT_CAPABILITY,
+                            crate::work_item::WORK_ITEM_RESOLVE_CAPABILITY,
+                            crate::work_item::WORK_ITEM_SYNC_CAPABILITY,
+                        ],
+                    )
+                    .await,
+            );
+            let descriptor =
+                WorkItemProviderDescriptor::from_plugin_descriptor(&handshake.descriptor).unwrap();
+            assert!(descriptor.sync);
+            let provider = descriptor
+                .work_item_provider()
+                .unwrap()
+                .with_sync_capability(test_ok(
+                    crate::work_item::sync_capability_from_plugin(&process).await,
+                ))
+                .unwrap();
+            let identity = crate::work_item::WorkItemIdentity {
+                plugin_id: crate::work_item::WorkItemProviderId::new("fixture.work-items").unwrap(),
+                host: "provider.example".into(),
+                project: "org/repo".into(),
+                native_id: "42".into(),
+            };
+            let pull = test_ok(crate::work_item::pull_from_plugin(&process, &identity, None).await);
+            assert_eq!(pull.next_cursor.as_deref(), Some("2026-08-28T00:02:00Z"));
+            let mut registry = crate::work_item::WorkItemRegistry::default();
+            registry.configure(
+                crate::work_item::WorkItemProviderConfig::new(
+                    provider.plugin_id.as_str(),
+                    "provider.example",
+                    "org/repo",
+                )
+                .unwrap(),
+            );
+            let mut preview = test_ok(
+                registry
+                    .preview_from_plugin(
+                        &process,
+                        &provider,
+                        crate::work_item::WorkItemLookup::from(&identity),
+                        crate::ids::ProjectId::generate(),
+                        Some(uuid::Uuid::new_v4()),
+                    )
+                    .await,
+            );
+            preview.workflow = preview.workflow.confirm().unwrap();
+            let imported = registry.import_confirmed(preview).unwrap();
+            let status = test_ok(registry.local_status_push_request(
+                &identity,
+                provider.sync_capability().unwrap(),
+                "2026-08-28T00:03:00Z",
+            ));
+            test_ok(crate::work_item::push_status_to_plugin(&process, &status).await);
+            let note = registry
+                .local_note_push_request(
+                    &identity,
+                    "note-1",
+                    "local note",
+                    "human",
+                    "2026-08-28T00:04:00Z",
+                )
+                .unwrap();
+            test_ok(crate::work_item::push_note_to_plugin(&process, &note).await);
+            assert_eq!(imported.snapshot.identity, identity);
+            test_ok(process.shutdown().await);
+        });
+    }
+
+    #[test]
     fn github_work_item_plugin_uses_gh_cli() {
         test_ok(tokio::runtime::Runtime::new()).block_on(async {
             let fake_cli = fake_github_cli();
@@ -1748,19 +1841,42 @@ permissions = ["keychain_reference"]
                             crate::work_item::WORK_ITEM_SNAPSHOT_CAPABILITY,
                             crate::work_item::WORK_ITEM_COMMENT_CAPABILITY,
                             crate::work_item::WORK_ITEM_RESOLVE_CAPABILITY,
+                            crate::work_item::WORK_ITEM_SYNC_CAPABILITY,
                         ],
                     )
                     .await,
             );
             let descriptor =
                 WorkItemProviderDescriptor::from_plugin_descriptor(&handshake.descriptor).unwrap();
-            let provider = descriptor.work_item_provider().unwrap();
+            let provider = descriptor
+                .work_item_provider()
+                .unwrap()
+                .with_sync_capability(test_ok(
+                    crate::work_item::sync_capability_from_plugin(&process).await,
+                ))
+                .unwrap();
+            assert_eq!(
+                provider
+                    .sync_capability()
+                    .unwrap()
+                    .vocabulary
+                    .external_status("closed"),
+                Some(crate::services::manage::TaskColumn::Done)
+            );
             let lookup = crate::work_item::WorkItemLookup {
                 plugin_id: crate::work_item::WorkItemProviderId::new("github").unwrap(),
                 host: "github.com".into(),
                 project: "org/repo".into(),
                 native_id: "42".into(),
             };
+            let identity = crate::work_item::WorkItemIdentity {
+                plugin_id: lookup.plugin_id.clone(),
+                host: lookup.host.clone(),
+                project: lookup.project.clone(),
+                native_id: lookup.native_id.clone(),
+            };
+            let pull = test_ok(crate::work_item::pull_from_plugin(&process, &identity, None).await);
+            assert_eq!(pull.next_cursor.as_deref(), Some("2026-08-28T00:00:00Z"));
             let mut registry = crate::work_item::WorkItemRegistry::default();
             registry.configure(
                 crate::work_item::WorkItemProviderConfig::new(
@@ -2007,6 +2123,7 @@ executable="example"
                 crate::work_item::WORK_ITEM_SNAPSHOT_CAPABILITY,
                 crate::work_item::WORK_ITEM_COMMENT_CAPABILITY,
                 crate::work_item::WORK_ITEM_RESOLVE_CAPABILITY,
+                crate::work_item::WORK_ITEM_SYNC_CAPABILITY,
             ],
             ["keychain_reference"],
         )
@@ -2014,6 +2131,7 @@ executable="example"
         let descriptor = WorkItemProviderDescriptor::from_manifest(&manifest).unwrap();
         assert!(descriptor.comments);
         assert!(descriptor.resolve);
+        assert!(descriptor.sync);
         assert!(descriptor.validate().is_ok());
         assert_eq!(
             descriptor.work_item_provider().unwrap().plugin_id.as_str(),
@@ -2027,6 +2145,7 @@ executable="example"
         let descriptor = WorkItemProviderDescriptor::from_manifest(&manifest).unwrap();
         assert!(descriptor.comments);
         assert!(descriptor.resolve);
+        assert!(descriptor.sync);
         assert_eq!(manifest.executable, "plugins/first-party/github");
     }
 

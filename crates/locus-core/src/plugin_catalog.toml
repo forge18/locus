@@ -15,7 +15,7 @@ kind = "provider"
 id = "github"
 version = "1.0.0"
 executable = "plugins/first-party/github"
-capabilities = ["work_item.snapshot", "work_item.comment", "work_item.resolve"]
+capabilities = ["work_item.snapshot", "work_item.comment", "work_item.resolve", "work_item.sync"]
 permissions = ["network", "repository_read", "repository_write"]
 
 [[plugins]]
