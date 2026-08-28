@@ -34,6 +34,12 @@ export function Strip(props: StripProps) {
               data-testid={`strip-card-${card.id}`}
               data-kind={card.kind}
               data-status={card.status ?? undefined}
+              data-task-id={card.taskId}
+              data-task-locator={
+                card.taskId
+                  ? `locus://${card.project}/task/${card.taskId}`
+                  : undefined
+              }
             >
               <div class="strip-card-top">
                 <Show when={card.kind === "shell"}>
@@ -48,6 +54,15 @@ export function Strip(props: StripProps) {
                   : `${card.project} · ${card.agent} · ${card.role}`}
               </div>
               <div class="strip-card-bottom">
+                <Show when={card.taskId}>
+                  <a
+                    class="strip-task-link"
+                    href={`locus://${card.project}/task/${card.taskId}`}
+                    data-testid={`strip-task-${card.taskId}`}
+                  >
+                    task
+                  </a>
+                </Show>
                 {card.kind === "shell"
                   ? "no agent · no cost"
                   : `${card.status} · ${card.tool ?? "no tool"} · ${tokens(card.tokens)}`}

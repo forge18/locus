@@ -5,6 +5,7 @@ import { Segmented } from "../../ui/Segmented";
 import { Tag } from "../../ui/Tag";
 import "./workshop-fixtures.css";
 import { ExtensionEditor, type ExtensionEditorType } from "./ExtensionEditor";
+import { WorkflowView } from "./WorkflowView";
 
 export const WORKSHOP_FIXTURES = [
     "agents",
@@ -89,9 +90,15 @@ function AgentsFixture() {
     return (
         <div data-testid="workshop-agents" class="ws-fixture agents-screen">
             <ExtensionEditor type="agents" />
-            <footer class="agents-handoff-footer" data-testid="agents-handoff-summary">
+            <footer
+                class="agents-handoff-footer"
+                data-testid="agents-handoff-summary"
+            >
                 <strong>Stuck run · handoff ready</strong>
-                <span>3 iterations without progress · 2 attempted · 1 artifact reference</span>
+                <span>
+                    3 iterations without progress · 2 attempted · 1 artifact
+                    reference
+                </span>
                 <Button variant="secondary">Open handoff</Button>
             </footer>
         </div>
@@ -522,58 +529,7 @@ function WorkflowsFixture(props: { governance: boolean }) {
                 />
             </header>
             <Show when={tab() === "visual"} fallback={<Governance />}>
-                {
-                    <div class="ws-workflow-visual">
-                        <aside>
-                            <h2>Nodes</h2>
-                            <For
-                                each={[
-                                    "Agent",
-                                    "Task",
-                                    "Loop",
-                                    "Condition",
-                                    "Gate",
-                                    "Verify",
-                                ]}
-                            >
-                                {(node) => (
-                                    <button type="button" class="ws-node-chip">
-                                        {node}
-                                    </button>
-                                )}
-                            </For>
-                            <h2>Presets</h2>
-                            <p>Plan → build → verify</p>
-                        </aside>
-                        <main>
-                            <div class="ws-dot-grid">
-                                <div class="ws-flow-node">
-                                    Agent
-                                    <br />
-                                    <strong>Build release</strong>
-                                </div>
-                                <div class="ws-flow-node">
-                                    Verify
-                                    <br />
-                                    <strong>pnpm test</strong>
-                                </div>
-                                <svg aria-label="Workflow edges">
-                                    <line x1="165" y1="92" x2="295" y2="92" />
-                                </svg>
-                            </div>
-                            <p>
-                                No model in the orchestration path — the graph
-                                decides.
-                            </p>
-                        </main>
-                        <aside>
-                            <h2>Inspector</h2>
-                            <p>Condition · verify.passed</p>
-                            <code>verify.passed == true</code>
-                            <p>Goal lives in Governance.</p>
-                        </aside>
-                    </div>
-                }
+                <WorkflowView />
             </Show>
         </div>
     );

@@ -20,6 +20,11 @@ import {
 import { ARTIFACTS } from "../../fixtures/artifacts";
 import { MailView } from "../mail/MailView";
 import type { Artifact } from "../../types/agents";
+import {
+  GraphRenderer,
+  type GraphEdgeShape,
+  type GraphNodeShape,
+} from "../../workflow-canvas/GraphRenderer";
 
 const sessions = [
   ["tapestry · builder@4", "r-9f21 · iteration 3 · 41.2k resident"],
@@ -44,6 +49,18 @@ const pages = [
   "credential broker",
   "canary token",
 ] as const;
+
+const WIKI_GRAPH_NODES: GraphNodeShape[] = [
+  { id: "bare-remote", label: "bare remote", x: 18, y: 54, focal: true },
+  { id: "clone", label: "clone-not-mount", x: 116, y: 28 },
+  { id: "locusd", label: "locusd", x: 116, y: 80 },
+  { id: "determinism", label: "determinism", x: 214, y: 54 },
+];
+const WIKI_GRAPH_EDGES: GraphEdgeShape[] = [
+  { from: "bare-remote", to: "clone" },
+  { from: "bare-remote", to: "locusd" },
+  { from: "clone", to: "determinism" },
+];
 
 function Label(props: { children: string }) {
   return <div class="desktop-memory-label">{props.children}</div>;
@@ -580,10 +597,14 @@ export function MemoryWikiFixture() {
         <section class="desktop-memory-side-card">
           <Label>Graph</Label>
           <div class="desktop-memory-graph" aria-label="Wiki links graph">
-            <span>bare remote</span>
-            <strong>clone-not-mount</strong>
-            <span>locusd</span>
-            <span>determinism</span>
+            <GraphRenderer
+              nodes={WIKI_GRAPH_NODES}
+              edges={WIKI_GRAPH_EDGES}
+              width={258}
+              height={132}
+              showLabels
+              testId="wiki-graph-renderer"
+            />
           </div>
           <p>{WIKI_GRAPH_COPY}</p>
         </section>

@@ -15,14 +15,19 @@
 //! rest behave identically no matter which harness a run uses. See PLAN.md §"Shared
 //! services — one Rust implementation, every harness".
 
+pub mod babysit;
 pub mod bus;
 pub mod core;
 pub mod editor;
+pub mod forge;
 pub mod harness;
 pub mod ids;
+pub mod install;
 pub mod ipc;
 pub mod lsp;
+pub mod palette;
 pub mod plugin;
+pub mod pr;
 pub mod repo;
 pub mod runtime;
 pub mod sandbox;
@@ -31,3 +36,4 @@ pub mod services;
 pub mod store;
 #[cfg(any(test, feature = "testkit"))]
 pub mod testkit;
+pub mod work_item;

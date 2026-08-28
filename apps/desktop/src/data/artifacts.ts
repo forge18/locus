@@ -66,10 +66,7 @@ export function useArtifactComments(artifactId: string): ArtifactComment[] {
 }
 
 /** Resolve a host-owned blob path for the human media viewer. */
-export function artifactMediaUrl(
- artifact: Artifact,
- fallback: string,
-): string {
+export function artifactMediaUrl(artifact: Artifact, fallback: string): string {
  if (!isTauri() || !artifact.blobPath) return fallback;
  return convertFileSrc(artifact.blobPath);
 }

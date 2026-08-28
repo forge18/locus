@@ -1,6 +1,11 @@
 mod workflow {
     use locus_core::ids::{AgentDefId, ProjectId, RunId, SessionId, TaskId};
     use locus_core::runtime::session::{Session, SessionStatus};
+    use locus_core::services::workflow::graph::{
+        blocked_by_edges, deserialize_graph, serialize_graph, validate_agent_permissions,
+        validate_graph, GraphEdge, GraphPosition, GraphValidationError, NodeKind, WorkflowGraph,
+        WorkflowNode, WorkflowTaskDependency,
+    };
     use locus_core::services::workflow::{
         begin_execution, compile_workflow, gate_request, orchestration_model_invocation_hook,
         reset_same_session as reset_workflow_session, verify_in_fresh_container,
@@ -516,5 +521,221 @@ mod workflow {
         );
         assert_eq!(evidence.command, "cargo test");
         assert_eq!(evidence.verify_node_id, "verify");
+    }
+
+    fn canvas_node(id: &str, kind: NodeKind, data: serde_json::Value) -> WorkflowNode {
+        WorkflowNode::new(id, kind, GraphPosition::new(12.0, 24.0), data)
+    }
+
+    fn canvas_edge(
+        id: &str,
+        source: &str,
+        source_handle: &str,
+        target: &str,
+        target_handle: &str,
+    ) -> GraphEdge {
+        GraphEdge {
+            id: id.into(),
+            source: source.into(),
+            source_handle: source_handle.into(),
+            target: target.into(),
+            target_handle: target_handle.into(),
+            loop_back: None,
+        }
+    }
+
+    fn canvas_graph() -> WorkflowGraph {
+        WorkflowGraph {
+            version: 1,
+            nodes: vec![
+                canvas_node("task-a", NodeKind::Task, json!({})),
+                canvas_node("task-b", NodeKind::Task, json!({})),
+                canvas_node("verify", NodeKind::Verify, json!({"command": "cargo test"})),
+            ],
+            edges: vec![
+                canvas_edge("a-b", "task-a", "out", "task-b", "in"),
+                canvas_edge("b-v", "task-b", "out", "verify", "in"),
+            ],
+        }
+    }
+
+    #[test]
+    fn graph_serializes() {
+        let serialized = serialize_graph(&canvas_graph());
+        assert!(serialized.contains("\"position\""));
+        assert!(serialized.contains("\"sourceHandle\":\"out\""));
+        assert_eq!(
+            deserialize_graph(&serialized).expect("graph loads").version,
+            1
+        );
+    }
+
+    #[test]
+    fn graph_roundtrip_exact() {
+        let serialized = serialize_graph(&canvas_graph());
+        assert_eq!(
+            serialized,
+            serialize_graph(&deserialize_graph(&serialized).expect("graph round trips"))
+        );
+    }
+
+    #[test]
+    fn typed_graph_compiles_with_positions_and_handles() {
+        let graph = serde_json::from_str(&serialize_graph(&canvas_graph())).expect("graph json");
+        let compiled = compile_workflow(graph, governance()).expect("typed graph compiles");
+        assert_eq!(compiled.persisted_spec()["steps"][0]["node_id"], "task-a");
+        assert_eq!(compiled.spec().verify_command(), "cargo test");
+    }
+
+    #[test]
+    fn rejects_cycle() {
+        let mut graph = canvas_graph();
+        graph
+            .edges
+            .push(canvas_edge("cycle", "task-b", "out", "task-a", "in"));
+        assert!(validate_graph(&graph).iter().any(
+            |error| matches!(error, GraphValidationError::Cycle { node } if node == "task-a")
+        ));
+    }
+
+    #[test]
+    fn rejects_unresolved_handle() {
+        let mut graph = canvas_graph();
+        graph.edges[0].source_handle = "missing".into();
+        assert!(validate_graph(&graph).iter().any(|error| matches!(
+            error,
+            GraphValidationError::UnresolvedSourceHandle { node, .. } if node == "task-a"
+        )));
+    }
+
+    #[test]
+    fn rejects_missing_verify() {
+        let mut graph = canvas_graph();
+        graph.nodes.retain(|node| node.kind != NodeKind::Verify);
+        assert!(validate_graph(&graph)
+            .iter()
+            .any(|error| matches!(error, GraphValidationError::MissingVerifyNode)));
+    }
+
+    #[test]
+    fn rejects_unreachable_goal() {
+        let mut graph = canvas_graph();
+        graph.nodes.push(canvas_node(
+            "goal",
+            NodeKind::Goal,
+            json!({"label": "ship"}),
+        ));
+        graph.edges.push(GraphEdge {
+            id: "goal-cycle".into(),
+            source: "goal".into(),
+            source_handle: "start".into(),
+            target: "goal".into(),
+            target_handle: "approved".into(),
+            loop_back: None,
+        });
+        assert!(validate_graph(&graph).iter().any(|error| matches!(
+            error,
+            GraphValidationError::UnreachableGoal { node } if node == "goal"
+        )));
+    }
+
+    #[test]
+    fn rejects_nonterminating_loop() {
+        let mut graph = canvas_graph();
+        graph
+            .nodes
+            .push(canvas_node("loop", NodeKind::Loop, json!({})));
+        graph.nodes[0].loop_id = Some("loop".into());
+        graph.nodes[1].loop_id = Some("loop".into());
+        graph.nodes[2].loop_id = Some("loop".into());
+        graph
+            .edges
+            .push(canvas_edge("loop-body", "loop", "body", "task-a", "in"));
+        assert!(validate_graph(&graph).iter().any(|error| matches!(
+            error,
+            GraphValidationError::NonTerminatingLoop { node } if node == "loop"
+        )));
+    }
+
+    #[test]
+    fn rejects_role_contamination() {
+        let graph = WorkflowGraph {
+            version: 1,
+            nodes: vec![
+                canvas_node(
+                    "builder",
+                    NodeKind::Agent,
+                    json!({"agent": "a", "role": "builder"}),
+                ),
+                canvas_node(
+                    "tester",
+                    NodeKind::Agent,
+                    json!({"agent": "a", "role": "tester"}),
+                ),
+                canvas_node("verify", NodeKind::Verify, json!({"command": "cargo test"})),
+            ],
+            edges: vec![
+                canvas_edge("b-t", "builder", "out", "tester", "in"),
+                canvas_edge("t-v", "tester", "out", "verify", "in"),
+            ],
+        };
+        assert!(validate_graph(&graph).iter().any(|error| matches!(
+            error,
+            GraphValidationError::RoleContamination { node, agent }
+                if node == "tester" && agent == "a"
+        )));
+    }
+
+    #[test]
+    fn rejections_name_the_node() {
+        let mut graph = canvas_graph();
+        graph.edges[0].target_handle = "missing".into();
+        let messages = validate_graph(&graph)
+            .into_iter()
+            .map(|error| error.to_string())
+            .collect::<Vec<_>>();
+        assert!(messages.iter().any(|message| message.contains("task-b")));
+    }
+
+    #[test]
+    fn node_narrows() {
+        let node = canvas_node(
+            "builder",
+            NodeKind::Agent,
+            json!({
+                "tools": ["git"],
+                "definition_tools": ["git", "rg"],
+                "network": "internal",
+                "definition_network": "open",
+                "write": "branch",
+                "definition_write": "workspace"
+            }),
+        );
+        assert!(validate_agent_permissions(&node).is_ok());
+    }
+
+    #[test]
+    fn node_never_widens() {
+        let node = canvas_node(
+            "builder",
+            NodeKind::Agent,
+            json!({"tools": ["docker"], "definition_tools": ["git"]}),
+        );
+        assert!(matches!(
+            validate_agent_permissions(&node),
+            Err(GraphValidationError::PermissionWidened { capability, .. })
+                if capability == "tools"
+        ));
+    }
+
+    #[test]
+    fn edges_become_dependencies() {
+        assert_eq!(
+            blocked_by_edges(&canvas_graph()),
+            vec![WorkflowTaskDependency {
+                task_id: "task-b".into(),
+                blocked_by: "task-a".into(),
+            }]
+        );
     }
 }

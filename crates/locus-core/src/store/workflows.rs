@@ -5,7 +5,7 @@ use serde_json::Value;
 use std::collections::BTreeMap;
 use uuid::Uuid;
 
-use crate::{services::workflow::CompiledWorkflow, store::Store};
+use crate::{ids::ProjectId, services::workflow::CompiledWorkflow, store::Store};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct PersistedWorkflowDefinition {
@@ -76,6 +76,40 @@ impl WorkflowDefinitionStore for InMemoryWorkflowDefinitions {
 }
 
 impl Store {
+    pub async fn workflow_definition_belongs_to_project(
+        &self,
+        workflow_def_id: Uuid,
+        project_id: ProjectId,
+    ) -> Result<bool> {
+        sqlx::query_scalar(
+            "SELECT EXISTS(
+                 SELECT 1 FROM workflows.workflow_defs
+                 WHERE id = $1 AND project_id = $2
+             )",
+        )
+        .bind(workflow_def_id)
+        .bind(project_id)
+        .fetch_one(self.pool())
+        .await
+        .context("validate workflow definition project")
+    }
+
+    pub async fn workflow_definition_summaries(
+        &self,
+        project_id: ProjectId,
+    ) -> Result<Vec<(Uuid, String, i32)>> {
+        sqlx::query_as::<_, (Uuid, String, i32)>(
+            "SELECT id, name, version
+             FROM workflows.workflow_defs
+             WHERE project_id = $1
+             ORDER BY name, version DESC",
+        )
+        .bind(project_id)
+        .fetch_all(self.pool())
+        .await
+        .context("load workflow definition summaries")
+    }
+
     /// Save graph, derived spec, version, and derived verify command atomically. Definitions are
     /// append-only; the advisory lock follows the agent-definition versioning convention.
     pub async fn save_workflow_definition(

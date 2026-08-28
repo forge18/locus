@@ -19,6 +19,11 @@ import type {
   PaletteNode,
   Preset,
 } from "../fixtures/workflow";
+import {
+  WORKFLOW_EVENTS,
+  workflowEventsForTranscript,
+} from "./workflow-events";
+import type { NormalizedWorkflowEvent } from "./workflow-events";
 import type { GuardrailTrip, WorkflowDef } from "../types/workflows";
 
 export {
@@ -41,6 +46,7 @@ export type {
   PaletteNode,
   Preset,
 } from "../fixtures/workflow";
+export type { NormalizedWorkflowEvent } from "./workflow-events";
 
 /** Becomes: invoke("workflow_node_vocabulary") */
 export function usePalette(): PaletteNode[] {
@@ -63,12 +69,14 @@ export function useCanvas(): {
   edges: CanvasEdge[];
   loop: typeof LOOP_GROUP;
   markers: readonly string[];
+  events: NormalizedWorkflowEvent[];
 } {
   return {
     nodes: CANVAS_NODES,
     edges: CANVAS_EDGES,
     loop: LOOP_GROUP,
     markers: ARROW_MARKERS,
+    events: WORKFLOW_EVENTS,
   };
 }
 
@@ -85,6 +93,11 @@ export function useOperands(): readonly string[] {
 /** Becomes: invoke("workflow_guardrails", { id }) */
 export function useGuardrails(): Guardrail[] {
   return GUARDRAILS;
+}
+
+/** Becomes: subscribe("workflow.events", { id }) */
+export function useWorkflowEvents(): NormalizedWorkflowEvent[] {
+  return workflowEventsForTranscript();
 }
 
 /** Becomes: emit("guardrail_tripped") */

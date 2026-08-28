@@ -104,6 +104,29 @@ fn dispatch(arguments: &[String]) -> Result<()> {
     }
     if matches!(
         verb.verb,
+        locus_core::runtime::daemon::AgentSocketVerb::TaskCreate
+            | locus_core::runtime::daemon::AgentSocketVerb::TaskList
+            | locus_core::runtime::daemon::AgentSocketVerb::TaskShow
+            | locus_core::runtime::daemon::AgentSocketVerb::TaskMove
+            | locus_core::runtime::daemon::AgentSocketVerb::TaskAssign
+            | locus_core::runtime::daemon::AgentSocketVerb::TaskComment
+    ) {
+        sock::validate_task_args(verb.verb, args)?;
+    }
+    if matches!(
+        verb.verb,
+        locus_core::runtime::daemon::AgentSocketVerb::WikiSearch
+            | locus_core::runtime::daemon::AgentSocketVerb::WikiRead
+            | locus_core::runtime::daemon::AgentSocketVerb::WikiWrite
+            | locus_core::runtime::daemon::AgentSocketVerb::WikiHistory
+            | locus_core::runtime::daemon::AgentSocketVerb::WikiIngest
+            | locus_core::runtime::daemon::AgentSocketVerb::WikiQuery
+            | locus_core::runtime::daemon::AgentSocketVerb::WikiLint
+    ) {
+        sock::validate_wiki_args(verb.verb, args)?;
+    }
+    if matches!(
+        verb.verb,
         locus_core::runtime::daemon::AgentSocketVerb::DebugStart
             | locus_core::runtime::daemon::AgentSocketVerb::DebugBreak
             | locus_core::runtime::daemon::AgentSocketVerb::DebugStep
@@ -386,6 +409,98 @@ mod handoff {
 }
 
 #[cfg(test)]
+mod task {
+    use super::sock;
+    use locus_core::runtime::daemon::AgentSocketVerb;
+
+    #[test]
+    fn create_manual() {
+        let command = ["task", "create", "Add normalized events"]
+            .into_iter()
+            .map(String::from)
+            .collect::<Vec<_>>();
+        let (dispatch, args) = sock::allowed_verb(&command).expect("task create allowlisted");
+        assert_eq!(dispatch.verb, AgentSocketVerb::TaskCreate);
+        sock::validate_task_args(dispatch.verb, args).expect("manual draft is valid");
+    }
+
+    #[test]
+    fn verbs() {
+        let cases = [
+            (vec!["task", "create", "task"], AgentSocketVerb::TaskCreate),
+            (vec!["task", "list"], AgentSocketVerb::TaskList),
+            (vec!["task", "show", "task-1"], AgentSocketVerb::TaskShow),
+            (
+                vec!["task", "move", "task-1", "in_progress"],
+                AgentSocketVerb::TaskMove,
+            ),
+            (
+                vec!["task", "assign", "task-1", "builder"],
+                AgentSocketVerb::TaskAssign,
+            ),
+            (
+                vec!["task", "comment", "task-1", "blocked", "on", "approval"],
+                AgentSocketVerb::TaskComment,
+            ),
+        ];
+        for (command, expected) in cases {
+            let command = command.into_iter().map(String::from).collect::<Vec<_>>();
+            let (dispatch, args) = sock::allowed_verb(&command).expect("task verb allowlisted");
+            assert_eq!(dispatch.verb, expected);
+            sock::validate_task_args(dispatch.verb, args).expect("task args valid");
+        }
+    }
+}
+
+#[cfg(test)]
+mod wiki {
+    use super::sock;
+    use locus_core::runtime::daemon::AgentSocketVerb;
+
+    fn check(command: &[&str], expected: AgentSocketVerb) {
+        let command = command
+            .iter()
+            .map(|value| (*value).into())
+            .collect::<Vec<String>>();
+        let (dispatch, args) = sock::allowed_verb(&command).expect("wiki verb allowlisted");
+        assert_eq!(dispatch.verb, expected);
+        sock::validate_wiki_args(dispatch.verb, args).expect("wiki arguments valid");
+    }
+
+    #[test]
+    fn ingest() {
+        check(
+            &["wiki", "ingest", "README.md"],
+            AgentSocketVerb::WikiIngest,
+        );
+    }
+
+    #[test]
+    fn lint() {
+        check(&["wiki", "lint"], AgentSocketVerb::WikiLint);
+    }
+
+    #[test]
+    fn verbs() {
+        check(&["wiki", "search", "daemon"], AgentSocketVerb::WikiSearch);
+        check(&["wiki", "read", "daemon"], AgentSocketVerb::WikiRead);
+        check(
+            &["wiki", "write", "daemon", "body"],
+            AgentSocketVerb::WikiWrite,
+        );
+        check(&["wiki", "history", "daemon"], AgentSocketVerb::WikiHistory);
+    }
+
+    #[test]
+    fn query_files_synthesis() {
+        check(
+            &["wiki", "query", "how", "does", "isolation", "work"],
+            AgentSocketVerb::WikiQuery,
+        );
+    }
+}
+
+#[cfg(test)]
 mod ralph {
     use super::ralph;
 
@@ -474,6 +589,19 @@ mod tools {
         let (dispatch, args) = sock::allowed_verb(&command).expect("tools docs is allowlisted");
         assert_eq!(dispatch.verb, AgentSocketVerb::ToolsDocs);
         assert_eq!(args, ["rg"]);
+    }
+
+    #[test]
+    fn docs_on_demand() {
+        let manifest = locus_core::install::InstallManifest::new(
+            locus_core::services::tools::ImageTool::new("gh", "2"),
+            locus_core::install::InstallMethod::Brew {
+                formula: "gh".into(),
+            },
+            ["gh --version".into()],
+            "GitHub CLI documentation",
+        );
+        assert!(locus_core::install::docs_on_demand(&manifest).contains("documentation"));
     }
 }
 

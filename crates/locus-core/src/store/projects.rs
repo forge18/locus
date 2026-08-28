@@ -5,8 +5,8 @@
 use crate::ids::ProjectId;
 use std::collections::BTreeMap;
 
-use anyhow::{Context, Result};
-use sqlx::{query, Row};
+use anyhow::{bail, Context, Result};
+use sqlx::{query, query_scalar, Row};
 use uuid::Uuid;
 
 use crate::{lsp::DescriptorPin, services::project::ProjectSettings, store::Store};
@@ -14,6 +14,35 @@ use crate::{lsp::DescriptorPin, services::project::ProjectSettings, store::Store
 const SETTINGS_KEY: &str = "project_settings";
 
 impl Store {
+    pub async fn resolve_project_id(&self, identifier: &str) -> Result<Option<ProjectId>> {
+        if let Ok(project_id) = identifier.parse::<ProjectId>() {
+            return query_scalar::<_, ProjectId>("SELECT id FROM core.projects WHERE id = $1")
+                .bind(project_id)
+                .fetch_optional(self.pool())
+                .await
+                .context("resolve project UUID");
+        }
+        if identifier.trim().is_empty() {
+            return Ok(None);
+        }
+        let project_ids = query_scalar::<_, ProjectId>(
+            "SELECT id
+             FROM core.projects
+             WHERE name = $1
+             ORDER BY created_at, id
+             LIMIT 2",
+        )
+        .bind(identifier)
+        .fetch_all(self.pool())
+        .await
+        .context("resolve project name")?;
+        match project_ids.as_slice() {
+            [] => Ok(None),
+            [project_id] => Ok(Some(*project_id)),
+            _ => bail!("project name `{identifier}` is ambiguous"),
+        }
+    }
+
     /// Replace one project's typed settings aggregate.
     pub async fn set_project_settings(
         &self,

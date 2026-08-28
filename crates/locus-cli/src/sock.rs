@@ -94,6 +94,10 @@ pub const VERB_DISPATCHES: &[VerbDispatch] = &[
         verb: AgentSocketVerb::MailWait,
     },
     VerbDispatch {
+        command: &["task", "create"],
+        verb: AgentSocketVerb::TaskCreate,
+    },
+    VerbDispatch {
         command: &["task", "list"],
         verb: AgentSocketVerb::TaskList,
     },
@@ -372,6 +376,88 @@ pub fn resolve_verb(arguments: &[String]) -> Option<(&'static VerbDispatch, &[St
 pub fn allowed_verb(arguments: &[String]) -> Result<(&'static VerbDispatch, &[String])> {
     resolve_verb(arguments)
         .ok_or_else(|| anyhow::anyhow!("command is not allowlisted: {}", arguments.join(" ")))
+}
+
+/// Validate the stateless task CLI shape before the authenticated socket round trip.
+pub fn validate_task_args(verb: AgentSocketVerb, args: &[String]) -> anyhow::Result<()> {
+    let positional = args.iter().filter(|arg| !arg.starts_with("--")).count();
+    let required = |count: usize| {
+        if positional < count {
+            anyhow::bail!("{verb} requires task arguments")
+        }
+        Ok(())
+    };
+    match verb {
+        AgentSocketVerb::TaskCreate => {
+            required(1)?;
+        }
+        AgentSocketVerb::TaskList => {
+            if !args.is_empty() {
+                anyhow::bail!("task list takes no arguments")
+            }
+        }
+        AgentSocketVerb::TaskShow => {
+            required(1)?;
+            if positional != 1 {
+                anyhow::bail!("task show requires exactly <task>")
+            }
+        }
+        AgentSocketVerb::TaskMove => {
+            required(2)?;
+            if positional != 2 {
+                anyhow::bail!("task move requires <task> <column>")
+            }
+        }
+        AgentSocketVerb::TaskAssign => {
+            required(2)?;
+            if positional != 2 {
+                anyhow::bail!("task assign requires <task> <agent>")
+            }
+        }
+        AgentSocketVerb::TaskComment => {
+            required(2)?;
+        }
+        _ => anyhow::bail!("not a task verb: {verb}"),
+    }
+    if args.iter().any(|arg| arg.trim().is_empty()) {
+        anyhow::bail!("task arguments must not be empty")
+    }
+    Ok(())
+}
+
+/// Validate wiki commands without reading or mutating local files in the CLI process.
+pub fn validate_wiki_args(verb: AgentSocketVerb, args: &[String]) -> anyhow::Result<()> {
+    let positional = args.iter().filter(|arg| !arg.starts_with("--")).count();
+    let require = |minimum: usize| {
+        if positional < minimum {
+            anyhow::bail!("{verb} requires wiki arguments")
+        }
+        Ok(())
+    };
+    match verb {
+        AgentSocketVerb::WikiLint => {
+            if !args.is_empty() {
+                anyhow::bail!("wiki lint takes no arguments")
+            }
+        }
+        AgentSocketVerb::WikiSearch | AgentSocketVerb::WikiIngest | AgentSocketVerb::WikiQuery => {
+            require(1)?;
+        }
+        AgentSocketVerb::WikiRead | AgentSocketVerb::WikiHistory => {
+            require(1)?;
+            if positional != 1 {
+                anyhow::bail!("{verb} requires exactly one page")
+            }
+        }
+        AgentSocketVerb::WikiWrite => {
+            require(2)?;
+        }
+        _ => anyhow::bail!("not a wiki verb: {verb}"),
+    }
+    if args.iter().any(|arg| arg.trim().is_empty()) {
+        anyhow::bail!("wiki arguments must not be empty")
+    }
+    Ok(())
 }
 
 /// `textDocument/documentSymbol` needs the document it should inspect. Keep the CLI contract

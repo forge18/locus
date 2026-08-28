@@ -16,6 +16,7 @@ fn kind_name(kind: PageKind) -> &'static str {
         PageKind::Entity => "entity",
         PageKind::Source => "source",
         PageKind::Synthesis => "synthesis",
+        PageKind::Overview => "overview",
     }
 }
 

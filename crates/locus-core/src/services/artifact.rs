@@ -1,8 +1,8 @@
 //! Reviewable run deliverables and their durable blob representation.
 
-use crate::ids::{ArtifactId, CommentId, ProjectId, RunId};
+use crate::ids::{ArtifactId, CommentId, ProjectId, RunId, SessionId};
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     fs,
     path::{Path, PathBuf},
     time::{Duration, SystemTime},
@@ -11,6 +11,7 @@ use std::{
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use thiserror::Error;
 
 pub const DEFAULT_COMPACTION_THRESHOLD: usize = 16 * 1024;
 pub const ARTIFACT_ROOT: &str = "/var/lib/locus/artifacts";
@@ -102,6 +103,17 @@ impl ArtifactRow {
             summary: None,
         }
     }
+
+    pub fn with_research_provenance(mut self, provenance: ResearchProvenance) -> Self {
+        let mut metadata = self
+            .derived_cache
+            .take()
+            .filter(serde_json::Value::is_object)
+            .unwrap_or_else(|| serde_json::json!({}));
+        metadata["research_provenance"] = serde_json::json!(provenance.label());
+        self.derived_cache = Some(metadata);
+        self
+    }
 }
 
 pub fn blob_path(
@@ -158,6 +170,168 @@ pub fn write_blob(
         derived_cache: None,
         summary: None,
     })
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ResearchProvenance {
+    Seed,
+    ThisRun,
+    SessionClose,
+}
+
+impl ResearchProvenance {
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Seed => "seed",
+            Self::ThisRun => "this_run",
+            Self::SessionClose => "session_close",
+        }
+    }
+
+    pub fn from_label(value: &str) -> Option<Self> {
+        match value {
+            "seed" => Some(Self::Seed),
+            "this_run" => Some(Self::ThisRun),
+            "session_close" => Some(Self::SessionClose),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Error, Eq, PartialEq)]
+pub enum ResearchFeedError {
+    #[error("only finding artifacts can enter the session research feed")]
+    NotFinding,
+    #[error("the session research feed is closed")]
+    Closed,
+    #[error("the finding is already in the session research feed")]
+    DuplicateFinding,
+    #[error("the finding is not in the session research feed")]
+    UnknownFinding,
+    #[error("only a closed feed can promote findings")]
+    NotClosed,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SessionResearchFinding {
+    pub artifact: ArtifactRow,
+    pub provenance: ResearchProvenance,
+    pub reviewed: bool,
+    pub promoted: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SessionResearchFeed {
+    session_id: SessionId,
+    findings: BTreeMap<ArtifactId, SessionResearchFinding>,
+    closed: bool,
+}
+
+impl SessionResearchFeed {
+    pub fn new(session_id: SessionId) -> Self {
+        Self {
+            session_id,
+            findings: BTreeMap::new(),
+            closed: false,
+        }
+    }
+
+    pub(crate) fn add_finding(
+        &mut self,
+        artifact: ArtifactRow,
+        provenance: ResearchProvenance,
+    ) -> Result<(), ResearchFeedError> {
+        if self.closed {
+            return Err(ResearchFeedError::Closed);
+        }
+        if artifact.kind != ArtifactKind::Finding {
+            return Err(ResearchFeedError::NotFinding);
+        }
+        if self.findings.contains_key(&artifact.id) {
+            return Err(ResearchFeedError::DuplicateFinding);
+        }
+        self.findings.insert(
+            artifact.id,
+            SessionResearchFinding {
+                artifact,
+                provenance,
+                reviewed: false,
+                promoted: false,
+            },
+        );
+        Ok(())
+    }
+
+    pub fn record_run_finding(&mut self, artifact: ArtifactRow) -> Result<(), ResearchFeedError> {
+        self.add_finding(artifact, ResearchProvenance::ThisRun)
+    }
+
+    pub fn seed_from_plan(
+        &mut self,
+        artifacts: impl IntoIterator<Item = ArtifactRow>,
+    ) -> Result<usize, ResearchFeedError> {
+        if self.closed {
+            return Err(ResearchFeedError::Closed);
+        }
+        let mut added = 0;
+        for artifact in artifacts {
+            if self.findings.contains_key(&artifact.id) {
+                continue;
+            }
+            self.add_finding(artifact, ResearchProvenance::Seed)?;
+            added += 1;
+        }
+        Ok(added)
+    }
+
+    pub fn review_at_close(
+        &mut self,
+        approved: impl IntoIterator<Item = ArtifactId>,
+    ) -> Result<usize, ResearchFeedError> {
+        if self.closed {
+            return Err(ResearchFeedError::Closed);
+        }
+        let approved = approved.into_iter().collect::<BTreeSet<_>>();
+        self.closed = true;
+        let mut reviewed = 0;
+        for (id, finding) in &mut self.findings {
+            if approved.contains(id) {
+                finding.reviewed = true;
+                finding.provenance = ResearchProvenance::SessionClose;
+                reviewed += 1;
+            }
+        }
+        Ok(reviewed)
+    }
+
+    pub fn session_id(&self) -> SessionId {
+        self.session_id
+    }
+
+    pub fn is_closed(&self) -> bool {
+        self.closed
+    }
+
+    pub fn findings(&self) -> impl Iterator<Item = &SessionResearchFinding> {
+        self.findings.values()
+    }
+
+    pub fn reviewed_findings(&self) -> impl Iterator<Item = &SessionResearchFinding> {
+        self.findings.values().filter(|finding| finding.reviewed)
+    }
+
+    pub(crate) fn mark_promoted(&mut self, id: ArtifactId) -> Result<(), ResearchFeedError> {
+        let finding = self
+            .findings
+            .get_mut(&id)
+            .ok_or(ResearchFeedError::UnknownFinding)?;
+        if !finding.reviewed || !self.closed {
+            return Err(ResearchFeedError::NotClosed);
+        }
+        finding.promoted = true;
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -325,6 +499,48 @@ mod artifact {
         ));
         assert_eq!(store.review_inbox().len(), 1);
     }
+    #[test]
+    fn session_research_feed() {
+        let (project, run) = ids();
+        let session = SessionId::generate();
+        let mut feed = SessionResearchFeed::new(session);
+        let run_finding = ArtifactRow::text(project, run, ArtifactKind::Finding, "run finding");
+        let seed = ArtifactRow::text(project, run, ArtifactKind::Finding, "seed finding");
+        let run_id = run_finding.id;
+        let seed_id = seed.id;
+        feed.record_run_finding(run_finding).unwrap();
+        feed.seed_from_plan([seed]).unwrap();
+        assert_eq!(feed.session_id(), session);
+        assert_eq!(feed.findings().count(), 2);
+        assert_eq!(
+            feed.findings()
+                .find(|finding| finding.artifact.id == run_id)
+                .unwrap()
+                .provenance,
+            ResearchProvenance::ThisRun
+        );
+        assert_eq!(
+            feed.findings()
+                .find(|finding| finding.artifact.id == seed_id)
+                .unwrap()
+                .provenance,
+            ResearchProvenance::Seed
+        );
+    }
+
+    #[test]
+    fn research_inherits_from_plan() {
+        let (project, run) = ids();
+        let finding = ArtifactRow::text(project, run, ArtifactKind::Finding, "planning result");
+        let mut feed = SessionResearchFeed::new(SessionId::generate());
+        assert_eq!(feed.seed_from_plan([finding.clone()]).unwrap(), 1);
+        assert_eq!(feed.seed_from_plan([finding]).unwrap(), 0);
+        let entry = feed.findings().next().unwrap();
+        assert_eq!(entry.provenance, ResearchProvenance::Seed);
+        assert!(!entry.reviewed);
+        assert!(!feed.is_closed());
+    }
+
     #[test]
     fn text_is_a_row() {
         let (project, run) = ids();

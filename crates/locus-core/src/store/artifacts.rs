@@ -2,7 +2,7 @@
 //!
 //! Moved out of `services/artifact.rs` so every query in the crate lives under `store/`.
 
-use crate::ids::{ArtifactId, ProjectId, RunId};
+use crate::ids::{ArtifactId, ProjectId, RunId, SessionId};
 use std::path::PathBuf;
 
 use anyhow::{bail, Result};
@@ -11,11 +11,72 @@ use sqlx::{query_as, FromRow};
 use uuid::Uuid;
 
 use crate::{
-    services::artifact::{ArtifactComment, ArtifactContent, ArtifactKind, ArtifactRow},
+    services::artifact::{
+        ArtifactComment, ArtifactContent, ArtifactKind, ArtifactRow, ResearchProvenance,
+        SessionResearchFeed,
+    },
     store::Store,
 };
 
 impl Store {
+    pub async fn session_research_feed(
+        &self,
+        session_id: SessionId,
+    ) -> Result<SessionResearchFeed> {
+        let mut feed = SessionResearchFeed::new(session_id);
+        for (artifact, provenance) in self.finding_artifacts(session_id).await? {
+            feed.add_finding(artifact, provenance)?;
+        }
+        Ok(feed)
+    }
+
+    pub async fn session_research_feed_with_seed(
+        &self,
+        session_id: SessionId,
+        planning_session_id: Option<SessionId>,
+    ) -> Result<SessionResearchFeed> {
+        let mut feed = self.session_research_feed(session_id).await?;
+        if let Some(planning_session_id) = planning_session_id {
+            let findings = self
+                .finding_artifacts(planning_session_id)
+                .await?
+                .into_iter()
+                .map(|(artifact, _)| artifact);
+            feed.seed_from_plan(findings)?;
+        }
+        Ok(feed)
+    }
+
+    async fn finding_artifacts(
+        &self,
+        session_id: SessionId,
+    ) -> Result<Vec<(ArtifactRow, ResearchProvenance)>> {
+        let rows = query_as::<_, PersistedArtifactRow>(
+            "SELECT a.id, s.project_id, a.run_id, a.kind, a.body, a.blob_path,
+                    a.media_type, a.sha256, a.derived_representation, a.summary
+             FROM agents.artifacts a
+             JOIN agents.runs r ON r.id = a.run_id
+             JOIN agents.sessions s ON s.id = r.session_id
+             WHERE r.session_id = $1 AND a.kind = 'finding'
+             ORDER BY a.created_at, a.id",
+        )
+        .bind(session_id)
+        .fetch_all(self.pool())
+        .await?;
+        rows.into_iter()
+            .map(|row| {
+                let provenance = row
+                    .derived_representation
+                    .as_ref()
+                    .and_then(|metadata| metadata.get("research_provenance"))
+                    .and_then(serde_json::Value::as_str)
+                    .and_then(ResearchProvenance::from_label)
+                    .unwrap_or(ResearchProvenance::ThisRun);
+                Ok((row.try_into()?, provenance))
+            })
+            .collect()
+    }
+
     /// Persist the metadata and either text or blob reference for a reviewable artifact.
     pub async fn save_artifact(&self, artifact: &ArtifactRow) -> Result<()> {
         let (body, blob_path, media_type, sha256) = match &artifact.content {

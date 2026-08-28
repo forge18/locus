@@ -7,6 +7,17 @@ executable = "plugins/first-party/gh"
 capabilities = ["cli_tool.install", "cli_tool.verify", "cli_tool.docs", "cli_tool.digest"]
 permissions = ["network", "repository_read"]
 
+# This is the trusted shipped-executable allowlist. Configured provider instances live in
+# board.external_work_item_providers and are loaded at runtime.
+[[plugins]]
+protocol = "locus.plugin.v1"
+kind = "provider"
+id = "github"
+version = "1.0.0"
+executable = "plugins/first-party/github"
+capabilities = ["work_item.snapshot", "work_item.comment", "work_item.resolve"]
+permissions = ["network", "repository_read", "repository_write"]
+
 [[plugins]]
 protocol = "locus.plugin.v1"
 kind = "harness"

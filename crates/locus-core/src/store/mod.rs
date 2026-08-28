@@ -24,6 +24,7 @@ pub mod routing;
 pub mod schedules;
 pub mod session_controls;
 pub mod wiki;
+pub mod work_items;
 pub mod workflow_log;
 pub mod workflows;
 

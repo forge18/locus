@@ -75,7 +75,12 @@ function App() {
                                                 <PlanView />
                                         </Match>
                                         <Match when={nav.view() === "sessions"}>
-                                                <ManageView />
+                                                <ManageView
+                                                        projectId={
+                                                                nav.params()
+                                                                        .project
+                                                        }
+                                                />
                                         </Match>
                                         <Match when={nav.view() === "runs"}>
                                                 <DispatchView tab="runs" />

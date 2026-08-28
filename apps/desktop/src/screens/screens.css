@@ -2784,10 +2784,24 @@
  color: var(--action-attention);
 }
 .wf-preset {
+ width: 100%;
  padding: 6px var(--g-3);
+ border: 0;
  border-radius: var(--r-md);
  background: var(--surface-selected);
+ color: var(--text-primary);
+ font-family: inherit;
  font-size: var(--t-body);
+ text-align: left;
+ cursor: pointer;
+}
+.wf-preset-expanded {
+ display: grid;
+ gap: var(--g-2);
+ padding: var(--g-3);
+ border-left: 2px solid var(--action-attention);
+ font-size: var(--t-label);
+ color: var(--text-secondary);
 }
 .wf-preset-note {
  font-size: var(--t-label);
@@ -2803,6 +2817,43 @@
  background-color: var(--surface-ground);
  background-image: radial-gradient(var(--border-subtle) 1px, transparent 1px);
  background-size: 24px 24px;
+}
+.wf-flow-engine {
+ position: absolute;
+ inset: 0;
+ z-index: 0;
+}
+.wf-flow-engine .solid-flow {
+ background: transparent;
+}
+.wf-flow-node {
+ position: relative;
+ width: 168px;
+ min-height: 46px;
+ border: 1px solid var(--border-subtle);
+ border-radius: var(--r-lg);
+ background: var(--surface-raised);
+ box-shadow: var(--sh-node);
+ overflow: visible;
+ pointer-events: auto;
+}
+.wf-flow-node .wf-node-strip {
+ border-radius: var(--r-lg) var(--r-lg) 0 0;
+}
+.wf-flow-node .solid-flow__handle {
+ width: 7px;
+ height: 7px;
+ border: 1px solid var(--border-strong);
+ background: var(--surface-elevated);
+}
+.wf-flow-node .solid-flow__handle-left {
+ left: -4px;
+}
+.wf-flow-node .solid-flow__handle-right {
+ right: -4px;
+}
+.wf-flow-node[data-selected="true"] {
+ box-shadow: var(--ring-sel), var(--sh-node);
 }
 .wf-edges {
  position: absolute;

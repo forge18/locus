@@ -61,6 +61,8 @@ pub enum AgentSocketVerb {
     MailDrain,
     #[serde(rename = "mail.wait")]
     MailWait,
+    #[serde(rename = "task.create")]
+    TaskCreate,
     #[serde(rename = "task.list")]
     TaskList,
     #[serde(rename = "task.show")]

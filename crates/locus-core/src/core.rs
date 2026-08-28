@@ -11,19 +11,24 @@
 //! store.
 
 use std::{
+    collections::BTreeMap,
     path::Path,
     sync::{Arc, Mutex, OnceLock},
 };
 
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 
 use crate::{
     harness::registry::{load_from_directory, HarnessRegistry},
+    ids::{ProjectId, TaskId},
     ipc::{EventChannel, PtyChannel},
     lsp::{LanguageCatalog, LspHost},
     runtime::{daemon::Daemon, dap::DebugSessionRegistry},
     services::{handoff::HandoffRegistry, telemetry::EventCollector},
     store::Store,
+    work_item::{
+        CompletionDelivery, CompletionEvent, CompletionOutbox, WorkItemRegistry, WorkItemSnapshot,
+    },
 };
 
 /// How much fan-out each in-process channel buffers before a slow subscriber lags.
@@ -41,8 +46,14 @@ pub struct Core {
     lsp: LspHost,
     debug: DebugSessionRegistry,
     handoffs: Arc<Mutex<HandoffRegistry>>,
-    /// Set once, by [`Core::connect`]. `Core` is shared as `Arc`, so the store cannot be
-    /// assigned through `&mut self`.
+    work_items: Mutex<WorkItemRegistry>,
+    completion_outbox: tokio::sync::Mutex<CompletionOutbox>,
+    /// Serializes first-time database connection and hydration. `Core` is shared as `Arc`, so
+    /// the store cannot be assigned through `&mut self`.
+    connect_lock: tokio::sync::Mutex<()>,
+    work_item_operation_lock: tokio::sync::Mutex<()>,
+    pending_work_item_previews: Mutex<BTreeMap<TaskId, (ProjectId, WorkItemSnapshot)>>,
+    /// Set once, by [`Core::connect`].
     store: OnceLock<Store>,
     daemon: Mutex<Daemon>,
 }
@@ -74,6 +85,11 @@ impl Core {
             lsp: LspHost::new(language_catalog),
             debug: debug.clone(),
             handoffs: Arc::new(Mutex::new(HandoffRegistry::default())),
+            work_items: Mutex::new(WorkItemRegistry::default()),
+            completion_outbox: tokio::sync::Mutex::new(CompletionOutbox::default()),
+            connect_lock: tokio::sync::Mutex::new(()),
+            work_item_operation_lock: tokio::sync::Mutex::new(()),
+            pending_work_item_previews: Mutex::new(BTreeMap::new()),
             store: OnceLock::new(),
             daemon: Mutex::new(Daemon::with_debug(debug)),
         }))
@@ -85,10 +101,71 @@ impl Core {
         if let Some(store) = self.store.get() {
             return Ok(store);
         }
+        let _connect_lock = self.connect_lock.lock().await;
+        if let Some(store) = self.store.get() {
+            return Ok(store);
+        }
         let store = Store::connect(database_url)
             .await
             .context("connect the Locus store")?;
-        Ok(self.store.get_or_init(|| store))
+        let configs = store
+            .load_external_work_item_providers()
+            .await
+            .context("hydrate external work-item providers")?;
+        let imported = store
+            .load_external_work_items()
+            .await
+            .context("hydrate imported work items")?;
+        let completions = store
+            .load_external_completions()
+            .await
+            .context("hydrate external completion outbox")?;
+
+        let mut work_item_registry = WorkItemRegistry::default();
+        for config in configs {
+            work_item_registry.configure(config);
+        }
+        for item in imported {
+            work_item_registry
+                .restore_imported_with_state(
+                    item.task,
+                    item.snapshot,
+                    item.workflow,
+                    item.runs,
+                    item.evidence,
+                )
+                .map_err(|error| anyhow!("restore imported work item: {error}"))?;
+        }
+        let mut completion_outbox = CompletionOutbox::default();
+        for item in completions {
+            completion_outbox
+                .restore_delivery(CompletionDelivery {
+                    event: CompletionEvent {
+                        id: item.id,
+                        task_id: item.task_id,
+                        locator: item.locator,
+                        evidence: item.evidence,
+                        comment: item.comment,
+                    },
+                    attempts: item.attempts,
+                    commented: item.commented,
+                    resolved: item.resolved,
+                })
+                .map_err(|error| anyhow!("restore external completion: {error}"))?;
+        }
+
+        *self
+            .work_items
+            .lock()
+            .map_err(|_| anyhow!("external work-item registry lock is poisoned"))? =
+            work_item_registry;
+        *self.completion_outbox.lock().await = completion_outbox;
+        self.store
+            .set(store)
+            .map_err(|_| anyhow!("Locus store was connected concurrently"))?;
+        self.store
+            .get()
+            .ok_or_else(|| anyhow!("Locus store was not initialized"))
     }
 
     pub fn registry(&self) -> &HarnessRegistry {
@@ -117,6 +194,24 @@ impl Core {
 
     pub fn handoffs(&self) -> Arc<Mutex<HandoffRegistry>> {
         self.handoffs.clone()
+    }
+
+    pub fn work_items(&self) -> &Mutex<WorkItemRegistry> {
+        &self.work_items
+    }
+
+    pub fn completion_outbox(&self) -> &tokio::sync::Mutex<CompletionOutbox> {
+        &self.completion_outbox
+    }
+
+    pub fn work_item_operation_lock(&self) -> &tokio::sync::Mutex<()> {
+        &self.work_item_operation_lock
+    }
+
+    pub fn pending_work_item_previews(
+        &self,
+    ) -> &Mutex<BTreeMap<TaskId, (ProjectId, WorkItemSnapshot)>> {
+        &self.pending_work_item_previews
     }
 
     /// The store, once [`Core::connect`] has run. `None` means the shell is up but

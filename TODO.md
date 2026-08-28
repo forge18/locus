@@ -1,6 +1,6 @@
 # TODO
 
-**Remaining:** 33 features · 448 tasks.
+**Remaining:** 34 features · 479 tasks.
 
 This is the unfinished-work index. [`PLAN.md`](PLAN.md) is the architecture authority. Each feature's
 `spec.md` is its contract; its `tasks.md` is the runnable decomposition and verification source.
@@ -33,10 +33,10 @@ M1.5 surface can close. Rows 3–9 can proceed independently while that path is 
 | M3.5 | Agent capabilities: debug and browser | 3 | 56 | queued |
 | M4 | Workflow canvas | 3 | 69 | queued |
 | M5 | Project management | 5 | 127 | queued |
-| M6 | Automation and discoverability | 3 | 46 | queued |
-| M7 | Forge providers | 4 | 78 | queued |
+| M6 | Automation and discoverability | 4 | 65 | queued |
+| M7 | Forge providers | 4 | 88 | queued |
 | M8 | Marketplace installer | 1 | 11 | queued |
-| **Total** | | **79** | **1,737** | **448 remaining** |
+| **Total** | | **80** | **1,766** | **479 remaining** |
 
 ## Settled foundations
 
@@ -156,71 +156,96 @@ edges. Items 32–33 are intentionally last because they depend on later plannin
   *Depends on:* `mail` and `guardrails`
   *Completed:* core payloads, artifact/run/session links, same-branch successor priming, trigger shape, CLI validation/routing, transcript exclusion, and stuck footer. Cross-project transfers are rejected per project-scoped session ownership.
 
-- [ ] **18. M4 — [workflow-canvas](.specs/workflow-canvas/spec.md)** · [tasks](.specs/workflow-canvas/tasks.md) · 24 tasks
+- [x] **18. M4 — [workflow-canvas](.specs/workflow-canvas/spec.md)** · [tasks](.specs/workflow-canvas/tasks.md) · 24 tasks
   Author and validate workflow graphs.
   *Depends on:* `workflow-engine`
+  *Completed:* renderer-independent versioned graph JSONB with positions and named handles, save-time validation, permission narrowing, role contamination checks, board dependency projection, Solid Flow canvas/node handles, loop grouping, viewport controls, Ralph expansion, condition inspector, guardrail binding, and one normalized live-event source. Full core integration remains Docker-dependent.
 
-- [ ] **19. M5 — [board](.specs/board/spec.md)** · [tasks](.specs/board/tasks.md) · 23 tasks
+- [x] **19. M5 — [board](.specs/board/spec.md)** · [tasks](.specs/board/tasks.md) · 23 tasks
   Fixed columns and evidence-gated completion.
   *Depends on:* `workflow-engine`
+  *Completed:* event-fed BoardTask projection with fixed In Progress columns, actor/evidence gates, workflow-generated dependencies, auto-unblock, approval items, stateless task CLI validation, and Kanban projection. Database-backed rebuild remains Docker-dependent.
 
-- [ ] **20. M6 — [schedules](.specs/schedules/spec.md)** · [tasks](.specs/schedules/tasks.md) · 12 tasks
+- [x] **20. M6 — [schedules](.specs/schedules/spec.md)** · [tasks](.specs/schedules/tasks.md) · 12 tasks
   Turn cron schedules into recorded workflows.
   *Depends on:* `workflow-engine`
+  *Completed:* UTC five-field cron parser, next-fire computation, overlap skip/drop with visible counts and no backlog, verify-result recording, restart snapshots, pause/resume, and Store-side cron validation. Timezone/DST is explicitly UTC until a product timezone field exists.
 
-- [ ] **21. M6 — [dashboard-metrics](.specs/dashboard-metrics/spec.md)** · [tasks](.specs/dashboard-metrics/tasks.md) · 20 tasks
+- [x] **21. M6 — [dashboard-metrics](.specs/dashboard-metrics/spec.md)** · [tasks](.specs/dashboard-metrics/tasks.md) · 20 tasks
   Query telemetry, spend, cache, and run metrics.
   *Depends on:* `workflow-engine`
+  *Completed:* query-only metric projections for cache/spend/offenders/verify/guardrails/board/arbiter/iterations/gates/trust/prefix drift, read-only lint gate, Status at-a-glance rail, and faceted Telemetry metric set.
 
-- [ ] **22. M5 — [wiki](.specs/wiki/spec.md)** · [tasks](.specs/wiki/tasks.md) · 26 tasks
+- [x] **22. M5 — [wiki](.specs/wiki/spec.md)** · [tasks](.specs/wiki/tasks.md) · 26 tasks
   Ingest typed knowledge and generate a durable wiki.
   *Depends on:* `workflow-canvas`
+  *Completed:* six backend page kinds with hidden Overview, bounded MarkItDown ingest plans, auto entity/concept pages, wikilinks, overview revisions, embeddings/KNN/adjudication/contradictions, memory conflict and seed discovery, event/run attribution, stateless CLI validation, and shared graph rendering. Persistent pgvector execution remains Docker-dependent.
 
-- [ ] **23. M5 — [task-orchestration](.specs/task-orchestration/spec.md)** · [tasks](.specs/task-orchestration/tasks.md) · 18 tasks
+- [x] **23. M5 — [task-orchestration](.specs/task-orchestration/spec.md)** · [tasks](.specs/task-orchestration/tasks.md) · 18 tasks
   Make Automate task-centric.
   *Depends on:* `board` and `workflow-engine`
+  *Completed:* project-scoped workflow confirmation and root-session ownership, task-owned reset/child run trees, detail/control summaries, shared Kanban/List task locators and drafts, and running-strip links.
 
-- [ ] **24. M5 — [planning-module](.specs/planning-module/spec.md)** · [tasks](.specs/planning-module/tasks.md) · 40 tasks
+- [x] **24. M5 — [planning-module](.specs/planning-module/spec.md)** · [tasks](.specs/planning-module/tasks.md) · 40 tasks
   Guided planning with research, audit, and approval.
   *Depends on:* `board` and `wiki`
+  *Completed:* isolated interviewer/researcher/auditor contracts, bounded orientation and fact research, scope/reduction/audit/reader/ratcher/recommendation/approval models, traceability anchors, replanning rules, specialization output, and Plan ACP/draft surface coverage. The seven-stage UI remains authoritative.
 
-- [ ] **25. M5 — [calibration-loop](.specs/calibration-loop/spec.md)** · [tasks](.specs/calibration-loop/tasks.md) · 20 tasks
+- [x] **25. M5 — [calibration-loop](.specs/calibration-loop/spec.md)** · [tasks](.specs/calibration-loop/tasks.md) · 20 tasks
   Learn from failures through specialization.
   *Depends on:* `workflow-engine`, `planning-module`, and `memory`
+  *Completed:* watermark-scoped recurring arbiter clusters, exactly four human-gated proposal types, shared reflection Inbox queue, acceptance effects for regression/wiki/noise/ambiguity, sticky rejections, and confidence-gated specialization injection.
 
-- [ ] **26. M6 — [command-palette](.specs/command-palette/spec.md)** · [tasks](.specs/command-palette/tasks.md) · 14 tasks
+- [x] **26. M6 — [command-palette](.specs/command-palette/spec.md)** · [tasks](.specs/command-palette/tasks.md) · 14 tasks
   Search wiki, code, tasks, and runs globally.
   *Depends on:* `project-search`, `wiki`, and `board`
+  *Completed:* unified locator-shaped global search over project-search code, wiki pages, board tasks, and run history with cross-project ranking, Cmd-K/Cmd-P opening, object-locator delegation, history traversal, and single-resolver gate.
 
-- [ ] **27. M7 — [forge-providers](.specs/forge-providers/spec.md)** · [tasks](.specs/forge-providers/tasks.md) · 30 tasks
+- [x] **27. M7 — [forge-providers](.specs/forge-providers/spec.md)** · [tasks](.specs/forge-providers/tasks.md) · 30 tasks
   *This is the separate remote-forge integration boundary, not a Workshop model-provider plugin.*
   Provider-neutral PR, CI, review, and issue integration.
   *Depends on:* `repo-manager` and `board`
+  *Completed:* five provider identities/adapters, capability contract, immutable issue snapshots, provider close references, normalized change/CI data, broker-scoped credentials, HMAC webhook verification/routing, no-polling gate, and CI surfaces on board/status.
 
-- [ ] **28. M8 — [marketplace-installer](.specs/marketplace-installer/spec.md)** · [tasks](.specs/marketplace-installer/tasks.md) · 11 tasks
+- [x] **28. M8 — [marketplace-installer](.specs/marketplace-installer/spec.md)** · [tasks](.specs/marketplace-installer/tasks.md) · 11 tasks
   *First-party CLI scope is `gh`; the installer remains open to trusted user-authored tool plugins.*
   Install pinned tools into agent images.
   *Depends on:* `marketplace-index`
+  *Completed:* argv-only install methods, allowlist-enforced deterministic image baking, verify-gated builds, shared image keys, pin/prose rebuild semantics, catalog docs injection, on-demand tool docs, and the trusted selection model in `TRUST-MODEL.md`.
 
-- [ ] **29. M7 — [agent-prs](.specs/agent-prs/spec.md)** · [tasks](.specs/agent-prs/tasks.md) · 14 tasks
+- [x] **29. M7 — [agent-prs](.specs/agent-prs/spec.md)** · [tasks](.specs/agent-prs/tasks.md) · 14 tasks
   Agent-authored provider change requests.
   *Depends on:* `forge-providers` and `locus-browse`
+  *Completed:* goal/task/evidence PR drafts with browse attachments, self-review before offer, 500-line slicing, shared forge/artifact comment routing, follow-up commit/reply, deferred post-exit delivery, and two-sided conflict resolution proposals.
 
-- [ ] **30. M7 — [ci-babysitter](.specs/ci-babysitter/spec.md)** · [tasks](.specs/ci-babysitter/tasks.md) · 14 tasks
+- [x] **30. M7 — [ci-babysitter](.specs/ci-babysitter/spec.md)** · [tasks](.specs/ci-babysitter/tasks.md) · 14 tasks
   Bounded CI repair and escalation loop.
   *Depends on:* `forge-providers`, `agent-prs`, and `guardrails`
+  *Completed:* normalized failure detection, compact log fetch, container dispatch, branch-only fix push, shared guardrail budget, arbiter/noise handling, attempt-carrying Inbox escalation, ignored real-break/give-up checks, and ordinary-workflow decision.
 
-- [ ] **31. M7 — [external-work-items](.specs/external-work-items/spec.md)** · [tasks](.specs/external-work-items/tasks.md) · 20 tasks
-  Import tracker work into the local task workflow.
+- [x] **31. M7 — [external-work-items](.specs/external-work-items/spec.md)** · [tasks](.specs/external-work-items/tasks.md) · 18 tasks
+  Import GitHub issues through the first-party work-item plugin; other trackers remain future plugins.
   *Depends on:* `task-orchestration`, `forge-providers`, and `board`
+  *Completed:* GitHub JSON-RPC plugin, `gh` snapshot/comment/resolve operations, database-backed provider registration and hydration, transactional import persistence, Done completion delivery with retry/status, duplicate-task navigation, Tauri IPC, and configured-provider UI loading. Docker-backed database tests remain blocked while Colima is unavailable. Original rows 9–10 were superseded by the sync revision.
 
-- [ ] **32. M1.5 — [agent-session-research](.specs/agent-session-research/spec.md)** · [tasks](.specs/agent-session-research/tasks.md) · 4 tasks
+- [x] **32. M1.5 — [agent-session-research](.specs/agent-session-research/spec.md)** · [tasks](.specs/agent-session-research/tasks.md) · 4 tasks
   Session research feed and reviewed promotion.
   *Depends on:* `artifacts`, `memory`, and `planning-module`
+  *Completed:* session-scoped `finding` feed with seed/this-run/session-close provenance, planning inheritance without promotion, and explicit close-review promotion into long-term memory.
 
-- [ ] **33. M1.5 — [agent-interface](.specs/agent-interface/spec.md)** · [tasks](.specs/agent-interface/tasks.md) · 26 tasks
+- [x] **33. M1.5 — [agent-interface](.specs/agent-interface/spec.md)** · [tasks](.specs/agent-interface/tasks.md) · 26 tasks
   One ACP Agent Pane for stream, gates, plan, and research.
   *Depends on:* `agent-session-controls`, `agent-dispatch-permissions`, and `agent-session-research`
+  *Completed:* canonical session/run/task/permission projection, ACP event-channel pane with rich turns, thinking/tool disclosure, inline gated diffs, elicitation, checkpoint/research docks, composer steering and discovery, responsive/a11y layout, and Interact integration.
+
+- [ ] **34. M6 — [bots](.specs/bots/spec.md)** · [tasks](.specs/bots/tasks.md) · 19 tasks
+  Persistent named agents outside the loop: ad-hoc messaging, cron-fired routines, and a warm-window container.
+  *Depends on:* `agent-definitions`, `agent-interface`, and `schedules`
+
+- [ ] **35. M7 — [external-work-items sync](.specs/external-work-items/spec.md)** · [tasks](.specs/external-work-items/tasks.md) · 12 tasks
+  Keep linked external items synchronized with the board — statuses and notes both ways, plugin-declared status mapping, all notes out with attribution and echo suppression, last-write-wins status conflicts, and an external close carrying Done's evidence.
+  *Depends on:* completed external-work-items import and `board`
+  *Scope:* tasks 21–32 of the shared spec; the one-way contract was superseded by [IMPACT_EXTERNAL_SYNC](.specs/IMPACT_EXTERNAL_SYNC.md).
 
 ## Open decisions
 
@@ -255,6 +280,7 @@ completed milestones are omitted unless they still affect an active feature.
 | [schedules](.specs/schedules/spec.md) | Define timezone and DST behavior for cron expressions. |
 | [agent-prs](.specs/agent-prs/spec.md) | Define what “large” means for slicing a change. |
 | [ci-babysitter](.specs/ci-babysitter/spec.md) | Choose an ordinary workflow or supervisor behavior. |
+| [bots](.specs/bots/spec.md) | Set the warm-window default and whether it scales by harness; decide definition resolution: latest at run start or pinned. |
 
 ## Carry-forward from M0
 

@@ -28,6 +28,7 @@ const RESOLVED_ICON = {
   gate: "seal-check",
   ask: "question",
   guardrail: "warning-octagon",
+  reflection: "sparkle",
 } as const;
 const age = (minutes: number) =>
   minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h`;

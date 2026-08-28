@@ -112,22 +112,27 @@ the strongest available argument that skipping VSCodium costs less than it would
 | Tools | **Just-in-time documentation, eager installation.** The enabled CLI catalog is baked into the image; project and workflow roles only narrow it. A one-line catalog per allowlisted tool arrives only when an agent asks for it. |
 | Filesystem | **No virtual filesystem.** Docker layers and `git clone --reference` already give copy-on-write; exposing Locus state as files is the thing the store exists to stop. |
 | Artifacts on disk | **Text in Postgres, media as files the row points at.** Media is stored once for you and **derived on demand for a model** — OCR before pixels, keyframes before clips. Two representations, because a human and a model want opposite things. |
-| Plugins | **One common manifest + one executable speaking JSON-RPC 2.0 over stdio**, in any language, for CLI tools, harnesses, and model providers. The host negotiates namespaced capabilities and bounded calls; optional capabilities do not make the contract brittle. Core services stay internal and are never plugins. **Data-driven: a plugin declares and returns data; the first-party UI knows how to render it.** No third-party UI code, ever. |
+| Plugins | **One common manifest + one executable speaking JSON-RPC 2.0 over stdio**, in any language, for CLI tools, harnesses, model providers, and external work-item providers. The host negotiates namespaced capabilities (`work_item.*` for normalized source items) and bounded calls; optional capabilities do not make the contract brittle. Core services stay internal and are never plugins. **Data-driven: a plugin declares and returns data; the first-party UI knows how to render it.** No third-party UI code, ever. |
 | Board | **Fixed columns across every project**, not configurable: Ready → In Progress → Testing → Reviewing → Waiting For Approval → Done. **`blocked` is a status, not a column.** Two gating rules only. |
 | Planning | **Three agents** — interviewer, researcher, auditor — over ACP, across **seven stages**: Inputs, Orient, Converse, Synthesis, Recommend, Decompose, Approved. Goal is an input, not an output. Requirement ids are stable, so a card keeps pointing at the requirement it came from. The approved spec is decomposed into board cards explicitly: spec-only, every task, or spec plus selected carve-outs. Nothing reaches the board until the single final approval. |
 | Testing Locus | **Event-based.** Every run normalizes into `memory.event`, so a test is "run this, assert these events appeared" — identical across the first-party Pi harness and any trusted user harness plugin, with no test-only instrumentation. |
 | Permissions | **Bypass is the default; a job may explicitly opt into gated approval.** What an agent may do is *declared* — the tool allowlist on the agent definition, narrowed per role by the workflow's `Agent` node — and enforced by the container. A gated request blocks as a visible human action; an unexpected bypass request is an alarm. |
 | UI components | **Kobalte** headless primitives + **shadcn-solid** components copied into the repo + **Tailwind**. Headless, because an IDE's chrome is small and its large surfaces are all bespoke or bring their own DOM. |
 
-**Plugin contract.** Every CLI-tool, harness, and model-provider plugin has a trusted manifest and one
-executable speaking JSON-RPC 2.0 over stdio. The host negotiates `protocol`, `kind`, `version`, and
-namespaced capabilities through `plugin.initialize`, `plugin.describe`, `plugin.health`, and
-`plugin.shutdown`. Required capabilities are validated before dispatch; unknown optional capabilities
-are preserved for diagnostics. Calls are bounded and return data only — no plugin renders UI or writes
-Locus persistence. Harnesses use the same envelope but expose a flexible capability descriptor for
-launch, session, ACP events, materialization, model discovery, permissions, resume, checkpoints, and
-usage; only the minimum session capability is required for selection. First-party plugins are `pi`,
-`gh`, `openai`, `anthropic`, and `openrouter`; other plugins are user-supplied.
+**Plugin contract.** Every CLI-tool, harness, model-provider, and external-work-item provider plugin
+has a trusted manifest and one executable speaking JSON-RPC 2.0 over stdio. The host negotiates
+`protocol`, `kind`, `version`, and namespaced capabilities through `plugin.initialize`, `plugin.describe`,
+`plugin.health`, and `plugin.shutdown`. Required capabilities are validated before dispatch; unknown
+optional capabilities are preserved for diagnostics. Calls are bounded and return data only — no plugin
+renders UI or writes Locus persistence. Work-item plugins expose `work_item.snapshot` plus a completion
+comment and optional resolution operation; sync-capable providers additionally declare a status
+vocabulary with a bidirectional column mapping and exchange statuses and notes in both directions over
+`work_item.pull`/`work_item.push_*`. Core stores only the opaque plugin identity and normalized
+snapshot. Harnesses use the same envelope but expose a flexible capability descriptor for launch,
+session, ACP events, materialization, model discovery, permissions, resume, checkpoints, and usage; only
+the minimum session capability is required for selection. First-party plugins are `pi`, `gh`,
+`github` (work-item), `openai`, `anthropic`, and `openrouter`; other plugins, including future
+work-item providers, are user-supplied.
 
 ### desktop desktop revision
 
@@ -1457,7 +1462,7 @@ task
   blocked_by[]          generated from the workflow graph, not hand-drawn
   verify                the runnable check
   evidence[]            run + the events that justify a transition
-  github_issue          nullable, linked by explicit action in either direction
+  external_issue        nullable, linked by explicit action in either direction; sync-capable providers keep status and notes synchronized both ways — last-write-wins for status, decisions recorded as evidence, an external close carries Done's evidence
 ```
 
 **Evidence proves the requirement was met, not that the feature is right.** Sengupta et al. report a

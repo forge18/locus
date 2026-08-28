@@ -32,6 +32,8 @@ time = { version = "0.3", features = ["formatting", "parsing"] }
 bollard = "0.19"
 futures = "0.3"
 sha2 = "0.10"
+hmac = "0.12"
+subtle = "2.6"
 minisign = "0.9.1"
 keyring = "3"
 url = "2"

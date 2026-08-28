@@ -9,7 +9,7 @@ import { useRunningCount, useStripCards } from "../data/strip";
 import { useInboxItems } from "../data/inbox";
 import type { ActiveSession } from "./RunningPill";
 import type { NavStore, View } from "../nav";
-import { destinationDesktop, navigateDesktop } from "../nav/desktop-navigation";
+import { destinationDesktop } from "../nav/desktop-navigation";
 import type { DesktopNavTarget, DesktopRouteId } from "../nav/desktop-locator";
 import {
     Desktop_PROJECT_ROUTE_KINDS,
@@ -75,8 +75,7 @@ export function Shell(props: ShellProps) {
                 : { project: undefined };
         props.nav.go(desktopViewFor(target), params);
     };
-    const openDesktopLocator = (locator: string) =>
-        openDesktopTarget(navigateDesktop(locator));
+    const openDesktopLocator = (locator: string) => props.nav.open(locator);
     const currentDesktopLocator = () =>
         desktopLocatorFor(
             props.nav.view(),
@@ -86,7 +85,10 @@ export function Shell(props: ShellProps) {
     // ⌘K resolves a locator. It is bound here because the palette is shell
     // chrome, and there is one of it per window.
     const onKeyDown = (e: KeyboardEvent) => {
-        if (e.key.toLowerCase() === "k" && (e.metaKey || e.ctrlKey)) {
+        if (
+            (e.key.toLowerCase() === "k" || e.key.toLowerCase() === "p") &&
+            (e.metaKey || e.ctrlKey)
+        ) {
             e.preventDefault();
             setPaletteOpen(true);
         }
@@ -135,6 +137,7 @@ export function Shell(props: ShellProps) {
                 onOpenChange={setPaletteOpen}
                 current={currentDesktopLocator()}
                 onResolve={openDesktopTarget}
+                onOpenLocator={openDesktopLocator}
             />
             <Sheet
                 open={props.nav.detail() !== null}
