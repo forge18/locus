@@ -75,7 +75,7 @@ jobs:
           LOCUS_HARNESS_REGISTRY=harnesses \
             LOCUS_SOCKET_PATH=/tmp/locusd-ci.sock \
             cargo run -p locus-cli --bin locusd &
-          for _ in $(seq 1 30); do
+          for _ in $(seq 1 120); do
             [ -S /tmp/locusd-ci.sock ] && break
             sleep 1
           done
