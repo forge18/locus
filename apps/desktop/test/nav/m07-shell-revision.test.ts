@@ -4,15 +4,15 @@ import { destinationDesktop, navigateDesktop } from '../../src/nav/desktop-navig
 import { CATEGORIES, RAIL_ITEMS, VIEWS, categoryOf } from '../../src/nav'
 
 describe('M0.7 shell navigation inventory', () => {
-  it('registers the current 29 views and nine rail categories', () => {
-    expect(VIEWS).toHaveLength(29)
-    expect(Desktop_FIXTURE_ROUTES).toHaveLength(29)
-    expect([...CATEGORIES]).toEqual(['setup', 'plan', 'manage', 'interact', 'review', 'analytics', 'memory', 'settings', 'workshop'])
-    expect(RAIL_ITEMS.map((item) => item.firstView)).toEqual(['projects', 'plan', 'sessions', 'interact', 'qa', 'status', 'short', 'settings', 'agents'])
+  it('registers the current 30 views and ten rail categories', () => {
+    expect(VIEWS).toHaveLength(30)
+    expect(Desktop_FIXTURE_ROUTES).toHaveLength(30)
+    expect([...CATEGORIES]).toEqual(['setup', 'plan', 'manage', 'interact', 'bots', 'review', 'analytics', 'memory', 'settings', 'workshop'])
+    expect(RAIL_ITEMS.map((item) => item.firstView)).toEqual(['projects', 'plan', 'sessions', 'interact', 'bots', 'qa', 'status', 'short', 'settings', 'agents'])
   })
 
   it('routes every category landing view without retired rail vocabulary', () => {
-    expect(RAIL_ITEMS.map((item) => item.label)).toEqual(['Setup', 'Plan', 'Manage', 'Interact', 'Review', 'Analytics', 'Memory', 'Settings', 'Workshop'])
+    expect(RAIL_ITEMS.map((item) => item.label)).toEqual(['Setup', 'Plan', 'Manage', 'Interact', 'Bots', 'Review', 'Analytics', 'Memory', 'Settings', 'Workshop'])
     expect(Desktop_FIXTURE_ROUTES.some((route) => ['Develop', 'Automate', 'Dashboard'].includes(route.label))).toBe(false)
     for (const route of Desktop_FIXTURE_ROUTES) {
       const locator = destinationDesktop(route.id, route.scope === 'project' ? 'tapestry' : undefined)

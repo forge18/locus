@@ -255,8 +255,14 @@ impl RepoManager {
         })
     }
 
-    /// Linked repositories use explicit, on-demand synchronization. Run cloning also calls this.
+    /// Linked repositories use explicit, on-demand synchronization. Agent and bot branches are
+    /// Locus-owned, so synchronization never prunes them from the bare remote.
     pub fn sync_linked(&self, repository: &Repository) -> Result<()> {
+        self.sync_linked_preserving_agent_branches(repository)
+    }
+
+    /// Sync linked source changes without pruning branches owned by agents or bots.
+    fn sync_linked_preserving_agent_branches(&self, repository: &Repository) -> Result<()> {
         if repository.mode != RepoMode::Linked {
             return Ok(());
         }
@@ -273,7 +279,6 @@ impl RepoManager {
             &repository.bare_remote,
             [
                 "fetch",
-                "--prune",
                 repository.object_store.to_str().unwrap_or_default(),
                 "+refs/*:refs/*",
             ],
@@ -323,6 +328,85 @@ impl RepoManager {
             branch,
             remote: repository.bare_remote.clone(),
         })
+    }
+
+    /// Make or resume the one persistent workspace branch owned by a bot.
+    pub fn clone_bot(
+        &self,
+        repository: &Repository,
+        bot_id: impl AsRef<str>,
+        workspace: impl AsRef<Path>,
+    ) -> Result<RunWorkspace> {
+        self.sync_linked_preserving_agent_branches(repository)?;
+        let branch = bot_branch_name(bot_id.as_ref())?;
+        let workspace = workspace.as_ref().to_path_buf();
+        if workspace.exists() {
+            bail!("bot workspace already exists: {}", workspace.display())
+        }
+        if let Some(parent) = workspace.parent() {
+            fs::create_dir_all(parent).context("create bot workspace parent")?;
+        }
+        run_git(
+            &self.root,
+            [
+                "clone",
+                "--no-checkout",
+                "--reference",
+                repository.object_store.to_str().unwrap_or_default(),
+                repository.bare_remote.to_str().unwrap_or_default(),
+                workspace.to_str().unwrap_or_default(),
+            ],
+        )?;
+        run_git(&workspace, ["remote", "rename", "origin", "locus"])?;
+        let remote_ref = format!("refs/remotes/locus/{branch}");
+        let has_bot_branch = git_output(&workspace, ["show-ref", "--verify", &remote_ref])
+            .map(|output| output.status.success())
+            .unwrap_or(false);
+        let base = if has_bot_branch {
+            remote_ref.as_str()
+        } else {
+            repository.primary_branch.as_str()
+        };
+        run_git(&workspace, ["checkout", "-b", branch.as_str(), base])?;
+        if !has_bot_branch {
+            run_git(
+                &workspace,
+                [
+                    "push",
+                    "locus",
+                    format!("refs/heads/{branch}:refs/heads/{branch}").as_str(),
+                ],
+            )?;
+        }
+        Ok(RunWorkspace {
+            path: workspace,
+            branch,
+            remote: repository.bare_remote.clone(),
+        })
+    }
+
+    /// Push only the persistent bot branch. Primary branches are rejected before invoking git.
+    pub fn push_bot_branch(
+        &self,
+        workspace: impl AsRef<Path>,
+        bot_id: impl AsRef<str>,
+    ) -> Result<()> {
+        let branch = bot_branch_name(bot_id.as_ref())?;
+        let workspace = workspace.as_ref();
+        let current = current_branch(workspace)?;
+        if current != branch {
+            bail!("workspace is on `{current}`, expected `{branch}`")
+        }
+        refuse_primary_branch(&current)?;
+        run_git(
+            workspace,
+            [
+                "push",
+                "locus",
+                format!("refs/heads/{branch}:refs/heads/{branch}").as_str(),
+            ],
+        )?;
+        Ok(())
     }
 
     /// Push only the run branch. A primary branch is rejected before invoking git.
@@ -479,6 +563,19 @@ pub fn branch_name(run_id: &str) -> Result<String> {
     Ok(branch)
 }
 
+pub fn bot_branch_name(bot_id: &str) -> Result<String> {
+    if bot_id.trim().is_empty()
+        || bot_id.contains('/')
+        || bot_id.contains(' ')
+        || bot_id.contains("..")
+    {
+        bail!("invalid bot id for persistent branch")
+    }
+    let branch = format!("bots/{bot_id}");
+    refuse_primary_branch(&branch)?;
+    Ok(branch)
+}
+
 pub fn refuse_primary_branch(branch: &str) -> Result<()> {
     if matches!(
         branch,
@@ -622,20 +719,17 @@ fn object_payload_size(path: &Path) -> Result<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{
-        fs,
-        time::{SystemTime, UNIX_EPOCH},
-    };
+    use std::fs;
+    use uuid::Uuid;
 
     struct TempDir(PathBuf);
     impl TempDir {
         fn new() -> Self {
-            let id = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_nanos();
-            let path =
-                std::env::temp_dir().join(format!("locus-repo-test-{}-{id}", std::process::id()));
+            let path = std::env::temp_dir().join(format!(
+                "locus-repo-test-{}-{}",
+                std::process::id(),
+                Uuid::new_v4()
+            ));
             fs::create_dir_all(&path).unwrap();
             Self(path)
         }
@@ -762,6 +856,7 @@ mod tests {
     #[test]
     fn branch_naming() {
         assert_eq!(branch_name("123").unwrap(), "agent/123");
+        assert_eq!(bot_branch_name("123").unwrap(), "bots/123");
     }
 
     #[test]
@@ -780,6 +875,33 @@ mod tests {
         )
         .unwrap();
         assert!(output.status.success());
+    }
+
+    #[test]
+    fn bot_branch_persists_across_clones() {
+        let (tmp, _checkout, manager, repo) = fixture();
+        let first = manager
+            .clone_bot(&repo, "bot-1", tmp.path().join("bot-first"))
+            .unwrap();
+        assert!(git_output(
+            &repo.bare_remote,
+            ["show-ref", "--verify", "refs/heads/bots/bot-1"]
+        )
+        .unwrap()
+        .status
+        .success());
+        fs::write(first.path.join("bot-note"), "first\n").unwrap();
+        git(&first.path, &["add", "."]);
+        git(&first.path, &["commit", "-m", "bot work"]);
+        manager.push_bot_branch(&first.path, "bot-1").unwrap();
+        let _ordinary_run = manager
+            .clone_run(&repo, "ordinary", tmp.path().join("ordinary"))
+            .unwrap();
+        let second = manager
+            .clone_bot(&repo, "bot-1", tmp.path().join("bot-second"))
+            .unwrap();
+        assert_eq!(second.branch, "bots/bot-1");
+        assert!(second.path.join("bot-note").is_file());
     }
 
     #[test]

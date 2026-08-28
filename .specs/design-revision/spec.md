@@ -16,7 +16,7 @@ this spec does not restate it.
 ## Governed by
 
 - `PLAN.md` §Decisions, §Navigation, §The planning module, §The Workflow Canvas, §Credentials
-- `docs/UI_MOCKUP_REVIEW.md` — the reviewed contract for all 29 views and the agent panel
+- `docs/UI_MOCKUP_REVIEW.md` — the reviewed contract for all 30 views and the agent panel
 - `docs/UI mockups for PLAN.md/Locus v2.dc.html`, `AgentPanel.dc.html` — visual reference, never
   production code
 
@@ -30,18 +30,19 @@ of the same file. `Locus.dc.html` and the earlier desktop handoff are v1.
 
 ### Vocabulary
 
-Rail categories are **Setup, Plan, Manage, Interact, Review** (project-scoped) and **Analytics,
+Rail categories are **Setup, Plan, Manage, Interact, Bots, Review** (project-scoped) and **Analytics,
 Memory, Settings, Workshop** (cross-project). Inbox and Dispatch are title-bar pills, not rail
-items. The former project, task, metrics, and project-list labels are retired: no spec, fixture, route id,
-or component may reintroduce them.
+items. Bots is the persistent named-agent surface and carries only the `bots` view. The former project,
+task, metrics, and project-list labels are retired: no spec, fixture, route id, or component may
+reintroduce them.
 
 ### Screen inventory
 
-Twenty-nine views, each with a `locus://` locator and exactly one rail category. Every view is
+Thirty views, each with a `locus://` locator and exactly one rail category. Every view is
 routable on its own; no two views may share a route. The inventory is:
 
 `inbox`, `status` (Analytics), `telemetry`, `mail`, `projects` (Setup), `plan`, `sessions` (Manage),
-`interact`, `qa` (Review), `autorun`, `schedule`, `runs`, `short`, `memory`, `artifact`, `wiki`,
+`interact`, `bots` (Bots), `qa` (Review), `autorun`, `schedule`, `runs`, `short`, `memory`, `artifact`, `wiki`,
 `settings`, and the twelve Workshop views. Workshop groups `cli`, `harnesses`, and `providers` under
 Plugins; `agents`, `commands`, `hooks`, `linters`, `styles`, `rules`, `skills`, `canvas`, and the
 Workflows list under Extensions.
@@ -77,7 +78,7 @@ spec cannot be mistaken for a current one.
 
 1. No file under `.specs/` or `PLAN.md` cites an earlier handoff directory as governing.
 2. No M0.7 spec, fixture, route id, or component names a retired rail category; the M0.6 specs retain the historical labels they implemented.
-3. Every one of the 29 views is named by exactly one M0.7 spec and carries one locator.
+3. Every one of the 30 views is named by exactly one governing spec and carries one locator.
 4. Every spec this milestone supersedes carries a pointer line naming its replacement.
 5. The plan pipeline is described as seven stages in `PLAN.md`, `.specs/plan-revision`, and
    `crates/locus-core`; `Audit` and `Override` appear only as the auditor-role note.

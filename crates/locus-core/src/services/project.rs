@@ -10,8 +10,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{
-    harness::materialize::extensions::ProjectExtensionScope, lsp::DescriptorPin,
-    services::tools::ProjectToolScope,
+    harness::materialize::extensions::ProjectExtensionScope,
+    lsp::DescriptorPin,
+    services::{bots::BotSettings, tools::ProjectToolScope},
 };
 
 const SETTINGS_VERSION: u16 = 1;
@@ -219,6 +220,8 @@ pub struct ProjectSettings {
     lsp_descriptors: BTreeMap<String, DescriptorPin>,
     #[serde(default)]
     debug_configs: BTreeMap<String, DebugRunConfig>,
+    #[serde(default)]
+    bots: BotSettings,
 }
 
 impl ProjectSettings {
@@ -233,6 +236,7 @@ impl ProjectSettings {
             tool_scope: ProjectToolScope::default(),
             lsp_descriptors: BTreeMap::new(),
             debug_configs: BTreeMap::new(),
+            bots: BotSettings::default(),
         }
     }
 
@@ -353,6 +357,16 @@ impl ProjectSettings {
         &self.debug_configs
     }
 
+    pub fn with_bot_warm_window_minutes(mut self, minutes: u32) -> Result<Self> {
+        self.bots = BotSettings::new(minutes)?;
+        self.validate()?;
+        Ok(self)
+    }
+
+    pub fn bots(&self) -> &BotSettings {
+        &self.bots
+    }
+
     pub fn to_stored_value(&self) -> Result<Value> {
         self.validate()?;
         serde_json::to_value(self).context("serialize project settings")
@@ -402,6 +416,7 @@ impl ProjectSettings {
         for config in self.debug_configs.values() {
             config.validate()?;
         }
+        self.bots.warm_window()?;
         Ok(())
     }
 }
@@ -475,6 +490,26 @@ fn debug_configs_round_trip() {
     assert_eq!(config.adapter(), "python-debug-adapter");
     assert_eq!(config.command(), "python -m app");
     assert_eq!(config.adapter_command(), ["python-debug-adapter"]);
+}
+
+#[cfg(test)]
+#[test]
+fn bots_warm_window_round_trips_in_project_settings() {
+    let settings = ProjectSettings::new()
+        .with_bot_warm_window_minutes(27)
+        .expect("valid bot warm window");
+    let value = settings.to_stored_value().expect("serialize settings");
+    assert_eq!(value["bots"]["warm_window_minutes"], 27);
+    let restored = ProjectSettings::from_stored_value(value).expect("restore settings");
+    assert_eq!(restored.bots().warm_window_minutes, 27);
+}
+
+#[cfg(test)]
+#[test]
+fn bots_warm_window_rejects_unbounded_values() {
+    assert!(ProjectSettings::new()
+        .with_bot_warm_window_minutes(24 * 60 + 1)
+        .is_err());
 }
 
 #[cfg(test)]

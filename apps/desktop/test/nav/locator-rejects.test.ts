@@ -20,13 +20,13 @@ describe("nav/locator-rejects", () => {
     expect(fails("locus:///inbox")).toContain("scope:");
   });
 
-  it("names the view when it is not one of the 29 registered views", () => {
+  it("names the view when it is not one of the 30 registered views", () => {
     const message = fails("locus://all/view/dashboard");
     expect(message).toContain("view:");
     expect(message).toContain('"dashboard"');
   });
 
-  it("names the kind when it is not one of the six", () => {
+  it("names the kind when it is not one of the seven", () => {
     const message = fails("locus://tapestry/widget/x");
     expect(message).toContain("kind:");
     expect(message).toContain('"widget"');

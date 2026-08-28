@@ -11,6 +11,7 @@ const CATEGORY_TABS: Record<Category, CategoryTab[]> = {
   plan: [],
   manage: [{ view: "sessions", label: "List" }],
   interact: [],
+  bots: [],
   review: [],
   analytics: [
     { view: "status", label: "Overview" },

@@ -1,6 +1,5 @@
 //! Headless daemon lifetime and the authenticated agent socket.
 
-use crate::ids::RunId;
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs::{self, OpenOptions},
@@ -19,12 +18,14 @@ use tokio::{
 use uuid::Uuid;
 
 use crate::{
+    ids::{BotId, RunId},
     runtime::{
         container::ContainerRuntime,
         dap::DebugSessionRegistry,
         run::{self, SpawnRequest, SpawnedRun},
         session::Run,
     },
+    services::bots::WarmStopAction,
     store::Store,
 };
 
@@ -259,6 +260,21 @@ impl Daemon {
         self.attached_windows
     }
 
+    /// Expire one persisted warm bot and send its container through the same host-owned stop
+    /// boundary used by ordinary run cancellation.
+    pub async fn expire_bot_warm_window(
+        &self,
+        store: &Store,
+        bot_id: BotId,
+        runtime: &mut impl ContainerRuntime,
+    ) -> Result<bool> {
+        let Some(action) = store.expire_bot_warm_window(bot_id).await? else {
+            return Ok(false);
+        };
+        stop_expired_bot(action, runtime)?;
+        Ok(true)
+    }
+
     /// Starts a persisted run through the daemon-owned credential-proxy path.
     pub async fn spawn_run(
         &mut self,
@@ -271,6 +287,15 @@ impl Daemon {
         self.begin_run(run.id);
         Ok(spawned)
     }
+}
+
+pub fn stop_expired_bot(action: WarmStopAction, runtime: &mut impl ContainerRuntime) -> Result<()> {
+    if let Some(container_id) = action.container_id {
+        runtime
+            .stop_container(&container_id)
+            .with_context(|| format!("stop expired bot container for {}", action.bot_id))?;
+    }
+    Ok(())
 }
 
 /// Framed request sent by an agent container. The nonce identifies the one run permitted to make
@@ -807,6 +832,69 @@ async fn write_frame<T: Serialize>(stream: &mut UnixStream, value: &T) -> Result
         .await
         .context("write socket frame body")?;
     stream.flush().await.context("flush socket response")
+}
+
+#[cfg(test)]
+mod bot_stop {
+    use super::{stop_expired_bot, WarmStopAction};
+    use crate::{
+        ids::BotId,
+        runtime::container::{ContainerLaunch, ContainerRuntime, ImageDisposition, PtyStream},
+        sandbox::mounts::PtyAttachment,
+    };
+    use anyhow::Result;
+
+    #[derive(Default)]
+    struct RecordingRuntime {
+        stopped: Vec<String>,
+    }
+
+    impl ContainerRuntime for RecordingRuntime {
+        fn build_or_reuse_image(&mut self, _: &str) -> Result<ImageDisposition> {
+            Ok(ImageDisposition::Reused)
+        }
+
+        fn start_container(&mut self, _: &ContainerLaunch) -> Result<()> {
+            Ok(())
+        }
+
+        fn attach_pty(&mut self, _: &str, _: PtyAttachment, _: PtyStream) -> Result<()> {
+            Ok(())
+        }
+
+        fn stop_container(&mut self, container: &str) -> Result<()> {
+            self.stopped.push(container.into());
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn sends_expired_bot_container_through_the_stop_boundary() {
+        let mut runtime = RecordingRuntime::default();
+        stop_expired_bot(
+            WarmStopAction {
+                bot_id: BotId::generate(),
+                container_id: Some("locus-agent-bot-run".into()),
+            },
+            &mut runtime,
+        )
+        .expect("stop expired bot");
+        assert_eq!(runtime.stopped, ["locus-agent-bot-run"]);
+    }
+
+    #[test]
+    fn does_not_call_runtime_when_expired_bot_has_no_container() {
+        let mut runtime = RecordingRuntime::default();
+        stop_expired_bot(
+            WarmStopAction {
+                bot_id: BotId::generate(),
+                container_id: None,
+            },
+            &mut runtime,
+        )
+        .expect("stop expired bot");
+        assert!(runtime.stopped.is_empty());
+    }
 }
 
 #[cfg(test)]

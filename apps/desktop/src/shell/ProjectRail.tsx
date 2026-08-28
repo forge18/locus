@@ -12,6 +12,7 @@ const PROJECT_RAIL_LINKS = [
       ["Plan", "plan"],
       ["Manage", "sessions"],
       ["Interact", "interact"],
+      ["Bots", "bots"],
       ["Review", "qa"],
 ] as const;
 const CROSS_PROJECT_LINKS = [["Analytics", "status"]] as const;

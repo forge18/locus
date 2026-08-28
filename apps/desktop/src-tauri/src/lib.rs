@@ -11,7 +11,7 @@ use std::{
 use locus_core::{
     core::Core,
     harness::materialize::report::{reports_for_registry, MaterializationReport},
-    ids::{ArtifactId, ProjectId, RunId, TaskId},
+    ids::{ArtifactId, BotId, ProjectId, RoutineId, RunId, TaskId},
     lsp::{DescriptorPin, LspDiagnostic},
     plugin::{builtin_manifests, PluginKind, PluginProcess, WorkItemProviderDescriptor},
     repo::GitState,
@@ -19,6 +19,10 @@ use locus_core::{
         agents::{seeded_definitions, AgentDefinition},
         artifact::{ArtifactComment, ArtifactContent, ArtifactKind, ArtifactRow, ArtifactStore},
         board::{BoardActor, BoardEvidenceLink},
+        bots::{
+            Bot, BotContainerState, BotRoutine, RoutineAttribution, RoutineExecution,
+            RoutineExecutionStatus,
+        },
         lint::discover as discover_linters,
         manage::TaskColumn,
         task::TaskDetailSummary,
@@ -1130,6 +1134,204 @@ fn artifact_comments(
         .collect())
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct BotResponse {
+    id: String,
+    project_id: String,
+    name: String,
+    agent_def_id: String,
+    home_session_id: String,
+    branch: String,
+    container_id: Option<String>,
+    container_state: BotContainerState,
+    warm_until: Option<String>,
+    last_activity_at: Option<String>,
+    total_cost_micros: Option<u64>,
+}
+
+impl From<Bot> for BotResponse {
+    fn from(bot: Bot) -> Self {
+        Self {
+            id: bot.id.to_string(),
+            project_id: bot.project_id.to_string(),
+            name: bot.name,
+            agent_def_id: bot.agent_def_id.to_string(),
+            home_session_id: bot.home_session_id.to_string(),
+            branch: bot.branch,
+            container_id: bot.container_id,
+            container_state: bot.container_state,
+            warm_until: bot.warm_until,
+            last_activity_at: bot.last_activity_at,
+            total_cost_micros: bot.total_cost_micros,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct BotRoutineResponse {
+    id: String,
+    bot_id: String,
+    prompt: String,
+    cron_expression: String,
+    enabled: bool,
+    skipped_count: u32,
+    schedule_id: Option<String>,
+}
+
+impl From<BotRoutine> for BotRoutineResponse {
+    fn from(routine: BotRoutine) -> Self {
+        Self {
+            id: routine.id.to_string(),
+            bot_id: routine.bot_id.to_string(),
+            prompt: routine.prompt,
+            cron_expression: routine.cron_expression,
+            enabled: routine.enabled,
+            skipped_count: routine.skipped_count,
+            schedule_id: routine.schedule_id.map(|id| id.to_string()),
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct BotRoutineExecutionResponse {
+    id: String,
+    bot_id: String,
+    scheduled_for: i64,
+    status: RoutineExecutionStatus,
+    result: Option<locus_core::services::bots::RoutineResult>,
+    attribution: RoutineAttribution,
+    test_run: bool,
+}
+
+impl From<RoutineExecution> for BotRoutineExecutionResponse {
+    fn from(execution: RoutineExecution) -> Self {
+        Self {
+            id: execution.id.to_string(),
+            bot_id: execution.bot_id.to_string(),
+            scheduled_for: execution.scheduled_for,
+            status: execution.status,
+            result: execution.result,
+            attribution: execution.attribution,
+            test_run: execution.test_run,
+        }
+    }
+}
+
+fn parse_bot_id(value: &str) -> Result<BotId, IpcError> {
+    value
+        .parse()
+        .map_err(|error| IpcError::invalid_argument(format!("invalid bot id: {error}")))
+}
+
+fn parse_routine_id(value: &str) -> Result<RoutineId, IpcError> {
+    value
+        .parse()
+        .map_err(|error| IpcError::invalid_argument(format!("invalid routine id: {error}")))
+}
+
+#[tauri::command]
+async fn bots_list(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+) -> Result<Vec<BotResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = resolve_project_id(store, &project_id).await?;
+    store
+        .bots(project_id)
+        .await
+        .map(|bots| bots.into_iter().map(BotResponse::from).collect())
+        .map_err(IpcError::internal)
+}
+
+#[tauri::command]
+async fn bot_create(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    markdown: String,
+) -> Result<BotResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = resolve_project_id(store, &project_id).await?;
+    store
+        .create_bot_from_markdown(project_id, &markdown)
+        .await
+        .map(BotResponse::from)
+        .map_err(IpcError::internal)
+}
+
+#[tauri::command]
+async fn bot_routines(
+    core: State<'_, Arc<Core>>,
+    bot_id: String,
+) -> Result<Vec<BotRoutineResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    store
+        .bot_routines(parse_bot_id(&bot_id)?)
+        .await
+        .map(|routines| routines.into_iter().map(BotRoutineResponse::from).collect())
+        .map_err(IpcError::internal)
+}
+
+#[tauri::command]
+async fn bot_routine_executions(
+    core: State<'_, Arc<Core>>,
+    bot_id: String,
+) -> Result<Vec<BotRoutineExecutionResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    store
+        .bot_routine_executions(parse_bot_id(&bot_id)?)
+        .await
+        .map(|executions| {
+            executions
+                .into_iter()
+                .map(BotRoutineExecutionResponse::from)
+                .collect()
+        })
+        .map_err(IpcError::internal)
+}
+
+#[tauri::command]
+async fn bot_routine_set_enabled(
+    core: State<'_, Arc<Core>>,
+    routine_id: String,
+    enabled: bool,
+) -> Result<(), IpcError> {
+    let store = connected_store(&core).await?;
+    store
+        .set_bot_routine_enabled(parse_routine_id(&routine_id)?, enabled)
+        .await
+        .map_err(IpcError::internal)
+}
+
+#[tauri::command]
+async fn bot_routine_update(
+    core: State<'_, Arc<Core>>,
+    routine_id: String,
+    prompt: String,
+    cron_expression: String,
+) -> Result<BotRoutineResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    store
+        .update_bot_routine(parse_routine_id(&routine_id)?, &prompt, &cron_expression)
+        .await
+        .map(BotRoutineResponse::from)
+        .map_err(IpcError::internal)
+}
+
+#[tauri::command]
+async fn bot_routine_delete(
+    core: State<'_, Arc<Core>>,
+    routine_id: String,
+) -> Result<(), IpcError> {
+    let store = connected_store(&core).await?;
+    store
+        .delete_bot_routine(parse_routine_id(&routine_id)?)
+        .await
+        .map_err(IpcError::internal)
+}
+
 fn seeded_agent_definitions() -> Vec<(u32, AgentDefinition)> {
     // M1 has no editable Workshop form yet. The screen reads the same core-owned
     // seed definitions that later migrate into agents.agent_defs, never fixtures.
@@ -1529,6 +1731,13 @@ pub fn run() {
             linter_count,
             artifacts_list,
             artifact_comments,
+            bots_list,
+            bot_create,
+            bot_routines,
+            bot_routine_executions,
+            bot_routine_set_enabled,
+            bot_routine_update,
+            bot_routine_delete,
             external_work_item_providers,
             external_work_item_workflows,
             external_work_item_tasks,

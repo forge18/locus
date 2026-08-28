@@ -15,7 +15,7 @@ describe("nav/desktop-route-kinds", () => {
     expect(Desktop_ROUTE_KINDS.map((route) => route.scope)).toEqual(
       Desktop_FIXTURE_ROUTES.map((route) => route.scope),
     );
-    expect(new Set(Desktop_ROUTE_KINDS.map((route) => route.id)).size).toBe(29);
+    expect(new Set(Desktop_ROUTE_KINDS.map((route) => route.id)).size).toBe(30);
   });
 
   it("provides scope collections derived from the registered routes", () => {

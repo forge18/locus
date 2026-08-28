@@ -31,6 +31,11 @@ pub fn workspace_clone_branch_command(remote: &str, branch: &str) -> Result<Stri
     ))
 }
 
+pub fn bot_workspace_clone_command(remote: &str, bot_id: &str) -> Result<String> {
+    let branch = crate::repo::bot_branch_name(bot_id)?;
+    workspace_clone_branch_command(remote, &branch)
+}
+
 pub fn refuse_primary_branch(branch: &str) -> Result<()> {
     if matches!(
         branch,
@@ -50,5 +55,12 @@ mod tests {
         let command = workspace_clone_command("git://host/project.git", "run-1").unwrap();
         assert!(command.contains("git clone") && command.contains("agent/'run-1'"));
         refuse_primary_branch("agent/run-1").unwrap();
+    }
+
+    #[test]
+    fn bot_workspace_uses_the_persistent_branch() {
+        let command = bot_workspace_clone_command("git://host/project.git", "bot-1").unwrap();
+        assert!(command.contains("checkout 'bots/bot-1'"));
+        assert!(!command.contains("agent/"));
     }
 }

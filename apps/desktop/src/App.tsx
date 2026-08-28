@@ -11,6 +11,7 @@ import { QAView } from "./screens/review/QAView";
 import { DispatchView } from "./screens/dispatch/DispatchView";
 import { GuardrailsView } from "./screens/settings/GuardrailsView";
 import InteractView from "./screens/interact/InteractView";
+import { BotsView } from "./screens";
 import ManageView from "./screens/manage/ManageView";
 import WorkshopFixtureView from "./screens/workshop/WorkshopFixtureView";
 import {
@@ -107,6 +108,9 @@ function App() {
                                         </Match>
                                         <Match when={nav.view() === "interact"}>
                                                 <InteractView />
+                                        </Match>
+                                        <Match when={nav.view() === "bots"}>
+                                                <BotsView projectId={nav.params().project} botId={nav.params().botId} />
                                         </Match>
                                         <Match when={nav.view() === "qa"}>
                                                 <QAView

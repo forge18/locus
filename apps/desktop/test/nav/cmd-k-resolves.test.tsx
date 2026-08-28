@@ -99,7 +99,7 @@ describe("nav/cmd-k-resolves", () => {
       expect(
         document.querySelector('[data-testid="inline-error-cause"]')
           ?.textContent,
-      ).toContain("route:"),
+      ).toContain("view:"),
     );
     expect(nav.view()).toBe("inbox");
   });

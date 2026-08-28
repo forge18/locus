@@ -17,6 +17,7 @@ const TABLE: Array<[string, string, string]> = [
   ["plan", "plan", "Plan"],
   ["sessions", "manage", "Manage"],
   ["interact", "interact", "Interact"],
+  ["bots", "bots", "Bots"],
   ["qa", "review", "Review"],
   ["autorun", "pill", "Inbox"],
   ["schedule", "pill", "Inbox"],
@@ -41,7 +42,7 @@ const TABLE: Array<[string, string, string]> = [
 ];
 
 describe("nav/view-table", () => {
-  it("holds the 29 views", () => {
+  it("holds the 30 views", () => {
     expect([...VIEWS].sort()).toEqual(TABLE.map(([v]) => v).sort());
   });
 
