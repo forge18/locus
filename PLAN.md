@@ -125,7 +125,9 @@ has a trusted manifest and one executable speaking JSON-RPC 2.0 over stdio. The 
 `plugin.health`, and `plugin.shutdown`. Required capabilities are validated before dispatch; unknown
 optional capabilities are preserved for diagnostics. Calls are bounded and return data only — no plugin
 renders UI or writes Locus persistence. Work-item plugins expose `work_item.snapshot` plus a completion
-comment and optional resolution operation; core stores only the opaque plugin identity and normalized
+comment and optional resolution operation; sync-capable providers additionally declare a status
+vocabulary with a bidirectional column mapping and exchange statuses and notes in both directions over
+`work_item.pull`/`work_item.push_*`. Core stores only the opaque plugin identity and normalized
 snapshot. Harnesses use the same envelope but expose a flexible capability descriptor for launch,
 session, ACP events, materialization, model discovery, permissions, resume, checkpoints, and usage; only
 the minimum session capability is required for selection. First-party plugins are `pi`, `gh`,
@@ -1460,7 +1462,7 @@ task
   blocked_by[]          generated from the workflow graph, not hand-drawn
   verify                the runnable check
   evidence[]            run + the events that justify a transition
-  github_issue          nullable, linked by explicit action in either direction
+  external_issue        nullable, linked by explicit action in either direction; sync-capable providers keep status and notes synchronized both ways — last-write-wins for status, decisions recorded as evidence, an external close carries Done's evidence
 ```
 
 **Evidence proves the requirement was met, not that the feature is right.** Sengupta et al. report a

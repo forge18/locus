@@ -2,6 +2,8 @@ import { For, Show, createSignal } from "solid-js";
 import { Button } from "../../ui/Button";
 import { Tag } from "../../ui/Tag";
 import { MergeModal } from "../../shell/MergeModal";
+import { AgentPane, type AgentPaneSession } from "../../panes/AgentPane";
+import type { AgentEvent } from "../../types/event";
 import "./interact.css";
 
 type InteractState = "open" | "promoted" | "discarded";
@@ -49,6 +51,41 @@ const noteFor = (state: InteractState) =>
     : state === "promoted"
       ? "This session was promoted to a card, so its diff now takes the normal gate. What you see here is the record of what it touched before that."
       : "This session was discarded. The container and branch are gone; the transcript stays for the record.";
+
+const panelSession = (session: InteractSession): AgentPaneSession => ({
+  project: "tapestry",
+  task: session.task ?? session.name,
+  agent: `${session.harness}@1`,
+  model: "session-model",
+  harness: session.harness,
+  effort: "high",
+  name: session.name,
+  context: { used: 12_400, total: 200_000 },
+  cost: "$0.42",
+  permissionPosture: "bypass",
+  status: session.state === "open" ? "working" : session.state === "promoted" ? "done" : "idle",
+});
+
+const panelEvents = (runId: string): AgentEvent[] => [
+  {
+    id: `${runId}-user`,
+    runId,
+    seq: 0,
+    ts: "now",
+    verb: "user",
+    text: "Try this without putting it on the board.",
+    raw: { source: "interact" },
+  },
+  {
+    id: `${runId}-assistant`,
+    runId,
+    seq: 1,
+    ts: "now",
+    verb: "assistant",
+    text: "I am reading the repository and will leave a compact change summary.",
+    raw: { source: "interact" },
+  },
+];
 
 export function InteractView() {
   const [sessions, setSessions] = createSignal(SESSIONS);
@@ -179,19 +216,15 @@ export function InteractView() {
           class="interact-agent-panel"
           data-testid="interact-agent-panel"
         >
-          <div class="interact-live-pill">
-            {selected().state === "open" ? "working" : selected().state}
-          </div>
-          <p>ACP session stream · steering, checkpoints, and tool calls</p>
-          <div class="interact-transcript">
-            <p>
-              <b>you</b> Try this without putting it on the board.
-            </p>
-            <p>
-              <b>agent</b> I am reading the repository and will leave a compact
-              change summary.
-            </p>
-          </div>
+          <AgentPane
+            runId={selected().id}
+            live={false}
+            session={panelSession(selected())}
+            events={panelEvents(selected().id)}
+            researchOpen={research()}
+            showResearchControl={false}
+            showResearchPane={false}
+          />
         </section>
         <Show when={selected().state === "open"}>
           <footer class="interact-actions">

@@ -38,7 +38,8 @@ task
   blocked_by[]          generated from the workflow graph, not hand-drawn
   verify                the runnable check
   evidence[]            run + the events that justify a transition
-  external_issue        nullable, linked by explicit action in either direction
+  external_issue        nullable, linked by explicit action in either direction; for sync-capable
+                        providers, statuses and notes synchronize both ways — see external-work-items
 ```
 
 **A task is a fold, not a row.** Nothing writes `board.tasks`. A move appends `task.moved`, an
@@ -50,12 +51,17 @@ fold, so an agent cannot route around them by writing the table; there is no tab
 **Two gating rules, and no more:**
 
 - An agent cannot move a card to **Done** without evidence.
+- A sync move to **Done** carries the external close as its evidence; without it, the fold refuses the
+  move exactly as it refuses an agent's.
 - **Blocked** clears automatically and never manually — it is derived from `blocked_by`, so clearing it
   by hand would just be lying about a dependency.
 
 **Everything else is unrestricted.** You can drag anything anywhere; the constraints exist to stop an
 agent asserting completion, not to stop you working. A drag appends `task.moved` with `actor: human`,
 which is also how the board answers *"who moved this, and when"* without a separate audit table.
+Synchronization moves from a linked external item are the same entry kind with a sync actor — never a
+projection write — and an inbound external note is an ordinary `Commented` event carrying its
+external author and origin.
 
 **Evidence proves the requirement was met, not that the feature is right.** No amount of verification
 reaches outside its requirement — which is why contract completeness is the highest-leverage unsolved
@@ -77,6 +83,9 @@ actually comes from.
 11. `locus rebuild --schema board` reproduces every card byte-identically from the log alone.
 12. `locus rebuild --schema board --to <stream_pos>` shows a task in the column it was in then.
 13. A human drag and an agent move are the same entry kind, distinguished only by `actor`.
+14. A synchronization move is a `task.moved` event with the sync actor and the external change as evidence — no path writes the projection directly.
+15. A sync move to Done without external evidence is refused by the fold; with it, the move stands.
+16. An inbound external note is a `Commented` event with external author and origin attribution.
 
 ## Open
 

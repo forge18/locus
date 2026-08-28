@@ -6,6 +6,7 @@
 //!
 //! The rule this enforces: a capability never gets a per-harness implementation.
 
+pub mod agent_interface;
 pub mod agents;
 pub mod analytics;
 pub mod arbiter;
