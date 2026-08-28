@@ -42,6 +42,7 @@ pub mod forward_proxy;
 pub mod image;
 pub mod mounts;
 pub mod ports;
+pub mod sbx;
 pub mod services;
 pub mod workspace;
 

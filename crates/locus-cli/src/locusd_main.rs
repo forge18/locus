@@ -22,11 +22,12 @@ use locus_core::{
     ids::{RunId, SessionId, TaskId},
     lsp::{parse_cli_request, LanguageCatalog},
     runtime::{
-        container::{ContainerRuntime, DebugAdapterLaunch, DockerContainerRuntime},
+        backend::RuntimeBackend,
+        container::{ContainerRuntime, DebugAdapterLaunch},
         daemon::{
-            agent_registration_root, bind_agent_socket, read_agent_registrations,
-            serve_agent_socket_shared, AgentSocketCapabilities, AgentSocketError,
-            AgentSocketRouter, AgentSocketVerb,
+            agent_registration_root, bind_agent_socket, bind_agent_tcp_relay,
+            read_agent_registrations, serve_agent_socket_shared, serve_agent_tcp_shared,
+            AgentSocketCapabilities, AgentSocketError, AgentSocketRouter, AgentSocketVerb,
         },
         dap::{DapError, DebugSessionRegistry},
     },
@@ -576,10 +577,16 @@ fn main() -> Result<()> {
         .unwrap_or_else(|_| PathBuf::from(DEFAULT_SOCKET_PATH));
     let core = Core::load(&registry).context("load the harness registry")?;
     let catalog = core.lsp().catalog().clone();
+    let runtime_config = core.runtime_config().clone();
 
-    let container_runtime = DockerContainerRuntime::connect()
-        .ok()
-        .map(|runtime| Arc::new(Mutex::new(Box::new(runtime) as Box<dyn ContainerRuntime>)));
+    let container_runtime = match runtime_config.backend {
+        RuntimeBackend::Docker => core
+            .connect_container_runtime()
+            .ok()
+            .map(|runtime| Arc::new(Mutex::new(runtime))),
+        RuntimeBackend::Sbx => Some(Arc::new(Mutex::new(core.connect_container_runtime()?))),
+    };
+    let relay_address = runtime_config.relay_address();
     let runtime = tokio::runtime::Runtime::new().context("start the locusd runtime")?;
     runtime.block_on(async move {
         if let Ok(database_url) = env::var("DATABASE_URL") {
@@ -654,6 +661,10 @@ fn main() -> Result<()> {
         }
 
         let listener = bind_agent_socket(&socket)?;
+        let relay_listener = match relay_address {
+            Some(address) => Some(bind_agent_tcp_relay(address).await?),
+            None => None,
+        };
         println!(
             "locusd serving {} harnesses on {}",
             core.registry().len(),
@@ -705,6 +716,17 @@ fn main() -> Result<()> {
                 successor_contexts: Arc::new(Mutex::new(BTreeMap::new())),
             },
         });
+        if let Some(relay_listener) = relay_listener {
+            let relay_capabilities = capabilities.clone();
+            let relay_router = router.clone();
+            tokio::spawn(async move {
+                if let Err(error) =
+                    serve_agent_tcp_shared(&relay_listener, relay_capabilities, relay_router).await
+                {
+                    eprintln!("agent TCP relay stopped: {error}");
+                }
+            });
+        }
         serve_agent_socket_shared(&listener, capabilities, router).await
     })
 }

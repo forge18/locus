@@ -5,8 +5,11 @@ use std::{path::PathBuf, sync::Arc};
 
 use anyhow::{bail, Context, Result};
 
-use crate::runtime::container::{
-    ContainerLaunch, ContainerRuntime, ImageDisposition, PtyStream, PTY_STREAM_CAPACITY,
+use crate::runtime::{
+    backend::RuntimeBackend,
+    container::{
+        ContainerLaunch, ContainerRuntime, ImageDisposition, PtyStream, PTY_STREAM_CAPACITY,
+    },
 };
 use crate::{
     harness::{
@@ -318,9 +321,13 @@ fn spawn_at_port(
     )?;
     let registration =
         AgentRunRegistrationGuard(Arc::new(RegistrationLease(Arc::new(registration_path))));
+    let audit_sink = StoreAuditSink::new(request.audit_store)?;
     request
         .credential_proxy_authorizer
-        .attach_audit_sink(StoreAuditSink::new(request.audit_store)?);
+        .attach_audit_sink(audit_sink.clone());
+    runtime
+        .attach_audit_sink(audit_sink)
+        .context("attach runtime egress audit sink")?;
     request
         .credential_proxy_authorizer
         .configure_run(&run.id.to_string(), &request.run_nonce, request.egress_tier)
@@ -389,11 +396,38 @@ fn spawn_at_port(
             .map(|(key, value)| format!("{key}={value}")),
     );
     environment.push(format!("LOCUS_PORT={port}"));
+    if runtime.backend() == RuntimeBackend::Sbx {
+        environment.push(format!(
+            "LOCUS_SBX_EGRESS_TIER={}",
+            request.egress_tier.as_str()
+        ));
+        environment.push(format!(
+            "LOCUS_SBX_MODEL_HOSTS={}",
+            allowlists
+                .model_hosts()
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(",")
+        ));
+        environment.push(format!(
+            "LOCUS_SBX_PACKAGE_HOSTS={}",
+            allowlists
+                .package_hosts()
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(",")
+        ));
+        environment.push(format!(
+            "LOCUS_SBX_WORKSPACE_REMOTE={}",
+            request.workspace_remote
+        ));
+        environment.push(format!("LOCUS_SBX_WORKSPACE_BRANCH=agent/{}", run.id));
+    }
     environment.push(format!(
         "LOCUS_LSP_ENABLED={}",
         if lsp_enabled { "1" } else { "0" }
     ));
-    let container = ContainerLaunch {
+    let mut container = ContainerLaunch {
         name: format!("locus-agent-{}", run.id),
         image: image.clone(),
         command: std::iter::once(request.harness.binary.clone())
@@ -412,6 +446,9 @@ fn spawn_at_port(
         .to_vec(),
         network: project_network(request.project_id),
     };
+    runtime
+        .prepare_container(&mut container)
+        .context("prepare agent container for its runtime backend")?;
     runtime
         .start_container(&container)
         .context("start agent container")?;
@@ -453,7 +490,12 @@ pub async fn spawn_persisted(
     request.project_settings = store.project_settings(project_id).await?;
     let forwarding =
         ForwardProxyLaunch::for_project(request.project_id, request.egress_policy_root.clone())?;
+    let backend = runtime.backend();
     let port = store.allocate_run_port(run.id).await?;
+    if let Err(error) = store.record_runtime_backend(run.id, backend).await {
+        let _ = store.release_run_port(run.id).await;
+        return Err(error).context("record run runtime backend");
+    }
     let run_id = run.id.to_string();
     let proxy = request.credential_proxy_authorizer;
     match spawn_at_port(run, request, port, runtime) {

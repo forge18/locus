@@ -1,6 +1,6 @@
 //! ACP planning-client transport.
 
-use crate::bus::InProcessBus;
+use crate::{bus::InProcessBus, runtime::backend::RuntimeBackend};
 use std::path::PathBuf;
 
 // `SessionId` here is the ACP wire type, not `crate::ids::SessionId`. They are
@@ -46,7 +46,29 @@ where
     }
 }
 
-/// Creates the ACP SDK transport through `docker exec`, so the agent process runs in its container.
+/// Creates the ACP SDK transport through the selected container runtime, so the agent process
+/// runs in its container. The runtime command is selected by trusted host configuration, never by
+/// agent-provided input.
+pub fn container_stdio_transport_for_backend<I, S>(
+    backend: RuntimeBackend,
+    container: impl Into<String>,
+    command: impl Into<String>,
+    args: I,
+) -> PlanningAgent
+where
+    I: IntoIterator<Item = S>,
+    S: Into<String>,
+{
+    let executable = match backend {
+        RuntimeBackend::Docker => "docker",
+        RuntimeBackend::Sbx => "sbx",
+    };
+    let mut runtime_args = vec!["exec".into(), "-i".into(), container.into(), command.into()];
+    runtime_args.extend(args.into_iter().map(Into::into));
+    planning_stdio_transport(executable, runtime_args)
+}
+
+/// Creates the ACP SDK transport through Docker, preserving the historical default.
 pub fn container_stdio_transport<I, S>(
     container: impl Into<String>,
     command: impl Into<String>,
@@ -56,9 +78,7 @@ where
     I: IntoIterator<Item = S>,
     S: Into<String>,
 {
-    let mut docker_args = vec!["exec".into(), "-i".into(), container.into(), command.into()];
-    docker_args.extend(args.into_iter().map(Into::into));
-    planning_stdio_transport("docker", docker_args)
+    container_stdio_transport_for_backend(RuntimeBackend::Docker, container, command, args)
 }
 
 /// Builds the ACP `session/new` request for a planning conversation.
@@ -121,6 +141,22 @@ mod runs_in_container {
         let transport = container_stdio_transport("locus-agent-run-1", "agent", ["acp"]);
 
         assert_eq!(transport.config().command(), Path::new("docker"));
+        assert_eq!(
+            transport.config().arguments(),
+            ["exec", "-i", "locus-agent-run-1", "agent", "acp"]
+        );
+    }
+
+    #[test]
+    fn attaches_stdio_to_an_sbx_agent_without_a_tty() {
+        let transport = container_stdio_transport_for_backend(
+            RuntimeBackend::Sbx,
+            "locus-agent-run-1",
+            "agent",
+            ["acp"],
+        );
+
+        assert_eq!(transport.config().command(), Path::new("sbx"));
         assert_eq!(
             transport.config().arguments(),
             ["exec", "-i", "locus-agent-run-1", "agent", "acp"]

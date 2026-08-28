@@ -30,7 +30,7 @@ verified its load-bearing claims on this machine.
 | M0.7 | Current desktop mockup reconciliation | 11 | 324 | closed |
 | M1 | Core runtime | 14 | 270 | closed |
 | M1.5 | ACP agent panel, controls, and plugin contract | 5 | 64 | active |
-| M1.6 | sbx agent runtime | 1 | 17 | queued |
+| M1.6 | sbx agent runtime | 1 | 17 | closed |
 | M2 | Workspace | 3 | 57 | queued |
 | M3 | Coordination, memory, and mail | 6 | 133 | queued |
 | M3.5 | Agent capabilities: debug and browser | 3 | 56 | queued |
@@ -256,10 +256,10 @@ edges. Items 32–33 are intentionally last because they depend on later plannin
   *Depends on:* completed external-work-items import and `board`
   *Completed:* sync capability negotiation, cursor/state persistence, fold-owned status and note events, LWW evidence, external Done satisfaction, bounded headless polling, Sync-now/task-detail controls, and sync conformance fixtures. The one-way contract was superseded by [IMPACT_EXTERNAL_SYNC](.specs/IMPACT_EXTERNAL_SYNC.md).
 
-- [ ] **36. M1.6 — [sbx-runtime](.specs/sbx-runtime/spec.md)** · [tasks](.specs/sbx-runtime/tasks.md) · 17 tasks
+- [x] **36. M1.6 — [sbx-runtime](.specs/sbx-runtime/spec.md)** · [tasks](.specs/sbx-runtime/tasks.md) · 17 tasks
   Docker's `sbx` sandboxes as a second agent runtime behind the sandbox contract: backend seam, template import, tier-mapped egress policy, TCP relay auth, clone-not-mount workspace, and one live ACP end-to-end.
   *Depends on:* completed `sandbox`, `run-supervisor`, and `security`
-  *Spike 4 verified the transport (7/7), proxy networking (3/3 + 2 blocked), and lifecycle (3.2s cached create, 1.1s resume) on macOS; see [findings](spikes/04-sbx-runtime-verify/FINDINGS.md).*
+  *Completed:* backend selection and persistence, Docker parity, template import, scoped policy/audit, TCP relay auth, scratch/config materialization, git-daemon clone/push-back, boot metadata, and bounded command cleanup. Full workspace tests pass (`892` library tests plus workspace integration/desktop suites). Live sbx lifecycle, framed stdio, template import, clone/push-back, and a real Pi RPC session passed; the installed Pi `0.84.2` rejects `--acp`, so task 17's real Pi ACP check remains explicitly unexercised in [.specs/sbx-runtime/tasks.md](.specs/sbx-runtime/tasks.md).*
 
 ## Open decisions
 

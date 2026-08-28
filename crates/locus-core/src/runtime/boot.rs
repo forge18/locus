@@ -1,5 +1,5 @@
-//! Boot reconciliation: on start, runs marked `running` are checked against Docker
-//! rather than trusted indefinitely. PLAN.md §Process topology, "Every start reconciles".
+//! Boot reconciliation: on start, runs marked `running` are checked against the selected
+//! container backend rather than trusted indefinitely. PLAN.md §Process topology, "Every start reconciles".
 //!
 //! Collapsed here from `sandbox`, which carried a second `RunStatus` and a second
 //! reconciliation of its own.
@@ -22,7 +22,7 @@ pub struct RunReconciliation {
     pub reattach: bool,
 }
 
-/// On boot, running rows are reconciled with Docker rather than trusted indefinitely.
+/// On boot, running rows are reconciled with the selected runtime rather than trusted indefinitely.
 pub fn reconcile_on_boot(
     running: impl IntoIterator<Item = (RunId, bool)>,
 ) -> Vec<RunReconciliation> {
@@ -79,6 +79,7 @@ mod tests {
 }
 
 /// The minimal runtime view needed to reconcile runs after `locusd` restarts.
+/// Each backend implements this boundary without exposing its control client to agents.
 pub trait BootRuntime {
     fn container_is_alive(&mut self, container: &str) -> Result<bool>;
     fn reattach_pty(&mut self, container: &str, stream: PtyStream) -> Result<()>;

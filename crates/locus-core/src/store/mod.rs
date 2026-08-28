@@ -22,6 +22,7 @@ pub mod providers;
 pub mod qa;
 pub mod restore;
 pub mod routing;
+pub mod runtime;
 pub mod schedules;
 pub mod session_controls;
 pub mod wiki;
@@ -769,5 +770,84 @@ mod migrations_reversible_or_explained {
                 down_migration.display()
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod runtime_backend_recorded {
+    use sqlx::query_scalar;
+
+    use super::Store;
+    use crate::{
+        ids::{AgentDefId, ProjectId, RunId, SessionId},
+        runtime::backend::RuntimeBackend,
+    };
+
+    #[tokio::test]
+    async fn records_the_selected_backend_on_the_run_row() {
+        let (container, _cleanup) =
+            crate::testkit::postgres::start_postgres_named("locus-runtime-backend-test").await;
+        let store = Store::connect(&container.database_url())
+            .await
+            .expect("connect store");
+        store
+            .run_migrations(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations"),
+                &super::NoopMigrationBackup,
+                &super::test_backup_config(),
+            )
+            .await
+            .expect("run migrations");
+
+        let project_id = ProjectId::generate();
+        let agent_def_id = AgentDefId::generate();
+        let session_id = SessionId::generate();
+        let run_id = RunId::generate();
+        query_scalar::<_, ProjectId>(
+            "INSERT INTO core.projects (id, name) VALUES ($1, 'runtime backend test') RETURNING id",
+        )
+        .bind(project_id)
+        .fetch_one(store.pool())
+        .await
+        .expect("insert project");
+        sqlx::query(
+            "INSERT INTO agents.agent_defs (id, name, version, frontmatter, body)
+             VALUES ($1, 'runtime backend test', 1, '{}'::jsonb, '')",
+        )
+        .bind(agent_def_id)
+        .execute(store.pool())
+        .await
+        .expect("insert agent definition");
+        sqlx::query(
+            "INSERT INTO agents.sessions (id, project_id, agent_def_id, name, branch)
+             VALUES ($1, $2, $3, 'runtime backend test', 'agent/runtime-backend-test')",
+        )
+        .bind(session_id)
+        .bind(project_id)
+        .bind(agent_def_id)
+        .execute(store.pool())
+        .await
+        .expect("insert session");
+        sqlx::query(
+            "INSERT INTO agents.runs (id, session_id, resolved_model_id, status)
+             VALUES ($1, $2, 'test-model', 'queued')",
+        )
+        .bind(run_id)
+        .bind(session_id)
+        .execute(store.pool())
+        .await
+        .expect("insert run");
+
+        store
+            .record_runtime_backend(run_id, RuntimeBackend::Sbx)
+            .await
+            .expect("record backend");
+        assert_eq!(
+            store
+                .run_runtime_backend(run_id)
+                .await
+                .expect("read backend"),
+            RuntimeBackend::Sbx
+        );
     }
 }

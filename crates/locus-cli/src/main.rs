@@ -95,9 +95,10 @@ fn dispatch(arguments: &[String]) -> Result<()> {
     let runtime = tokio::runtime::Runtime::new().context("start socket client runtime")?;
     let nonce =
         env::var("LOCUS_RUN_NONCE").context("LOCUS_RUN_NONCE is required for daemon requests")?;
+    let endpoint = sock::SocketEndpoint::from_environment(sock::DEFAULT_SOCKET_PATH)?;
     if verb.verb == locus_core::runtime::daemon::AgentSocketVerb::BrowseAssert {
         parse_assert_args(args).context("invalid browse assert arguments")?;
-        return dispatch_assert(&runtime, &nonce, verb, args);
+        return dispatch_assert(&runtime, &endpoint, &nonce, verb, args);
     }
     if verb.verb == locus_core::runtime::daemon::AgentSocketVerb::Handoff {
         sock::validate_handoff_args(args)?;
@@ -151,14 +152,9 @@ fn dispatch(arguments: &[String]) -> Result<()> {
             | locus_core::runtime::daemon::AgentSocketVerb::LspRename
     ) {
         sock::validate_lsp_args(verb.verb, args)?;
-        return dispatch_lsp(&runtime, &nonce, verb, args);
+        return dispatch_lsp(&runtime, &endpoint, &nonce, verb, args);
     }
-    let response = runtime.block_on(sock::dispatch(
-        sock::DEFAULT_SOCKET_PATH,
-        &nonce,
-        verb,
-        args,
-    ))?;
+    let response = runtime.block_on(sock::dispatch_endpoint(&endpoint, &nonce, verb, args))?;
     println!("{}", sock::compact_json(&sock::key_pack(response))?);
     Ok(())
 }
@@ -167,6 +163,7 @@ fn dispatch(arguments: &[String]) -> Result<()> {
 /// `/workspace`. The host authorizes the capability; it never sees or indexes this clone.
 fn dispatch_lsp(
     runtime: &tokio::runtime::Runtime,
+    endpoint: &sock::SocketEndpoint,
     nonce: &str,
     verb: &sock::VerbDispatch,
     args: &[String],
@@ -174,8 +171,8 @@ fn dispatch_lsp(
     let lease_args = std::iter::once(verb.verb.to_string())
         .chain(args.iter().cloned())
         .collect::<Vec<_>>();
-    let lease = runtime.block_on(sock::dispatch(
-        sock::DEFAULT_SOCKET_PATH,
+    let lease = runtime.block_on(sock::dispatch_endpoint(
+        endpoint,
         nonce,
         &sock::LSP_LEASE_DISPATCH,
         &lease_args,
@@ -193,11 +190,12 @@ fn dispatch_lsp(
 
 fn dispatch_assert(
     runtime: &tokio::runtime::Runtime,
+    endpoint: &sock::SocketEndpoint,
     nonce: &str,
     verb: &sock::VerbDispatch,
     args: &[String],
 ) -> Result<()> {
-    match runtime.block_on(sock::dispatch(sock::DEFAULT_SOCKET_PATH, nonce, verb, args)) {
+    match runtime.block_on(sock::dispatch_endpoint(endpoint, nonce, verb, args)) {
         Ok(response) => {
             let failed = response.get("passed").is_some_and(|passed| passed == false);
             println!("{}", sock::compact_json(&sock::key_pack(response))?);

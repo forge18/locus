@@ -2,6 +2,7 @@
 //! session/run/turn model everything above depends on. PLAN.md §Process topology.
 
 pub mod acp;
+pub mod backend;
 pub mod boot;
 pub mod container;
 pub mod controls;

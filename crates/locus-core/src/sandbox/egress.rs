@@ -6,9 +6,9 @@
 use std::collections::BTreeSet;
 
 use anyhow::Result;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub enum EgressTier {
     None,
     Model,
@@ -24,6 +24,15 @@ pub enum EgressTarget {
 }
 
 impl EgressTier {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Model => "model",
+            Self::Packages => "packages",
+            Self::Open => "open",
+        }
+    }
+
     pub fn allows(self, target: EgressTarget) -> bool {
         matches!(
             (self, target),
