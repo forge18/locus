@@ -12,6 +12,8 @@ const CASES: Array<[View, ViewParams]> = [
     ["plan", { project: "loom-db" }],
     ["sessions", { project: "tapestry" }],
     ["interact", { project: "tapestry" }],
+    ["bots", { project: "tapestry" }],
+    ["bots", { project: "tapestry", botId: "keeper" }],
     ["qa", { project: "tapestry" }],
     ["autorun", {}],
     ["schedule", {}],
@@ -57,7 +59,7 @@ describe("nav/locator-roundtrip", () => {
         }
     });
 
-    it("covers every one of the 29 views", () => {
+    it("covers every one of the 30 views", () => {
         expect(new Set(CASES.map(([v]) => v)).size).toBe(VIEWS.length);
     });
 

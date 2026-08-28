@@ -26,7 +26,7 @@ function fixtureRoute(
   });
 }
 
-/** The current 29-view desktop inventory. Order is the palette and fixture order. */
+/** The current 30-view desktop inventory. Order is the palette and fixture order. */
 export const Desktop_FIXTURE_ROUTES = Object.freeze([
   fixtureRoute("inbox", "Inbox", "all", "pill"),
   fixtureRoute("status", "Status", "all", "analytics"),
@@ -36,6 +36,7 @@ export const Desktop_FIXTURE_ROUTES = Object.freeze([
   fixtureRoute("plan", "Plan", "project", "plan"),
   fixtureRoute("sessions", "Sessions", "project", "manage"),
   fixtureRoute("interact", "Interact", "project", "interact"),
+  fixtureRoute("bots", "Bots", "project", "bots"),
   fixtureRoute("qa", "QA", "project", "review"),
   fixtureRoute("autorun", "Autorun", "all", "pill"),
   fixtureRoute("schedule", "Schedules", "all", "pill"),

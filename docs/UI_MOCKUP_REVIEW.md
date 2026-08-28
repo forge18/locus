@@ -1,7 +1,7 @@
 # UI mockup review — 2026-08-23
 
 A full screen-by-screen read of the current desktop mockup against `.specs/`, `PLAN.md`, and the
-code in `crates/locus-core` and `apps/desktop`. Twenty-nine views plus the agent panel.
+code in `crates/locus-core` and `apps/desktop`. Thirty views plus the agent panel.
 
 **Verdict: the spec layer describes the wrong mockup.** M0.6 (`design-desktop` + five `desktop-*`
 slices, 195 tasks, closed) was written from an earlier iteration. The current design renames four
@@ -12,7 +12,7 @@ spec covers. `locus-core` is broadly ahead of the frontend and mostly matches th
 
 | File | Status |
 | --- | --- |
-| `docs/UI mockups for PLAN.md/Locus v2.dc.html` | **Current.** 6,622 lines, 29 views. |
+| `docs/UI mockups for PLAN.md/Locus v2.dc.html` | **Current.** 6,622 lines, 30 views. |
 | `docs/UI mockups for PLAN.md/AgentPanel.dc.html` | **Current.** The agent panel, embedded by Interact and by Plan → Converse. |
 | `docs/UI mockups for PLAN.md/Locus UI mockups.html` | Byte-identical bundle of the current file, fonts inlined. No extra artboards. |
 | `docs/UI mockups for PLAN.md/design_handoff_locus_v2/` | **Superseded.** Its README describes the old navigation and the nine-stage plan; M0.6 was written from it. |
@@ -57,7 +57,7 @@ review.
 
 - **Project** — a switcher pill (`#project`, type-to-filter with match highlighting, per-project
   running/spend note, and a **+ New project** row) followed by **Setup · Plan · Manage · Interact ·
-  Review**.
+  Bots · Review**. Bots is the persistent named-agent surface.
 - **Cross-Project** — **Analytics · Memory · Settings · Workshop**. Memory expands to Short-term,
   Long-term, Artifacts, Wiki. Workshop expands to Agents, CLI, Commands, Harnesses, Hooks, Linters,
   Output styles, Providers, Rules, Skills, Workflows.

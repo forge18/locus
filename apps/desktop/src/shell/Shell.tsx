@@ -37,12 +37,16 @@ export function desktopViewFor(target: DesktopNavTarget): View {
 }
 
 /** Maps a delivered shared surface back to its canonical desktop route. */
-export function desktopLocatorFor(view: View, project: string): string {
+export function desktopLocatorFor(
+    view: View,
+    project: string,
+    botId?: string,
+): string {
     const route = desktopRoutes[view];
     return Desktop_PROJECT_ROUTE_KINDS.some(
         (candidate) => candidate.id === route,
     )
-        ? destinationDesktop(route, project)
+        ? destinationDesktop(route, project, view === "bots" ? botId : undefined)
         : destinationDesktop(route);
 }
 
@@ -71,7 +75,10 @@ export function Shell(props: ShellProps) {
     const openDesktopTarget = (target: DesktopNavTarget) => {
         const params =
             target.scope.kind === "project"
-                ? { project: target.scope.project }
+                ? {
+                      project: target.scope.project,
+                      ...(target.botId ? { botId: target.botId } : {}),
+                  }
                 : { project: undefined };
         props.nav.go(desktopViewFor(target), params);
     };
@@ -80,6 +87,7 @@ export function Shell(props: ShellProps) {
         desktopLocatorFor(
             props.nav.view(),
             props.nav.params().project ?? "tapestry",
+            props.nav.params().botId,
         );
 
     // ⌘K resolves a locator. It is bound here because the palette is shell

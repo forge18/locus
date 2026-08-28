@@ -10,6 +10,10 @@ export function navigateDesktop(locator: string): DesktopNavTarget {
   return resolveDesktopLocator(locator);
 }
 
-export function destinationDesktop(route: DesktopRouteId, project?: string): string {
-  return formatDesktopLocator(route, project);
+export function destinationDesktop(
+  route: DesktopRouteId,
+  project?: string,
+  botId?: string,
+): string {
+  return formatDesktopLocator(route, project, botId);
 }

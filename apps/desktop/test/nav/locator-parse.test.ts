@@ -44,7 +44,22 @@ describe("nav/locator-parse", () => {
     });
   });
 
-  it("covers all six kinds", () => {
+  it("parses a bot list and a bot detail locator", () => {
+    expect(parse("locus://tapestry/bots")).toEqual({
+      project: "tapestry",
+      kind: null,
+      id: "bots",
+      subId: null,
+    });
+    expect(parse("locus://tapestry/bots/keeper")).toEqual({
+      project: "tapestry",
+      kind: "bot",
+      id: "keeper",
+      subId: null,
+    });
+  });
+
+  it("covers all seven kinds", () => {
     expect([...KINDS]).toEqual([
       "session",
       "task",
@@ -52,6 +67,7 @@ describe("nav/locator-parse", () => {
       "page",
       "workflow",
       "agent",
+      "bot",
     ]);
   });
 

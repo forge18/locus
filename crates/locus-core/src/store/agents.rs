@@ -91,12 +91,21 @@ impl Store {
         &self,
         run_id: RunId,
     ) -> Result<Option<PersistedAgentDefinition>> {
+        // Keep both definition joins indexable. The second arm only serves legacy runs created
+        // before runs.agent_def_id was added; new bot runs always use the first arm.
         query_as::<_, AgentDefinitionRow>(
             "SELECT d.id, d.name, d.version, d.frontmatter, d.body
              FROM agents.runs r
              JOIN agents.sessions s ON s.id = r.session_id
+             JOIN agents.agent_defs d ON d.id = r.agent_def_id
+             WHERE r.id = $1 AND r.agent_def_id IS NOT NULL
+             UNION ALL
+             SELECT d.id, d.name, d.version, d.frontmatter, d.body
+             FROM agents.runs r
+             JOIN agents.sessions s ON s.id = r.session_id
              JOIN agents.agent_defs d ON d.id = s.agent_def_id
-             WHERE r.id = $1",
+             WHERE r.id = $1 AND r.agent_def_id IS NULL
+             LIMIT 1",
         )
         .bind(run_id)
         .fetch_optional(self.pool())

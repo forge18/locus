@@ -1,6 +1,6 @@
 # TODO
 
-**Remaining:** 34 features · 479 tasks.
+**Remaining:** 34 features · 477 tasks.
 
 This is the unfinished-work index. [`PLAN.md`](PLAN.md) is the architecture authority. Each feature's
 `spec.md` is its contract; its `tasks.md` is the runnable decomposition and verification source.
@@ -16,7 +16,9 @@ would otherwise be forgotten.
 
 M1.5 is the current focus. Build session controls first, then dispatch permissions, then the Agent Pane.
 The research feed is a cross-milestone dependency: it needs `memory` and `planning-module` before the
-M1.5 surface can close. Rows 3–9 can proceed independently while that path is moving.
+M1.5 surface can close. Rows 3–9 can proceed independently while that path is moving. M1.6's
+sbx-runtime row (36) also has only completed prerequisites and can proceed in parallel; Spike 4
+verified its load-bearing claims on this machine.
 
 ## Progress
 
@@ -28,15 +30,16 @@ M1.5 surface can close. Rows 3–9 can proceed independently while that path is 
 | M0.7 | Current desktop mockup reconciliation | 11 | 324 | closed |
 | M1 | Core runtime | 14 | 270 | closed |
 | M1.5 | ACP agent panel, controls, and plugin contract | 5 | 64 | active |
+| M1.6 | sbx agent runtime | 1 | 17 | queued |
 | M2 | Workspace | 3 | 57 | queued |
 | M3 | Coordination, memory, and mail | 6 | 133 | queued |
 | M3.5 | Agent capabilities: debug and browser | 3 | 56 | queued |
 | M4 | Workflow canvas | 3 | 69 | queued |
 | M5 | Project management | 5 | 127 | queued |
-| M6 | Automation and discoverability | 4 | 65 | queued |
+| M6 | Automation and discoverability | 3 | 46 | queued |
 | M7 | Forge providers | 4 | 88 | queued |
 | M8 | Marketplace installer | 1 | 11 | queued |
-| **Total** | | **80** | **1,766** | **479 remaining** |
+| **Total** | | **80** | **1,764** | **477 remaining** |
 
 ## Settled foundations
 
@@ -47,6 +50,11 @@ work without reopening completed milestones.
   `solid-flow`. Their evidence is in the [editor](spikes/02-editor-embed/FINDINGS.md),
   [sandbox](spikes/01-sandboxed-harness/FINDINGS.md), and [canvas](spikes/03-workflow-canvas/FINDINGS.md)
   findings.
+- Spike 4 verified Docker's `sbx` as a second agent runtime on this machine: framed stdio through
+  `exec -i` (7/7), git-over-TCP clone and byte-exact TCP through the egress proxy, 3.2s cached
+  create, 1.1s resume. [Findings](spikes/04-sbx-runtime-verify/FINDINGS.md); the
+  [sbx-runtime spec](.specs/sbx-runtime/spec.md) turns that into the second backend behind the
+  sandbox contract.
 - M0.7's current desktop mockup reconciliation and M1's core runtime are complete. Their feature rows
   are intentionally absent; the specs remain the historical contract.
 - ACP is the only agent-session transport. Active work assumes one ACP conversation per container and
@@ -70,7 +78,7 @@ this Workshop provider reduction.
 
 ## Execution order
 
-Start with items 1–2. Items 3–9 have only completed prerequisites and can run in parallel. Item 10
+Start with items 1–2. Items 3–9 and 36 have only completed prerequisites and can run in parallel. Item 10
 locks the plugin contract before later plugin-backed surfaces. The remaining items follow their dependency
 edges. Items 32–33 are intentionally last because they depend on later planning and memory features.
 
@@ -238,14 +246,20 @@ edges. Items 32–33 are intentionally last because they depend on later plannin
   *Depends on:* `agent-session-controls`, `agent-dispatch-permissions`, and `agent-session-research`
   *Completed:* canonical session/run/task/permission projection, ACP event-channel pane with rich turns, thinking/tool disclosure, inline gated diffs, elicitation, checkpoint/research docks, composer steering and discovery, responsive/a11y layout, and Interact integration.
 
-- [ ] **34. M6 — [bots](.specs/bots/spec.md)** · [tasks](.specs/bots/tasks.md) · 19 tasks
+- [x] **34. M6 — [bots](.specs/bots/spec.md)** · [tasks](.specs/bots/tasks.md) · 19 tasks
   Persistent named agents outside the loop: ad-hoc messaging, cron-fired routines, and a warm-window container.
   *Depends on:* `agent-definitions`, `agent-interface`, and `schedules`
+  *Completed:* durable bot/home-session persistence, warm-container lifecycle, routine skip/drop and attribution, persistent bot branches, desktop routing/surface, and bot IPC.
 
 - [ ] **35. M7 — [external-work-items sync](.specs/external-work-items/spec.md)** · [tasks](.specs/external-work-items/tasks.md) · 12 tasks
   Keep linked external items synchronized with the board — statuses and notes both ways, plugin-declared status mapping, all notes out with attribution and echo suppression, last-write-wins status conflicts, and an external close carrying Done's evidence.
   *Depends on:* completed external-work-items import and `board`
   *Scope:* tasks 21–32 of the shared spec; the one-way contract was superseded by [IMPACT_EXTERNAL_SYNC](.specs/IMPACT_EXTERNAL_SYNC.md).
+
+- [ ] **36. M1.6 — [sbx-runtime](.specs/sbx-runtime/spec.md)** · [tasks](.specs/sbx-runtime/tasks.md) · 17 tasks
+  Docker's `sbx` sandboxes as a second agent runtime behind the sandbox contract: backend seam, template import, tier-mapped egress policy, TCP relay auth, clone-not-mount workspace, and one live ACP end-to-end.
+  *Depends on:* completed `sandbox`, `run-supervisor`, and `security`
+  *Spike 4 verified the transport (7/7), proxy networking (3/3 + 2 blocked), and lifecycle (3.2s cached create, 1.1s resume) on macOS; see [findings](spikes/04-sbx-runtime-verify/FINDINGS.md).*
 
 ## Open decisions
 
@@ -280,7 +294,7 @@ completed milestones are omitted unless they still affect an active feature.
 | [schedules](.specs/schedules/spec.md) | Define timezone and DST behavior for cron expressions. |
 | [agent-prs](.specs/agent-prs/spec.md) | Define what “large” means for slicing a change. |
 | [ci-babysitter](.specs/ci-babysitter/spec.md) | Choose an ordinary workflow or supervisor behavior. |
-| [bots](.specs/bots/spec.md) | Set the warm-window default and whether it scales by harness; decide definition resolution: latest at run start or pinned. |
+| [bots](.specs/bots/spec.md) | Decide whether the warm window scales by harness/model and whether a bot can pin an older definition version. |
 
 ## Carry-forward from M0
 

@@ -10,6 +10,7 @@ const EXPECTED_SCREENS = [
   "plan",
   "sessions",
   "interact",
+  "bots",
   "qa",
   "autorun",
   "schedule",
@@ -39,7 +40,7 @@ describe("fixtures/desktop-screen-inventory", () => {
       EXPECTED_SCREENS,
     );
     expect(new Set(Desktop_FIXTURE_ROUTES.map((route) => route.id)).size).toBe(
-      29,
+      30,
     );
   });
 

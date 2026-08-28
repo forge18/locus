@@ -20,7 +20,7 @@ function routeKind(route: DesktopFixtureRoute): DesktopRouteKind {
   });
 }
 
-/** The one current 29-view route inventory. */
+/** The one current 30-view route inventory. */
 export const Desktop_ROUTE_KINDS = Object.freeze(
   Desktop_FIXTURE_ROUTES.map(routeKind),
 );

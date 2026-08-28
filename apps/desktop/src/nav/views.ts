@@ -10,6 +10,7 @@ export const CATEGORIES = Object.freeze([
   "plan",
   "manage",
   "interact",
+  "bots",
   "review",
   "analytics",
   "memory",
@@ -51,6 +52,12 @@ export const RAIL_ITEMS: readonly RailItem[] = Object.freeze(
       firstView: "interact",
     },
     {
+      category: "bots",
+      label: "Bots",
+      icon: "robot",
+      firstView: "bots",
+    },
+    {
       category: "review",
       label: "Review",
       icon: "check-square",
@@ -83,6 +90,7 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   plan: "Plan",
   manage: "Manage",
   interact: "Interact",
+  bots: "Bots",
   review: "Review",
   analytics: "Analytics",
   memory: "Memory",

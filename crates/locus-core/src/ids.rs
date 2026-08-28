@@ -79,6 +79,8 @@ macro_rules! typed_id {
 }
 
 typed_id!(ProjectId, "project");
+typed_id!(BotId, "persistent bot");
+typed_id!(RoutineId, "bot routine");
 typed_id!(SessionId, "agent session");
 typed_id!(RunId, "run: one container lifetime inside a session");
 typed_id!(TurnId, "turn: one prompt and its response within a run");

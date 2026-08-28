@@ -13,6 +13,7 @@ pub mod arbiter;
 pub mod artifact;
 pub mod ask;
 pub mod board;
+pub mod bots;
 pub mod browse;
 pub mod calibration;
 pub mod compact;
