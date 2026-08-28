@@ -153,8 +153,8 @@ function RoutinesSheet(props: {
         </Button>
       </header>
       <p class="bots-routines-note">
-        Cron prompts post into this bot&apos;s home conversation. Overlap is skipped,
-        never queued.
+        Cron prompts post into this bot&apos;s home conversation. Overlap is
+        skipped, never queued.
       </p>
       <section class="bots-routine-list" aria-label="Bot routines">
         <Show
@@ -188,7 +188,9 @@ function RoutinesSheet(props: {
                   <Input
                     aria-label="Routine prompt"
                     value={draftPrompt()}
-                    onInput={(event) => setDraftPrompt(event.currentTarget.value)}
+                    onInput={(event) =>
+                      setDraftPrompt(event.currentTarget.value)
+                    }
                   />
                 </Show>
                 <div class="bots-routine-actions">
@@ -198,7 +200,10 @@ function RoutinesSheet(props: {
                   <Show
                     when={editingId() === routine.id}
                     fallback={
-                      <Button variant="ghost" onClick={() => beginEdit(routine)}>
+                      <Button
+                        variant="ghost"
+                        onClick={() => beginEdit(routine)}
+                      >
                         Edit
                       </Button>
                     }
@@ -292,8 +297,8 @@ export default function BotsView(props: BotsViewProps) {
             when={bots().length > 0}
             fallback={
               <p class="bots-empty-state" data-testid="bots-empty-state">
-                No bots yet. Create one to have a standing agent you can message any
-                time and hand recurring work to.
+                No bots yet. Create one to have a standing agent you can message
+                any time and hand recurring work to.
               </p>
             }
           >
@@ -311,7 +316,9 @@ export default function BotsView(props: BotsViewProps) {
                   <Show when={!collapsed()}>
                     <span class="bot-list-copy">
                       <strong>{bot.name}</strong>
-                      <small>{bot.harness} · {bot.lastActivity}</small>
+                      <small>
+                        {bot.harness} · {bot.lastActivity}
+                      </small>
                     </span>
                   </Show>
                 </button>
@@ -320,8 +327,8 @@ export default function BotsView(props: BotsViewProps) {
           </Show>
         </div>
         <footer class="bots-list-footer">
-          A bot is a named teammate with one conversation and one workspace. It is
-          not a task and never touches the board.
+          A bot is a named teammate with one conversation and one workspace. It
+          is not a task and never touches the board.
         </footer>
       </aside>
       <main class="bots-home-pane" data-testid="bot-home-pane">

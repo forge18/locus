@@ -110,7 +110,16 @@ function App() {
                                                 <InteractView />
                                         </Match>
                                         <Match when={nav.view() === "bots"}>
-                                                <BotsView projectId={nav.params().project} botId={nav.params().botId} />
+                                                <BotsView
+                                                        projectId={
+                                                                nav.params()
+                                                                        .project
+                                                        }
+                                                        botId={
+                                                                nav.params()
+                                                                        .botId
+                                                        }
+                                                />
                                         </Match>
                                         <Match when={nav.view() === "qa"}>
                                                 <QAView
