@@ -55,6 +55,24 @@ export interface Task {
  completionStatus?: "pending" | "commented" | "resolved" | "failed";
  completionAttempts?: number;
  resolutionSupported?: boolean;
+ syncSupported?: boolean;
+ syncState?: {
+  pullCursor: string | null;
+  lastPushedStatus: string | null;
+  noteWatermark: string | null;
+  lastLocalStatusAt: string | null;
+  lastExternalStatusAt: string | null;
+  lastSyncError: string | null;
+  lastSyncedAt: string | null;
+  unmappedExternalStatus: string | null;
+  lastConflictWinner: string | null;
+  lastConflictReason: string | null;
+ };
+ comments?: Array<{
+  author: string;
+  body: string;
+  origin: "local" | "external";
+ }>;
 }
 
 /** @schema board — a task that cannot start until another finishes. */

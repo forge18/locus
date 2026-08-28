@@ -6,6 +6,8 @@ export interface WorkItemProviderRecord {
   host: string;
   project: string;
   resolutionSupported: boolean;
+  syncSupported: boolean;
+  syncIntervalSeconds: number;
 }
 
 export interface ExternalWorkItemIdentity {
@@ -56,12 +58,42 @@ export interface ExternalWorkItemCompletionStatus {
   error: string | null;
 }
 
+export interface ExternalWorkItemSyncState {
+  pullCursor: string | null;
+  lastPushedStatus: string | null;
+  noteWatermark: string | null;
+  lastLocalStatusAt: string | null;
+  lastExternalStatusAt: string | null;
+  lastSyncError: string | null;
+  lastSyncedAt: string | null;
+  unmappedExternalStatus: string | null;
+  lastConflictWinner: string | null;
+  lastConflictReason: string | null;
+}
+
+export interface ExternalWorkItemSyncResult {
+  taskId: string;
+  appliedEvents: number;
+  unmappedStatuses: string[];
+  echoSuppressedNotes: string[];
+  nextCursor: string | null;
+  state: ExternalWorkItemSyncState;
+}
+
+export interface ExternalWorkItemStatusPushResult {
+  taskId: string;
+  externalStatus: string;
+  state: ExternalWorkItemSyncState;
+}
+
 interface PersistedWorkItemProvider {
   pluginId: string;
   host: string;
   project: string;
   comments: boolean;
   resolutionSupported: boolean;
+  syncSupported: boolean;
+  syncIntervalSeconds: number;
 }
 
 function providerRecord(
@@ -73,6 +105,8 @@ function providerRecord(
     host: provider.host,
     project: provider.project,
     resolutionSupported: provider.resolutionSupported,
+    syncSupported: provider.syncSupported,
+    syncIntervalSeconds: provider.syncIntervalSeconds,
   };
 }
 
@@ -87,7 +121,10 @@ export async function loadConfiguredWorkItemProviders(): Promise<
 }
 
 export async function registerWorkItemProvider(
-  config: Omit<WorkItemProviderRecord, "label" | "resolutionSupported">,
+  config: Omit<
+    WorkItemProviderRecord,
+    "label" | "resolutionSupported" | "syncSupported"
+  >,
 ): Promise<WorkItemProviderRecord> {
   const { invoke } = await import("@tauri-apps/api/core");
   const provider = await invoke<PersistedWorkItemProvider>(
@@ -169,6 +206,46 @@ export async function loadExternalWorkItemCompletionStatus(
   );
 }
 
+export async function loadExternalWorkItemSyncState(
+  taskId: string,
+): Promise<ExternalWorkItemSyncState | null> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<ExternalWorkItemSyncState | null>(
+    "external_work_item_sync_state",
+    { taskId },
+  );
+}
+
+export async function syncExternalWorkItem(
+  taskId: string,
+): Promise<ExternalWorkItemSyncResult> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<ExternalWorkItemSyncResult>("sync_external_work_item", {
+    taskId,
+  });
+}
+
+export async function pushExternalWorkItemStatus(
+  taskId: string,
+): Promise<ExternalWorkItemStatusPushResult> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<ExternalWorkItemStatusPushResult>(
+    "push_external_work_item_status",
+    { taskId },
+  );
+}
+
+export async function pushExternalWorkItemNote(
+  taskId: string,
+  note: { id: string; body: string; author: string },
+): Promise<{ taskId: string; posted: boolean }> {
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<{ taskId: string; posted: boolean }>(
+    "push_external_work_item_note",
+    { request: { taskId, ...note } },
+  );
+}
+
 /** Test fixture for a provider row loaded from board.external_work_item_providers. */
 export const GITHUB_WORK_ITEM_PROVIDER_FIXTURE: WorkItemProviderRecord[] = [
   {
@@ -177,5 +254,7 @@ export const GITHUB_WORK_ITEM_PROVIDER_FIXTURE: WorkItemProviderRecord[] = [
     host: "github.com",
     project: "forge18/locus",
     resolutionSupported: true,
+    syncSupported: true,
+    syncIntervalSeconds: 60,
   },
 ];

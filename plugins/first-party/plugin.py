@@ -23,6 +23,7 @@ CATALOG = {
             "work_item.snapshot",
             "work_item.comment",
             "work_item.resolve",
+            "work_item.sync",
         ],
         "permissions": ["network", "repository_read", "repository_write"],
     },
@@ -216,11 +217,171 @@ def _complete(method, params):
     return {"resolved": True}
 
 
+def _sync_capability():
+    active = {
+        "ready": "open",
+        "in_progress": "open",
+        "testing": "open",
+        "reviewing": "open",
+        "pending_approval": "open",
+        "done": "closed",
+    }
+    return {
+        "vocabulary": {
+            "external_to_local": {"open": "ready", "closed": "done"},
+            "local_to_external": active,
+            "blocked_to_external": None,
+        }
+    }
+
+
+def _pull(params):
+    lookup = _lookup(params.get("identity"))
+    cursor = params.get("cursor")
+    if cursor is not None and (
+        not isinstance(cursor, str) or not cursor.strip() or "\x00" in cursor
+    ):
+        raise ValueError("cursor must be a non-empty string when supplied")
+    result = _view_issue(lookup, "state,updatedAt,comments")
+    if not isinstance(result, dict):
+        raise RuntimeError("GitHub CLI returned a non-object issue")
+    updated_at = _required_string(result.get("updatedAt"), "updatedAt")
+    changes = []
+    if cursor is None or updated_at > cursor:
+        state = _required_string(result.get("state"), "state").lower()
+        changes.append(
+            {
+                "kind": "status",
+                "id": f"status:{updated_at}",
+                "status": state,
+                "occurred_at": updated_at,
+                "author": "github",
+            }
+        )
+    comments = result.get("comments", [])
+    if not isinstance(comments, list):
+        raise RuntimeError("GitHub CLI returned invalid issue comments")
+    for comment in comments:
+        if not isinstance(comment, dict):
+            raise RuntimeError("GitHub CLI returned an invalid issue comment")
+        comment_id = _required_string(comment.get("id"), "comment.id")
+        body = _required_string(comment.get("body"), "comment.body")
+        occurred_at = _required_string(comment.get("createdAt"), "comment.createdAt")
+        author_data = comment.get("author")
+        author = (
+            author_data.get("login")
+            if isinstance(author_data, dict)
+            else None
+        )
+        author = _required_string(author, "comment.author.login")
+        if cursor is None or occurred_at > cursor:
+            changes.append(
+                {
+                    "kind": "note",
+                    "id": comment_id,
+                    "body": body,
+                    "occurred_at": occurred_at,
+                    "author": author,
+                }
+            )
+    changes.sort(key=lambda change: (change["occurred_at"], change["id"]))
+    return {"next_cursor": updated_at, "changes": changes}
+
+
+def _push_status(params):
+    lookup = _lookup(params.get("identity"))
+    column = _required_string(params.get("column"), "column")
+    if not isinstance(params.get("blocked", False), bool):
+        raise ValueError("blocked must be a boolean")
+    mapping = _sync_capability()["vocabulary"]["local_to_external"]
+    external_status = mapping.get(column)
+    if params.get("blocked"):
+        blocked_status = _sync_capability()["vocabulary"].get("blocked_to_external")
+        if blocked_status is not None:
+            external_status = blocked_status
+    if external_status is None:
+        raise ValueError(f"local column has no GitHub mapping: {column}")
+    state = _view_issue(lookup, "state")
+    current = state.get("state", "").lower() if isinstance(state, dict) else ""
+    if external_status == "closed":
+        if current != "closed":
+            _run_gh(
+                [
+                    "issue",
+                    "close",
+                    lookup["native_id"],
+                    "--repo",
+                    _repository(lookup),
+                    "--reason",
+                    "completed",
+                ],
+                decode_json=False,
+            )
+    elif current == "closed":
+        _run_gh(
+            [
+                "issue",
+                "reopen",
+                lookup["native_id"],
+                "--repo",
+                _repository(lookup),
+            ],
+            decode_json=False,
+        )
+    return {"status": external_status}
+
+
+def _push_note(params):
+    lookup = _lookup(params.get("identity"))
+    note = params.get("note")
+    if not isinstance(note, dict):
+        raise ValueError("note must be an object")
+    note_id = _required_string(note.get("id"), "note.id")
+    body = _required_string(note.get("body"), "note.body")
+    _required_string(note.get("author"), "note.author")
+    _required_string(note.get("occurred_at"), "note.occurred_at")
+    marker = f"<!-- locus-note:{note_id} -->"
+    existing = _view_issue(lookup, "comments")
+    if not isinstance(existing, dict):
+        raise RuntimeError("GitHub CLI returned invalid issue comments")
+    comments = existing.get("comments", [])
+    if not isinstance(comments, list):
+        raise RuntimeError("GitHub CLI returned invalid issue comments")
+    if any(
+        isinstance(comment, dict)
+        and isinstance(comment.get("body"), str)
+        and marker in comment["body"]
+        for comment in comments
+    ):
+        return {"posted": True, "already_present": True}
+    _run_gh(
+        [
+            "issue",
+            "comment",
+            lookup["native_id"],
+            "--repo",
+            _repository(lookup),
+            "--body",
+            body,
+        ],
+        decode_json=False,
+    )
+    return {"posted": True}
+
+
 def work_item_call(method, params):
     if method == "work_item.snapshot":
         return _snapshot(params)
     if method in ("work_item.comment", "work_item.resolve"):
         return _complete(method, params)
+    if method == "work_item.sync_capability":
+        return _sync_capability()
+    if method == "work_item.pull":
+        return _pull(params)
+    if method == "work_item.push_status":
+        return _push_status(params)
+    if method == "work_item.push_note":
+        return _push_note(params)
     raise ValueError("method not found")
 
 
@@ -305,6 +466,10 @@ def main():
             "work_item.snapshot",
             "work_item.comment",
             "work_item.resolve",
+            "work_item.sync_capability",
+            "work_item.pull",
+            "work_item.push_status",
+            "work_item.push_note",
         ):
             try:
                 emit(request, work_item_call(method, request.get("params")))

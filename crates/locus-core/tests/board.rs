@@ -24,6 +24,7 @@ mod board {
             run_id: Some(RunId::generate()),
             event_ids: vec![EventId::generate()],
             artifact_ids: vec![],
+            external: None,
         }
     }
 

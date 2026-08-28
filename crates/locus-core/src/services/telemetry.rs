@@ -433,7 +433,7 @@ fn timestamp_from(object: Option<&Map<String, Value>>) -> String {
         .unwrap_or_else(now_timestamp)
 }
 
-fn now_timestamp() -> String {
+pub fn now_timestamp() -> String {
     OffsetDateTime::now_utc()
         .format(&Rfc3339)
         .expect("UTC timestamps always format as RFC3339")

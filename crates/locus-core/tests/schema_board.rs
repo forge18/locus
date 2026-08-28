@@ -29,6 +29,9 @@ async fn schema_board() {
         "task_runs",
         "task_evidence",
         "github_issues",
+        "external_work_items",
+        "external_sync_changes",
+        "task_comments",
     ] {
         let exists: bool = query_scalar(
             "SELECT EXISTS (

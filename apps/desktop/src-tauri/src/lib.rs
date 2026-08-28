@@ -18,7 +18,7 @@ use locus_core::{
     services::{
         agents::{seeded_definitions, AgentDefinition},
         artifact::{ArtifactComment, ArtifactContent, ArtifactKind, ArtifactRow, ArtifactStore},
-        board::{BoardActor, BoardEvidenceLink},
+        board::{BoardActor, BoardCommentOrigin, BoardEvidenceLink},
         bots::{
             Bot, BotContainerState, BotRoutine, RoutineAttribution, RoutineExecution,
             RoutineExecutionStatus,
@@ -26,13 +26,15 @@ use locus_core::{
         lint::discover as discover_linters,
         manage::TaskColumn,
         task::TaskDetailSummary,
-        telemetry::Event,
+        telemetry::{now_timestamp, Event},
     },
     store::{work_items::PersistedExternalCompletionStatus, Store},
     work_item::{
-        snapshot_from_plugin, CompletionDelivery, ExternalWorkItemProvider, ImportedWorkItem,
-        PluginWorkItemProvider, WorkItemError, WorkItemIdentity, WorkItemLookup, WorkItemPreview,
-        WorkItemProviderConfig, WorkItemProviderId, WorkItemRegistry, WorkItemSnapshot,
+        pull_from_plugin, push_note_to_plugin, push_status_to_plugin, snapshot_from_plugin,
+        sync_capability_from_plugin, CompletionDelivery, ExternalWorkItemProvider,
+        ImportedWorkItem, PluginWorkItemProvider, WorkItemError, WorkItemIdentity, WorkItemLookup,
+        WorkItemPreview, WorkItemProviderConfig, WorkItemProviderId, WorkItemRegistry,
+        WorkItemSnapshot, WorkItemSyncState,
     },
 };
 use serde::{Deserialize, Serialize};
@@ -127,6 +129,8 @@ struct ExternalWorkItemProviderRequest {
     plugin_id: String,
     host: String,
     project: String,
+    #[serde(default)]
+    sync_interval_seconds: Option<u32>,
 }
 
 #[derive(Debug, Serialize)]
@@ -137,6 +141,16 @@ struct ExternalWorkItemProviderResponse {
     project: String,
     comments: bool,
     resolution_supported: bool,
+    sync_supported: bool,
+    sync_interval_seconds: u32,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ImportedExternalWorkItemComment {
+    author: String,
+    body: String,
+    origin: &'static str,
 }
 
 #[derive(Debug, Serialize)]
@@ -159,11 +173,14 @@ struct ImportedExternalWorkItemTask {
     root_session_id: Option<String>,
     child_run_ids: Vec<String>,
     evidence_ids: Vec<String>,
+    comments: Vec<ImportedExternalWorkItemComment>,
     external_link: String,
     external_host: String,
     completion_status: String,
     completion_attempts: u32,
     resolution_supported: bool,
+    sync_supported: bool,
+    sync_state: ExternalWorkItemSyncStateResponse,
 }
 
 fn desktop_task_column(column: TaskColumn) -> String {
@@ -228,6 +245,19 @@ fn imported_external_work_item_task(
                     .map(ToString::to_string)
                     .collect()
             }),
+        comments: task
+            .comments
+            .iter()
+            .map(|comment| ImportedExternalWorkItemComment {
+                author: comment.author.clone(),
+                body: comment.body.clone(),
+                origin: if matches!(comment.origin, BoardCommentOrigin::External { .. }) {
+                    "external"
+                } else {
+                    "local"
+                },
+            })
+            .collect(),
         external_link: imported.snapshot.url.clone(),
         external_host: imported.snapshot.identity.host.clone(),
         completion_status: completion
@@ -236,6 +266,8 @@ fn imported_external_work_item_task(
         completion_attempts: completion.map_or(0, |status| status.attempts),
         resolution_supported: completion
             .map_or(provider.resolve, |status| status.resolution_supported),
+        sync_supported: provider.sync,
+        sync_state: sync_state_response(imported.sync_state.clone()),
     })
 }
 
@@ -311,6 +343,7 @@ async fn negotiated_work_item_provider(
                 locus_core::work_item::WORK_ITEM_SNAPSHOT_CAPABILITY,
                 locus_core::work_item::WORK_ITEM_COMMENT_CAPABILITY,
                 locus_core::work_item::WORK_ITEM_RESOLVE_CAPABILITY,
+                locus_core::work_item::WORK_ITEM_SYNC_CAPABILITY,
             ],
         )
         .await
@@ -318,7 +351,17 @@ async fn negotiated_work_item_provider(
     let runtime_descriptor = handshake.descriptor;
     let runtime = WorkItemProviderDescriptor::from_plugin_descriptor(&runtime_descriptor)
         .map_err(IpcError::internal)?;
-    negotiate_work_item_provider(catalog, runtime, &runtime_descriptor.schema_versions)
+    let provider =
+        negotiate_work_item_provider(catalog, runtime, &runtime_descriptor.schema_versions)?;
+    if !catalog.sync {
+        return Ok(provider);
+    }
+    let sync = sync_capability_from_plugin(process)
+        .await
+        .map_err(work_item_ipc_error)?;
+    provider
+        .with_sync_capability(sync)
+        .map_err(work_item_ipc_error)
 }
 
 async fn fetch_external_work_item_snapshot(
@@ -342,6 +385,26 @@ async fn fetch_external_work_item_snapshot(
     .await;
     let _ = process.shutdown().await;
     result
+}
+
+async fn spawn_negotiated_work_item_provider(
+    plugin_id: &str,
+) -> Result<(PluginProcess, PluginWorkItemProvider), IpcError> {
+    let catalog = admitted_work_item_provider(plugin_id)?;
+    if !catalog.sync {
+        return Err(work_item_ipc_error(WorkItemError::SyncCapabilityRequired));
+    }
+    let executable = admitted_work_item_executable(plugin_id)?;
+    let process = PluginProcess::spawn(executable, Duration::from_secs(30))
+        .await
+        .map_err(IpcError::internal)?;
+    match negotiated_work_item_provider(&process, &catalog).await {
+        Ok(provider) => Ok((process, provider)),
+        Err(error) => {
+            let _ = process.shutdown().await;
+            Err(error)
+        }
+    }
 }
 
 async fn validate_import_preview(preview: &WorkItemPreview) -> Result<(), IpcError> {
@@ -381,6 +444,8 @@ fn external_work_item_provider_response(
         project: config.project,
         comments: descriptor.comments,
         resolution_supported: descriptor.resolve,
+        sync_supported: descriptor.sync,
+        sync_interval_seconds: config.sync_interval_seconds,
     }
 }
 
@@ -503,6 +568,8 @@ async fn register_external_work_item_provider(
 ) -> Result<ExternalWorkItemProviderResponse, IpcError> {
     let _operation_lock = core.work_item_operation_lock().lock().await;
     let config = WorkItemProviderConfig::new(request.plugin_id, request.host, request.project)
+        .map_err(|error| IpcError::invalid_argument(error.to_string()))?
+        .with_sync_interval(request.sync_interval_seconds.unwrap_or(60))
         .map_err(|error| IpcError::invalid_argument(error.to_string()))?;
     validate_work_item_provider_config(&config)?;
     let descriptor = admitted_work_item_provider(config.plugin_id.as_str())?;
@@ -565,6 +632,56 @@ struct ExternalWorkItemCompletionResponse {
     resolved: Option<bool>,
     resolution_supported: bool,
     error: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ExternalWorkItemSyncStateResponse {
+    pull_cursor: Option<String>,
+    last_pushed_status: Option<String>,
+    note_watermark: Option<String>,
+    last_local_status_at: Option<String>,
+    last_external_status_at: Option<String>,
+    last_sync_error: Option<String>,
+    last_synced_at: Option<String>,
+    unmapped_external_status: Option<String>,
+    last_conflict_winner: Option<String>,
+    last_conflict_reason: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ExternalWorkItemSyncResponse {
+    task_id: TaskId,
+    applied_events: usize,
+    unmapped_statuses: Vec<String>,
+    echo_suppressed_notes: Vec<String>,
+    next_cursor: Option<String>,
+    state: ExternalWorkItemSyncStateResponse,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ExternalWorkItemNoteRequest {
+    task_id: String,
+    id: String,
+    body: String,
+    author: String,
+}
+
+fn sync_state_response(state: WorkItemSyncState) -> ExternalWorkItemSyncStateResponse {
+    ExternalWorkItemSyncStateResponse {
+        pull_cursor: state.pull_cursor,
+        last_pushed_status: state.last_pushed_status,
+        note_watermark: state.note_watermark,
+        last_local_status_at: state.last_local_status_at,
+        last_external_status_at: state.last_external_status_at,
+        last_sync_error: state.last_sync_error,
+        last_synced_at: state.last_synced_at,
+        unmapped_external_status: state.unmapped_external_status,
+        last_conflict_winner: state.last_conflict_winner,
+        last_conflict_reason: state.last_conflict_reason,
+    }
 }
 
 fn restore_work_item_registry(core: &Core, registry: WorkItemRegistry) -> Result<(), IpcError> {
@@ -731,6 +848,25 @@ fn completion_response(
     }
 }
 
+fn completion_response_from_status(
+    task_id: TaskId,
+    status: PersistedExternalCompletionStatus,
+) -> ExternalWorkItemCompletionResponse {
+    ExternalWorkItemCompletionResponse {
+        task_id,
+        status: status.status,
+        attempts: status.attempts,
+        commented: status.commented,
+        resolved: status.resolved,
+        resolution_supported: status.resolution_supported,
+        error: status.last_error,
+    }
+}
+
+fn completion_is_satisfied(status: &PersistedExternalCompletionStatus) -> bool {
+    status.last_error.is_none() && status.commented && status.resolved != Some(false)
+}
+
 async fn deliver_external_work_item(
     core: &Core,
     store: &Store,
@@ -821,6 +957,15 @@ async fn complete_external_work_item(
         .task_id
         .parse::<TaskId>()
         .map_err(|error| IpcError::invalid_argument(format!("invalid task id: {error}")))?;
+    if let Some(status) = store
+        .external_completion_status(task_id)
+        .await
+        .map_err(IpcError::internal)?
+    {
+        if completion_is_satisfied(&status) {
+            return Ok(completion_response_from_status(task_id, status));
+        }
+    }
     let (before_registry, from, task, snapshot, provider) =
         {
             let mut registry = core
@@ -853,6 +998,7 @@ async fn complete_external_work_item(
                             run_id: None,
                             event_ids: Vec::new(),
                             artifact_ids: request.evidence.clone(),
+                            external: None,
                         }],
                     )
                     .map_err(work_item_ipc_error)?
@@ -900,6 +1046,15 @@ async fn retry_external_work_item_completion(
         .task_id
         .parse::<TaskId>()
         .map_err(|error| IpcError::invalid_argument(format!("invalid task id: {error}")))?;
+    if let Some(status) = store
+        .external_completion_status(task_id)
+        .await
+        .map_err(IpcError::internal)?
+    {
+        if completion_is_satisfied(&status) {
+            return Ok(completion_response_from_status(task_id, status));
+        }
+    }
     let (snapshot, provider) = {
         let registry = core
             .work_items()
@@ -951,6 +1106,266 @@ async fn external_work_item_completion_status(
         resolved: status.resolved,
         resolution_supported: status.resolution_supported,
         error: status.last_error,
+    })
+}
+
+#[tauri::command]
+async fn external_work_item_sync_state(
+    core: State<'_, Arc<Core>>,
+    task_id: String,
+) -> Result<Option<ExternalWorkItemSyncStateResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    let task_id = task_id
+        .parse::<TaskId>()
+        .map_err(|error| IpcError::invalid_argument(format!("invalid task id: {error}")))?;
+    store
+        .external_sync_state(task_id)
+        .await
+        .map(|state| state.map(sync_state_response))
+        .map_err(IpcError::internal)
+}
+
+#[tauri::command]
+async fn sync_external_work_item(
+    core: State<'_, Arc<Core>>,
+    task_id: String,
+) -> Result<ExternalWorkItemSyncResponse, IpcError> {
+    let _operation_lock = core.work_item_operation_lock().lock().await;
+    let store = connected_store(&core).await?;
+    let task_id = task_id
+        .parse::<TaskId>()
+        .map_err(|error| IpcError::invalid_argument(format!("invalid task id: {error}")))?;
+    let (identity, before_registry, cursor) = {
+        let registry = core
+            .work_items()
+            .lock()
+            .map_err(|_| IpcError::internal("external work-item registry lock is poisoned"))?;
+        let task = registry
+            .board()
+            .task(task_id)
+            .ok_or_else(|| IpcError::not_found(format!("task `{task_id}` was not found")))?;
+        let identity = task
+            .external_work_item
+            .as_ref()
+            .ok_or_else(|| IpcError::invalid_argument("task is not an imported work item"))?
+            .identity
+            .clone();
+        let cursor = registry
+            .sync_state(&identity)
+            .and_then(|state| state.pull_cursor.clone());
+        (identity, registry.clone(), cursor)
+    };
+    let (process, provider) =
+        spawn_negotiated_work_item_provider(identity.plugin_id.as_str()).await?;
+    let result: Result<ExternalWorkItemSyncResponse, IpcError> = async {
+        let capability = provider
+            .sync_capability()
+            .cloned()
+            .ok_or_else(|| work_item_ipc_error(WorkItemError::SyncCapabilityRequired))?;
+        let pull = pull_from_plugin(&process, &identity, cursor)
+            .await
+            .map_err(work_item_ipc_error)?;
+        let synced_at = now_timestamp();
+        let (application, snapshot, state) = {
+            let mut registry = core
+                .work_items()
+                .lock()
+                .map_err(|_| IpcError::internal("external work-item registry lock is poisoned"))?;
+            let mut application = registry
+                .apply_pull(&identity, &capability, pull, &synced_at)
+                .map_err(work_item_ipc_error)?;
+            application.resolution_supported = provider.capabilities.resolve;
+            let imported = registry
+                .imported(&identity)
+                .ok_or_else(|| IpcError::internal("imported work item disappeared during sync"))?;
+            (
+                application,
+                imported.snapshot.clone(),
+                imported.sync_state.clone(),
+            )
+        };
+        store
+            .persist_external_sync(task_id, &snapshot, &application, &state)
+            .await
+            .map_err(IpcError::internal)?;
+        Ok(ExternalWorkItemSyncResponse {
+            task_id,
+            applied_events: application.events.len(),
+            unmapped_statuses: application.unmapped_statuses,
+            echo_suppressed_notes: application.echo_suppressed_notes,
+            next_cursor: application.next_cursor,
+            state: sync_state_response(state),
+        })
+    }
+    .await;
+    let _ = process.shutdown().await;
+    if let Err(error) = &result {
+        restore_work_item_registry(&core, before_registry)?;
+        let _ = store
+            .record_external_sync_error(task_id, &error.message)
+            .await;
+    }
+    result
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ExternalWorkItemStatusPushResponse {
+    task_id: TaskId,
+    external_status: String,
+    state: ExternalWorkItemSyncStateResponse,
+}
+
+#[tauri::command]
+async fn push_external_work_item_status(
+    core: State<'_, Arc<Core>>,
+    task_id: String,
+) -> Result<ExternalWorkItemStatusPushResponse, IpcError> {
+    let _operation_lock = core.work_item_operation_lock().lock().await;
+    let store = connected_store(&core).await?;
+    let task_id = task_id
+        .parse::<TaskId>()
+        .map_err(|error| IpcError::invalid_argument(format!("invalid task id: {error}")))?;
+    let (identity, before_registry) = {
+        let registry = core
+            .work_items()
+            .lock()
+            .map_err(|_| IpcError::internal("external work-item registry lock is poisoned"))?;
+        let task = registry
+            .board()
+            .task(task_id)
+            .ok_or_else(|| IpcError::not_found(format!("task `{task_id}` was not found")))?;
+        let identity = task
+            .external_work_item
+            .as_ref()
+            .ok_or_else(|| IpcError::invalid_argument("task is not an imported work item"))?
+            .identity
+            .clone();
+        (identity, registry.clone())
+    };
+    let (process, provider) =
+        spawn_negotiated_work_item_provider(identity.plugin_id.as_str()).await?;
+    let result =
+        async {
+            let capability = provider
+                .sync_capability()
+                .cloned()
+                .ok_or_else(|| work_item_ipc_error(WorkItemError::SyncCapabilityRequired))?;
+            let occurred_at = now_timestamp();
+            let request = {
+                let mut registry = core.work_items().lock().map_err(|_| {
+                    IpcError::internal("external work-item registry lock is poisoned")
+                })?;
+                registry
+                    .local_status_push_request(&identity, &capability, &occurred_at)
+                    .map_err(work_item_ipc_error)?
+            };
+            push_status_to_plugin(&process, &request)
+                .await
+                .map_err(work_item_ipc_error)?;
+            let external_status = capability
+                .vocabulary
+                .local_status(request.column, request.blocked)
+                .map_err(work_item_ipc_error)?
+                .to_owned();
+            let state = {
+                let mut registry = core.work_items().lock().map_err(|_| {
+                    IpcError::internal("external work-item registry lock is poisoned")
+                })?;
+                registry
+                    .record_status_push(&identity, &external_status)
+                    .map_err(work_item_ipc_error)?;
+                registry
+                    .sync_state(&identity)
+                    .cloned()
+                    .ok_or_else(|| IpcError::internal("external sync state disappeared"))?
+            };
+            if !store
+                .save_external_sync_state(task_id, &state)
+                .await
+                .map_err(IpcError::internal)?
+            {
+                return Err(IpcError::internal(
+                    "external work item disappeared during status push",
+                ));
+            }
+            Ok(ExternalWorkItemStatusPushResponse {
+                task_id,
+                external_status,
+                state: sync_state_response(state),
+            })
+        }
+        .await;
+    let _ = process.shutdown().await;
+    if let Err(error) = &result {
+        restore_work_item_registry(&core, before_registry)?;
+        let _ = store
+            .record_external_sync_error(task_id, &error.message)
+            .await;
+    }
+    result
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ExternalWorkItemNotePushResponse {
+    task_id: TaskId,
+    posted: bool,
+}
+
+#[tauri::command]
+async fn push_external_work_item_note(
+    core: State<'_, Arc<Core>>,
+    request: ExternalWorkItemNoteRequest,
+) -> Result<ExternalWorkItemNotePushResponse, IpcError> {
+    let _operation_lock = core.work_item_operation_lock().lock().await;
+    let store = connected_store(&core).await?;
+    let task_id = request
+        .task_id
+        .parse::<TaskId>()
+        .map_err(|error| IpcError::invalid_argument(format!("invalid task id: {error}")))?;
+    let (identity, before_registry, note, comment) = {
+        let mut registry = core
+            .work_items()
+            .lock()
+            .map_err(|_| IpcError::internal("external work-item registry lock is poisoned"))?;
+        let identity = registry
+            .board()
+            .task(task_id)
+            .and_then(|task| task.external_work_item.as_ref())
+            .map(|snapshot| snapshot.identity.clone())
+            .ok_or_else(|| IpcError::invalid_argument("task is not an imported work item"))?;
+        let before_registry = registry.clone();
+        let note = registry
+            .local_note_push_request(
+                &identity,
+                request.id.clone(),
+                request.body.clone(),
+                request.author.clone(),
+                now_timestamp(),
+            )
+            .map_err(work_item_ipc_error)?;
+        let comment = registry
+            .append_local_note(&identity, request.author, request.body)
+            .map_err(work_item_ipc_error)?;
+        (identity, before_registry, note, comment)
+    };
+    if let Err(error) = store
+        .persist_local_task_comment(task_id, &note.note.id, &comment)
+        .await
+    {
+        restore_work_item_registry(&core, before_registry)?;
+        return Err(IpcError::internal(error));
+    }
+    let (process, _provider) =
+        spawn_negotiated_work_item_provider(identity.plugin_id.as_str()).await?;
+    let result = push_note_to_plugin(&process, &note)
+        .await
+        .map_err(work_item_ipc_error);
+    let _ = process.shutdown().await;
+    result.map(|()| ExternalWorkItemNotePushResponse {
+        task_id,
+        posted: true,
     })
 }
 
@@ -1747,6 +2162,10 @@ pub fn run() {
             complete_external_work_item,
             retry_external_work_item_completion,
             external_work_item_completion_status,
+            external_work_item_sync_state,
+            sync_external_work_item,
+            push_external_work_item_status,
+            push_external_work_item_note,
             materialization_report,
             repo_git_state
         ])

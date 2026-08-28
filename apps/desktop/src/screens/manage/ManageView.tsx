@@ -24,11 +24,17 @@ import {
   loadConfiguredWorkItemProviders,
   loadImportedExternalWorkItemTasks,
   loadExternalWorkItemCompletionStatus,
+  loadExternalWorkItemSyncState,
   loadExternalWorkItemWorkflows,
   previewExternalWorkItem,
+  pushExternalWorkItemNote,
+  pushExternalWorkItemStatus,
   retryExternalWorkItemCompletion,
+  syncExternalWorkItem,
   type ExternalWorkItemCompletionStatus,
   type ExternalWorkItemPreview,
+  type ExternalWorkItemSyncResult,
+  type ExternalWorkItemSyncState,
   type WorkflowDefinitionRecord,
   type WorkItemProviderRecord,
 } from "../../data/work-items";
@@ -62,6 +68,21 @@ function safeExternalUrl(task: Task): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+function emptySyncState(): ExternalWorkItemSyncState {
+  return {
+    pullCursor: null,
+    lastPushedStatus: null,
+    noteWatermark: null,
+    lastLocalStatusAt: null,
+    lastExternalStatusAt: null,
+    lastSyncError: null,
+    lastSyncedAt: null,
+    unmappedExternalStatus: null,
+    lastConflictWinner: null,
+    lastConflictReason: null,
+  };
 }
 
 function TaskDraft(props: { source: DraftSource; onClose: () => void }) {
@@ -265,8 +286,9 @@ function TaskImport(props: {
                   : "comment only; resolution unsupported"}
               </p>
               <p>
-                Snapshot imported once; provider edits do not synchronize into
-                Locus.
+                {selected().syncSupported
+                  ? "Statuses and notes synchronize through the provider; completion delivery remains separate."
+                  : "Snapshot imported once; provider edits do not synchronize into Locus."}
               </p>
             </article>
             <label>
@@ -295,7 +317,9 @@ function TaskImport(props: {
               </p>
             </Show>
             <p data-testid="automate-import-one-way">
-              No source write before local Done.
+              {selected().syncSupported
+                ? "Status and note synchronization is enabled for this provider."
+                : "No source write before local Done."}
             </p>
             <Show when={error()}>
               {(message) => <p role="alert">{message()}</p>}
@@ -341,6 +365,13 @@ function TaskDetail(props: { task: Task }) {
   const [completion, setCompletion] =
     createSignal<ExternalWorkItemCompletionStatus>();
   const [completionError, setCompletionError] = createSignal<string>();
+  const [syncState, setSyncState] = createSignal<ExternalWorkItemSyncState>(
+    task.syncState ?? emptySyncState(),
+  );
+  const [syncResult, setSyncResult] =
+    createSignal<ExternalWorkItemSyncResult>();
+  const [syncError, setSyncError] = createSignal<string>();
+  const [syncBusy, setSyncBusy] = createSignal(false);
   const applyCompletion = (result: ExternalWorkItemCompletionStatus) => {
     setCompletion(result);
     setCompletionError(result.error ?? undefined);
@@ -351,7 +382,62 @@ function TaskDetail(props: { task: Task }) {
       .then(applyCompletion)
       .catch((caught) => setCompletionError(String(caught)));
   };
-  onMount(refreshCompletion);
+  const applySync = (result: ExternalWorkItemSyncResult) => {
+    setSyncResult(result);
+    setSyncState(result.state);
+    setSyncError(result.state.lastSyncError ?? undefined);
+  };
+  const refreshSync = () => {
+    if (!externalUrl || !task.syncSupported) return;
+    void loadExternalWorkItemSyncState(task.id)
+      .then((state) => {
+        if (state) setSyncState(state);
+      })
+      .catch((caught) => setSyncError(String(caught)));
+  };
+  const syncNow = () => {
+    if (!externalUrl || !task.syncSupported) return;
+    setSyncBusy(true);
+    setSyncError(undefined);
+    void syncExternalWorkItem(task.id)
+      .then(applySync)
+      .catch((caught) => setSyncError(String(caught)))
+      .finally(() => setSyncBusy(false));
+  };
+  const pushStatus = () => {
+    if (!externalUrl || !task.syncSupported) return;
+    setSyncBusy(true);
+    setSyncError(undefined);
+    void pushExternalWorkItemStatus(task.id)
+      .then((result) => setSyncState(result.state))
+      .catch((caught) => setSyncError(String(caught)))
+      .finally(() => setSyncBusy(false));
+  };
+  const [noteBody, setNoteBody] = createSignal("");
+  const pushNote = () => {
+    const body = noteBody().trim();
+    if (!externalUrl || !task.syncSupported || !body) return;
+    setSyncBusy(true);
+    setSyncError(undefined);
+    void pushExternalWorkItemNote(task.id, {
+      id: `note-${Date.now()}`,
+      body,
+      author: "human",
+    })
+      .then(() => setNoteBody(""))
+      .catch((caught) => setSyncError(String(caught)))
+      .finally(() => setSyncBusy(false));
+  };
+  onMount(() => {
+    refreshCompletion();
+    refreshSync();
+  });
+  const syncStatus = () => {
+    if (syncError() || syncState().lastSyncError) return "failed";
+    if (syncState().unmappedExternalStatus) return "unmapped";
+    if (syncState().lastSyncedAt) return "synced";
+    return "not synced";
+  };
   const completionStatus = () =>
     completion()?.status ??
     task.completionStatus ??
@@ -391,6 +477,19 @@ function TaskDetail(props: { task: Task }) {
           <dd>{task.evidenceIds?.length ?? 0} linked items</dd>
         </div>
       </dl>
+      <Show when={task.comments?.length}>
+        <section class="manage-task-comments" data-testid="automate-task-comments">
+          <strong>Notes</strong>
+          <For each={task.comments ?? []}>
+            {(comment) => (
+              <article data-comment-origin={comment.origin}>
+                <span>{comment.author}</span>
+                <p>{comment.body}</p>
+              </article>
+            )}
+          </For>
+        </section>
+      </Show>
       <Show when={task.childRunIds?.length}>
         <div class="manage-detail-runs" data-testid="automate-task-runs">
           <strong>Run tree</strong>
@@ -450,6 +549,78 @@ function TaskDetail(props: { task: Task }) {
           </Button>
         </Show>
       </div>
+      <Show when={externalUrl && task.syncSupported}>
+        <section
+          class="manage-import-sync"
+          data-testid="automate-sync-status"
+          data-sync-status={syncStatus()}
+        >
+          <div class="manage-import-sync-heading">
+            <strong>Synchronization: {syncStatus()}</strong>
+            <Show when={syncState().lastSyncedAt}>
+              <small>Last synced {syncState().lastSyncedAt}</small>
+            </Show>
+          </div>
+          <Show when={syncState().unmappedExternalStatus}>
+            {(status) => (
+              <p data-testid="automate-sync-unmapped">
+                Unmapped external status: {status()}
+              </p>
+            )}
+          </Show>
+          <Show when={syncState().lastConflictWinner}>
+            {(winner) => (
+              <p data-testid="automate-sync-conflict">
+                Last conflict: {winner()} won. {syncState().lastConflictReason}
+              </p>
+            )}
+          </Show>
+          <Show when={syncResult()}>
+            {(result) => (
+              <p data-testid="automate-sync-result">
+                Applied {result().appliedEvents} sync events; suppressed{" "}
+                {result().echoSuppressedNotes.length} echoed notes.
+              </p>
+            )}
+          </Show>
+          <Show when={syncError()}>
+            {(message) => <p role="alert">{message()}</p>}
+          </Show>
+          <div class="manage-import-sync-actions">
+            <Button
+              variant="secondary"
+              disabled={syncBusy()}
+              onClick={syncNow}
+            >
+              {syncBusy() ? "Syncing…" : "Sync now"}
+            </Button>
+            <Button
+              variant="ghost"
+              disabled={syncBusy()}
+              onClick={pushStatus}
+            >
+              Push current status
+            </Button>
+          </div>
+          <form
+            class="manage-import-sync-note"
+            onSubmit={(event) => {
+              event.preventDefault();
+              pushNote();
+            }}
+          >
+            <input
+              aria-label="External note"
+              placeholder="Add a note to the external item"
+              value={noteBody()}
+              onInput={(event) => setNoteBody(event.currentTarget.value)}
+            />
+            <Button type="submit" variant="ghost" disabled={syncBusy()}>
+              Post note
+            </Button>
+          </form>
+        </section>
+      </Show>
       <Show when={externalUrl}>
         <a href={externalUrl}>External work item</a>
       </Show>

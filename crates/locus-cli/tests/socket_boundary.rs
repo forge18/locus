@@ -15,7 +15,8 @@ use std::{fs, path::PathBuf};
 /// `lint` is the exception, and it is a real conflict: it is an agent verb, it is in the
 /// socket allowlist, and `main` still answers it locally — so the allowlist entry is
 /// unreachable. It stays local only until the daemon that would serve it exists.
-const LOCAL_COMMANDS: &[&str] = &["backup", "harness", "hook", "lint"];
+/// `ralph` is a local workflow helper and is not an agent-facing socket verb.
+const LOCAL_COMMANDS: &[&str] = &["backup", "harness", "hook", "lint", "ralph"];
 
 fn main_source() -> String {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/main.rs");
