@@ -14,11 +14,7 @@ would otherwise be forgotten.
 
 ## Where to start
 
-M1.5 is the current focus. Build session controls first, then dispatch permissions, then the Agent Pane.
-The research feed is a cross-milestone dependency: it needs `memory` and `planning-module` before the
-M1.5 surface can close. Rows 3–9 can proceed independently while that path is moving. M1.6's
-sbx-runtime row (36) also has only completed prerequisites and can proceed in parallel; Spike 4
-verified its load-bearing claims on this machine.
+M1.5 is complete. M1.6's sbx-runtime row (36) is complete.
 
 ## Progress
 
@@ -29,7 +25,7 @@ verified its load-bearing claims on this machine.
 | M0.6 | Desktop reconciliation | 6 | 195 | closed |
 | M0.7 | Current desktop mockup reconciliation | 11 | 324 | closed |
 | M1 | Core runtime | 14 | 270 | closed |
-| M1.5 | ACP agent panel, controls, and plugin contract | 5 | 64 | active |
+| M1.5 | ACP agent panel, controls, plugin contract, and build tooling | 6 | 70 | closed |
 | M1.6 | sbx agent runtime | 1 | 17 | closed |
 | M2 | Workspace | 3 | 57 | queued |
 | M3 | Coordination, memory, and mail | 6 | 133 | queued |
@@ -39,7 +35,7 @@ verified its load-bearing claims on this machine.
 | M6 | Automation and discoverability | 3 | 46 | queued |
 | M7 | Forge providers | 4 | 88 | queued |
 | M8 | Marketplace installer | 1 | 11 | queued |
-| **Total** | | **80** | **1,764** | **477 remaining** |
+| **Total** | | **81** | **1,770** | **477 remaining** |
 
 ## Settled foundations
 
@@ -261,6 +257,11 @@ edges. Items 32–33 are intentionally last because they depend on later plannin
   *Depends on:* completed `sandbox`, `run-supervisor`, and `security`
   *Completed:* backend selection and persistence, Docker parity, template import, scoped policy/audit, TCP relay auth, scratch/config materialization, git-daemon clone/push-back, boot metadata, and bounded command cleanup. Full workspace tests pass (`892` library tests plus workspace integration/desktop suites). Live sbx lifecycle, framed stdio, template import, clone/push-back, and a real Pi RPC session passed; the installed Pi `0.84.2` rejects `--acp`, so task 17's real Pi ACP check remains explicitly unexercised in [.specs/sbx-runtime/tasks.md](.specs/sbx-runtime/tasks.md).*
 
+- [x] **37. M1.5 — [justfile](.specs/justfile/spec.md)** · [tasks](.specs/justfile/tasks.md) · 6 tasks
+  Thin root justfile as the single entrypoint for build steps: recipes wrap current commands verbatim, the AGENTS.md commands table and CI steps call them, and existing spec `verify:` rows stay raw. Repo tooling, not a product feature.
+  *Depends on:* nothing — can run in parallel with any row
+  *Completed:* root recipes, deterministic named-test pass-through, CI wiring, raw-command fallbacks, and the full local `just ci` sequence.
+
 ## Open decisions
 
 Only unresolved decisions remain here; the owning spec is the source of truth. Closed decisions from
@@ -295,6 +296,7 @@ completed milestones are omitted unless they still affect an active feature.
 | [agent-prs](.specs/agent-prs/spec.md) | Define what “large” means for slicing a change. |
 | [ci-babysitter](.specs/ci-babysitter/spec.md) | Choose an ordinary workflow or supervisor behavior. |
 | [bots](.specs/bots/spec.md) | Decide whether the warm window scales by harness/model and whether a bot can pin an older definition version. |
+| [justfile](.specs/justfile/spec.md) | Whether agent container images include `just` in the baked allowlist; host/CI-only until then. |
 
 ## Carry-forward from M0
 
