@@ -48,7 +48,7 @@
   color: var(--text-muted);
   font-family: var(--fm);
   font-size: var(--t-micro);
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
@@ -110,7 +110,8 @@
 
 .bot-live-dot.bot-working {
   background: var(--status-working);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--status-working) 14%, transparent);
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--status-working) 14%, transparent);
 }
 
 .bot-list-copy {
@@ -190,7 +191,7 @@
 }
 
 .bots-routine-card[data-enabled="false"] {
-  opacity: .72;
+  opacity: 0.72;
 }
 
 .bots-routine-card p {

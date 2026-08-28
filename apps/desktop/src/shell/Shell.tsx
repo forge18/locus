@@ -46,7 +46,11 @@ export function desktopLocatorFor(
     return Desktop_PROJECT_ROUTE_KINDS.some(
         (candidate) => candidate.id === route,
     )
-        ? destinationDesktop(route, project, view === "bots" ? botId : undefined)
+        ? destinationDesktop(
+              route,
+              project,
+              view === "bots" ? botId : undefined,
+          )
         : destinationDesktop(route);
 }
 

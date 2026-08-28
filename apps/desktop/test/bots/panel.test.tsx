@@ -8,7 +8,9 @@ describe("bots/panel", () => {
     const pane = view.getByTestId("agent-pane");
     expect(pane.getAttribute("data-pty")).toBe("false");
     expect(pane.getAttribute("data-run-id")).toBe("bot-keeper-run");
-    expect(view.getByTestId("agent-panel-header").textContent).toContain("Keeper");
+    expect(view.getByTestId("agent-panel-header").textContent).toContain(
+      "Keeper",
+    );
     expect(view.getByTestId("agent-stream").textContent).toContain(
       "durable home conversation",
     );

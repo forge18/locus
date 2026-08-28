@@ -10,9 +10,9 @@ describe("bots/list", () => {
     );
     expect(view.getByTestId("bot-row-keeper").textContent).toContain("Keeper");
     expect(view.getByTestId("bot-row-keeper").textContent).toContain("pi");
-    expect(view.getByTestId("bot-list").querySelectorAll("button")).toHaveLength(
-      2,
-    );
+    expect(
+      view.getByTestId("bot-list").querySelectorAll("button"),
+    ).toHaveLength(2);
     expect(view.getByText(/A bot is a named teammate/).textContent).toContain(
       "never touches the board",
     );
@@ -28,11 +28,15 @@ describe("bots/list", () => {
 
   it("collapses to a dot strip without removing the bot selection", async () => {
     const view = render(() => <BotsView />);
-    await fireEvent.click(view.getByRole("button", { name: "Collapse bot list" }));
+    await fireEvent.click(
+      view.getByRole("button", { name: "Collapse bot list" }),
+    );
     expect(view.getByTestId("bots-view").getAttribute("data-collapsed")).toBe(
       "true",
     );
     expect(view.getByTestId("bot-row-keeper")).toBeTruthy();
-    expect(view.getByTestId("bot-row-keeper").querySelector("strong")).toBeNull();
+    expect(
+      view.getByTestId("bot-row-keeper").querySelector("strong"),
+    ).toBeNull();
   });
 });

@@ -16,9 +16,13 @@ describe("bots/routines-sheet", () => {
     });
     await fireEvent.click(view.getByTestId("open-routines"));
     await waitFor(() =>
-      expect(document.querySelector('[data-testid="bots-routines-sheet"]')).toBeTruthy(),
+      expect(
+        document.querySelector('[data-testid="bots-routines-sheet"]'),
+      ).toBeTruthy(),
     );
-    expect(document.querySelector('[data-testid="bot-routine-routine-health"]')).toBeTruthy();
+    expect(
+      document.querySelector('[data-testid="bot-routine-routine-health"]'),
+    ).toBeTruthy();
     expect(view.getByTestId("bot-home-pane")).toBeTruthy();
   });
 
@@ -28,7 +32,9 @@ describe("bots/routines-sheet", () => {
     });
     await fireEvent.click(view.getByTestId("open-routines"));
     await waitFor(() =>
-      expect(document.querySelector('[data-testid="bots-routines-sheet"]')).toBeTruthy(),
+      expect(
+        document.querySelector('[data-testid="bots-routines-sheet"]'),
+      ).toBeTruthy(),
     );
     await fireEvent.click(view.getByRole("button", { name: "Pause" }));
     await waitFor(() =>
@@ -52,9 +58,9 @@ describe("bots/routines-sheet", () => {
     );
 
     await fireEvent.click(view.getByRole("button", { name: "Test run" }));
-    expect(view.getByTestId("bot-routine-test-result").getAttribute("data-test-run")).toBe(
-      "true",
-    );
+    expect(
+      view.getByTestId("bot-routine-test-result").getAttribute("data-test-run"),
+    ).toBe("true");
 
     await fireEvent.click(view.getByRole("button", { name: "Delete" }));
     expect(view.queryByTestId("bot-routine-routine-health")).toBeNull();
