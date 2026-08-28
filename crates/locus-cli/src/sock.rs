@@ -1,4 +1,7 @@
-use std::path::Path;
+use std::{
+    env,
+    path::{Path, PathBuf},
+};
 
 use anyhow::{Context, Result};
 use locus_core::runtime::daemon::{
@@ -8,7 +11,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use serde_json::{Map, Value};
 use tokio::{
     io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
-    net::UnixStream,
+    net::{TcpStream, UnixStream},
 };
 
 pub const DEFAULT_SOCKET_PATH: &str = "/run/locus.sock";
@@ -624,13 +627,23 @@ pub async fn dispatch(
     dispatch: &VerbDispatch,
     args: &[String],
 ) -> std::result::Result<Value, DispatchError> {
+    let endpoint = SocketEndpoint::Unix(socket_path.as_ref().to_owned());
+    dispatch_endpoint(&endpoint, nonce, dispatch, args).await
+}
+
+pub async fn dispatch_endpoint(
+    endpoint: &SocketEndpoint,
+    nonce: &str,
+    dispatch: &VerbDispatch,
+    args: &[String],
+) -> std::result::Result<Value, DispatchError> {
     if nonce.trim().is_empty() {
         return Err(DispatchError::Transport(anyhow::anyhow!(
             "LOCUS_RUN_NONCE is required for daemon requests"
         )));
     }
-    let response: AgentSocketResponse = SocketClient::round_trip(
-        socket_path,
+    let response: AgentSocketResponse = SocketClient::round_trip_endpoint(
+        endpoint,
         &SocketRequest {
             nonce,
             verb: dispatch.verb,
@@ -656,6 +669,61 @@ fn socket_error(error: AgentSocketError) -> DispatchError {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct SocketClient;
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum SocketEndpoint {
+    Unix(PathBuf),
+    Tcp(String),
+}
+
+impl SocketEndpoint {
+    pub fn parse(value: &str) -> Result<Self> {
+        let address = value
+            .strip_prefix("tcp://")
+            .context("socket endpoint must use tcp://")?;
+        validate_tcp_address(address)?;
+        Ok(Self::Tcp(address.into()))
+    }
+
+    pub fn from_environment(default_path: impl Into<PathBuf>) -> Result<Self> {
+        match env::var("LOCUS_SOCKET_ENDPOINT") {
+            Ok(value) => Self::parse(&value),
+            Err(env::VarError::NotPresent) => Ok(Self::Unix(default_path.into())),
+            Err(error) => Err(error).context("read LOCUS_SOCKET_ENDPOINT"),
+        }
+    }
+}
+
+fn validate_tcp_address(address: &str) -> Result<()> {
+    if address.trim().is_empty()
+        || address.chars().any(char::is_whitespace)
+        || address.contains(['/', '?', '#', '@'])
+    {
+        anyhow::bail!("TCP socket endpoint must be host:port without a path or credentials")
+    }
+    let (host, port) = if address.starts_with('[') {
+        let close = address
+            .find(']')
+            .context("IPv6 socket endpoint is missing `]`")?;
+        let host = &address[..=close];
+        let port = address
+            .get(close + 1..)
+            .and_then(|value| value.strip_prefix(':'))
+            .context("TCP socket endpoint is missing a port")?;
+        (host, port)
+    } else {
+        address
+            .rsplit_once(':')
+            .context("TCP socket endpoint must be host:port")?
+    };
+    let port = port
+        .parse::<u16>()
+        .context("TCP socket endpoint must have a valid port")?;
+    if host.trim().is_empty() || port == 0 {
+        anyhow::bail!("TCP socket endpoint must have a valid non-zero port")
+    }
+    Ok(())
+}
+
 impl SocketClient {
     pub async fn round_trip<Request, Response>(
         socket_path: impl AsRef<Path>,
@@ -665,12 +733,37 @@ impl SocketClient {
         Request: Serialize,
         Response: DeserializeOwned,
     {
-        let socket_path = socket_path.as_ref();
-        let mut stream = UnixStream::connect(socket_path)
-            .await
-            .with_context(|| format!("connect to daemon socket `{}`", socket_path.display()))?;
-        write_frame(&mut stream, request).await?;
-        read_frame(&mut stream).await
+        Self::round_trip_endpoint(
+            &SocketEndpoint::Unix(socket_path.as_ref().to_owned()),
+            request,
+        )
+        .await
+    }
+
+    pub async fn round_trip_endpoint<Request, Response>(
+        endpoint: &SocketEndpoint,
+        request: &Request,
+    ) -> Result<Response>
+    where
+        Request: Serialize,
+        Response: DeserializeOwned,
+    {
+        match endpoint {
+            SocketEndpoint::Unix(socket_path) => {
+                let mut stream = UnixStream::connect(socket_path).await.with_context(|| {
+                    format!("connect to daemon socket `{}`", socket_path.display())
+                })?;
+                write_frame(&mut stream, request).await?;
+                read_frame(&mut stream).await
+            }
+            SocketEndpoint::Tcp(address) => {
+                let mut stream = TcpStream::connect(address)
+                    .await
+                    .with_context(|| format!("connect to daemon TCP relay `{address}`"))?;
+                write_frame(&mut stream, request).await?;
+                read_frame(&mut stream).await
+            }
+        }
     }
 }
 
@@ -717,7 +810,7 @@ use serde_json::json;
 #[cfg(test)]
 use std::sync::atomic::{AtomicUsize, Ordering};
 #[cfg(test)]
-use tokio::net::UnixListener;
+use tokio::net::{TcpListener, UnixListener};
 
 #[cfg(test)]
 fn test_socket_path() -> std::path::PathBuf {
@@ -754,6 +847,39 @@ async fn roundtrip() {
     assert_eq!(response, json!({"status":"running"}));
     server.await.expect("server task completes");
     std::fs::remove_file(path).expect("remove test socket");
+}
+
+#[tokio::test]
+async fn roundtrip_over_tcp_relay() {
+    let listener = TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind TCP relay test listener");
+    let address = listener.local_addr().expect("read TCP relay address");
+    let server = tokio::spawn(async move {
+        let (mut stream, _) = listener.accept().await.expect("accept relay client");
+        let request: Value = read_frame(&mut stream).await.expect("read relay request");
+        assert_eq!(request, json!({"verb":"run.status"}));
+        write_frame(&mut stream, &json!({"status":"running"}))
+            .await
+            .expect("write relay response");
+    });
+
+    let endpoint = SocketEndpoint::Tcp(address.to_string());
+    let response: Value =
+        SocketClient::round_trip_endpoint(&endpoint, &json!({"verb":"run.status"}))
+            .await
+            .expect("TCP relay round trip succeeds");
+
+    assert_eq!(response, json!({"status":"running"}));
+    server.await.expect("relay server task completes");
+}
+
+#[test]
+fn socket_endpoint_rejects_paths_and_zero_ports() {
+    assert!(SocketEndpoint::parse("tcp://host.docker.internal:44001").is_ok());
+    assert!(SocketEndpoint::parse("tcp://host.docker.internal:0").is_err());
+    assert!(SocketEndpoint::parse("tcp://user:secret@example.test:1").is_err());
+    assert!(SocketEndpoint::parse("/run/locus.sock").is_err());
 }
 
 #[tokio::test]

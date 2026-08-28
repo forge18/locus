@@ -272,6 +272,14 @@ is the endpoint those interventions are converging toward, reached directly.
 Network `locus-<project>` joins a project's agents and service containers. Agents reach each other and
 the project's services; they do not reach other projects.
 
+**Runtime backends.** Docker is the default container backend. The machine-level `LOCUS_RUNTIME=sbx`
+selection uses Docker Sandboxes as an opt-in microVM backend behind the same run contract: one ACP
+session, clone-not-mount workspace, host-owned credentials, and the same run branch invariant. An sbx
+run uses its scratch directory, the authenticated TCP relay, a host git-daemon port, and sandbox-scoped
+network policy instead of the Docker socket, Unix-socket mount, and project Docker network. The backend
+is recorded on the run row and cannot change during that run; a missing binary or uninitialized sbx
+policy fails honestly rather than falling back to Docker.
+
 **"Headless" means no TUI, not a terminal.** The core drives the harness over ACP — stdio, one
 session per run — so there is no terminal pane to show what the process wrote; the agent renders as
 normalized events instead. What `tui = false` asserts is that the harness does not multiplex several

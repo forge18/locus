@@ -40,7 +40,7 @@ use crate::sandbox::{
         policy_directory_is_empty, ForwardProxyLaunch, ForwardProxyPolicy, FORWARD_PROXY_ALIAS,
     },
     mounts::Mount,
-    mounts::PtyAttachment,
+    mounts::{PtyAttachment, AGENT_PTY},
 };
 /// Whether the container runtime built the image or reused its existing cache entry.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -141,7 +141,14 @@ impl DebugAdapterLaunch {
 /// The supplied container adapter owns image caching, container creation, and PTY plumbing; this
 /// supervisor owns their ordering and the run state transition.
 pub trait ContainerRuntime: Send {
+    fn backend(&self) -> super::backend::RuntimeBackend {
+        super::backend::RuntimeBackend::Docker
+    }
+
     fn build_or_reuse_image(&mut self, image: &str) -> Result<ImageDisposition>;
+    fn prepare_container(&mut self, _container: &mut ContainerLaunch) -> Result<()> {
+        Ok(())
+    }
     fn start_container(&mut self, container: &ContainerLaunch) -> Result<()>;
     fn attach_pty(
         &mut self,
@@ -150,6 +157,21 @@ pub trait ContainerRuntime: Send {
         stream: PtyStream,
     ) -> Result<()>;
     fn stop_container(&mut self, container: &str) -> Result<()>;
+
+    fn attach_audit_sink(
+        &mut self,
+        _sink: Arc<dyn crate::sandbox::egress::AuditSink>,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    fn remove_container(&mut self, _container: &str) -> Result<()> {
+        bail!("container removal is not supported by this runtime")
+    }
+
+    fn container_is_alive(&mut self, _container: &str) -> Result<bool> {
+        bail!("container state is not supported by this runtime")
+    }
 
     /// Launch an adapter through the run container's stdio and return the owned DAP process.
     /// Lightweight runtimes may omit this capability, but production runtimes must not replace
@@ -573,6 +595,25 @@ impl ContainerRuntime for DockerContainerRuntime {
         })
     }
 
+    fn remove_container(&mut self, container: &str) -> Result<()> {
+        let docker = self.docker.clone();
+        let container = container.to_owned();
+        Self::block_on(async move {
+            docker
+                .remove_container(
+                    &container,
+                    Some(RemoveContainerOptionsBuilder::default().force(true).build()),
+                )
+                .await
+                .context("remove agent container")?;
+            Ok(())
+        })
+    }
+
+    fn container_is_alive(&mut self, container: &str) -> Result<bool> {
+        <Self as crate::runtime::boot::BootRuntime>::container_is_alive(self, container)
+    }
+
     fn launch_debug_adapter(
         &mut self,
         launch: &DebugAdapterLaunch,
@@ -717,6 +758,38 @@ impl ContainerRuntime for DockerContainerRuntime {
             let _ = fs::remove_dir(&proxy.policy_root);
             Ok(())
         })
+    }
+}
+
+impl crate::runtime::boot::BootRuntime for DockerContainerRuntime {
+    fn container_is_alive(&mut self, container: &str) -> Result<bool> {
+        let docker = self.docker.clone();
+        let container = container.to_owned();
+        Self::block_on(async move {
+            match docker
+                .inspect_container(
+                    &container,
+                    Some(InspectContainerOptionsBuilder::default().build()),
+                )
+                .await
+            {
+                Ok(inspected) => Ok(inspected
+                    .state
+                    .and_then(|state| state.running)
+                    .unwrap_or(false)),
+                Err(error)
+                    if error.to_string().contains("No such container")
+                        || error.to_string().contains("No such object") =>
+                {
+                    Ok(false)
+                }
+                Err(error) => Err(error).context("inspect Docker agent container state"),
+            }
+        })
+    }
+
+    fn reattach_pty(&mut self, container: &str, stream: PtyStream) -> Result<()> {
+        <Self as ContainerRuntime>::attach_pty(self, container, AGENT_PTY, stream)
     }
 }
 

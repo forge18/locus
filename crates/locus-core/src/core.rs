@@ -25,7 +25,13 @@ use crate::{
     ipc::{EventChannel, PtyChannel},
     lsp::{LanguageCatalog, LspHost},
     plugin::{builtin_manifests, PluginKind, PluginProcess, WorkItemProviderDescriptor},
-    runtime::{daemon::Daemon, dap::DebugSessionRegistry},
+    runtime::{
+        backend::{RuntimeBackend, RuntimeConfig},
+        container::{ContainerRuntime, DockerContainerRuntime},
+        daemon::Daemon,
+        dap::DebugSessionRegistry,
+    },
+    sandbox::sbx::SbxContainerRuntime,
     services::{handoff::HandoffRegistry, telemetry::EventCollector},
     store::Store,
     work_item::{
@@ -43,6 +49,7 @@ const CHANNEL_CAPACITY: usize = 1_024;
 /// service; closing the app detaches the UI and nothing else."
 pub struct Core {
     registry: HarnessRegistry,
+    runtime: RuntimeConfig,
     collector: EventCollector,
     pty: PtyChannel,
     events: EventChannel,
@@ -79,9 +86,11 @@ impl Core {
                     .context("merge user language catalog")?;
             }
         }
+        let runtime = RuntimeConfig::from_env().context("load container runtime config")?;
         let debug = DebugSessionRegistry::default();
         Ok(Arc::new(Self {
             registry,
+            runtime,
             collector: EventCollector::new(CHANNEL_CAPACITY),
             pty: PtyChannel::new(CHANNEL_CAPACITY),
             events: EventChannel::new(CHANNEL_CAPACITY),
@@ -174,6 +183,21 @@ impl Core {
 
     pub fn registry(&self) -> &HarnessRegistry {
         &self.registry
+    }
+
+    pub fn runtime_config(&self) -> &RuntimeConfig {
+        &self.runtime
+    }
+
+    /// Connect the selected host runtime. Docker callers may choose to degrade when their
+    /// daemon is unavailable; sbx callers must propagate the error and never fall back.
+    pub fn connect_container_runtime(&self) -> Result<Box<dyn ContainerRuntime>> {
+        match self.runtime.backend {
+            RuntimeBackend::Docker => Ok(Box::new(DockerContainerRuntime::connect()?)),
+            RuntimeBackend::Sbx => Ok(Box::new(SbxContainerRuntime::connect(
+                self.runtime.sbx.clone(),
+            )?)),
+        }
     }
 
     pub fn collector(&self) -> &EventCollector {

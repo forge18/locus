@@ -2528,6 +2528,7 @@ dependencies = [
  "hmac 0.12.1",
  "image",
  "keyring",
+ "libc",
  "locus-core",
  "minisign",
  "reqwest 0.12.28",

@@ -25,3 +25,4 @@ tracing = "0.1"
 toml = "0.8"
 agent-client-protocol = "2.0.0"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
+libc = "0.2"

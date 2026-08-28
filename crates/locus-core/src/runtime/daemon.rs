@@ -12,8 +12,8 @@ use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
-    net::{UnixListener, UnixStream},
+    io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
+    net::{TcpListener, UnixListener},
 };
 use uuid::Uuid;
 
@@ -300,7 +300,7 @@ pub fn stop_expired_bot(action: WarmStopAction, runtime: &mut impl ContainerRunt
 
 /// Framed request sent by an agent container. The nonce identifies the one run permitted to make
 /// the request; container peer credentials cannot provide that identity reliably on macOS relays.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct AgentSocketRequest {
     pub nonce: String,
     pub verb: AgentSocketVerb,
@@ -648,6 +648,12 @@ pub fn read_agent_registrations(root: impl AsRef<Path>) -> Result<Vec<AgentRunRe
     Ok(registrations)
 }
 
+pub async fn bind_agent_tcp_relay(address: std::net::SocketAddr) -> Result<TcpListener> {
+    TcpListener::bind(address)
+        .await
+        .with_context(|| format!("bind agent TCP relay {address}"))
+}
+
 pub fn bind_agent_socket(path: impl AsRef<Path>) -> Result<UnixListener> {
     let path = path.as_ref();
     if let Some(parent) = path.parent() {
@@ -704,12 +710,15 @@ fn is_lsp_socket_verb(verb: AgentSocketVerb) -> bool {
     )
 }
 
-async fn serve_agent_socket_stream(
-    mut stream: UnixStream,
+async fn serve_agent_socket_stream<Stream>(
+    mut stream: Stream,
     capabilities: &BTreeMap<String, RunId>,
     lsp_runs: Option<&BTreeSet<RunId>>,
     router: &impl AgentSocketRouter,
-) -> Result<()> {
+) -> Result<()>
+where
+    Stream: AsyncRead + AsyncWrite + Unpin,
+{
     let request: AgentSocketRequest = read_frame(&mut stream).await?;
     let response = match capabilities.get(&request.nonce) {
         Some(run_id)
@@ -786,6 +795,46 @@ where
     }
 }
 
+/// Serve the authenticated request envelope over the host TCP relay used by sbx.
+///
+/// The relay carries no new authority: every request still supplies the run nonce and is checked
+/// against the same live capability map as the Unix socket. The listener should be bound to a
+/// loopback address; `host.docker.internal` is the sandbox-only route to that host listener.
+pub async fn serve_agent_tcp_shared<R>(
+    listener: &TcpListener,
+    capabilities: AgentSocketCapabilities,
+    router: Arc<R>,
+) -> Result<()>
+where
+    R: AgentSocketRouter + 'static,
+{
+    loop {
+        let (stream, _) = listener
+            .accept()
+            .await
+            .context("accept agent TCP relay client")?;
+        let capabilities = capabilities.clone();
+        let router = Arc::clone(&router);
+        tokio::spawn(async move {
+            match capabilities.snapshot() {
+                Ok((snapshot, lsp_runs)) => {
+                    if let Err(error) = serve_agent_socket_stream(
+                        stream,
+                        &snapshot,
+                        Some(&lsp_runs),
+                        router.as_ref(),
+                    )
+                    .await
+                    {
+                        tracing::warn!(%error, "agent TCP relay request failed");
+                    }
+                }
+                Err(error) => tracing::warn!(%error, "agent TCP relay capability snapshot failed"),
+            }
+        });
+    }
+}
+
 /// The accept loop `serve_agent_socket_once` was always meant to sit inside.
 ///
 /// One connection at a time: the agent CLI is request/response and a run makes one call
@@ -804,7 +853,11 @@ pub async fn serve_agent_socket(
     }
 }
 
-async fn read_frame<T: serde::de::DeserializeOwned>(stream: &mut UnixStream) -> Result<T> {
+async fn read_frame<Stream, T>(stream: &mut Stream) -> Result<T>
+where
+    Stream: AsyncRead + Unpin,
+    T: serde::de::DeserializeOwned,
+{
     let length = stream
         .read_u32()
         .await
@@ -820,7 +873,11 @@ async fn read_frame<T: serde::de::DeserializeOwned>(stream: &mut UnixStream) -> 
     serde_json::from_slice(&bytes).context("decode socket request")
 }
 
-async fn write_frame<T: Serialize>(stream: &mut UnixStream, value: &T) -> Result<()> {
+async fn write_frame<Stream, T>(stream: &mut Stream, value: &T) -> Result<()>
+where
+    Stream: AsyncWrite + Unpin,
+    T: Serialize,
+{
     let bytes = serde_json::to_vec(value).context("encode socket response")?;
     let length = u32::try_from(bytes.len()).context("socket response exceeds u32 length")?;
     stream
@@ -917,7 +974,7 @@ mod outlives_window {
 mod agent_socket {
     use super::{
         bind_agent_socket, read_frame, serve_agent_socket_once, serve_agent_socket_stream,
-        AgentSocketRouter, MAX_AGENT_SOCKET_FRAME_BYTES,
+        AgentSocketRequest, AgentSocketResponse, AgentSocketRouter, MAX_AGENT_SOCKET_FRAME_BYTES,
     };
     use crate::ids::RunId;
     use serde_json::json;
@@ -927,7 +984,7 @@ mod agent_socket {
     };
     use tokio::{
         io::{AsyncReadExt, AsyncWriteExt},
-        net::UnixStream,
+        net::{TcpListener, TcpStream, UnixStream},
     };
     use uuid::Uuid;
 
@@ -972,6 +1029,31 @@ mod agent_socket {
         stream.read_exact(&mut response).await.unwrap();
         serde_json::from_slice(&response).unwrap()
     }
+    #[tokio::test]
+    async fn tcp_relay_preserves_nonce_authorization() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let run_id = RunId::generate();
+        let capabilities = BTreeMap::from([(String::from("nonce"), run_id)]);
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            serve_agent_socket_stream(stream, &capabilities, Some(&BTreeSet::new()), &Router)
+                .await
+                .unwrap();
+        });
+        let mut client = TcpStream::connect(address).await.unwrap();
+        let request = AgentSocketRequest {
+            nonce: "nonce".into(),
+            verb: super::AgentSocketVerb::RunStatus,
+            args: vec![],
+        };
+        super::write_frame(&mut client, &request).await.unwrap();
+        let response: AgentSocketResponse = read_frame(&mut client).await.unwrap();
+        assert!(response.error.is_none());
+        assert_eq!(response.result.unwrap()["run_id"], run_id.to_string());
+        server.await.unwrap();
+    }
+
     #[tokio::test]
     async fn refuses_lsp_before_routing_when_the_run_lacks_the_capability() {
         let path = path();
@@ -1019,7 +1101,7 @@ mod agent_socket {
         });
         let (mut stream, _) = listener.accept().await.unwrap();
         client.await.unwrap();
-        let error = read_frame::<serde_json::Value>(&mut stream)
+        let error = read_frame::<_, serde_json::Value>(&mut stream)
             .await
             .unwrap_err();
         assert!(error.to_string().contains("exceeds"));
