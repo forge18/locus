@@ -1613,19 +1613,6 @@ pub fn verify_in_fresh_container(
     Ok(evidence)
 }
 
-impl<T> VerifyContainerRunner for T
-where
-    T: crate::runtime::container::ContainerRuntime,
-{
-    fn run_fresh_container(
-        &mut self,
-        request: &VerifyContainerRequest,
-    ) -> Result<VerifyEvidence, VerifyError> {
-        self.run_verify_container(request)
-            .map_err(|_| VerifyError::RunnerUnavailable)
-    }
-}
-
 #[derive(Debug, Error, Eq, PartialEq)]
 pub enum VerifyError {
     #[error("verification cannot run on main or master")]

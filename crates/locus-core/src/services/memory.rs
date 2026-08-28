@@ -1197,7 +1197,6 @@ mod memory {
         assert!(build_catalog(&[]).text.is_empty());
     }
     #[test]
-    #[ignore]
     fn cross_harness_recall() {
         let project = ProjectId::generate();
         let mut store = DurableMemoryStore::default();

@@ -703,10 +703,14 @@ mod permission_request_by_posture {
         let mut gates = collector.subscribe_gates();
         collector.capture_with_posture(
             RunId::generate(),
-            PermissionPosture::Bypass,
+            PermissionPosture::Bypass.is_gated(),
             captured.clone(),
         );
-        collector.capture_with_posture(RunId::generate(), PermissionPosture::Gated, captured);
+        collector.capture_with_posture(
+            RunId::generate(),
+            PermissionPosture::Gated.is_gated(),
+            captured,
+        );
         assert!(alarms.try_recv().is_ok());
         assert!(gates.try_recv().is_ok());
     }

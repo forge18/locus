@@ -228,6 +228,7 @@ pub fn description_fields() -> BTreeSet<&'static str> {
 }
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod pr {
     use super::*;
 

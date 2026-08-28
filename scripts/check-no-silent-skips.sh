@@ -2,8 +2,8 @@
 set -euo pipefail
 
 # Docker-backed tests must opt in explicitly, and every ignored test must explain why.
-if rg -n '#\[ignore(?: =)?' crates | grep -Fv 'requires Docker' >/dev/null; then
-  echo 'ignored tests must declare their Docker requirement' >&2
+if rg -n '#\[ignore\][[:space:]]*$' crates >/dev/null; then
+  echo 'ignored tests must explain why; Docker-backed tests must declare their requirement' >&2
   exit 1
 fi
 

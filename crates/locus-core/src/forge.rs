@@ -452,6 +452,7 @@ pub fn sign_webhook(payload: &[u8], secret: &[u8]) -> String {
 }
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod forge {
     use super::*;
 
@@ -476,7 +477,7 @@ mod forge {
     #[test]
     fn contract_types() {
         assert_eq!(ForgeKind::ALL.len(), 5);
-        assert_eq!(ForgeCapabilities::ALL.issues, true);
+        const { assert!(ForgeCapabilities::ALL.issues) };
     }
 
     #[test]

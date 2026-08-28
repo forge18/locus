@@ -609,6 +609,7 @@ pub fn routine_attribution_payload(
 }
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod bots {
     use super::*;
 

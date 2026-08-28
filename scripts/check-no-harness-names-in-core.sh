@@ -18,7 +18,14 @@ if [[ -z "$harness_names" ]]; then
     exit 1
 fi
 
-pattern="(^|[^[:alnum:]_])(${harness_names})([^[:alnum:]_]|$)"
+# `cursor` is both a registered harness and a normal external-sync domain term.
+# Keep quoted/path references detectable, but do not treat a bare cursor identifier
+# as a harness name.
+bare_harness_names=$(printf '%s\n' "$harness_names" | tr '|' '\n' | sed '/^cursor$/d' | paste -sd '|' -)
+pattern="(['\"])(${harness_names})(['\"])|harnesses/(${harness_names})([^[:alnum:]_]|$)"
+if [[ -n "$bare_harness_names" ]]; then
+    pattern+="|(^|[^[:alnum:]_])(${bare_harness_names})([^[:alnum:]_]|$)"
+fi
 violations=0
 
 # Blank every `#[cfg(test)]` item, in every file, keeping line numbers intact so a

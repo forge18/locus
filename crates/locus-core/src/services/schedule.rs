@@ -354,7 +354,7 @@ mod sched {
     fn cron_parses() {
         let cron = CronExpression::parse("*/15 9-17 * * 1-5").expect("cron");
         assert_eq!(cron.source(), "*/15 9-17 * * 1-5");
-        assert_eq!(cron.next_after(at(1_700_000_000)).is_ok(), true);
+        assert!(cron.next_after(at(1_700_000_000)).is_ok());
     }
 
     #[test]
@@ -428,7 +428,7 @@ mod sched {
         );
         schedule.fire(at(1_700_000_000));
         schedule.fire(at(1_700_000_060));
-        assert!(schedule.has_backlog() == false);
+        assert!(!schedule.has_backlog());
     }
 
     #[test]
