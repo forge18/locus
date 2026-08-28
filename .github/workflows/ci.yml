@@ -53,7 +53,15 @@ jobs:
       - name: Install desktop dependencies
         run: pnpm --dir apps/desktop install --frozen-lockfile
 
+      - name: Configure git for repository tests
+        run: |
+          git config --global user.name "Locus CI"
+          git config --global user.email "ci@localhost"
+          git config --global init.defaultBranch main
+
       - name: Rust tests
+        env:
+          RUST_TEST_THREADS: 1
         run: just test
 
       - name: Rust clippy (warnings fail)
