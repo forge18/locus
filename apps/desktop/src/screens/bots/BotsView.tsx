@@ -3,9 +3,10 @@ import type { AgentEvent } from "../../types/event";
 import { Avatar } from "../../avatars/Avatar";
 import { AgentPane, type AgentPaneSession } from "../../panes/AgentPane";
 import { destinationDesktop } from "../../nav/desktop-navigation";
+import { createBot, type Bot } from "../../data/bots";
 import { Button } from "../../ui/Button";
 import { FixtureNotice } from "../../ui/FixtureNotice";
-import { Input } from "../../ui/Input";
+import { Input, Textarea } from "../../ui/Input";
 import { Sheet } from "../../ui/Sheet";
 import "./bots.css";
 
@@ -65,6 +66,18 @@ export interface BotsViewProps {
   botId?: string;
   bots?: readonly BotViewModel[];
   initialRoutines?: readonly RoutineViewModel[];
+}
+
+function toBotViewModel(bot: Bot): BotViewModel {
+  return {
+    id: bot.id,
+    name: bot.name,
+    description: "Created from the Bots workspace.",
+    harness: "pi",
+    lastActivity: "now",
+    state: bot.containerState === "running" ? "working" : "idle",
+    runId: bot.homeSessionId,
+  };
 }
 
 function botSession(bot: BotViewModel, project: string): AgentPaneSession {
@@ -262,7 +275,8 @@ function RoutinesSheet(props: {
 
 export default function BotsView(props: BotsViewProps) {
   const project = () => props.projectId ?? "tapestry";
-  const bots = () => props.bots ?? BOTS;
+  const [createdBots, setCreatedBots] = createSignal<BotViewModel[]>([]);
+  const bots = createMemo(() => [...(props.bots ?? BOTS), ...createdBots()]);
   const [selectedId, setSelectedId] = createSignal(
     props.botId && bots().some((bot) => bot.id === props.botId)
       ? props.botId
@@ -270,12 +284,49 @@ export default function BotsView(props: BotsViewProps) {
   );
   const [collapsed, setCollapsed] = createSignal(false);
   const [routinesOpen, setRoutinesOpen] = createSignal(false);
+  const [newBotOpen, setNewBotOpen] = createSignal(false);
+  const [newBotMarkdown, setNewBotMarkdown] = createSignal("");
+  const [newBotError, setNewBotError] = createSignal<string | null>(null);
+  const [creatingBot, setCreatingBot] = createSignal(false);
   const [routines, setRoutines] = createSignal(
     props.initialRoutines ?? INITIAL_ROUTINES,
   );
   const selected = createMemo(
     () => bots().find((bot) => bot.id === selectedId()) ?? bots()[0],
   );
+
+  const openNewBot = () => {
+    setNewBotError(null);
+    setNewBotMarkdown("");
+    setNewBotOpen(true);
+  };
+
+  const submitNewBot = async (event: SubmitEvent) => {
+    event.preventDefault();
+    const markdown = newBotMarkdown().trim();
+    if (!markdown) {
+      setNewBotError("Enter a bot definition before creating the bot.");
+      return;
+    }
+
+    setCreatingBot(true);
+    setNewBotError(null);
+    try {
+      const bot = await createBot(project(), markdown);
+      const viewModel = toBotViewModel(bot);
+      setCreatedBots((current) => [...current, viewModel]);
+      setSelectedId(viewModel.id);
+      setNewBotOpen(false);
+    } catch (error) {
+      setNewBotError(
+        error instanceof Error
+          ? error.message
+          : "The bot could not be created.",
+      );
+    } finally {
+      setCreatingBot(false);
+    }
+  };
 
   return (
     <div
@@ -300,7 +351,7 @@ export default function BotsView(props: BotsViewProps) {
           </button>
         </header>
         <div class="bots-list-actions">
-          <Button variant="primary" data-testid="new-bot">
+          <Button variant="primary" data-testid="new-bot" onClick={openNewBot}>
             + New bot
           </Button>
           <Button
@@ -378,6 +429,51 @@ export default function BotsView(props: BotsViewProps) {
           )}
         </Show>
       </main>
+      <Sheet open={newBotOpen()} onOpenChange={setNewBotOpen} title="New bot">
+        <form
+          class="bots-new-bot-form"
+          data-testid="new-bot-form"
+          onSubmit={submitNewBot}
+        >
+          <p class="bots-routines-note">
+            Add the markdown definition for a standing teammate. The core will
+            create its workspace and home session.
+          </p>
+          <label>
+            Bot definition
+            <Textarea
+              aria-label="Bot definition"
+              value={newBotMarkdown()}
+              onInput={(event) => setNewBotMarkdown(event.currentTarget.value)}
+              rows={8}
+            />
+          </label>
+          <Show when={newBotError()}>
+            {(error) => (
+              <p role="alert" class="bots-new-bot-error">
+                {error()}
+              </p>
+            )}
+          </Show>
+          <div class="bots-routine-actions">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setNewBotOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={creatingBot()}
+              aria-busy={creatingBot()}
+            >
+              {creatingBot() ? "Creating…" : "Create bot"}
+            </Button>
+          </div>
+        </form>
+      </Sheet>
       <Sheet
         open={routinesOpen()}
         onOpenChange={setRoutinesOpen}

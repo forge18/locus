@@ -26,6 +26,23 @@ describe("bots/list", () => {
     expect(view.getByTestId("bot-home-pane").textContent).toBe("");
   });
 
+  it("opens the new bot form and validates an empty definition", async () => {
+    const view = render(() => <BotsView projectId="tapestry" bots={[]} />);
+
+    await fireEvent.click(view.getByTestId("new-bot"));
+    expect(document.querySelector('[data-testid="new-bot-form"]')).not.toBe(
+      null,
+    );
+
+    const createButton = document.querySelector(
+      '[data-testid="new-bot-form"] button[type="submit"]',
+    );
+    await fireEvent.click(createButton!);
+    expect(document.querySelector('[role="alert"]')?.textContent).toContain(
+      "Enter a bot definition",
+    );
+  });
+
   it("collapses to a dot strip without removing the bot selection", async () => {
     const view = render(() => <BotsView />);
     await fireEvent.click(
