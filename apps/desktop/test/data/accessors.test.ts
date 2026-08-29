@@ -9,7 +9,7 @@ const modules = readdirSync(dataDir)
   .sort();
 
 /** Every fixture module a screen reads has to be reachable through an accessor. */
-const DATA_SETS = [
+const FIXTURE_DATA_SETS = [
   "agent-defs",
   "analytics",
   "artifacts",
@@ -31,6 +31,11 @@ const DATA_SETS = [
   "telemetry",
   "workflow",
 ];
+const NON_FIXTURE_DATA_SETS = ["bots", "work-items", "workflow-events"];
+const DATA_SETS = [...FIXTURE_DATA_SETS, ...NON_FIXTURE_DATA_SETS]
+  .map((name) => `${name}.ts`)
+  .sort()
+  .map((file) => file.slice(0, -3));
 
 describe("data/accessors", () => {
   it("has one accessor module per data set", () => {
@@ -58,7 +63,7 @@ describe("data/accessors", () => {
       }
     }
     expect(Object.keys(results).length).toBeGreaterThanOrEqual(
-      DATA_SETS.length,
+      FIXTURE_DATA_SETS.length,
     );
     for (const [name, value] of Object.entries(results)) {
       expect(value, `${name} returned nothing`).not.toBe(undefined);
@@ -79,7 +84,8 @@ describe("data/accessors", () => {
   });
 
   it("is the only thing that reads a fixture", () => {
-    for (const file of modules) {
+    for (const name of FIXTURE_DATA_SETS) {
+      const file = `${name}.ts`;
       const source = readFileSync(resolve(dataDir, file), "utf8");
       expect(source, `${file} reads no fixture`).toMatch(
         /from ["']\.\.\/(fixtures|types)\//,

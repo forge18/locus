@@ -57,9 +57,10 @@ describe('inbox/resolves-in-place', () => {
   it('drops the badge count as items resolve', () => {
     const { getByTestId } = mount()
     // The inbox itself presents the unresolved count in its visible heading.
-    expect(getByTestId('needs-you-note').textContent).toContain('3 items')
+    const initialCount = useInboxItems().length
+    expect(getByTestId('needs-you-note').textContent).toContain(`${initialCount} items`)
     getByTestId('inbox-approve').click()
-    expect(getByTestId('needs-you-note').textContent).toContain('2 items')
+    expect(getByTestId('needs-you-note').textContent).toContain(`${initialCount - 1} items`)
   })
 
   it('resolves a send-back too — the decision is made either way', () => {

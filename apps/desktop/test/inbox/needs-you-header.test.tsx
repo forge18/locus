@@ -38,8 +38,9 @@ describe('inbox/needs-you-header', () => {
     const { getByTestId } = mount()
     const [first] = useInboxItems()
     getByTestId(`inbox-card-${first.id}`).click()
-    getByTestId('inbox-approve').click()
-    getByTestId('inbox-approve').click()
+    for (let index = 1; index < useInboxItems().length; index += 1) {
+      getByTestId('inbox-approve').click()
+    }
     expect(getByTestId('needs-you-note').textContent).toContain('1 item ·')
   })
 })
