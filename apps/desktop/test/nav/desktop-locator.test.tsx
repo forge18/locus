@@ -24,7 +24,9 @@ describe("nav/desktop-locator", () => {
     ));
     fireEvent.keyDown(document, { key: "k", metaKey: true });
     expect(
-      document.querySelector('[data-testid="locator-palette-input"][data-mode="locator"]'),
+      document.querySelector(
+        '[data-testid="locator-palette-input"][data-mode="locator"]',
+      ),
     ).toBeTruthy();
   });
 
@@ -53,7 +55,8 @@ describe("nav/desktop-locator", () => {
     expect(input.placeholder).toContain("code, wiki, tasks, and runs");
     fireEvent.input(input, { target: { value: "overview" } });
     expect(
-      document.querySelector("[data-testid=palette-results]")?.textContent ?? "",
+      document.querySelector("[data-testid=palette-results]")?.textContent ??
+        "",
     ).toContain("locus");
   });
 });

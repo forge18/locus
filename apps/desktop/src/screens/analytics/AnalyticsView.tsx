@@ -88,7 +88,8 @@ export function AnalyticsView(props: AnalyticsViewProps) {
                         Math.max(
                                 12,
                                 Math.round(
-                                        (source[index % source.length] / maximum) *
+                                        (source[index % source.length] /
+                                                maximum) *
                                                 ceiling,
                                 ),
                         ),
@@ -332,7 +333,7 @@ export function AnalyticsView(props: AnalyticsViewProps) {
                                                         </For>
                                                 </div>
                                                 <div class="analytics-bars">
-                                                        <For each={trendBars()} >
+                                                        <For each={trendBars()}>
                                                                 {(height) => (
                                                                         <i
                                                                                 style={{

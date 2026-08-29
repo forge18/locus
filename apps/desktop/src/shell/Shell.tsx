@@ -138,19 +138,23 @@ export function Shell(props: ShellProps) {
                     openDesktopLocator(destinationDesktop("autorun"))
                 }
                 onStopAll={() => {
-                    void stopAllDispatch().then(
-                        ({ stoppedRuns }) =>
+                    void stopAllDispatch()
+                        .then(({ stoppedRuns }) =>
                             notify({
                                 title: "Dispatch stopped",
                                 description: `${stoppedRuns} run${stoppedRuns === 1 ? "" : "s"} stopped.`,
                             }),
-                    ).catch((error: unknown) =>
-                        notify({
-                            title: "Stop all failed",
-                            description: error instanceof Error ? error.message : String(error),
-                            type: "error",
-                        }),
-                    );
+                        )
+                        .catch((error: unknown) =>
+                            notify({
+                                title: "Stop all failed",
+                                description:
+                                    error instanceof Error
+                                        ? error.message
+                                        : String(error),
+                                type: "error",
+                            }),
+                        );
                 }}
                 onOpenInbox={() =>
                     openDesktopLocator(destinationDesktop("inbox"))

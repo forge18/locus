@@ -8,7 +8,11 @@ import { destinationDesktop, navigateDesktop } from "./desktop-navigation";
 import type { DesktopNavTarget } from "./desktop-locator";
 import { Desktop_ROUTE_KINDS } from "./desktop-route-kinds";
 
-export const PALETTE_SECTIONS = ["Needs you", "Running now", "Where you were"] as const;
+export const PALETTE_SECTIONS = [
+  "Needs you",
+  "Running now",
+  "Where you were",
+] as const;
 export type PaletteSection = (typeof PALETTE_SECTIONS)[number];
 
 export interface PaletteSessionState {
@@ -158,7 +162,8 @@ export function LocatorPalette(props: LocatorPaletteProps) {
     }
   };
   const moveSelection = (delta: number) => {
-    const count = mode() === "search" ? searchResults().length : destinations().length;
+    const count =
+      mode() === "search" ? searchResults().length : destinations().length;
     if (!count) return;
     const current = selected();
     const next =
@@ -215,7 +220,10 @@ export function LocatorPalette(props: LocatorPaletteProps) {
         <Show
           when={mode() === "search"}
           fallback={
-            <div aria-label="Suggested destinations" data-testid="palette-results">
+            <div
+              aria-label="Suggested destinations"
+              data-testid="palette-results"
+            >
               <For each={sections}>
                 {(section) => (
                   <section>
