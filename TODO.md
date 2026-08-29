@@ -1,6 +1,6 @@
 # TODO
 
-**Remaining:** 35 features · 476 tasks.
+**Remaining:** 34 features · 466 tasks.
 
 This is the unfinished-work index. [`PLAN.md`](PLAN.md) is the architecture authority. Each feature's
 `spec.md` is its contract; its `tasks.md` is the runnable decomposition and verification source.
@@ -14,8 +14,7 @@ would otherwise be forgotten.
 
 ## Where to start
 
-M1.5 is complete. Row 38 (bot-avatars) has completed prerequisites and can proceed next. M1.6's
-sbx-runtime row (36) is complete.
+M1.5 and bot-avatars are complete. M1.6's sbx-runtime row (36) is complete.
 
 ## Progress
 
@@ -263,9 +262,10 @@ edges. Items 32–33 are intentionally last because they depend on later plannin
   *Depends on:* nothing — can run in parallel with any row
   *Completed:* root recipes, deterministic named-test pass-through, CI wiring, raw-command fallbacks, and the full local `just ci` sequence.
 
-- [ ] **38. M6 — [bot-avatars](.specs/bot-avatars/spec.md)** · [tasks](.specs/bot-avatars/tasks.md) · 10 tasks
+- [x] **38. M6 — [bot-avatars](.specs/bot-avatars/spec.md)** · [tasks](.specs/bot-avatars/tasks.md) · 10 tasks
   Derived DiceBear bot avatars: id-seeded, never stored; one app-wide style setting defaulting to Bottts, with per-style creator/license attribution.
   *Depends on:* completed `bots`
+  *Completed:* bundled DiceBear derivation and attribution picker, reactive app-wide style setting, bot list/header surfaces, transparent theme-safe rendering, and CI's redundant harness-lint build removal.
 
 ## Open decisions
 

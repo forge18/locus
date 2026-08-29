@@ -35,6 +35,12 @@ jobs:
         with:
           components: clippy
 
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+        with:
+          workspaces: |
+            . -> target
+
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -86,7 +92,7 @@ jobs:
           kill %1
 
       - name: Harness registry lint
-        run: cargo run -p locus-cli -- harness lint
+        run: cargo test -p locus-cli --test harness_lint
 
       - name: Materialization determinism
         run: just test-named locus-core harness::materialize::ci_determinism

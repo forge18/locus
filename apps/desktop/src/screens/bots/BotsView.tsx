@@ -1,5 +1,6 @@
 import { For, Show, createMemo, createSignal } from "solid-js";
 import type { AgentEvent } from "../../types/event";
+import { Avatar } from "../../avatars/Avatar";
 import { AgentPane, type AgentPaneSession } from "../../panes/AgentPane";
 import { destinationDesktop } from "../../nav/desktop-navigation";
 import { Button } from "../../ui/Button";
@@ -78,6 +79,23 @@ function botSession(bot: BotViewModel, project: string): AgentPaneSession {
     permissionPosture: "bypass",
     status: bot.state,
   };
+}
+
+function BotViewHeader(props: { bot: BotViewModel }) {
+  return (
+    <header class="bot-view-header" data-testid="bot-view-header">
+      <Avatar
+        seed={props.bot.id}
+        alt={`${props.bot.name} avatar`}
+        class="bot-avatar bot-avatar-header"
+        testId="bot-header-avatar"
+      />
+      <div class="bot-view-header-copy">
+        <h1>{props.bot.name}</h1>
+        <span>{props.bot.harness}</span>
+      </div>
+    </header>
+  );
 }
 
 function botEvents(bot: BotViewModel): AgentEvent[] {
@@ -312,7 +330,17 @@ export default function BotsView(props: BotsViewProps) {
                   data-locator={destinationDesktop("bots", project(), bot.id)}
                   onClick={() => setSelectedId(bot.id)}
                 >
-                  <span class={`bot-live-dot bot-${bot.state}`} />
+                  <Avatar
+                    seed={bot.id}
+                    alt={`${bot.name} avatar`}
+                    class="bot-avatar bot-avatar-row"
+                    testId={`bot-avatar-${bot.id}`}
+                  />
+                  <span
+                    class={`bot-live-dot bot-${bot.state}`}
+                    data-live-state={bot.state}
+                    title={bot.state}
+                  />
                   <Show when={!collapsed()}>
                     <span class="bot-list-copy">
                       <strong>{bot.name}</strong>
@@ -334,12 +362,15 @@ export default function BotsView(props: BotsViewProps) {
       <main class="bots-home-pane" data-testid="bot-home-pane">
         <Show when={selected()}>
           {(bot) => (
-            <AgentPane
-              runId={bot().runId}
-              live={false}
-              session={botSession(bot(), project())}
-              events={botEvents(bot())}
-            />
+            <>
+              <BotViewHeader bot={bot()} />
+              <AgentPane
+                runId={bot().runId}
+                live={false}
+                session={botSession(bot(), project())}
+                events={botEvents(bot())}
+              />
+            </>
           )}
         </Show>
       </main>

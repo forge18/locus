@@ -38,7 +38,7 @@ dev:
 # Full CI sequence, mirroring .github/workflows/ci.yml step-for-step (locusd smoke stays CI-only)
 ci: test lint
     pnpm -C apps/desktop build
-    cargo run -p locus-cli -- harness lint
+    cargo test -p locus-cli --test harness_lint
     just test-named locus-core harness::materialize::ci_determinism
     just test-named locus-core all_registered_harnesses --ignored
     just test-named locus-core isolates_failure --ignored
