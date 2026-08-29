@@ -4,6 +4,8 @@ import { AppTitleBar } from "./AppTitleBar";
 import { ProjectRail } from "./ProjectRail";
 import {
     LocatorPalette,
+    type PaletteMode,
+    type PaletteResult,
     type PaletteSessionState,
 } from "../nav/LocatorPalette";
 import { Sheet } from "../ui/Sheet";
@@ -25,6 +27,8 @@ const Desktop_ROUTE_IDS = Desktop_ROUTE_KINDS.map((route) => route.id);
 export interface ShellProps {
     nav: NavStore;
     children: JSX.Element;
+    /** Unified search_all results supplied by the command surface. */
+    searchAll?: (query: string) => PaletteResult[];
 }
 
 const desktopViews: Record<DesktopRouteId, View> = Object.fromEntries(
@@ -61,6 +65,7 @@ export function desktopLocatorFor(
 /** The desktop title bar and project-scoped rail frame every screen. */
 export function Shell(props: ShellProps) {
     const [paletteOpen, setPaletteOpen] = createSignal(false);
+    const [paletteMode, setPaletteMode] = createSignal<PaletteMode>("locator");
     const [dispatchOpen, setDispatchOpen] = createSignal(false);
     const inboxItems = useInboxItems();
     const activeSessions: ActiveSession[] = useStripCards()
@@ -112,6 +117,7 @@ export function Shell(props: ShellProps) {
             (e.metaKey || e.ctrlKey)
         ) {
             e.preventDefault();
+            setPaletteMode(e.key.toLowerCase() === "p" ? "search" : "locator");
             setPaletteOpen(true);
         }
     };
@@ -173,6 +179,8 @@ export function Shell(props: ShellProps) {
                 project={props.nav.params().project ?? "tapestry"}
                 history={props.nav.history()}
                 sessions={paletteSessions}
+                mode={paletteMode()}
+                searchAll={props.searchAll}
                 onResolve={openDesktopTarget}
                 onOpenLocator={openDesktopLocator}
             />

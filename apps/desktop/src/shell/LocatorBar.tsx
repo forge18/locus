@@ -8,7 +8,7 @@ export interface LocatorBarProps {
 
 /**
  * The app's addressing surface, not decoration. Every object has a `locus://` URI
- * and this is where one is read and typed — ⌘K resolves it.
+ * and this is where one is read and typed — ⌘K resolves it; ⌘P searches it.
  */
 export function LocatorBar(props: LocatorBarProps) {
   return (
@@ -21,7 +21,7 @@ export function LocatorBar(props: LocatorBarProps) {
         {props.path}
       </span>
       <span class="locator-key" data-testid="locator-key">
-        ⌘K
+        ⌘K locate · ⌘P search
       </span>
     </button>
   )

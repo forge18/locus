@@ -47,6 +47,7 @@ use tauri::{
 const MODEL_TIERS: [&str; 4] = ["low", "medium", "high", "xhigh"];
 const HARNESS_REGISTRY: &str = "../../../harnesses";
 const COMMAND_PALETTE_ACCELERATOR: &str = "CmdOrCtrl+K";
+const GLOBAL_SEARCH_ACCELERATOR: &str = "CmdOrCtrl+P";
 
 #[derive(Default)]
 struct LspDiagnosticsSubscriptions {
@@ -2145,7 +2146,14 @@ pub fn run() {
                 true,
                 Some(COMMAND_PALETTE_ACCELERATOR),
             )?;
-            app.set_menu(Menu::with_items(app, &[&command_palette])?)?;
+            let global_search = MenuItem::with_id(
+                app,
+                "global-search",
+                "Search Everything",
+                true,
+                Some(GLOBAL_SEARCH_ACCELERATOR),
+            )?;
+            app.set_menu(Menu::with_items(app, &[&command_palette, &global_search])?)?;
             debug_assert_eq!(webviews_per_window(), 1);
             Ok(())
         })

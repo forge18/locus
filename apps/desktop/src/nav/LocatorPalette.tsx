@@ -71,10 +71,23 @@ export function v2PaletteDestinations(
   });
 }
 
+export type PaletteMode = "locator" | "search";
+
+export interface PaletteResult {
+  kind: string;
+  project: string;
+  label: string;
+  locator: string;
+  score: number;
+}
+
 export interface LocatorPaletteProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   current: string;
+  mode?: PaletteMode;
+  /** Cmd-P delegates to the unified search_all result stream. */
+  searchAll?: (query: string) => PaletteResult[];
   onResolve: (target: DesktopNavTarget) => void;
   /** Object locators use the shared NavStore resolver rather than the view-only adapter. */
   onOpenLocator?: (locator: string) => void;
@@ -85,6 +98,7 @@ export interface LocatorPaletteProps {
 }
 
 export function LocatorPalette(props: LocatorPaletteProps) {
+  const mode = () => props.mode ?? "locator";
   const [value, setValue] = createSignal(props.current);
   const [error, setError] = createSignal<string | null>(null);
   const [selected, setSelected] = createSignal(-1);
@@ -92,7 +106,7 @@ export function LocatorPalette(props: LocatorPaletteProps) {
 
   createEffect(() => {
     if (props.open) {
-      setValue(props.current);
+      setValue(mode() === "search" ? "" : props.current);
       setSelected(-1);
       setError(null);
     }
@@ -120,7 +134,15 @@ export function LocatorPalette(props: LocatorPaletteProps) {
     else props.onResolve(navigateDesktop(locator));
     props.onOpenChange(false);
   };
+  const searchResults = createMemo(() =>
+    value() && props.searchAll ? props.searchAll(value()) : [],
+  );
   const submit = () => {
+    if (mode() === "search") {
+      const result = searchResults()[selected()] ?? searchResults()[0];
+      if (result) openLocator(result.locator);
+      return;
+    }
     const destination = selectedDestination();
     if (destination) {
       openLocator(destination.locator);
@@ -136,9 +158,15 @@ export function LocatorPalette(props: LocatorPaletteProps) {
     }
   };
   const moveSelection = (delta: number) => {
-    const count = destinations().length;
+    const count = mode() === "search" ? searchResults().length : destinations().length;
     if (!count) return;
-    const next = (selected() + delta + count) % count;
+    const current = selected();
+    const next =
+      current < 0
+        ? delta > 0
+          ? 0
+          : count - 1
+        : (current + delta + count) % count;
     setSelected(next);
     resultButtons[next]?.focus();
   };
@@ -151,18 +179,14 @@ export function LocatorPalette(props: LocatorPaletteProps) {
       moveSelection(-1);
     } else if (e.key === "Enter") {
       e.preventDefault();
-      // Shift+Enter is the scoped form. Destinations that already carry a
-      // project scope are opened unchanged; global/app routes have no project
-      // scope in the locator grammar and therefore use the normal destination.
       submit();
     }
   };
-
   return (
     <Sheet
       open={props.open}
       onOpenChange={props.onOpenChange}
-      title="Go to locator"
+      title={mode() === "search" ? "Search everything" : "Go to locator"}
     >
       <div
         style={{
@@ -172,65 +196,106 @@ export function LocatorPalette(props: LocatorPaletteProps) {
         }}
       >
         <Input
-          mono
+          mono={mode() !== "search"}
           autofocus
           data-testid="locator-palette-input"
+          data-mode={mode()}
           value={value()}
-          placeholder={`${LOCATOR_SCHEME}tapestry/view/plan`}
+          placeholder={
+            mode() === "search"
+              ? "Search code, wiki, tasks, and runs"
+              : `${LOCATOR_SCHEME}tapestry/view/plan`
+          }
           onInput={(e) => {
             setValue(e.currentTarget.value);
             setSelected(-1);
           }}
           onKeyDown={handleKeyDown}
         />
-        <div aria-label="Suggested destinations" data-testid="palette-results">
-          <For each={sections}>
-            {(section) => (
-              <section>
-                <h3>{section}</h3>
-                <For
-                  each={destinations().filter(
-                    (destination) => destination.section === section,
-                  )}
-                >
-                  {(destination) => {
-                    const index = () => destinations().indexOf(destination);
-                    return (
-                      <button
-                        type="button"
-                        ref={(element) => {
-                          resultButtons[index()] = element;
-                        }}
-                        aria-selected={selected() === index()}
-                        onMouseEnter={() => setSelected(index())}
-                        onKeyDown={handleKeyDown}
-                        onClick={() => openLocator(destination.locator)}
-                      >
-                        <span>{destination.label}</span>
-                        <code>{destination.locator}</code>
-                      </button>
-                    );
+        <Show
+          when={mode() === "search"}
+          fallback={
+            <div aria-label="Suggested destinations" data-testid="palette-results">
+              <For each={sections}>
+                {(section) => (
+                  <section>
+                    <h3>{section}</h3>
+                    <For
+                      each={destinations().filter(
+                        (destination) => destination.section === section,
+                      )}
+                    >
+                      {(destination) => {
+                        const index = () => destinations().indexOf(destination);
+                        return (
+                          <button
+                            type="button"
+                            ref={(element) => {
+                              resultButtons[index()] = element;
+                            }}
+                            aria-selected={selected() === index()}
+                            onMouseEnter={() => setSelected(index())}
+                            onKeyDown={handleKeyDown}
+                            onClick={() => openLocator(destination.locator)}
+                          >
+                            <span>{destination.label}</span>
+                            <code>{destination.locator}</code>
+                          </button>
+                        );
+                      }}
+                    </For>
+                  </section>
+                )}
+              </For>
+            </div>
+          }
+        >
+          <div aria-label="Search results" data-testid="palette-results">
+            <For each={searchResults()}>
+              {(result, index) => (
+                <button
+                  type="button"
+                  ref={(element) => {
+                    resultButtons[index()] = element;
                   }}
-                </For>
-              </section>
-            )}
-          </For>
-        </div>
-        <p>Opens on a list — recognition, not recall.</p>
-        <small>↑↓ move · ↵ open · ⇧↵ scope · esc close</small>
+                  aria-selected={selected() === index()}
+                  onMouseEnter={() => setSelected(index())}
+                  onKeyDown={handleKeyDown}
+                  onClick={() => openLocator(result.locator)}
+                >
+                  <span>{result.label}</span>
+                  <small>
+                    {result.kind} · {result.project}
+                  </small>
+                  <code>{result.locator}</code>
+                </button>
+              )}
+            </For>
+          </div>
+        </Show>
+        <p>
+          {mode() === "search"
+            ? "Searches code, wiki, tasks, and run history."
+            : "Opens on a list — recognition, not recall."}
+        </p>
+        <small>
+          ↑↓ move · ↵ {mode() === "search" ? "open result" : "open"} · esc close
+        </small>
         <Show when={error()}>
           <InlineError
             cause={error()!}
             next="Fix the segment named above, or press Escape to stay where you are."
           />
         </Show>
-        <Button
-          variant="primary"
-          onClick={submit}
-          data-testid="locator-palette-go"
-        >
-          Go
-        </Button>
+        <Show when={mode() === "locator"}>
+          <Button
+            variant="primary"
+            onClick={submit}
+            data-testid="locator-palette-go"
+          >
+            Go
+          </Button>
+        </Show>
       </div>
     </Sheet>
   );

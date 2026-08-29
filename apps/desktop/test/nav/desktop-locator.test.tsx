@@ -24,7 +24,36 @@ describe("nav/desktop-locator", () => {
     ));
     fireEvent.keyDown(document, { key: "k", metaKey: true });
     expect(
-      document.querySelector('[data-testid="locator-palette-input"]'),
+      document.querySelector('[data-testid="locator-palette-input"][data-mode="locator"]'),
     ).toBeTruthy();
+  });
+
+  it("opens Cmd-P on the unified search path", () => {
+    render(() => (
+      <Shell
+        nav={createNavStore()}
+        searchAll={(query) => [
+          {
+            kind: "wiki",
+            project: "locus",
+            label: query,
+            locator: "locus://locus/page/overview",
+            score: 3,
+          },
+        ]}
+      >
+        <div />
+      </Shell>
+    ));
+    fireEvent.keyDown(document, { key: "p", metaKey: true });
+    const input = document.querySelector(
+      '[data-testid="locator-palette-input"][data-mode="search"]',
+    ) as HTMLInputElement;
+    expect(input).toBeTruthy();
+    expect(input.placeholder).toContain("code, wiki, tasks, and runs");
+    fireEvent.input(input, { target: { value: "overview" } });
+    expect(
+      document.querySelector("[data-testid=palette-results]"),
+    ).toHaveTextContent("locus");
   });
 });
