@@ -160,16 +160,18 @@ export function InteractView() {
                   <div>
                     <i class="interact-state-dot" />{" "}
                     <strong>{session.name}</strong>
-                    <button
-                      type="button"
-                      aria-label={`Discard ${session.name}`}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        discard(session.id);
-                      }}
-                    >
-                      ×
-                    </button>
+                    <Show when={session.state === "open"}>
+                      <button
+                        type="button"
+                        aria-label={`Discard ${session.name}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          discard(session.id);
+                        }}
+                      >
+                        ×
+                      </button>
+                    </Show>
                   </div>
                   <small>
                     {session.harness} · {session.age}
