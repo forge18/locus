@@ -22,6 +22,20 @@ export {
 };
 export type { AutorunState, PermissionPosture } from "../fixtures/dispatch";
 
+export interface DispatchStopAllResult {
+  snapshotId: string;
+  stoppedRuns: number;
+}
+
+/** Ask the run supervisor to stop all dispatch work and preserve its restore snapshot. */
+export async function stopAllDispatch(writeHandoffs = true) {
+  const { invoke } = await import("@tauri-apps/api/core");
+  return (invoke as <T>(command: string, args: unknown) => Promise<T>)(
+    "dispatch_stop_all",
+    { writeHandoffs },
+  ) as Promise<DispatchStopAllResult>;
+}
+
 /** Becomes: invoke('dispatch_runs', { query }) */
 export function useDispatchRuns() {
   return RUN_ROWS;

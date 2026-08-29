@@ -1,8 +1,12 @@
 import { fireEvent, render } from "@solidjs/testing-library";
 import { describe, expect, it, vi } from "vitest";
+import { invoke } from "@tauri-apps/api/core";
 import { INBOX_ITEMS } from "../../src/fixtures/inbox";
+import { stopAllDispatch } from "../../src/data/dispatch";
 import { DispatchPill } from "../../src/shell/DispatchPill";
 import { InboxPill } from "../../src/shell/InboxPill";
+
+vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
 const sessions = [
   {
@@ -28,6 +32,16 @@ const sessions = [
 ];
 
 describe("M0.7 title-bar pills", () => {
+  it("issues the supervisor stop command with handoff preservation", async () => {
+    vi.mocked(invoke).mockResolvedValue({ snapshotId: "snapshot-1", stoppedRuns: 2 });
+
+    await expect(stopAllDispatch()).resolves.toEqual({
+      snapshotId: "snapshot-1",
+      stoppedRuns: 2,
+    });
+    expect(invoke).toHaveBeenCalledWith("dispatch_stop_all", { writeHandoffs: true });
+  });
+
   it("filters Dispatch activity and exposes stop-all/open actions", async () => {
     const onStopAll = vi.fn();
     const onOpenDispatch = vi.fn();

@@ -4,8 +4,9 @@ import { AppTitleBar } from "./AppTitleBar";
 import { ProjectRail } from "./ProjectRail";
 import { LocatorPalette } from "../nav/LocatorPalette";
 import { Sheet } from "../ui/Sheet";
-import { ToastRegion } from "../ui/Toast";
+import { notify, ToastRegion } from "../ui/Toast";
 import { useRunningCount, useStripCards } from "../data/strip";
+import { stopAllDispatch } from "../data/dispatch";
 import { useInboxItems } from "../data/inbox";
 import type { ActiveSession } from "./RunningPill";
 import type { NavStore, View } from "../nav";
@@ -121,9 +122,21 @@ export function Shell(props: ShellProps) {
                 onOpenDispatch={() =>
                     openDesktopLocator(destinationDesktop("autorun"))
                 }
-                onStopAll={() =>
-                    openDesktopLocator(destinationDesktop("autorun"))
-                }
+                onStopAll={() => {
+                    void stopAllDispatch().then(
+                        ({ stoppedRuns }) =>
+                            notify({
+                                title: "Dispatch stopped",
+                                description: `${stoppedRuns} run${stoppedRuns === 1 ? "" : "s"} stopped.`,
+                            }),
+                    ).catch((error: unknown) =>
+                        notify({
+                            title: "Stop all failed",
+                            description: error instanceof Error ? error.message : String(error),
+                            type: "error",
+                        }),
+                    );
+                }}
                 onOpenInbox={() =>
                     openDesktopLocator(destinationDesktop("inbox"))
                 }

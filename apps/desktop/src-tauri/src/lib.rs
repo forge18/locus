@@ -460,6 +460,29 @@ async fn connected_store(core: &Core) -> Result<&Store, IpcError> {
         .map_err(IpcError::internal)
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DispatchStopAllResponse {
+    snapshot_id: String,
+    stopped_runs: usize,
+}
+
+#[tauri::command]
+async fn dispatch_stop_all(
+    core: State<'_, Arc<Core>>,
+    write_handoffs: Option<bool>,
+) -> Result<DispatchStopAllResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    let snapshot = store
+        .stop_all_with_handoffs(write_handoffs.unwrap_or(true))
+        .await
+        .map_err(IpcError::internal)?;
+    Ok(DispatchStopAllResponse {
+        snapshot_id: snapshot.id.to_string(),
+        stopped_runs: snapshot.run_ids.len(),
+    })
+}
+
 async fn resolve_project_id(store: &Store, identifier: &str) -> Result<ProjectId, IpcError> {
     store
         .resolve_project_id(identifier)
@@ -2153,6 +2176,7 @@ pub fn run() {
             bot_routine_set_enabled,
             bot_routine_update,
             bot_routine_delete,
+            dispatch_stop_all,
             external_work_item_providers,
             external_work_item_workflows,
             external_work_item_tasks,
