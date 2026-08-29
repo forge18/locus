@@ -18,320 +18,163 @@ M1.5 and bot-avatars are complete. M1.6's sbx-runtime row (36) is complete.
 
 ## Progress
 
-| Milestone | Scope | Features | Tasks | State |
-| --- | --- | ---: | ---: | --- |
-| M0 | Spikes | 3 | 39 | closed |
-| M0.5 | Desktop UI on fixtures | 12 | 268 | closed |
-| M0.6 | Desktop reconciliation | 6 | 195 | closed |
-| M0.7 | Current desktop mockup reconciliation | 11 | 324 | closed |
-| M1 | Core runtime | 14 | 270 | closed |
-| M1.5 | ACP agent panel, controls, plugin contract, and build tooling | 6 | 70 | closed |
-| M1.6 | sbx agent runtime | 1 | 17 | closed |
-| M2 | Workspace | 3 | 57 | queued |
-| M3 | Coordination, memory, and mail | 6 | 133 | queued |
-| M3.5 | Agent capabilities: debug and browser | 3 | 56 | queued |
-| M4 | Workflow canvas | 3 | 69 | queued |
-| M5 | Project management | 5 | 127 | queued |
-| M6 | Automation and discoverability | 4 | 56 | queued |
-| M7 | Forge providers | 4 | 88 | queued |
-| M8 | Marketplace installer | 1 | 11 | queued |
-| **Total** | | **82** | **1,780** | **493 remaining** |
+## UI integrity defects
 
-## Settled foundations
+- [ ] **Replace production fixture data with live core data** — [plan](.specs/desktop-data-integration/spec.md) · [tasks](.specs/desktop-data-integration/tasks.md). The desktop data accessors and several routed screens return hard-coded fixture arrays/components instead of Tauri `invoke`/`Channel` data. Fixtures must be limited to explicit demo/test seams; production screens must show real data, loading, empty, and error states.
+- [ ] **Expose fixture state honestly** — `FixtureNotice` is implemented but unused, so screens can present invented data without identifying it as such.
+- [ ] **Wire the project switcher** — the visible project-switcher control is inert; selecting a project must update the scoped navigation and data.
+- [ ] **Wire title-bar actions** — Dispatch “Stop all” currently navigates to Autorun rather than issuing the supervisor stop command; title-bar actions must perform their declared operations and report failures.
+- [ ] **Remove duplicate window chrome** — native Tauri decorations and the custom application title bar render two title bars/traffic-light rows; choose one window-chrome owner and make its controls functional.
+- [ ] **Fix rail control rendering** — rail buttons inherit browser default styling and render as washed-out blocks; apply the shared control reset/tokens and verify both themes and real window sizes.
+- [ ] **Add live desktop integration coverage** — tests must boot the Tauri host against a test store and exercise data loading, navigation, menu actions, and error states; fixture/jsdom tests do not substitute for this boundary.
 
-These are decisions, not unfinished tasks. They stay here because they explain the shape of the active
-work without reopening completed milestones.
+## Audit ledger (2026-08-29)
 
-- The three M0 spikes answered their primary questions: CodeMirror 6, the host credential proxy, and
-  `solid-flow`. Their evidence is in the [editor](spikes/02-editor-embed/FINDINGS.md),
-  [sandbox](spikes/01-sandboxed-harness/FINDINGS.md), and [canvas](spikes/03-workflow-canvas/FINDINGS.md)
-  findings.
-- Spike 4 verified Docker's `sbx` as a second agent runtime on this machine: framed stdio through
-  `exec -i` (7/7), git-over-TCP clone and byte-exact TCP through the egress proxy, 3.2s cached
-  create, 1.1s resume. [Findings](spikes/04-sbx-runtime-verify/FINDINGS.md); the
-  [sbx-runtime spec](.specs/sbx-runtime/spec.md) turns that into the second backend behind the
-  sandbox contract.
-- M0.7's current desktop mockup reconciliation and M1's core runtime are complete. Their feature rows
-  are intentionally absent; the specs remain the historical contract.
-- ACP is the only agent-session transport. Active work assumes one ACP conversation per container and
-  does not add a PTY-based agent surface. See [acp-client](.specs/acp-client/spec.md).
-- Security hardening is recorded in [.specs/security](.specs/security/spec.md): per-project forwarding
-  egress, channel-owned context, boundary redaction, and socket-boundary ownership checks.
+Six read-only audits over the desktop, host, core, specs, and gates. Every item cites the file and line it was read at; severity is in the wording (a control that does nothing is blocking, a dead alias is not). The [UI integrity defects](#ui-integrity-defects) above remain the entry point; the sections below are the rest of what they imply.
 
-## Workshop scope reduction
+## Runtime integrity defects
 
-Workshop now has exactly two subgroups:
+The core can materialize, clone, and start a container, but nothing in any binary ever asks it to. No
+agent has ever run end to end through this code.
 
-- **Plugins:** CLI Tool, Harness, Provider. The common contract is `.specs/workshop-plugins/` — one
-  trusted manifest and JSON-RPC 2.0 executable over stdio, with namespaced, negotiated capabilities.
-- **Extensions:** the existing eight extension-editor types plus Workflows. Extensions remain
-  Locus-authored and materialized by core.
+- [ ] **Wire the dispatch loop** — `Daemon::spawn_run` ([daemon.rs:281](crates/locus-core/src/runtime/daemon.rs#L281)) has zero callers and `Store::claim_dispatchable_runs` ([dispatch.rs:459](crates/locus-core/src/store/dispatch.rs#L459)) is called only from a `#[cfg(test)]` module. `locusd` ([locusd_main.rs](crates/locus-cli/src/locusd_main.rs)) has no queue poll, and none of the 43 Tauri commands starts a run. Queued runs stay queued forever.
+- [ ] **Start the ACP session after container spawn** — `spawn_at_port` ([run.rs:360-573](crates/locus-core/src/runtime/run.rs#L360-L573)) ends at `attach_pty`; `container_stdio_transport`/`session_new`/`session_prompt` ([acp.rs:52-98](crates/locus-core/src/runtime/acp.rs#L52-L98)) have no non-test caller. Even with a dispatch loop, a container would start with a bare PTY and no agent conversation.
+- [ ] **Run bot routines** — `Store::start_bot_run` ([bots.rs:226](crates/locus-core/src/store/bots.rs#L226)) has zero callers; a cron routine can be enabled from the UI but never fires.
+- [ ] **Persist telemetry events** — `persist_normalized_events` ([normalize.rs:29](crates/locus-core/src/runtime/normalize.rs#L29)) is the only bridge from the in-memory collector to `agents.events`, and only its own tests call it. `telemetry_subscribe` ([lib.rs:2017](apps/desktop/src-tauri/src/lib.rs#L2017)) reads the 1024-event `VecDeque` only; no command replays `agents.events`, so Telemetry/Analytics lose everything on restart.
+- [ ] **Consume the context layer from the run path** — commit `67bf248` added `ContextDerivation`/`assemble_frozen_head` ([context.rs:50,150](crates/locus-core/src/harness/materialize/context.rs#L50)), `materialize_catalog_context_with_tail`/`recall_with_settings`/`ContextBudget` in [memory.rs](crates/locus-core/src/services/memory.rs), [calibration.rs](crates/locus-core/src/services/calibration.rs), and `RecitationEmitter` in [run.rs](crates/locus-core/src/runtime/run.rs), and `materialize()` calls none of it. [materialize/mod.rs:6](crates/locus-core/src/harness/materialize/mod.rs#L6) only declares the module. The spec's `verify:` rows are all module-scoped unit tests, which is why this passed.
+- [ ] **Route `locus memory promote` in the daemon** — [sock.rs](crates/locus-cli/src/sock.rs) sends `AgentSocketVerb::MemoryPromote`, but `DaemonRouter` ([locusd_main.rs:552-556](crates/locus-cli/src/locusd_main.rs#L552-L556)) routes only Debug/Handoff/LSP and the LSP fallback rejects it (`"is not routed by the LSP executor"`, [locusd_main.rs:107-127](crates/locus-cli/src/locusd_main.rs#L107-L127)). The verb errors for every caller.
+- [ ] **Make store connectivity a startup health state, not a per-command surprise** — `Core::load` deliberately skips the store ([core.rs:71-120](crates/locus-core/src/core.rs#L71-L120)) and `connected_store` ([lib.rs:452](apps/desktop/src-tauri/src/lib.rs#L452)) connects lazily on first use, so with `DATABASE_URL` unset every store command fails individually while the fixture-backed commands keep answering — a mixed real/fake state with no indicator.
 
-First-party plugins are deliberately limited to `gh`, `pi`, `openai` (ChatGPT models), `anthropic`
-(Claude), and `openrouter`. Other CLI tools, harnesses, and providers are user plugins, not hidden
-future built-ins. `forge-providers` is a separate remote-forge integration boundary and is not part of
-this Workshop provider reduction.
+## Data integrity defects
 
-## Execution order
+Of 24 modules in [apps/desktop/src/data/](apps/desktop/src/data/), only `bots.ts` and `work-items.ts` are invoke-backed, and neither is used by the screen it was written for. Seventeen modules are 100% fixture with `Becomes: invoke(...)` comments. The gap is symmetric: thirteen core service families have no Tauri command at all.
 
-Start with items 1–2. Items 3–9 and 38 have only completed prerequisites and can run in parallel. Item 10
-locks the plugin contract before later plugin-backed surfaces. The remaining items follow their dependency
-edges. Items 32–33 are intentionally last because they depend on later planning and memory features.
+- [ ] **Expose the unreachable core services as Tauri commands** — no command exists for analytics (36 pub fns), mail (27), memory (76), planning (61), project (36), qa (16), schedule/dispatch (20), wiki (16), workflow + workflow_graph (70), board + task (33), inbox (5), telemetry queries (12), or condition (8) in [crates/locus-core/src/services/](crates/locus-core/src/services/). Every fixture-backed screen maps 1:1 onto this list. There is no `projects_list`/`repos_list` command, so the Setup tracer bullet in [tasks.md](.specs/desktop-data-integration/tasks.md) row 3 cannot start.
+- [ ] **Stop serving compiled-in fixtures from the host** — `artifacts_list`/`artifact_comments` ([lib.rs:1531](apps/desktop/src-tauri/src/lib.rs#L1531)) read an `ArtifactStore` seeded at startup by `seeded_artifact_store()` ([lib.rs:1502](apps/desktop/src-tauri/src/lib.rs#L1502), managed at [:2116](apps/desktop/src-tauri/src/lib.rs#L2116)) with freshly generated ids, and `agent_defs_list`/`agent_def` ([lib.rs:1760](apps/desktop/src-tauri/src/lib.rs#L1760)) return `seeded_agent_definitions()` ([:1750](apps/desktop/src-tauri/src/lib.rs#L1750)); neither touches Postgres. The "wired" `fetchArtifactsFromCore` path is therefore also fake, and the data resets every launch.
+- [ ] **Reconcile the TypeScript types with the Rust DTOs** — `AgentDef` ([agents.ts:11-21](apps/desktop/src/types/agents.ts#L11-L21)) declares `id`, `tools`, `modelTier`, `readOnly` that `AgentDefResponse` ([lib.rs:1409-1417](apps/desktop/src-tauri/src/lib.rs#L1409-L1417)) never sends, and drops `warnings`; `CoreMemory` in [memory.ts:10-17](apps/desktop/src/types/memory.ts#L10-L17) shares a name with a private non-serialized Rust struct and mirrors no wire type; `ArtifactResponse`/`BotResponse`/`BotRoutine*Response` have no `types/*.ts` at all.
+- [ ] **Scope LSP commands to a registered project** — `lsp_enable_descriptor` and siblings ([lib.rs:1834](apps/desktop/src-tauri/src/lib.rs#L1834) onward) canonicalize any `project_root` string and hand it to `core.lsp()`; `project_id` is optional and used only to persist pins, never to validate ownership.
+- [ ] **Repoint BotsView at `data/bots.ts`** — [BotsView.tsx:31-60](apps/desktop/src/screens/bots/BotsView.tsx#L31-L60) hard-codes `BOTS`/`INITIAL_ROUTINES`, `botSession()` ([69-82](apps/desktop/src/screens/bots/BotsView.tsx#L69-L82)) invents `cost: "$0.42"` and a context meter, and `botEvents()` ([101-122](apps/desktop/src/screens/bots/BotsView.tsx#L101-L122)) is a canned transcript — while [data/bots.ts](apps/desktop/src/data/bots.ts) is fully wired to the registered `bots_list`/`bot_routines`/`bot_routine_executions` commands and has zero callers.
+- [ ] **Remove hard-coded rows from ProjectsView and InteractView** — [ProjectsView.tsx:9-51](apps/desktop/src/screens/projects/ProjectsView.tsx#L9-L51) (projects, harnesses, base-context file, `"12 enabled"` extension counts) and [InteractView.tsx:18-42](apps/desktop/src/screens/interact/InteractView.tsx#L18-L42) (`SESSIONS`) define data inside the component, bypassing both `data/` and `fixtures/`.
+- [ ] **Retire `WorkshopFixtureView` from production routes** — [App.tsx](apps/desktop/src/App.tsx) mounts it for 12 views (lines 96, 104, 148–185); the 592-line component presents `"1.9 GB · rebuilt 2h ago"`, `"git · 2,481"`, `"verified 11m ago · 327 models listed"`, and a masked API key as if measured.
+- [ ] **Retire `MemoryFixtures` from production routes** — mounted for `artifact`, `wiki`, `short`, `memory` ([App.tsx:90,93,139,142](apps/desktop/src/App.tsx#L90)); [MemoryFixtures.tsx:20](apps/desktop/src/screens/memory/MemoryFixtures.tsx#L20) imports the `ARTIFACTS` value straight from `fixtures/`.
+- [ ] **Use the already-wired accessors that have no callers** — `readHarnessTierGrid` ([settings.ts:65-69](apps/desktop/src/data/settings.ts#L65-L69)), `fetchAgentDefsFromCore`/`fetchAgentDefFromCore` ([agent-defs.ts:48-60](apps/desktop/src/data/agent-defs.ts#L48-L60)), `fetchArtifactCommentsFromCore` ([artifacts.ts:33-41](apps/desktop/src/data/artifacts.ts#L33-L41)), and 11 of the 13 functions in [work-items.ts](apps/desktop/src/data/work-items.ts) call registered commands and are dead; their screens call the fixture sibling instead.
+- [ ] **Stop fabricating QA results** — `runQaCheck` ([qa.ts:59-67](apps/desktop/src/data/qa.ts#L59-L67)) returns `status: "passed"` with an epoch timestamp for any input; a manual refresh always reports success.
+- [ ] **Move `WORKFLOW_EVENTS` out of the data layer** — [workflow-events.ts:10-53](apps/desktop/src/data/workflow-events.ts#L10-L53) is a literal array living in `data/`, not even in `fixtures/`.
+- [ ] **Fix the fixture-import guard** — [check-no-direct-fixture-import.sh:10-11](apps/desktop/scripts/check-no-direct-fixture-import.sh#L10-L11) greps single-quoted imports only; every real violation is double-quoted and passes: [GuardrailsView.tsx:7](apps/desktop/src/screens/settings/GuardrailsView.tsx#L7), [ExtensionEditor.tsx:10](apps/desktop/src/screens/workshop/ExtensionEditor.tsx#L10), [MemoryFixtures.tsx:20](apps/desktop/src/screens/memory/MemoryFixtures.tsx#L20), [InboxPill.tsx:2](apps/desktop/src/shell/InboxPill.tsx#L2), [AppTitleBar.tsx:3](apps/desktop/src/shell/AppTitleBar.tsx#L3).
+- [ ] **Decide the six registered-but-unused commands** — `telemetry_subscribe`, `lsp_enable_descriptor`, `lsp_disable_descriptor`, `detach_pane`, `materialization_report`, `repo_git_state` in [lib.rs:2130-2171](apps/desktop/src-tauri/src/lib.rs#L2130-L2171) have no frontend caller; either wire a UI to each or drop them.
+- [ ] **Mount or delete orphaned screens** — [DevelopView.tsx](apps/desktop/src/screens/develop/DevelopView.tsx), [SearchView.tsx](apps/desktop/src/screens/develop/SearchView.tsx), [AppearanceSelector.tsx](apps/desktop/src/screens/settings/AppearanceSelector.tsx), [AvatarStylePicker.tsx](apps/desktop/src/screens/settings/AvatarStylePicker.tsx), [ViewerStateFamilies.tsx](apps/desktop/src/screens/memory/ViewerStateFamilies.tsx), and [DesktopPlaceholder.tsx](apps/desktop/src/screens/DesktopPlaceholder.tsx) are not in the `App.tsx` route switch.
+- [ ] **Replace store-layer UUID-only writes with project-scoped ones** — `append_memory_revision`/`set_memory_confidence` ([store/memory.rs:21-38](crates/locus-core/src/store/memory.rs#L21-L38)), `append_wiki_revision`/`link_wiki_pages` ([store/wiki.rs:33-45](crates/locus-core/src/store/wiki.rs#L33-L45)), and `Store::bot` ([store/bots.rs:157](crates/locus-core/src/store/bots.rs#L157)) accept any id with no `project_id` filter; the data-integration contract requires ownership validation in Rust.
+- [ ] **Reconcile 13 migrated tables no store code touches** — `agents.turns`, `board.github_issues`, `board.task_assignments`, `core.harness_adapter_configs`, `core.local_remotes`, `memory.probation`, `memory.edges`, `wiki.ingest_log`, `wiki.contradictions`, and four `market.*` tables ([0008](migrations/)) exist in [migrations/](migrations/) with no query; either the feature that needs them is unbuilt or the schema is dead.
+- [ ] **Fix the harness count** — [AGENTS.md](AGENTS.md) says twelve harnesses; [harnesses/](harnesses/) holds eleven TOMLs and the generated fixture asserts 11.
 
-- [x] **1. M1.5 — [agent-session-controls](.specs/agent-session-controls/spec.md)** · [tasks](.specs/agent-session-controls/tasks.md) · 11 tasks
-  ACP plan, elicitation, steering, commands, checkpoints, and replay.
-  *Depends on:* completed M1 runtime
 
-- [x] **2. M1.5 — [agent-dispatch-permissions](.specs/agent-dispatch-permissions/spec.md)** · [tasks](.specs/agent-dispatch-permissions/tasks.md) · 3 tasks
-  Immutable per-job bypass/gated permission posture.
-  *Depends on:* `agent-session-controls`
+## UI/UX defects
 
-- [x] **3. M2 — [editor](.specs/editor/spec.md)** · [tasks](.specs/editor/tasks.md) · 22 tasks
-  CodeMirror workspace editor and real agent diffs.
-  *Depends on:* completed desktop/editor spike
-  *Platform tasks 18–20 were not runnable here; `check-webview-matrix.sh` records all three targets as untested, never passing.*
+### Dead controls
 
-- [x] **4. M3 — [mail](.specs/mail/spec.md)** · [tasks](.specs/mail/tasks.md) · 20 tasks
-  Agent-to-agent mail and human escalation.
-  *Depends on:* completed store
-  *Live socket routing remains on the explicit `UnroutedVerbs` seam; core mail, inbox, wait, projection, and CLI allowlisting are implemented. Live socket delivery tasks were skipped.*
+- [ ] **Wire the Merge modal's primary action** — "Merge and close the task" ([MergeModal.tsx:16](apps/desktop/src/shell/MergeModal.tsx#L16)) has no `onClick`; only the secondary button (which just closes) works. [shell-revision](.specs/shell-revision/spec.md) acceptance 12.
+- [ ] **Wire the Interact agent panel** — [InteractView.tsx:219-227](apps/desktop/src/screens/interact/InteractView.tsx#L219-L227) passes no `onSend/onQueue/onStop/onNewSession/onCompact/onClearContext/onHarnessChange/onModelChange/onEffortChange/onApprovePermission` to `AgentPane`, the session is pinned to `status:"working"` ([:66](apps/desktop/src/screens/interact/InteractView.tsx#L66)), and no `*Options` arrays are supplied so the harness/model/effort selects each show one unchangeable option ([agent-pane-controls.tsx:49-50,94-134](apps/desktop/src/panes/agent-pane-controls.tsx#L49-L50)). Submitting a prompt does nothing observable.
+- [ ] **Split Stop from Send in the composer** — [agent-pane-controls.tsx:479-486,571-573](apps/desktop/src/panes/agent-pane-controls.tsx#L479-L486): the button reads "Stop" during a run but sends/queues if the textarea has text. [agent-session-controls](.specs/agent-session-controls/spec.md) acceptance 2 and the AgentPanel mockup have a dedicated interrupt.
+- [ ] **Wire the Workshop extension editor** — [ExtensionEditor.tsx:313-320,395-406,428,455-475,493-499](apps/desktop/src/screens/workshop/ExtensionEditor.tsx#L313-L320): "New {type}", "Sort", item rows (`aria-selected` pinned to index 0), "History", "Save", "Add config key", and every effort `<select>` have no handler. This is the editor for 9 of the 30 routed views; no edit persists.
+- [ ] **Wire the Workshop CLI/Providers/Workflows/Governance controls** — [WorkshopFixtureView.tsx:150-151,295,340-369,436-447,489,557](apps/desktop/src/screens/workshop/WorkshopFixtureView.tsx#L150-L151): "Upload a CLI", "Add provider", "Test connection"/"Save", "Reveal"/"Replace", catalogue search (no `value`/`onInput`), model-alias toggle (`onClick={() => undefined}`), auth-method `Segmented` (`onChange={() => undefined}`), "New workflow", "Add a guardrail".
+- [ ] **Wire Settings → Guardrails** — [GuardrailsView.tsx:18,24,36-63,91-103,179](apps/desktop/src/screens/settings/GuardrailsView.tsx#L18): every `Stepper`/`Toggle`/`Select` lacks `onClick`/`onChange`, the settings-rail nav buttons do nothing, and "Save defaults" still shows "Saved".
+- [ ] **Wire Plan actions** — "Open the board" ([PlanView.tsx:222-227](apps/desktop/src/screens/plan/PlanView.tsx#L222-L227)), `ScopeDecision` `onWiden`/`onKeepOut` no-op closures ([PlanView.tsx:499-500](apps/desktop/src/screens/plan/PlanView.tsx#L499-L500)), "Revert"/"History"/"Save & re-synthesise"/"+ Add requirement" ([PlanSpecView.tsx:33-35,96-98](apps/desktop/src/screens/plan/PlanSpecView.tsx#L33-L35)), "+ Add task" ([PlanTasksView.tsx:110](apps/desktop/src/screens/plan/PlanTasksView.tsx#L110)) — all without `onClick` while an "unsaved" badge implies edits can be saved.
+- [ ] **Capture the Plan inputs form** — Goal `<textarea>` has no `onInput` and Project `<select>` is pinned to `"tapestry"` ([PlanView.tsx:65-80](apps/desktop/src/screens/plan/PlanView.tsx#L65-L80)); "Start planning" reads neither.
+- [ ] **Wire Memory actions** — "Edit recalled fact", "Adjudicate" (long-term and wiki), "Send to session"/"Resolve", "Ingest a document", wiki kind-chip filters ([MemoryFixtures.tsx:336,356,487-528,623-624](apps/desktop/src/screens/memory/MemoryFixtures.tsx#L336)); the artifact comment `<textarea>` has no `value`/`onInput`.
+- [ ] **Wire the Mail composer** — reply `<Textarea>` has no `value`/`onInput`; "Reply", "Drain", "Unblock" have no `onClick` ([MailView.tsx:83-84](apps/desktop/src/screens/mail/MailView.tsx#L83-L84)). [UI_MOCKUP_REVIEW.md:603](docs/UI_MOCKUP_REVIEW.md#L603).
+- [ ] **Make Telemetry facets and search real** — "Reset" and every facet button (rendering `aria-pressed`) have no `onClick`; the search bar is static text with a decorative blinking caret, not an `<input>` ([TelemetryView.tsx:107-120,134-136,183-197](apps/desktop/src/screens/review/TelemetryView.tsx#L107-L120)).
+- [ ] **Wire Setup actions** — "New project", "Archive"/"Rename", base-context "History"/"Save", "Add repo", and every CLI-tool row `Add`/`×` (8 sites) have no `onClick` ([ProjectsView.tsx:100,148-149,217-218,264,272,465-513](apps/desktop/src/screens/projects/ProjectsView.tsx#L100)). "+ New project" in the rail ([ProjectRail.tsx:266-279](apps/desktop/src/shell/ProjectRail.tsx#L266-L279)) navigates to the current project's Setup instead of a creation flow.
+- [ ] **Wire Manage's New Task and TaskDetail** — the Summary input is pinned to a static value with no `onInput` and "Create draft" has no `onClick` ([ManageView.tsx:99-110](apps/desktop/src/screens/manage/ManageView.tsx#L99-L110)); "Pause"/"Cancel"/"Hand off"/"Needs attention" have no `onClick` ([ManageView.tsx:514-517](apps/desktop/src/screens/manage/ManageView.tsx#L514-L517)).
+- [ ] **Wire Dispatch controls** — the Autorun/Schedules/Runs `Segmented` is `onChange={() => undefined}`, and "Pause everything", "New schedule", four schedule presets, both radio groups (always show the first option), and "Restore previous state" do nothing ([DispatchView.tsx:61-67,94,108-110,289,317-326,383-396](apps/desktop/src/screens/dispatch/DispatchView.tsx#L61-L67)).
+- [ ] **Wire "+ New bot"** — [BotsView.tsx:302-304](apps/desktop/src/screens/bots/BotsView.tsx#L302-L304) has no `onClick`; the rest of the screen is wired.
+- [ ] **Wire the workflow canvas editing loop** — palette drag has no `onDragStart` and the canvas no `onDrop`/`onDragOver` ([WorkflowView.tsx:33-43](apps/desktop/src/screens/workshop/WorkflowView.tsx#L33-L43)); `SolidFlow` is never given `onConnect` ([WorkflowCanvas.tsx:261-268](apps/desktop/src/workflow-canvas/WorkflowCanvas.tsx#L261-L268)); "+ add clause", the guardrail stepper, and the guardrail toggle (a bare `<span>`) do nothing ([WorkflowView.tsx:128-130,184-213](apps/desktop/src/screens/workshop/WorkflowView.tsx#L128-L130)). [workflow-canvas](.specs/workflow-canvas/spec.md) acceptance 7.
+- [ ] **Drive the canvas Inspector from selection and render presets as nodes** — no `onSelect` reaches `WorkflowCanvas`, so the Inspector shows a hard-coded "Condition · verify.passed" ([WorkflowView.tsx:99-130](apps/desktop/src/screens/workshop/WorkflowView.tsx#L99-L130)); picking the Ralph preset renders `<span>`s, not editable nodes ([WorkflowView.tsx:80-93](apps/desktop/src/screens/workshop/WorkflowView.tsx#L80-L93)).
+- [ ] **Make the canvas reactive** — `flowNodes`/`flowEdges` are computed once in the component body and the store setters are discarded ([WorkflowCanvas.tsx:244-248](apps/desktop/src/workflow-canvas/WorkflowCanvas.tsx#L244-L248)), so live-overlay updates never repaint; the zoom readout is the fixture constant `ZOOM = "100%"` ([fixtures/workflow.ts:77](apps/desktop/src/fixtures/workflow.ts#L77)).
+- [ ] **Discard on non-open Interact sessions fails silently** — the `×` renders on every card but `discard()` only acts on `state === "open"` ([InteractView.tsx:98-105,163-172](apps/desktop/src/screens/interact/InteractView.tsx#L98-L105)).
 
-- [x] **5. M3 — [memory](.specs/memory/spec.md)** · [tasks](.specs/memory/tasks.md) · 40 tasks
-  Scoped facts, provenance, embeddings, promotion, and decay.
-  *Depends on:* completed store, event store, telemetry, and materializers
+### Navigation
 
-- [x] **6. M3 — [repo-manager](.specs/repo-manager/spec.md)** · [tasks](.specs/repo-manager/tasks.md) · 17 tasks
-  Bare remote, per-run clones, and merge-back.
-  *Depends on:* completed sandbox and store
+- [ ] **Give ⌘P its own search** — [Shell.tsx:100-107](apps/desktop/src/shell/Shell.tsx#L100-L107) treats `k` and `p` identically; [command-palette](.specs/command-palette/spec.md) acceptance 2 wants ⌘P to rank code, wiki, tasks, and run history.
+- [ ] **Make the locator palette sections live** — `v2PaletteDestinations` ([LocatorPalette.tsx:11-25](apps/desktop/src/nav/LocatorPalette.tsx#L11-L25)) buckets every route into "Needs you"/"Running now"/"Where you were" by static category; the footer promises `↑↓ move · ⇧↵ scope` but only Enter is handled ([:71-73,103](apps/desktop/src/nav/LocatorPalette.tsx#L71-L73)).
+- [ ] **Persist navigation across reload** — `createNavStore()` ([store.ts:50-56](apps/desktop/src/nav/store.ts#L50-L56)) always seeds `inbox`/`tapestry` in memory; no `history`/`popstate`/storage sync, so every reload lands on Inbox. `back()`/`forward()` ([store.ts:37-43,117-121](apps/desktop/src/nav/store.ts#L37-L43)) are implemented and have no button or keybinding.
+- [ ] **Render the category TabBar** — [TabBar.tsx](apps/desktop/src/shell/TabBar.tsx) is exported and never mounted by [Shell.tsx](apps/desktop/src/shell/Shell.tsx), so Manage/Analytics/Memory sub-views have no tab UI; the hand-rolled version also lacks `role="tablist"`/arrow keys while the Kobalte [ui/Tabs.tsx](apps/desktop/src/ui/Tabs.tsx) sits unused. `CATEGORY_TABS.analytics` ([tabs.ts:16-19](apps/desktop/src/nav/tabs.ts#L16-L19)) omits Mail, which the inventory files under analytics.
+- [ ] **Make BackLink reachable** — [BackLink.tsx](apps/desktop/src/nav/BackLink.tsx) is imported nowhere, and `drilldownParent()` ([tabs.ts:38-40](apps/desktop/src/nav/tabs.ts#L38-L40)) returns `null` for every view. [navigation](.specs/navigation/spec.md) acceptance 4.
+- [ ] **Mount or delete orphaned shell components** — `RunningPill`, `Strip`, `Rail`, `TitleBar`, `LocatorBar` ([shell/](apps/desktop/src/shell/)) and `route-scope.ts` ([nav/route-scope.ts](apps/desktop/src/nav/route-scope.ts)) are exported and never rendered; `Strip` documents itself as the persistent running-agent footer. `ExtensionsView.tsx` and `HarnessesView.tsx` ([screens/workshop/](apps/desktop/src/screens/workshop/)) are complete screens nothing routes to.
 
-- [x] **7. M3 — [tool-compaction](.specs/tool-compaction/spec.md)** · [tasks](.specs/tool-compaction/tasks.md) · 16 tasks
-  Compact tool output before it enters context.
-  *Depends on:* completed materializers, artifacts, and telemetry
+### Missing states and swallowed errors
 
-- [x] **8. M4 — [marketplace-index](.specs/marketplace-index/spec.md)** · [tasks](.specs/marketplace-index/tasks.md) · 15 tasks
-  Resolve marketplace manifests and tool pins.
-  *Depends on:* completed agent definitions
+- [ ] **Surface backend errors in Manage and Memory** — three `.catch(() => setX([]))` in [ManageView.tsx:643,660,668](apps/desktop/src/screens/manage/ManageView.tsx#L643) and `fetchArtifactsFromCore().catch(() => undefined)` ([MemoryFixtures.tsx:388](apps/desktop/src/screens/memory/MemoryFixtures.tsx#L388)) make an IPC failure indistinguishable from "none"; [PlanView.tsx:304-311](apps/desktop/src/screens/plan/PlanView.tsx#L304-L311) shows the correct `InlineError` pattern.
+- [ ] **Use the Toast** — `ToastRegion` is mounted ([Shell.tsx:145](apps/desktop/src/shell/Shell.tsx#L145)) but `notify()` has zero call sites; `Card`, `Tabs`, `Table`, `Tooltip` in [ui/](apps/desktop/src/ui/) are likewise unconsumed.
+- [ ] **Add empty and loading states** — `VirtualTable` renders a bare header when `rows.length === 0` ([VirtualTable.tsx:71-76](apps/desktop/src/panes/VirtualTable.tsx#L71-L76)); `EditorSurface` renders nothing during LSP setup ([EditorSurface.tsx:50-138](apps/desktop/src/editor/EditorSurface.tsx#L50-L138)); the `ViewerStateFamilies` stub ([ViewerStateFamilies.tsx:13-23](apps/desktop/src/screens/memory/ViewerStateFamilies.tsx#L13-L23)) that was meant to define the loading/empty/error family for eight viewers renders empty `<div>`s and is unused.
 
-- [x] **9. M3.5 — [locus-browse](.specs/locus-browse/spec.md)** · [tasks](.specs/locus-browse/tasks.md) · 21 tasks
-  Browser recordings as reviewable artifacts.
-  *Depends on:* completed sandbox and artifacts
-  *Task 16 is skipped: recording duration cap remains an open product decision; see `.specs/locus-browse/task-16-note.md`.*
+### Forms
 
-- [x] **10. M1.5 — [workshop-plugins](.specs/workshop-plugins/spec.md)** · [tasks](.specs/workshop-plugins/tasks.md) · 20 tasks
-  Common plugin contract and the first-party Pi, OpenAI/ChatGPT, Claude, OpenRouter, and GitHub CLI plugins.
-  *Depends on:* completed `workshop-revision`, `harness-registry`, and `marketplace-index`
+- [ ] **Distinguish Approve from Send back in Inbox** — `InboxView` wires both to the same `resolveItem(id)` and drops the comment ([InboxView.tsx:368-369](apps/desktop/src/screens/inbox/InboxView.tsx#L368-L369), [InboxDetail.tsx:89,110-123](apps/desktop/src/screens/inbox/InboxDetail.tsx#L89)); [shell-revision](.specs/shell-revision/spec.md) acceptance 14 requires non-empty text for Send back.
+- [ ] **Show cost in Interact** — `showCost` is never passed ([InteractView.tsx:205,219-227](apps/desktop/src/screens/interact/InteractView.tsx#L205)) so `AgentPane` defaults it off ([AgentPane.tsx:88,224](apps/desktop/src/panes/AgentPane.tsx#L88)) while the header claims "token/cost shown"; [interact-sessions](.specs/interact-sessions/spec.md) acceptance 14. `permissionPosture: "bypass"` is hard-coded ([InteractView.tsx:65](apps/desktop/src/screens/interact/InteractView.tsx#L65)) so the built permission/elicitation/checkpoint surfaces never render.
+- [ ] **Redraw the Analytics trend from the selected measure** — the bars are a literal `[34, 50, 42, …]` independent of `measure()`/`range()` ([AnalyticsView.tsx:297-315](apps/desktop/src/screens/analytics/AnalyticsView.tsx#L297-L315)).
 
-- [x] **11. M2 — [lsp](.specs/lsp/spec.md)** · [tasks](.specs/lsp/tasks.md) · 24 tasks
-  Shared LSP navigation, diagnostics, and semantic tokens.
-  *Depends on:* `editor`
-  *Batch slice complete: CLI `lsp symbols` validation. Runtime routing is tracked as item 11a below.*
+### Keyboard, focus, and accessibility
 
-- [x] **11a. M2 — LSP runtime routing** · [spec](.specs/lsp/spec.md) · [tasks](.specs/lsp/tasks.md) · 23 tasks
-  Host-supervised per-project servers, container-local routing, descriptor pinning and provisioning, diagnostics, and semantic tokens.
-  *Depends on:* `editor`, `sandbox`, `run-supervisor`, and item 11's CLI contract.
-  *Completed:* authenticated multi-run leases, clone-local execution, project pin persistence/hydration, provisioning evidence, host/editor lifecycle, tree-agreement coverage, and full Rust/CLI/desktop verification.
+- [ ] **Dismiss popovers and menus with Escape/outside click** — `DispatchPill` ([:42-108](apps/desktop/src/shell/DispatchPill.tsx#L42-L108)), `InboxPill` ([:27-67](apps/desktop/src/shell/InboxPill.tsx#L27-L67)), and the AgentPane overflow/context popovers ([AgentPane.tsx:89-90,365-376](apps/desktop/src/panes/AgentPane.tsx#L89-L90)) are hand-rolled `<Show>` blocks with `role="dialog"`/`"menu"` and no keydown, outside-click, arrow-key, or focus-return handling.
+- [ ] **Make click-only surfaces keyboard-reachable** — Interact session `<article onClick>` ([InteractView.tsx:152-159](apps/desktop/src/screens/interact/InteractView.tsx#L152-L159)), `VirtualTable` rows ([VirtualTable.tsx:59-65](apps/desktop/src/panes/VirtualTable.tsx#L59-L65)), `GraphRenderer` nodes ([GraphRenderer.tsx:82-88](apps/desktop/src/workflow-canvas/GraphRenderer.tsx#L82-L88)), the workflow palette `draggable` divs ([WorkflowView.tsx:33-59](apps/desktop/src/screens/workshop/WorkflowView.tsx#L33-L59)), and the `Resizable` separator ([Resizable.tsx:75-82](apps/desktop/src/panes/Resizable.tsx#L75-L82), no `tabindex`/`onKeyDown`) have no keyboard path.
+- [ ] **Fix assistive-tech semantics** — `GraphRenderer`'s `<svg role="img">` hides its clickable nodes ([GraphRenderer.tsx:51-57](apps/desktop/src/workflow-canvas/GraphRenderer.tsx#L51-L57)) and also renders the Wiki graph; `VirtualRows` emits one `<table>` per row so cells lose their headers ([VirtualTable.tsx:34-68](apps/desktop/src/panes/VirtualTable.tsx#L34-L68)); diff add/remove is conveyed only by an `aria-hidden` glyph ([agent-pane-content.tsx:444-450](apps/desktop/src/panes/agent-pane-content.tsx#L444-L450)); the frontmatter grid and model table are divs ([ExtensionEditor.tsx:291-334](apps/desktop/src/screens/workshop/ExtensionEditor.tsx#L291-L334), [WorkshopFixtureView.tsx:395-448](apps/desktop/src/screens/workshop/WorkshopFixtureView.tsx#L395-L448)); the collapse-sessions `aria-label` never flips ([InteractView.tsx:122-128](apps/desktop/src/screens/interact/InteractView.tsx#L122-L128)); the merge revert button's only name is a `title` ([MergeEditor.tsx:41-48](apps/desktop/src/editor/MergeEditor.tsx#L41-L48)).
 
-- [x] **12. M2 — [project-search](.specs/project-search/spec.md)** · [tasks](.specs/project-search/tasks.md) · 11 tasks
-  Search symbols and files across project repos.
-  *Depends on:* `editor`
+### Panes and editor
 
-- [x] **13. M3 — [guardrails](.specs/guardrails/spec.md)** · [tasks](.specs/guardrails/tasks.md) · 23 tasks
-  Safe idle detection, retry, reassignment, and gates.
-  *Depends on:* `mail`
-  *Batch slice: debug-breakpoint waiting state only. Remaining guardrail tasks are deferred; see `.specs/guardrails/task-scope-note.md`.*
+- [ ] **Expose pane split/detach/close/promote in the UI** — [manager.ts](apps/desktop/src/panes/manager.ts) and [detach.ts](apps/desktop/src/panes/detach.ts) are implemented and tested but imported by nothing outside tests; [pane-manager](.specs/pane-manager/spec.md) acceptance 3 and 5 describe user-facing detach and strip promotion. `ShellPane.tsx` (xterm) and `PaneKind 'shell'` ([manager.ts:1](apps/desktop/src/panes/manager.ts#L1)) survive despite the spec retiring the PTY pane.
+- [ ] **React to file changes in EditorSurface** — the view, LSP client, and extensions are built once in `onMount` over `props.file` ([EditorSurface.tsx:37-147](apps/desktop/src/editor/EditorSurface.tsx#L37-L147)); a new `file` prop leaves stale content on screen.
+- [ ] **Degrade to plain text when LSP attach fails** — `new EditorView` runs only after `attachTauriLsp` resolves; on rejection the host `<div>` stays empty with no message ([EditorSurface.tsx:50-142](apps/desktop/src/editor/EditorSurface.tsx#L50-L142)); [lsp](.specs/lsp/spec.md) acceptance 14 promises plain-text fallback. No dirty/save concept exists anywhere in [editor/](apps/desktop/src/editor/).
 
-- [x] **14. M4 — [workflow-engine](.specs/workflow-engine/spec.md)** · [tasks](.specs/workflow-engine/tasks.md) · 30 tasks
-  Execute governed workflow graphs.
-  *Depends on:* `guardrails`
-  *Completed:* graph/spec compilation, bounded execution/reset, fresh-container verification, Conditions, gates, arbiter actions, Ralph, and workflow log/projector replay are implemented and verified with focused Rust/CLI/schema tests.
+## Styling defects
 
-- [x] **15. M3.5 — [locus-debug](.specs/locus-debug/spec.md)** · [tasks](.specs/locus-debug/tasks.md) · 19 tasks
-  Rust DAP client for agents.
-  *Depends on:* `guardrails` and `marketplace-index`
-  *Completed:* DAP sessions are core-owned by `RunId`; `locusd` launches allowlisted adapter tools inside the run container through a bounded stdio bridge, and no-Docker environments fail honestly without a fake fallback. See `.specs/locus-debug/task-scope-note.md` for the e2e environment note.*
+- [ ] **Define the four undefined tokens or rename their uses** — `--status-danger-deep`/`--status-danger-pale` ([screens.css:1877-1878](apps/desktop/src/screens/screens.css#L1877-L1878)), `--status-warning` ([manage.css:1](apps/desktop/src/screens/manage/manage.css#L1)), `--action-primary` ([ExtensionEditor.css:5,13](apps/desktop/src/screens/workshop/ExtensionEditor.css#L5)) resolve to nothing; the stuck-session chip has no background and the warning edge renders in `currentColor`. There is no warning tier in [tokens.css](apps/desktop/src/styles/tokens.css) at all.
+- [ ] **Hoist `--r-pill` to tokens.css** — it is declared only on `.agent-pane` ([agent-pane.css:2](apps/desktop/src/panes/agent-pane.css#L2)) but used by `.inbox-throughput-meter` ([screens.css:83](apps/desktop/src/screens/screens.css#L83)) and `.interact-live-pill` ([interact.css:1](apps/desktop/src/screens/interact/interact.css#L1)), which render as squares.
+- [ ] **Replace five hard-coded dark-theme rgba literals** — [screens.css:2213](apps/desktop/src/screens/screens.css#L2213), [2881](apps/desktop/src/screens/screens.css#L2881), [3096](apps/desktop/src/screens/screens.css#L3096), [3144](apps/desktop/src/screens/screens.css#L3144), [3208](apps/desktop/src/screens/screens.css#L3208) bake the dark RGB of `--text-primary`/`--code-keyword`/`--bad-solid` and never repaint in light.
+- [ ] **Vendor the four missing rail icons** — `gear`, `chat-circle`, `brain`, `sliders` in [views.ts:39-83](apps/desktop/src/nav/views.ts#L39-L83) have no symbol in [phosphor.svg](apps/desktop/src/assets/icons/phosphor.svg) (158 ids checked), so 4 of 10 rail buttons are blank; the mockup names them `ph-gear`, `ph-brain`, `ph-chats-circle`, `ph-sliders-horizontal`.
+- [ ] **Stop synthesizing bold** — only Inter/JetBrains 400 and 500 are vendored ([fonts.css](apps/desktop/src/assets/fonts/fonts.css)); [shell.css:351](apps/desktop/src/shell/shell.css#L351) sets `font-weight:700` and eleven `strong` selectors set only `color` and inherit UA bold ([screens.css:323,3566,3623,3713,3958,4009](apps/desktop/src/screens/screens.css#L323), [shell.css:194](apps/desktop/src/shell/shell.css#L194), [dispatch.css:33,69,74](apps/desktop/src/screens/dispatch/dispatch.css#L33), [bots.css:137](apps/desktop/src/screens/bots/bots.css#L137)). [type.css:22](apps/desktop/src/styles/type.css#L22) says 500 is the only emphasis weight.
+- [ ] **Reset native selects, textareas, checkboxes** — no `appearance:none` exists in any stylesheet; eight `<select>` keep OS chrome and three carry no class at all ([ExtensionEditor.tsx:313](apps/desktop/src/screens/workshop/ExtensionEditor.tsx#L313), [ManageView.tsx:296](apps/desktop/src/screens/manage/ManageView.tsx#L296), [PlanView.tsx:73](apps/desktop/src/screens/plan/PlanView.tsx#L73)); two raw `<textarea>` skip the `Textarea` primitive ([MemoryFixtures.tsx:487](apps/desktop/src/screens/memory/MemoryFixtures.tsx#L487), [PlanView.tsx:65](apps/desktop/src/screens/plan/PlanView.tsx#L65)); no checkbox or radio has `accent-color` (12 sites across Dispatch, ExtensionEditor, Manage, agent-pane-controls).
+- [ ] **Resolve duplicate global class definitions** — `.toggle` is defined in [screens.css:3049-3059](apps/desktop/src/screens/screens.css#L3049-L3059) (`--action-attention`) and [projects.css:71-74](apps/desktop/src/screens/projects/projects.css#L71-L74) (`--status-working`); `.materialization-figures` is flex in [screens.css:2600](apps/desktop/src/screens/screens.css#L2600) and grid in [ExtensionEditor.css:45](apps/desktop/src/screens/workshop/ExtensionEditor.css#L45). Which wins depends on import order.
+- [ ] **Style the selected theme** — [AppearanceSelector.tsx:33](apps/desktop/src/screens/settings/AppearanceSelector.tsx#L33) sets `settings-theme-selected`, which no stylesheet defines; nothing shows which theme is active.
+- [ ] **Resolve theme before first paint and honor the OS preference** — [index.html:2](apps/desktop/index.html#L2) hard-codes `data-theme="dark"` and [App.tsx:31-36](apps/desktop/src/App.tsx#L31-L36) applies the saved theme in `onMount`, so light users get a dark first frame; `normalizeTheme` ([theme.ts:77-79](apps/desktop/src/styles/theme.ts#L77-L79)) defaults to dark and `prefers-color-scheme` is never read.
+- [ ] **Extend the spacing scale** — `--g-1..--g-5` stops at 14px while the mockup's `--s1..--s7` reaches 32px; ~180 magic values ≥16px result (`16px`×48, `18px`×52, `20px`×35, `28px`×15, `30px`×14, `32px`×7), e.g. [ExtensionEditor.css:16](apps/desktop/src/screens/workshop/ExtensionEditor.css#L16), [shell.css:243](apps/desktop/src/shell/shell.css#L243).
+- [ ] **Add a `--scrim` token** — four different backdrop literals: [shell.css:147](apps/desktop/src/shell/shell.css#L147), [shell.css:239](apps/desktop/src/shell/shell.css#L239), [dispatch.css:35](apps/desktop/src/screens/dispatch/dispatch.css#L35), [projects.css:57](apps/desktop/src/screens/projects/projects.css#L57).
+- [ ] **Put overlay z-indexes on the ui.css ladder** — `.project-editor-overlay` is `z-index:20` ([projects.css:57](apps/desktop/src/screens/projects/projects.css#L57)) and `.dispatch-dialog-backdrop` is `2` ([dispatch.css:35](apps/desktop/src/screens/dispatch/dispatch.css#L35)); the ladder in [ui.css](apps/desktop/src/ui/ui.css) is 50/51/60/70, so a toast or menu stacks over the editor.
+- [ ] **Delete dead theme scaffolding and alias tokens** — `THEME_REGISTRY`/`registerThemes`/`ThemeRegistration` ([theme.ts:3-71](apps/desktop/src/styles/theme.ts#L3-L71)) duplicate 18 hex values from tokens.css and have no caller; 26 compatibility aliases in [tokens.css](apps/desktop/src/styles/tokens.css) (`--ac`, `--bg`, `--sf`, `--tx`, `--mu`, `--line`, `--ok`, `--bad-deep`, …) are referenced nowhere; `--data-blue` and `--text-link` are used only as fallback-bearing names ([agent-pane.css:360-484](apps/desktop/src/panes/agent-pane.css#L360)).
+- [ ] **Import each screen stylesheet once** — `manage.css` and `interact.css` load via [screens.css:4-5](apps/desktop/src/screens/screens.css#L4-L5) and again from [ManageView.tsx:42](apps/desktop/src/screens/manage/ManageView.tsx#L42) / [InteractView.tsx:7](apps/desktop/src/screens/interact/InteractView.tsx#L7).
 
-- [x] **16. M3.5 — [media-artifacts](.specs/media-artifacts/spec.md)** · [tasks](.specs/media-artifacts/tasks.md) · 16 tasks
-  OCR and keyframe derivation for model review.
-  *Depends on:* `locus-browse`
-  *Completed:* host-side derivation and Tauri-backed image/recording viewers use original media paths while keeping derived forms agent-facing. The OCR-confidence default remains open; see `.specs/media-artifacts/task-7-note.md` and `.specs/media-artifacts/task-scope-note.md`.*
+## Plan adherence gaps
 
-- [x] **17. M3 — [handoffs](.specs/handoffs/spec.md)** · [tasks](.specs/handoffs/tasks.md) · 17 tasks
-  Transfer ownership with a bounded handoff payload.
-  *Depends on:* `mail` and `guardrails`
-  *Completed:* core payloads, artifact/run/session links, same-branch successor priming, trigger shape, CLI validation/routing, transcript exclusion, and stuck footer. Cross-project transfers are rejected per project-scoped session ownership.
+Features closed in earlier milestones whose acceptance criteria are not met, plus places where the spec layer has fallen behind the code. The AGENTS.md invariants that can be grepped (no harness names in core, `tui = false`, `weaker_than_native`, no timestamps in materializers, no MCP, compact `--json`, `refuse_primary_branch`, no synthesized telemetry, `Channel` on hot paths) all hold.
 
-- [x] **18. M4 — [workflow-canvas](.specs/workflow-canvas/spec.md)** · [tasks](.specs/workflow-canvas/tasks.md) · 24 tasks
-  Author and validate workflow graphs.
-  *Depends on:* `workflow-engine`
-  *Completed:* renderer-independent versioned graph JSONB with positions and named handles, save-time validation, permission narrowing, role contamination checks, board dependency projection, Solid Flow canvas/node handles, loop grouping, viewport controls, Ralph expansion, condition inspector, guardrail binding, and one normalized live-event source. Full core integration remains Docker-dependent.
+### Closed but unmet
 
-- [x] **19. M5 — [board](.specs/board/spec.md)** · [tasks](.specs/board/tasks.md) · 23 tasks
-  Fixed columns and evidence-gated completion.
-  *Depends on:* `workflow-engine`
-  *Completed:* event-fed BoardTask projection with fixed In Progress columns, actor/evidence gates, workflow-generated dependencies, auto-unblock, approval items, stateless task CLI validation, and Kanban projection. Database-backed rebuild remains Docker-dependent.
+- [ ] **Honor `--json` on every CLI verb** — `locus lint --json` hits `bail!("unknown lint option")` ([main.rs:223-242](crates/locus-cli/src/main.rs#L223-L242)) because `main` never strips the flag for `lint`; `locus backup` prints a bare path ([main.rs:366](crates/locus-cli/src/main.rs#L366)) and `locus harness lint` prints English ([main.rs:355](crates/locus-cli/src/main.rs#L355)). AGENTS.md: "`--json` on every `locus` verb." `ralph` and the socket-dispatched verbs comply.
+- [ ] **Remove the PTY from the agent run and start ACP instead** — `spawn_at_port` attaches `AGENT_PTY` to every container ([run.rs:552-553](crates/locus-core/src/runtime/run.rs#L552-L553)); [acp-client](.specs/acp-client/spec.md) acceptance 7 says "No PTY is attached to any agent run" and acceptance 1/5 say the ACP session is the run. [acp.rs](crates/locus-core/src/runtime/acp.rs) is labelled "planning-client transport" and its client is "intentionally not exposed to ordinary agent-session code" (line 25). No `Channel<Event>` exists in core ([run-supervisor](.specs/run-supervisor/tasks.md) task 7); the only stream reaching the UI is `PtyStream`.
+- [ ] **Retire the Shell/PTY pane for real** — [ShellPane.tsx](apps/desktop/src/panes/ShellPane.tsx) (xterm, `pty_subscribe` at line 35), `PaneKind 'shell'` ([manager.ts:1](apps/desktop/src/panes/manager.ts#L1)), and [shell-pty.test.ts](apps/desktop/test/panes/shell-pty.test.ts) all survive; [pane-manager](.specs/pane-manager/spec.md) acceptance 6 forbids any terminal on a run.
+- [ ] **Fold board, mail, planning, and the rest from the event log** — [event-store](.specs/event-store/spec.md) says every row is a projection of `log.entries` and the fold is synchronous in the append transaction; only [workflow_log.rs](crates/locus-core/src/store/workflow_log.rs) writes the log, [0021_workflow_event_log.up.sql:13-18](migrations/0021_workflow_event_log.up.sql#L13-L18) `CHECK`s the kind to four `workflow.*` values, and `set_plan_stage` ([planning.rs:53-59](crates/locus-core/src/store/planning.rs#L53-L59)), [work_items.rs](crates/locus-core/src/store/work_items.rs), [mail.rs](crates/locus-core/src/store/mail.rs), and six other store modules write tables directly (64 statements). No board or mail projector exists; `KanbanFold` in [services/board.rs](crates/locus-core/src/services/board.rs) never reads the log.
+- [ ] **Ship `locus rebuild` and `locus restore --drill`** — [event-store spec.md:79-82](.specs/event-store/spec.md#L79-L82) and [store spec.md:59-64](.specs/store/spec.md#L59-L64) define both as first-class verbs; [main.rs:34-38](crates/locus-cli/src/main.rs#L34-L38) wires `backup`, `lint`, `harness`, `ralph`, `hook` only. `restore::drill` ([restore.rs:181](crates/locus-core/src/store/restore.rs#L181)) is library-only. Event-store acceptance 6–9 (byte-identical rebuild, `--to`, unknown `(kind, v)` halt) cannot be verified.
+- [ ] **Add the carve-out registry** — [event-store spec.md:68-69](.specs/event-store/spec.md#L68-L69) requires a test that fails when a non-foldable column appears without a declared carve-out; `carve_outs_declared` ([memory.rs:1873-1876](crates/locus-core/src/services/memory.rs#L1873-L1876)) asserts a hard-coded two-element array.
+- [ ] **Wire ⌘P to `search_all`** — `search_code`/`search_wiki`/`search_tasks`/`search_runs`/`unified_ranking` in [palette.rs](crates/locus-core/src/palette.rs) (line 149) are implemented and tested and have no caller in [apps/desktop/src](apps/desktop/src/). [command-palette](.specs/command-palette/spec.md) acceptance 2.
+- [ ] **Connect Interact to `services/interact.rs`** — `promote()`/`discard()` in [interact.rs](crates/locus-core/src/services/interact.rs) have no Tauri command; [interact-sessions](.specs/interact-sessions/spec.md) acceptance 1, 2, 4, 5, 6, 9 unmet; 13 frontend `verify:` rows ([tasks.md:15-27](.specs/interact-sessions/tasks.md#L15-L27)) name tests that do not exist.
+- [ ] **Test the ACP namespace claim** — [acp-client](.specs/acp-client/spec.md) acceptance 3 wants a test asserting the agent process's namespace; [acp.rs:139-165](crates/locus-core/src/runtime/acp.rs#L139-L165) only asserts the `docker exec -i` argv.
+- [ ] **Build the Wiki kind filter** — `PageKind` has six variants ([wiki.rs:13-28](crates/locus-core/src/services/wiki.rs#L13-L28)) and [UI_MOCKUP_REVIEW.md:556](docs/UI_MOCKUP_REVIEW.md#L556) describes the filter; no component renders it.
 
-- [x] **20. M6 — [schedules](.specs/schedules/spec.md)** · [tasks](.specs/schedules/tasks.md) · 12 tasks
-  Turn cron schedules into recorded workflows.
-  *Depends on:* `workflow-engine`
-  *Completed:* UTC five-field cron parser, next-fire computation, overlap skip/drop with visible counts and no backlog, verify-result recording, restart snapshots, pause/resume, and Store-side cron validation. Timezone/DST is explicitly UTC until a product timezone field exists.
+### Spec layer behind the code
 
-- [x] **21. M6 — [dashboard-metrics](.specs/dashboard-metrics/spec.md)** · [tasks](.specs/dashboard-metrics/tasks.md) · 20 tasks
-  Query telemetry, spend, cache, and run metrics.
-  *Depends on:* `workflow-engine`
-  *Completed:* query-only metric projections for cache/spend/offenders/verify/guardrails/board/arbiter/iterations/gates/trust/prefix drift, read-only lint gate, Status at-a-glance rail, and faceted Telemetry metric set.
+- [ ] **Update stale contracts** — [app-shell spec.md:68](.specs/app-shell/spec.md#L68) says the rail shows seven items (code ships ten per design-revision); [navigation spec.md:46,66](.specs/navigation/spec.md#L46) says `agents` is a drill-down and the category list is closed at seven; [store spec.md:73](.specs/store/spec.md#L73) and [AGENTS.md](AGENTS.md) say eight schemas (ten exist: `bots` in 0025, `log` in 0021); [UI_MOCKUP_REVIEW.md:29](docs/UI_MOCKUP_REVIEW.md#L29) says core ships nine plan stages ([planning.rs:30](crates/locus-core/src/services/planning.rs#L30) has seven); [PLAN.md:2804](PLAN.md#L2804) says the `tauri` CLI is not installed; AGENTS.md says twelve harnesses (eleven).
+- [ ] **Fix every `verify:` that names a missing test** — acp-client rows 10–12 (`acp::mapping_is_shared`, `acp::indistinguishable`, `acp::only_interface`); run-supervisor rows 5–7, 20 (`run::authenticates`, `run::no_persisted_secret`, `run::streams_acp`, `run::no_terminal_surface`); sandbox rows 10, 11, 20, 24 (`creds::egress_tiers`, `creds::outbound_audited`, `container::acp_stdio`, `container::reconciles_on_boot` — lives at [boot.rs:60](crates/locus-core/src/runtime/boot.rs#L60)); pane-manager rows 14–15 (`panes/agent-only`, `panes/no-terminal`); telemetry row 9 (`telemetry::mcp_always_empty` lives in `runtime::acp`); materializers (`materialize::trait_shape`, `byte_identical_twice`, `detects_nondeterminism`, `pi_and_user_plugin_all_eight`); every store row (`store::schema_*`, `pgvector_roundtrip`, `fts_roundtrip`, `event_cursor_range_scan`); every event-store row (`log::*`, `project::*`, `carve_out::*`, `rebuild::*`, `backup::log_restore_rebuild_drill`). A closed feature whose verify exits 1 was never verified.
+- [ ] **Fix PLAN.md's own completeness check** — the `awk` at [PLAN.md:2795-2797](PLAN.md#L2795-L2797) fails on the two struck-through rows in [external-work-items/tasks.md:17-18](.specs/external-work-items/tasks.md#L17-L18).
+- [ ] **Guard the two real panic paths** — `self.pages.last_mut().unwrap()` ([browse.rs:136](crates/locus-core/src/services/browse.rs#L136)) panics on an empty page list; `catalog_manifest` `panic!`s at [plugin.rs:1111,1446,1453](crates/locus-core/src/plugin.rs#L1111) on a missing catalog entry. Non-blocking: the remaining 12 production `unwrap`s are `Mutex::lock()` poison panics.
 
-- [x] **22. M5 — [wiki](.specs/wiki/spec.md)** · [tasks](.specs/wiki/tasks.md) · 26 tasks
-  Ingest typed knowledge and generate a durable wiki.
-  *Depends on:* `workflow-canvas`
-  *Completed:* six backend page kinds with hidden Overview, bounded MarkItDown ingest plans, auto entity/concept pages, wikilinks, overview revisions, embeddings/KNN/adjudication/contradictions, memory conflict and seed discovery, event/run attribution, stateless CLI validation, and shared graph rendering. Persistent pgvector execution remains Docker-dependent.
+## Test and gate gaps
 
-- [x] **23. M5 — [task-orchestration](.specs/task-orchestration/spec.md)** · [tasks](.specs/task-orchestration/tasks.md) · 18 tasks
-  Make Automate task-centric.
-  *Depends on:* `board` and `workflow-engine`
-  *Completed:* project-scoped workflow confirmation and root-session ownership, task-owned reset/child run trees, detail/control summaries, shared Kanban/List task locators and drafts, and running-strip links.
+All five gates pass today (`typecheck` 0 errors; vitest 356 files / 961 tests; `cargo test` 911 lib + 27 integration binaries against a real Docker Postgres; clippy clean). Green gates and a product that has never run an agent coexist because the gates measure the wrong things.
 
-- [x] **24. M5 — [planning-module](.specs/planning-module/spec.md)** · [tasks](.specs/planning-module/tasks.md) · 40 tasks
-  Guided planning with research, audit, and approval.
-  *Depends on:* `board` and `wiki`
-  *Completed:* isolated interviewer/researcher/auditor contracts, bounded orientation and fact research, scope/reduction/audit/reader/ratcher/recommendation/approval models, traceability anchors, replanning rules, specialization output, and Plan ACP/draft surface coverage. The seven-stage UI remains authoritative.
-
-- [x] **25. M5 — [calibration-loop](.specs/calibration-loop/spec.md)** · [tasks](.specs/calibration-loop/tasks.md) · 20 tasks
-  Learn from failures through specialization.
-  *Depends on:* `workflow-engine`, `planning-module`, and `memory`
-  *Completed:* watermark-scoped recurring arbiter clusters, exactly four human-gated proposal types, shared reflection Inbox queue, acceptance effects for regression/wiki/noise/ambiguity, sticky rejections, and confidence-gated specialization injection.
-
-- [x] **26. M6 — [command-palette](.specs/command-palette/spec.md)** · [tasks](.specs/command-palette/tasks.md) · 14 tasks
-  Search wiki, code, tasks, and runs globally.
-  *Depends on:* `project-search`, `wiki`, and `board`
-  *Completed:* unified locator-shaped global search over project-search code, wiki pages, board tasks, and run history with cross-project ranking, Cmd-K/Cmd-P opening, object-locator delegation, history traversal, and single-resolver gate.
-
-- [x] **27. M7 — [forge-providers](.specs/forge-providers/spec.md)** · [tasks](.specs/forge-providers/tasks.md) · 30 tasks
-  *This is the separate remote-forge integration boundary, not a Workshop model-provider plugin.*
-  Provider-neutral PR, CI, review, and issue integration.
-  *Depends on:* `repo-manager` and `board`
-  *Completed:* five provider identities/adapters, capability contract, immutable issue snapshots, provider close references, normalized change/CI data, broker-scoped credentials, HMAC webhook verification/routing, no-polling gate, and CI surfaces on board/status.
-
-- [x] **28. M8 — [marketplace-installer](.specs/marketplace-installer/spec.md)** · [tasks](.specs/marketplace-installer/tasks.md) · 11 tasks
-  *First-party CLI scope is `gh`; the installer remains open to trusted user-authored tool plugins.*
-  Install pinned tools into agent images.
-  *Depends on:* `marketplace-index`
-  *Completed:* argv-only install methods, allowlist-enforced deterministic image baking, verify-gated builds, shared image keys, pin/prose rebuild semantics, catalog docs injection, on-demand tool docs, and the trusted selection model in `TRUST-MODEL.md`.
-
-- [x] **29. M7 — [agent-prs](.specs/agent-prs/spec.md)** · [tasks](.specs/agent-prs/tasks.md) · 14 tasks
-  Agent-authored provider change requests.
-  *Depends on:* `forge-providers` and `locus-browse`
-  *Completed:* goal/task/evidence PR drafts with browse attachments, self-review before offer, 500-line slicing, shared forge/artifact comment routing, follow-up commit/reply, deferred post-exit delivery, and two-sided conflict resolution proposals.
-
-- [x] **30. M7 — [ci-babysitter](.specs/ci-babysitter/spec.md)** · [tasks](.specs/ci-babysitter/tasks.md) · 14 tasks
-  Bounded CI repair and escalation loop.
-  *Depends on:* `forge-providers`, `agent-prs`, and `guardrails`
-  *Completed:* normalized failure detection, compact log fetch, container dispatch, branch-only fix push, shared guardrail budget, arbiter/noise handling, attempt-carrying Inbox escalation, ignored real-break/give-up checks, and ordinary-workflow decision.
-
-- [x] **31. M7 — [external-work-items](.specs/external-work-items/spec.md)** · [tasks](.specs/external-work-items/tasks.md) · 18 tasks
-  Import GitHub issues through the first-party work-item plugin; other trackers remain future plugins.
-  *Depends on:* `task-orchestration`, `forge-providers`, and `board`
-  *Completed:* GitHub JSON-RPC plugin, `gh` snapshot/comment/resolve operations, database-backed provider registration and hydration, transactional import persistence, Done completion delivery with retry/status, duplicate-task navigation, Tauri IPC, and configured-provider UI loading. Docker-backed database tests remain blocked while Colima is unavailable. Original rows 9–10 were superseded by the sync revision.
-
-- [x] **32. M1.5 — [agent-session-research](.specs/agent-session-research/spec.md)** · [tasks](.specs/agent-session-research/tasks.md) · 4 tasks
-  Session research feed and reviewed promotion.
-  *Depends on:* `artifacts`, `memory`, and `planning-module`
-  *Completed:* session-scoped `finding` feed with seed/this-run/session-close provenance, planning inheritance without promotion, and explicit close-review promotion into long-term memory.
-
-- [x] **33. M1.5 — [agent-interface](.specs/agent-interface/spec.md)** · [tasks](.specs/agent-interface/tasks.md) · 26 tasks
-  One ACP Agent Pane for stream, gates, plan, and research.
-  *Depends on:* `agent-session-controls`, `agent-dispatch-permissions`, and `agent-session-research`
-  *Completed:* canonical session/run/task/permission projection, ACP event-channel pane with rich turns, thinking/tool disclosure, inline gated diffs, elicitation, checkpoint/research docks, composer steering and discovery, responsive/a11y layout, and Interact integration.
-
-- [x] **34. M6 — [bots](.specs/bots/spec.md)** · [tasks](.specs/bots/tasks.md) · 19 tasks
-  Persistent named agents outside the loop: ad-hoc messaging, cron-fired routines, and a warm-window container.
-  *Depends on:* `agent-definitions`, `agent-interface`, and `schedules`
-  *Completed:* durable bot/home-session persistence, warm-container lifecycle, routine skip/drop and attribution, persistent bot branches, desktop routing/surface, and bot IPC.
-
-- [x] **35. M7 — [external-work-items sync](.specs/external-work-items/spec.md)** · [tasks](.specs/external-work-items/tasks.md) · 12 tasks
-  Keep linked external items synchronized with the board — statuses and notes both ways, plugin-declared status mapping, all notes out with attribution and echo suppression, last-write-wins status conflicts, and an external close carrying Done's evidence.
-  *Depends on:* completed external-work-items import and `board`
-  *Completed:* sync capability negotiation, cursor/state persistence, fold-owned status and note events, LWW evidence, external Done satisfaction, bounded headless polling, Sync-now/task-detail controls, and sync conformance fixtures. The one-way contract was superseded by [IMPACT_EXTERNAL_SYNC](.specs/IMPACT_EXTERNAL_SYNC.md).
-
-- [x] **36. M1.6 — [sbx-runtime](.specs/sbx-runtime/spec.md)** · [tasks](.specs/sbx-runtime/tasks.md) · 17 tasks
-  Docker's `sbx` sandboxes as a second agent runtime behind the sandbox contract: backend seam, template import, tier-mapped egress policy, TCP relay auth, clone-not-mount workspace, and one live ACP end-to-end.
-  *Depends on:* completed `sandbox`, `run-supervisor`, and `security`
-  *Completed:* backend selection and persistence, Docker parity, template import, scoped policy/audit, TCP relay auth, scratch/config materialization, git-daemon clone/push-back, boot metadata, and bounded command cleanup. Full workspace tests pass (`892` library tests plus workspace integration/desktop suites). Live sbx lifecycle, framed stdio, template import, clone/push-back, and a real Pi RPC session passed; the installed Pi `0.84.2` rejects `--acp`, so task 17's real Pi ACP check remains explicitly unexercised in [.specs/sbx-runtime/tasks.md](.specs/sbx-runtime/tasks.md).*
-
-- [x] **37. M1.5 — [justfile](.specs/justfile/spec.md)** · [tasks](.specs/justfile/tasks.md) · 6 tasks
-  Thin root justfile as the single entrypoint for build steps: recipes wrap current commands verbatim, the AGENTS.md commands table and CI steps call them, and existing spec `verify:` rows stay raw. Repo tooling, not a product feature.
-  *Depends on:* nothing — can run in parallel with any row
-  *Completed:* root recipes, deterministic named-test pass-through, CI wiring, raw-command fallbacks, and the full local `just ci` sequence.
-
-- [x] **38. M6 — [bot-avatars](.specs/bot-avatars/spec.md)** · [tasks](.specs/bot-avatars/tasks.md) · 10 tasks
-  Derived DiceBear bot avatars: id-seeded, never stored; one app-wide style setting defaulting to Bottts, with per-style creator/license attribution.
-  *Depends on:* completed `bots`
-  *Completed:* bundled DiceBear derivation and attribution picker, reactive app-wide style setting, bot list/header surfaces, transparent theme-safe rendering, and CI's redundant harness-lint build removal.
-
-- [x] **39. M3 — [context-layer](.specs/context-layer/spec.md)** · [tasks](.specs/context-layer/tasks.md) · 14 tasks
-  Research-backed context-management increments: eviction classes, declared promotion, research-class diversity dedup, tail-append catalog freshness, recitation block, calibration-loop cache-rate acceptance, and a context-attribution view.
-  *Depends on:* completed `memory`, `tool-compaction`, `materializers`, and `telemetry`; task 13 amends `calibration-loop` (item 25) in place.
-  *No experiments by decision: every mechanism here is already validated by the research corpus ([RESEARCH-CONTEXT-MANAGEMENT.md](RESEARCH-CONTEXT-MANAGEMENT.md) §16.1); see [CONTEXT-LAYER-FIT.md](CONTEXT-LAYER-FIT.md) §9 for the decision record.*
-  *Completed:* eviction-class migration and overflow policy, declared promotion and `memory promote --json` allowlisting, deterministic derivation and stable catalog tail, recitation, cache-rate acceptance, and the `agents.context_attribution` view. Evidence: [verification](.specs/context-layer/verification.md).*
-
-## Open decisions
-
-Only unresolved decisions remain here; the owning spec is the source of truth. Closed decisions from
-completed milestones are omitted unless they still affect an active feature.
-
-| Feature | Decision |
-| --- | --- |
-| [agent-definitions](.specs/agent-definitions/spec.md) | Resolve `harness: any` at save time or at run start; first-party selection defaults to Pi. |
-| [agent-interface](.specs/agent-interface/spec.md) | Panel density variants, permission label, always-available research CLIs, checkpoint retention, workflow provenance, and agent identity treatment. |
-| [workshop-plugins](.specs/workshop-plugins/spec.md) | Finalize the user-plugin signature/trust UX and first-party executable version pins; the common capability envelope is settled. |
-| [editor](.specs/editor/spec.md) | Which languages receive Lezer grammars at M2; the internal catalog must make that explicit. |
-| [lsp](.specs/lsp/spec.md) | Implement semantic-token full, delta, and CodeMirror decorations; `@codemirror/lsp-client` provides none. |
-| [project-search](.specs/project-search/spec.md) | Trigger `codanna` indexing on demand, on a schedule, or on git change. |
-| [board](.specs/board/spec.md) | Choose the column-two label: **Building** or **In Progress**. |
-| [guardrails](.specs/guardrails/spec.md) | Decide whether the idle window scales by `task_class`. |
-| [handoffs](.specs/handoffs/spec.md) | Decide whether handoffs may cross projects; reassignment otherwise uses a new handoff session. |
-| [mail](.specs/mail/spec.md) | Decide whether agents can mail the human directly or must use `locus ask`. |
-| [memory](.specs/memory/spec.md) | Set the initial `importance` value before a memory is recalled. |
-| [context-layer](.specs/context-layer/spec.md) | Set the research-class similarity-dedup threshold (mechanism validated, constant is a setting; conservative default suppresses only near-identical). |
-| [repo-manager](.specs/repo-manager/spec.md) | Define when a linked repo syncs: on demand, on a timer, or on git change. |
-| [tool-compaction](.specs/tool-compaction/spec.md) | Choose one compaction threshold shared with `artifacts`. |
-| [locus-browse](.specs/locus-browse/spec.md) | Set the recording duration cap alongside the 30-day media retention policy. |
-| [locus-debug](.specs/locus-debug/spec.md) | Set the supported language-adapter boundary; the tail is not covered yet. |
-| [media-artifacts](.specs/media-artifacts/spec.md) | Set the OCR-confidence threshold for falling back to the source image. |
-| [marketplace-index](.specs/marketplace-index/spec.md) | Choose a vetted catalog or an open index ranked by usage for trusted user plugins; the first-party catalog is `gh`. |
-| [workflow-canvas](.specs/workflow-canvas/spec.md) | Confirm that workflows cannot re-plan during execution; dynamic changes require a new authored workflow. |
-| [workflow-engine](.specs/workflow-engine/spec.md) | Set the arbiter's bounded model budget. |
-| [planning-module](.specs/planning-module/spec.md) | Decide how to turn “I don't know what I want yet” into a goal. |
-| [wiki](.specs/wiki/spec.md) | Decide whether regenerating `overview` on every ingest remains affordable at scale. |
-| [command-palette](.specs/command-palette/spec.md) | Define ranking across wiki pages, tasks, symbols, and runs. |
-| [dashboard-metrics](.specs/dashboard-metrics/spec.md) | Define the cache-rate alert threshold and what counts as a long session. |
-| [schedules](.specs/schedules/spec.md) | Define timezone and DST behavior for cron expressions. |
-| [agent-prs](.specs/agent-prs/spec.md) | Define what “large” means for slicing a change. |
-| [ci-babysitter](.specs/ci-babysitter/spec.md) | Choose an ordinary workflow or supervisor behavior. |
-| [bots](.specs/bots/spec.md) | Decide whether the warm window scales by harness/model and whether a bot can pin an older definition version. |
-| [justfile](.specs/justfile/spec.md) | Whether agent container images include `just` in the baked allowlist; host/CI-only until then. |
-
-## Carry-forward from M0
-
-The spikes answered their primary questions, but these checks were not exercised. They remain here
-because they affect trust in later features; the detailed evidence is in the linked findings.
-
-- [ ] **Telemetry:** observe real token `usage` from one live run. If a harness reports nothing, spend
-  must remain `unknown`, never zero. See [Spike 1 findings](spikes/01-sandboxed-harness/FINDINGS.md).
-- [ ] **Editor:** exercise real MergeView chunk revert, the three target webviews, and Cmd/IME behavior.
-  Reviewing an agent's diff is the primary editor job. See [Spike 2 findings](spikes/02-editor-embed/FINDINGS.md).
-- [ ] **Plugin boundary:** run the Pi plugin end to end and exercise one trusted user harness plugin; other
-  harnesses are intentionally out of the first-party roster.
-  The [registry spec](.specs/harness-registry/spec.md) records the boundary.
-
-## Constraints discovered by the spikes
-
-These are not generic backlog items; they are implementation constraints that must stay visible until
-the owning feature absorbs them.
-
-- [ ] **Workflow canvas:** use `@dschz/solid-flow`, not the unrelated `solid-flow` npm package. WebKit
-  needs a `requestIdleCallback` polyfill, and `ViewportPortal` is broken in `@dschz/solid-flow@0.1.4`.
-  See [Spike 3 findings](spikes/03-workflow-canvas/FINDINGS.md).
-- [ ] **Editor/LSP:** semantic tokens are not supplied by `@codemirror/lsp-client`; Locus must implement
-  full, delta, and CodeMirror decoration support. See [editor](.specs/editor/spec.md) and [lsp](.specs/lsp/spec.md).
-- [ ] **Sandbox:** macOS/colima cannot bind-mount a Unix socket. The relay path is weaker than a mount,
-  so the per-run nonce is a required authenticator, not optional defense in depth. See [Spike 1 findings](spikes/01-sandboxed-harness/FINDINGS.md).
+- [ ] **Run the desktop suite and typecheck in CI** — neither [ci.yml](.github/workflows/ci.yml) nor the `ci` recipe in [justfile](justfile) calls `test-node` or `typecheck`; 961 tests and `tsc` are opt-in only.
+- [ ] **Fix the theme-system contrast gate** — `bash apps/desktop/scripts/check-contrast.sh` exits 1 with 246 "below AA" lines: `.tag`, `.session-chip-waiting`, `.desktop-inbox-kind` score 1.44:1 on every surface; `.btn-primary`, `.btn-ghost`, `.tag-outline`, `.seg-opt[data-selected]` and much of [screens.css](apps/desktop/src/screens/screens.css) score 3.4–4.5:1 on `--surface-elevated`. [theme-system](.specs/theme-system/spec.md) acceptance 5 was closed with its own gate red.
+- [ ] **Prove byte-determinism for all eleven harnesses** — `assert_deterministic` has two call sites, both in [materialize/mod.rs](crates/locus-core/src/harness/materialize/mod.rs) and both for `claude` (`ci_determinism`, line 986); the other ten harnesses get only `assert!(result.is_ok())` ([mod.rs:1159](crates/locus-core/src/harness/materialize/mod.rs#L1159), test name `all_registered_harnesses_all_eight` is stale). AGENTS.md's gotcha says nothing fails visibly when determinism breaks — this is where it would.
+- [ ] **Test the 18 untested store modules** — `agents`, `artifacts`, `bots`, `dispatch`, `handoff`, `interact`, `mail`, `memory`, `planning`, `projects`, `providers`, `qa`, `routing`, `runtime`, `schedules`, `session_controls`, `wiki`, `workflow_log` in [crates/locus-core/src/store/](crates/locus-core/src/store/) have no `#[cfg(test)]` and no integration test referencing their methods. `tests/dispatch.rs` covers `runtime::dispatch`, not `store::dispatch`.
+- [ ] **Wire or delete the orphaned fixture-freshness scripts** — [check-counts-follow-registry.sh](apps/desktop/scripts/check-counts-follow-registry.sh) and [check-no-literal-counts.sh](apps/desktop/scripts/check-no-literal-counts.sh) guard the generated harness fixture and are called by nothing.
+- [ ] **Run or delete the never-run ignored tests** — `pi_loads_generated` ([materialize/mod.rs:1115](crates/locus-core/src/harness/materialize/mod.rs#L1115)) and `docker::connects` ([sandbox/docker.rs:78](crates/locus-core/src/sandbox/docker.rs#L78)) are `#[ignore]` and invoked by no `--ignored` recipe; `browse::open_contract` ([services/browse.rs:665](crates/locus-core/src/services/browse.rs#L665)) has an empty body.
+- [ ] **Replace round-trip fixture tests** — [all-present.test.ts:69-77](apps/desktop/test/fixtures/all-present.test.ts#L69-L77) asserts a fixture's length against the literal it was built from and compares a module to itself; [accessors.test.ts:96-99](apps/desktop/test/data/accessors.test.ts#L96-L99) asserts a one-line passthrough; [sessions-table.test.tsx:76](apps/desktop/test/telemetry/sessions-table.test.tsx#L76) asserts a count the fixture constructs. Only 4 of 356 files touch `invoke` at all.
+- [ ] **Fix the stale `verify:` commands in closed specs** — navigation tasks 9, 11, 12, 13 ([tasks.md:13-17](.specs/navigation/tasks.md#L13-L17): `nav/rail-first-view`, `nav/agents-is-drilldown`, `nav/no-workshop-agents-tab`, `nav/seven-closed`) and theme-system task 4 ([tasks.md:8](.specs/theme-system/tasks.md#L8): `theme/accent-role-separation`) name test files that do not exist and exit 1; design-revision task 14's `grep '^\| \*\*M0\.7\*\*' TODO.md` never matched the unbolded row. Features were closed without their verify rows passing.
