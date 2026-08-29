@@ -1,5 +1,6 @@
 import { For, Show, createMemo, createSignal } from 'solid-js'
 import { Button } from '../../ui/Button'
+import { FixtureNotice } from '../../ui/FixtureNotice'
 import { Segmented } from '../../ui/Segmented'
 import {
   QA_FOOTER,
@@ -48,6 +49,7 @@ export function QAView(props: QAViewProps) {
 
   return (
     <div class="qa-view" data-testid="qa" data-project={project()}>
+      <FixtureNotice surface="QA" command='invoke("qa_checks")' />
       <header class="qa-header">
         <div>
           <h1>QA</h1>

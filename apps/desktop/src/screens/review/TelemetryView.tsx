@@ -1,4 +1,5 @@
 import { For, Show, createSignal } from "solid-js";
+import { FixtureNotice } from "../../ui/FixtureNotice";
 import { Icon } from "../../ui/Icon";
 import { VirtualTable } from "../../panes/VirtualTable";
 import type { Column } from "../../ui/Table";
@@ -104,6 +105,10 @@ export function TelemetryView() {
       data-desktop-route="review-telemetry"
       data-filter-evidence="available"
     >
+      <FixtureNotice
+        surface="Telemetry"
+        command='invoke("telemetry_aggregates")'
+      />
       <div class="tm-search" data-testid="tm-search">
         <Icon
           name="magnifying-glass"

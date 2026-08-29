@@ -1,5 +1,6 @@
 import { For, Show, createMemo, createSignal } from 'solid-js'
 import { Button } from '../../ui/Button'
+import { FixtureNotice } from '../../ui/FixtureNotice'
 import { Textarea } from '../../ui/Input'
 import {
   MAIL_HANDOFF_COPY,
@@ -62,6 +63,7 @@ export function MailView(props: MailViewProps = {}) {
       </aside>
 
       <section class="mail-center" data-testid="mail-thread-view">
+        <FixtureNotice surface="Mail" command='invoke("mail_threads")' />
         <header class="mail-center-head"><span>#{selected().project}</span><h1>{selected().subject}</h1><small>{selected().from} → {selected().to}</small></header>
         <Show when={selectedIsWaiting()}>
           <div class="mail-wait-banner" data-testid="mail-wait-banner">

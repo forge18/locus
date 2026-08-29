@@ -4,6 +4,7 @@ import { Avatar } from "../../avatars/Avatar";
 import { AgentPane, type AgentPaneSession } from "../../panes/AgentPane";
 import { destinationDesktop } from "../../nav/desktop-navigation";
 import { Button } from "../../ui/Button";
+import { FixtureNotice } from "../../ui/FixtureNotice";
 import { Input } from "../../ui/Input";
 import { Sheet } from "../../ui/Sheet";
 import "./bots.css";
@@ -360,6 +361,9 @@ export default function BotsView(props: BotsViewProps) {
         </footer>
       </aside>
       <main class="bots-home-pane" data-testid="bot-home-pane">
+        <Show when={props.bots === undefined}>
+          <FixtureNotice surface="Bots" command='invoke("bots_list")' />
+        </Show>
         <Show when={selected()}>
           {(bot) => (
             <>

@@ -7,6 +7,7 @@ import {
 import type { GuardrailControl } from "../../fixtures/settings-guardrails";
 import { AppearanceSelector } from "./AppearanceSelector";
 import { Button } from "../../ui/Button";
+import { FixtureNotice } from "../../ui/FixtureNotice";
 import { AvatarStylePicker } from "./AvatarStylePicker";
 
 function Stepper(props: {
@@ -110,6 +111,10 @@ export function GuardrailsView() {
 
       <main class="settings-body">
         <div class="settings-content">
+          <FixtureNotice
+            surface="Settings · Guardrails"
+            command='invoke("guardrail_settings")'
+          />
           <header class="settings-head">
             <h2>Guardrails</h2>
             <p>

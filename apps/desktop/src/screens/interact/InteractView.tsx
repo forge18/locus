@@ -1,5 +1,6 @@
 import { For, Show, createSignal } from "solid-js";
 import { Button } from "../../ui/Button";
+import { FixtureNotice } from "../../ui/FixtureNotice";
 import { Tag } from "../../ui/Tag";
 import { MergeModal } from "../../shell/MergeModal";
 import { AgentPane, type AgentPaneSession } from "../../panes/AgentPane";
@@ -198,6 +199,10 @@ export function InteractView() {
         </footer>
       </aside>
       <main class="interact-center">
+        <FixtureNotice
+          surface="Interact sessions"
+          command='invoke("sessions_list")'
+        />
         <header>
           <div>
             <Tag variant="outline">Interact</Tag>

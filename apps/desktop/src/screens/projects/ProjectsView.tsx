@@ -2,6 +2,7 @@ import { For, Show, createSignal } from "solid-js";
 import { EditorPane } from "../../editor/EditorPane";
 import { FullWindowEditor } from "../../editor/FullWindowEditor";
 import { plainTextDescriptor } from "../../editor/types";
+import { FixtureNotice } from "../../ui/FixtureNotice";
 import { AnalyticsView } from "../analytics/AnalyticsView";
 
 type ProjectTab = "settings" | "persistence" | "analytics";
@@ -115,6 +116,7 @@ export function ProjectsView(props: ProjectsViewProps = {}) {
         </div>
       </aside>
       <main class="project-detail">
+        <FixtureNotice surface="Projects" command='invoke("projects_list")' />
         <header class="project-detail-head">
           <h1>#tapestry</h1>
           <span class="mono project-locator">locus://tapestry</span>

@@ -2,6 +2,7 @@ import { For, Show, createMemo, createSignal } from "solid-js";
 import { InboxCard } from "./InboxCard";
 import { InboxDetail } from "./InboxDetail";
 import { EmptyPane } from "../../ui/EmptyPane";
+import { FixtureNotice } from "../../ui/FixtureNotice";
 import { Icon } from "../../ui/Icon";
 import { ProjectFilter } from "../../shell/ProjectFilter";
 import {
@@ -132,6 +133,7 @@ export function InboxView(props: InboxViewProps) {
         aria-live="polite"
         aria-atomic="false"
       >
+        <FixtureNotice surface="Inbox" command='invoke("inbox_list")' />
         <div class="inbox-tabs" data-testid="inbox-tabs" role="tablist">
           <button
             type="button"

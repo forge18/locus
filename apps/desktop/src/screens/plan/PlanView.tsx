@@ -15,6 +15,7 @@ import { Recommendation } from "./Recommendation";
 import { ScopeDecision } from "./ScopeDecision";
 import { PlanSpecView } from "./PlanSpecView";
 import { PlanTasksView } from "./PlanTasksView";
+import { FixtureNotice } from "../../ui/FixtureNotice";
 import { Icon } from "../../ui/Icon";
 import { InlineError } from "../../ui/InlineError";
 import { Tag } from "../../ui/Tag";
@@ -311,6 +312,7 @@ export function PlanView() {
 
       return (
             <div class="plan-workspace" data-testid="plan">
+                  <FixtureNotice surface="Plan" command='invoke("plans_list")' />
                   <Show when={streamError()}>
                         <div data-testid="plan-stream-error">
                               <InlineError

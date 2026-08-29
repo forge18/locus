@@ -13,6 +13,7 @@ import {
   type PermissionPosture,
 } from "../../data/dispatch";
 import { Button } from "../../ui/Button";
+import { FixtureNotice } from "../../ui/FixtureNotice";
 import { Segmented } from "../../ui/Segmented";
 
 import "./dispatch.css";
@@ -29,6 +30,8 @@ const DISPATCH_TABS = [
   { value: "schedules", label: "Schedules" },
   { value: "runs", label: "Runs" },
 ];
+
+const dispatchCommand = (_tab: DispatchTab) => 'invoke("dispatch_snapshot")';
 
 const RUN_ROWS = useDispatchRuns();
 const RUN_FIXTURE_ROWS = [
@@ -86,6 +89,10 @@ function AutorunView() {
 
   return (
     <div class="dispatch-view" data-testid="dispatch-autorun">
+      <FixtureNotice
+        surface="Dispatch"
+        command={dispatchCommand("autorun")}
+      />
       <header class="dispatch-header">
         <DispatchTabs active="autorun" />
         <span class="dispatch-header-note">
@@ -281,6 +288,10 @@ function SchedulesView() {
 
   return (
     <div class="dispatch-view" data-testid="dispatch-schedules">
+      <FixtureNotice
+        surface="Dispatch"
+        command={dispatchCommand("schedules")}
+      />
       <header class="dispatch-header">
         <DispatchTabs active="schedules" />
         <span class="dispatch-header-note">
@@ -481,6 +492,10 @@ function SchedulesView() {
 function RunsFixtureView() {
   return (
     <div class="dispatch-view" data-testid="dispatch-runs">
+      <FixtureNotice
+        surface="Dispatch"
+        command={dispatchCommand("runs")}
+      />
       <header class="dispatch-header">
         <DispatchTabs active="runs" />
         <span class="dispatch-header-note">

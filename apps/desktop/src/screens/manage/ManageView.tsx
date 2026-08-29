@@ -8,6 +8,7 @@ import {
   onMount,
 } from "solid-js";
 import { Button } from "../../ui/Button";
+import { FixtureNotice } from "../../ui/FixtureNotice";
 import { Segmented } from "../../ui/Segmented";
 import { Tag } from "../../ui/Tag";
 import {
@@ -701,6 +702,7 @@ export function ManageView(props: ManageViewProps = {}) {
 
   return (
     <div class="manage-view" data-testid="manage" data-view={view()}>
+      <FixtureNotice surface="Manage" command='invoke("board_tasks")' />
       <header class="manage-toolbar">
         <Segmented
           options={[

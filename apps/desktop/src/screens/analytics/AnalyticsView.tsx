@@ -1,5 +1,6 @@
 import { For, Show, createMemo, createSignal } from "solid-js";
 import { Button } from "../../ui/Button";
+import { FixtureNotice } from "../../ui/FixtureNotice";
 import { Input } from "../../ui/Input";
 import { useTasks } from "../../data/board";
 import { Segmented } from "../../ui/Segmented";
@@ -79,6 +80,10 @@ export function AnalyticsView(props: AnalyticsViewProps) {
                         data-testid="analytics"
                         data-scope={scope()}
                 >
+                        <FixtureNotice
+                                surface="Analytics"
+                                command='invoke("analytics_aggregates")'
+                        />
                         <header class="analytics-header">
                                 <div>
                                         <h1>Analytics</h1>

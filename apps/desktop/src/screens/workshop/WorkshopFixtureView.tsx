@@ -1,5 +1,6 @@
 import { createSignal, For, Show } from "solid-js";
 import { Button } from "../../ui/Button";
+import { FixtureNotice } from "../../ui/FixtureNotice";
 import { Input } from "../../ui/Input";
 import { Segmented } from "../../ui/Segmented";
 import { Tag } from "../../ui/Tag";
@@ -81,6 +82,10 @@ function ExtensionFixture(props: {
         props.fixture === "output-styles" ? "styles" : props.fixture;
     return (
         <div data-testid={`workshop-${props.fixture}`} class="ws-fixture">
+            <FixtureNotice
+                surface={`Workshop · ${props.fixture}`}
+                command='invoke("extension_inventory")'
+            />
             <ExtensionEditor type={type} />
         </div>
     );
@@ -89,6 +94,10 @@ function ExtensionFixture(props: {
 function AgentsFixture() {
     return (
         <div data-testid="workshop-agents" class="ws-fixture agents-screen">
+            <FixtureNotice
+                surface="Workshop · Agents"
+                command='invoke("agent_defs_list")'
+            />
             <ExtensionEditor type="agents" />
             <footer
                 class="agents-handoff-footer"
@@ -138,6 +147,10 @@ function CliFixture() {
     };
     return (
         <div class="ws-fixture ws-cli" data-testid="workshop-cli">
+            <FixtureNotice
+                surface="Workshop · CLI"
+                command='invoke("cli_tools_list")'
+            />
             <header class="ws-fixture-head">
                 <div>
                     <h1>CLI</h1>
@@ -331,6 +344,10 @@ function ProvidersFixture() {
                 </footer>
             </aside>
             <main class="ws-provider-main">
+                <FixtureNotice
+                    surface="Workshop · Providers"
+                    command='invoke("providers_list")'
+                />
                 <header class="ws-fixture-head">
                     <div>
                         <h1>{selected()}</h1>
@@ -470,6 +487,10 @@ function ProvidersFixture() {
 function HarnessesFixture() {
     return (
         <div data-testid="workshop-harnesses" class="ws-fixture">
+            <FixtureNotice
+                surface="Workshop · Harnesses"
+                command='invoke("harness_registry_list")'
+            />
             <ExtensionEditor type="harnesses" />
         </div>
     );
@@ -478,6 +499,10 @@ function HarnessesFixture() {
 function WorkflowsListFixture() {
     return (
         <div class="ws-fixture" data-testid="workshop-workflows-list">
+            <FixtureNotice
+                surface="Workshop · Workflows"
+                command='invoke("workflow_defs_list")'
+            />
             <header class="ws-fixture-head">
                 <div>
                     <h1>Workflows</h1>
@@ -513,6 +538,12 @@ function WorkflowsFixture(props: { governance: boolean }) {
             class="ws-fixture ws-workflows"
             data-testid={`workshop-workflows-${props.governance ? "governance" : "visual"}`}
         >
+            <Show when={props.governance}>
+                <FixtureNotice
+                    surface="Workshop · Workflow governance"
+                    command='invoke("workflow_def")'
+                />
+            </Show>
             <header class="ws-fixture-head">
                 <div>
                     <h1>Release verification</h1>

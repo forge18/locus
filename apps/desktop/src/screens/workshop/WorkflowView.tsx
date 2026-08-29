@@ -1,4 +1,5 @@
 import { createSignal, For, Show } from "solid-js";
+import { FixtureNotice } from "../../ui/FixtureNotice";
 import { Icon } from "../../ui/Icon";
 import {
   BUDGET_NOTE,
@@ -104,6 +105,10 @@ export function WorkflowView() {
       />
 
       <aside class="wf-inspector" data-testid="wf-inspector">
+        <FixtureNotice
+          surface="Workflow canvas"
+          command='invoke("workflow_graph")'
+        />
         <div class="wf-inspector-body">
           <span class="wf-section" data-testid="wf-inspector-title">
             Condition · verify.passed
