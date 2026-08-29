@@ -566,12 +566,22 @@ export function Composer(props: {
           }}
           onKeyDown={keyDown}
         />
-        <button
-          type="submit"
-          class={props.running ? "agent-stop-button" : "agent-send-button"}
+        <Show
+          when={props.running}
+          fallback={
+            <button type="submit" class="agent-send-button">
+              Send
+            </button>
+          }
         >
-          {props.running ? "Stop" : "Send"}
-        </button>
+          <button
+            type="button"
+            class="agent-stop-button"
+            onClick={() => props.onStop?.()}
+          >
+            Stop
+          </button>
+        </Show>
       </div>
       <Show when={queued().length}>
         <ol
