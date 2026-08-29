@@ -65,10 +65,6 @@ describe('fixtures/large-table-budget', () => {
     const fullNodes = full.getByTestId('table').querySelectorAll('*').length
 
     // Both numbers on the record, and the ratio is why the window exists.
-    console.log(
-      `large-table-budget: 612 rows fully rendered = ${fullNodes} nodes; ` +
-        `windowed = ${windowedNodes} nodes (${Math.round((windowedNodes / fullNodes) * 100)}%)`,
-    )
     expect(windowedNodes).toBeLessThan(fullNodes / 4)
   })
 
@@ -92,5 +88,53 @@ describe('fixtures/large-table-budget', () => {
   it('says how much is loaded while pages are still coming', () => {
     const { getByTestId } = virtual()
     expect(getByTestId('table-loading').textContent).toContain('100 of 612 loaded')
+  })
+
+  it('distinguishes an empty result from an initial loading page', () => {
+    const empty = render(() => (
+      <VirtualTable
+        columns={COLUMNS}
+        rows={[]}
+        total={0}
+        rowKey={(r) => r.id}
+        rowHeight={ROW_HEIGHT}
+        height={BODY_HEIGHT}
+      />
+    ))
+    expect(empty.getByTestId('table').getAttribute('data-state')).toBe('empty')
+    expect(empty.getByTestId('table-empty').textContent).toContain('No rows to display.')
+    empty.unmount()
+
+    const loading = render(() => (
+      <VirtualTable
+        columns={COLUMNS}
+        rows={[]}
+        total={0}
+        loading
+        rowKey={(r) => r.id}
+        rowHeight={ROW_HEIGHT}
+        height={BODY_HEIGHT}
+      />
+    ))
+    expect(loading.getByTestId('table').getAttribute('data-state')).toBe('loading')
+    expect(loading.getByTestId('table-loading').textContent).toBe('Loading…')
+    expect(loading.getByTestId('skeleton-rows')).toBeTruthy()
+  })
+
+  it('keeps a backend error distinct from an empty result', () => {
+    const { getByTestId, queryByTestId } = render(() => (
+      <VirtualTable
+        columns={COLUMNS}
+        rows={[]}
+        total={0}
+        error="Runs unavailable"
+        rowKey={(r) => r.id}
+        rowHeight={ROW_HEIGHT}
+        height={BODY_HEIGHT}
+      />
+    ))
+    expect(getByTestId('table').getAttribute('data-state')).toBe('error')
+    expect(getByTestId('inline-error-cause').textContent).toBe('Runs unavailable')
+    expect(queryByTestId('table-empty')).toBe(null)
   })
 })
