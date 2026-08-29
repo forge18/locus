@@ -2,7 +2,10 @@ import { createSignal, onCleanup, onMount, Show } from "solid-js";
 import type { JSX } from "solid-js";
 import { AppTitleBar } from "./AppTitleBar";
 import { ProjectRail } from "./ProjectRail";
-import { LocatorPalette } from "../nav/LocatorPalette";
+import {
+    LocatorPalette,
+    type PaletteSessionState,
+} from "../nav/LocatorPalette";
 import { Sheet } from "../ui/Sheet";
 import { notify, ToastRegion } from "../ui/Toast";
 import { useRunningCount, useStripCards } from "../data/strip";
@@ -77,6 +80,12 @@ export function Shell(props: ShellProps) {
     const needsYou = activeSessions.filter(
         (session) => session.needsAttention,
     ).length;
+    const paletteSessions: PaletteSessionState[] = activeSessions.map(
+        (session) => ({
+            project: session.project ?? "tapestry",
+            needsAttention: session.needsAttention,
+        }),
+    );
     const openDesktopTarget = (target: DesktopNavTarget) => {
         const params =
             target.scope.kind === "project"
@@ -161,6 +170,9 @@ export function Shell(props: ShellProps) {
                 open={paletteOpen()}
                 onOpenChange={setPaletteOpen}
                 current={currentDesktopLocator()}
+                project={props.nav.params().project ?? "tapestry"}
+                history={props.nav.history()}
+                sessions={paletteSessions}
                 onResolve={openDesktopTarget}
                 onOpenLocator={openDesktopLocator}
             />
