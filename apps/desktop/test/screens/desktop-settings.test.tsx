@@ -42,6 +42,24 @@ describe('screens/desktop-settings', () => {
     expect(getByTestId('settings-toggle-preempt').getAttribute('data-on')).toBe('false')
   })
 
+  it('visibly marks the active theme option', () => {
+    window.localStorage.clear()
+    const { getByRole } = mount()
+    const dark = getByRole('button', { name: 'Dark' })
+    const light = getByRole('button', { name: 'Light' })
+
+    expect(dark.classList.contains('settings-theme-selected')).toBe(true)
+    expect(dark.getAttribute('aria-pressed')).toBe('true')
+    expect(light.classList.contains('settings-theme-selected')).toBe(false)
+    expect(light.getAttribute('aria-pressed')).toBe('false')
+
+    const selected = rule('.settings-theme-selected').body
+    expect(selected).toContain('background: var(--surface-selected)')
+    expect(selected).toContain('border-color: var(--action-attention)')
+    expect(selected).toContain('box-shadow: var(--ring-sel)')
+    expect(selected).toContain('color: var(--action-attention)')
+  })
+
   it('keeps the dense rail and independently scrolling content pane', () => {
     expect(rule('.settings-rail').body).toContain('width: 196px')
     expect(rule('.settings-body').body).toContain('overflow: auto')
