@@ -9,8 +9,14 @@ describe('M0.7 Analytics', () => {
     expect(getByTestId('analytics-stat-tokens')).toBeTruthy()
     expect(getByTestId('analytics-stat-cache')).toBeTruthy()
     expect(getByTestId('analytics-stat-runs')).toBeTruthy()
+    const heights = () =>
+      Array.from(getByTestId('analytics-trend').querySelectorAll('.analytics-bars i')).map(
+        (bar) => bar.getAttribute('style'),
+      )
+    const spendHeights = heights()
     fireEvent.click(getByTestId('analytics-stat-tokens'))
     expect(getByTestId('analytics-trend').textContent).toContain('Selected measure: tokens')
+    expect(heights()).not.toEqual(spendHeights)
     expect(getAllByText('Workflow').length).toBeGreaterThan(0)
   })
 
