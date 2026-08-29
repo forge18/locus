@@ -14,7 +14,7 @@ import { useRunningCount, useStripCards } from "../data/strip";
 import { stopAllDispatch } from "../data/dispatch";
 import { useInboxItems } from "../data/inbox";
 import type { ActiveSession } from "./RunningPill";
-import type { NavStore, View } from "../nav";
+import { BackLink, type NavStore, type View } from "../nav";
 import { destinationDesktop } from "../nav/desktop-navigation";
 import type { DesktopNavTarget, DesktopRouteId } from "../nav/desktop-locator";
 import {
@@ -167,6 +167,10 @@ export function Shell(props: ShellProps) {
                     onNavigate={openDesktopLocator}
                 />
                 <div class="main">
+                    {/* A drill-down's way out is the view it was entered from,
+                        so the back link rides above the screen, shell-owned. It
+                        renders only when the current view is one. */}
+                    <BackLink nav={props.nav} />
                     <div class="screen" data-testid="screen">
                         {props.children}
                     </div>
