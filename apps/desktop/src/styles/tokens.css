@@ -45,6 +45,7 @@
  --surface-raised: #22303c;
  --surface-selected: #293947;
  --surface-elevated: #314454;
+ --scrim: rgb(0 0 0);
  --avatar-ground: #083c5d;
  --avatar-ground-lit: #0d5480;
  --text-primary: #eef2f6;
@@ -119,6 +120,7 @@
  --surface-raised: #ffffff;
  --surface-selected: #e3edf5;
  --surface-elevated: #d8e2ee;
+ --scrim: rgb(22 33 43);
  --avatar-ground: #c6dced;
  --avatar-ground-lit: #a9c9e3;
  --text-primary: #16212b;
