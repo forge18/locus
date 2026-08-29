@@ -38,7 +38,9 @@ describe('harnesses/capability-bar', () => {
 
   it('paints native accent and downgraded red', () => {
     expect(rule('.hn-seg-native').body).toContain('background: var(--action-attention)')
-    expect(rule('.hn-seg-downgraded').body).toContain('rgba(212,97,79,.55)')
+    expect(rule('.hn-seg-downgraded').body).toContain(
+      'background: color-mix(in srgb, var(--status-danger) 55%, transparent)',
+    )
   })
 
   it('names the loss on every downgraded segment', () => {

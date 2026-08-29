@@ -33,7 +33,7 @@ describe('harnesses/header', () => {
       'background: var(--action-attention)',
     )
     expect(css.find((r) => r.selector === '.hn-legend-downgraded i')!.body).toContain(
-      'rgba(212,97,79,.55)',
+      'background: color-mix(in srgb, var(--status-danger) 55%, transparent)',
     )
   })
 

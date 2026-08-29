@@ -38,7 +38,7 @@ describe("shell/locator-bar", () => {
 
   it("carries the ⌘K affordance in a hairline box on the right", () => {
     const { getByTestId } = render(() => <LocatorBar path="tapestry/inbox" />);
-    expect(getByTestId("locator-key").textContent).toBe("⌘K");
+    expect(getByTestId("locator-key").textContent).toBe("⌘K locate · ⌘P search");
     const body = rule(".locator-key")!.body;
     expect(body).toContain("margin-left: auto");
     expect(body).toContain("border: 1px solid var(--border-strong)");

@@ -22,7 +22,9 @@ describe('telemetry/actions', () => {
   it('draws a 7px track on a faint ground', () => {
     const body = rule('.bar-track').body
     expect(body).toContain('height: 7px')
-    expect(body).toContain('background: rgba(238,242,246,.06)')
+    expect(body).toContain(
+      'background: color-mix(in srgb, var(--text-primary) 6%, transparent)',
+    )
   })
 
   it('fills the track from the data ramp, and in --bad where the verb is a problem', () => {
