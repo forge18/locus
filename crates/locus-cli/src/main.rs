@@ -24,6 +24,35 @@ const DEFAULT_ARTIFACT_ROOT: &str = "/var/lib/locus/artifacts";
 const DEFAULT_BACKUP_ROOT: &str = "/var/lib/locus/backups";
 const DEFAULT_LINTER_ROOT: &str = "/locus/config/linters";
 
+fn print_compact_json(value: serde_json::Value) -> Result<()> {
+    println!("{}", sock::compact_json(&value)?);
+    Ok(())
+}
+
+fn lint_json(report: &locus_core::services::lint::LintReport) -> serde_json::Value {
+    serde_json::json!({
+        "passed": report.passed(),
+        "results": report.results.iter().map(|result| serde_json::json!({
+            "name": result.name,
+            "passed": result.passed,
+            "stdout": result.stdout,
+        })).collect::<Vec<_>>(),
+    })
+}
+
+fn harness_lint_json(harnesses: usize) -> serde_json::Value {
+    serde_json::json!({
+        "passed": true,
+        "harnesses": harnesses,
+    })
+}
+
+fn backup_json(backup_root: &std::path::Path) -> serde_json::Value {
+    serde_json::json!({
+        "backup_root": backup_root,
+    })
+}
+
 fn main() -> Result<()> {
     let arguments: Vec<_> = env::args().skip(1).collect();
     match arguments.first().map(String::as_str) {
@@ -31,9 +60,9 @@ fn main() -> Result<()> {
             println!("locus {}", env!("CARGO_PKG_VERSION"));
             Ok(())
         }
-        Some("backup") => backup(),
+        Some("backup") => backup(&arguments[1..]),
         Some("lint") => lint(&arguments[1..]),
-        Some("harness") => harness(),
+        Some("harness") => harness(&arguments[1..]),
         Some("ralph") => ralph(&arguments[1..]),
         Some("hook") => {
             let _ = hook::run();
@@ -221,6 +250,8 @@ fn dispatch_assert(
 }
 
 fn lint(arguments: &[String]) -> Result<()> {
+    let json = arguments.iter().any(|argument| argument == "--json");
+    let arguments = sock::without_json_flag(arguments);
     let mut request = LintRequest::default();
     let mut index = 0;
     while let Some(argument) = arguments.get(index) {
@@ -248,7 +279,11 @@ fn lint(arguments: &[String]) -> Result<()> {
         &project,
         &request,
     )?;
-    print!("{}", report.evidence());
+    if json {
+        print_compact_json(lint_json(&report))?;
+    } else {
+        print!("{}", report.evidence());
+    }
     verify_linters(&report)
 }
 
@@ -344,26 +379,39 @@ fn changed_paths(project: &std::path::Path) -> Result<Vec<PathBuf>> {
         .collect())
 }
 
-fn harness() -> Result<()> {
-    match env::args().nth(2).as_deref() {
-        Some("lint") => harness_lint(),
+fn harness(arguments: &[String]) -> Result<()> {
+    let json = arguments.iter().any(|argument| argument == "--json");
+    let arguments = sock::without_json_flag(arguments);
+    match arguments.first().map(String::as_str) {
+        Some("lint") => harness_lint(json),
         Some(command) => bail!("unknown harness command: {command}"),
         None => bail!("missing harness command"),
     }
 }
 
-fn harness_lint() -> Result<()> {
+fn harness_lint(json: bool) -> Result<()> {
     let registry = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../harnesses");
     let definitions = load_from_directory(&registry)
         .with_context(|| format!("failed to lint harness registry `{}`", registry.display()))?;
-    println!(
-        "{} harness definitions passed validation",
-        definitions.len()
-    );
+    if json {
+        print_compact_json(harness_lint_json(definitions.len()))?;
+    } else {
+        println!(
+            "{} harness definitions passed validation",
+            definitions.len()
+        );
+    }
     Ok(())
 }
 
-fn backup() -> Result<()> {
+fn backup(arguments: &[String]) -> Result<()> {
+    let json = arguments.iter().any(|argument| argument == "--json");
+    if arguments
+        .iter()
+        .any(|argument| argument.as_str() != "--json")
+    {
+        bail!("unknown backup option")
+    }
     let database_url =
         env::var("DATABASE_URL").context("DATABASE_URL is required for locus backup")?;
     let artifact_root = env_path("LOCUS_ARTIFACT_ROOT", DEFAULT_ARTIFACT_ROOT);
@@ -376,7 +424,11 @@ fn backup() -> Result<()> {
         artifact_root,
         &backup_root,
     ))?;
-    println!("{}", backup_root.display());
+    if json {
+        print_compact_json(backup_json(&backup_root))?;
+    } else {
+        println!("{}", backup_root.display());
+    }
     Ok(())
 }
 
@@ -384,6 +436,69 @@ fn env_path(variable: &str, default: &str) -> PathBuf {
     env::var_os(variable)
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(default))
+}
+
+#[cfg(test)]
+mod json_contract {
+    use super::{backup_json, harness_lint_json, lint_json, sock};
+    use locus_core::services::lint::{LintReport, LintResult};
+    use serde_json::json;
+    use std::path::Path;
+
+    #[test]
+    fn lint_json_is_compact_and_reports_results() {
+        let report = LintReport {
+            results: vec![LintResult {
+                name: "format".into(),
+                stdout: "clean".into(),
+                passed: true,
+            }],
+        };
+
+        assert_eq!(
+            sock::compact_json(&lint_json(&report)).expect("lint report serializes"),
+            r#"{"passed":true,"results":[{"name":"format","passed":true,"stdout":"clean"}]}"#
+        );
+    }
+
+    #[test]
+    fn harness_lint_json_is_compact() {
+        assert_eq!(
+            sock::compact_json(&harness_lint_json(11)).expect("harness report serializes"),
+            r#"{"passed":true,"harnesses":11}"#
+        );
+    }
+
+    #[test]
+    fn backup_json_is_compact() {
+        assert_eq!(
+            sock::compact_json(&backup_json(Path::new("/var/lib/locus/backups")))
+                .expect("backup report serializes"),
+            r#"{"backup_root":"/var/lib/locus/backups"}"#
+        );
+    }
+
+    #[test]
+    fn local_json_contracts_are_objects() {
+        for value in [
+            lint_json(&LintReport::default()),
+            harness_lint_json(0),
+            backup_json(Path::new("backups")),
+        ] {
+            assert!(value.is_object());
+            assert_eq!(
+                value,
+                serde_json::from_str::<serde_json::Value>(
+                    &sock::compact_json(&value).expect("JSON serializes")
+                )
+                .expect("JSON parses")
+            );
+        }
+        assert_eq!(
+            lint_json(&LintReport::default()),
+            json!({"passed": true, "results": []})
+        );
+    }
 }
 
 #[cfg(test)]
