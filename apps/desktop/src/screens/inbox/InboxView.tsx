@@ -25,6 +25,12 @@ interface ResolvedDay {
   items: ResolvedItem[];
 }
 
+/** What the person decided when they resolved an item — kept so it is auditable. */
+interface InboxDecision {
+  action: "approved" | "sent-back";
+  comment: string;
+}
+
 const RESOLVED_ICON = {
   gate: "seal-check",
   ask: "question",
@@ -67,6 +73,9 @@ export function InboxView(props: InboxViewProps) {
   );
   const [selectedId, setSelectedId] = createSignal<string | null>(null);
   const [selectedProjects, setSelectedProjects] = createSignal<string[]>([]);
+  const [decisions, setDecisions] = createSignal<Record<string, InboxDecision>>(
+    {},
+  );
 
   const projects = useProjects().map((project) => ({
     id: project.id,
@@ -124,6 +133,31 @@ export function InboxView(props: InboxViewProps) {
       },
     ]);
   };
+
+  const recordDecision = (id: string, decision: InboxDecision) => {
+    setDecisions((current) => ({ ...current, [id]: decision }));
+  };
+
+  /** Approve releases the loop as-is; the comment is optional steering. */
+  const approveItem = (id: string, comment: string) => {
+    recordDecision(id, { action: "approved", comment: comment.trim() });
+    resolveItem(id);
+  };
+
+  /**
+   * Send back returns the work to the agent that made it — the comment is the
+   * response, so an empty one is blocked at the detail pane and never resolves.
+   */
+  const sendBackItem = (id: string, comment: string) => {
+    const reason = comment.trim();
+    if (!reason) return;
+    recordDecision(id, { action: "sent-back", comment: reason });
+    resolveItem(id);
+  };
+
+  /** Locally resolved rows carry a `resolved-` prefix; decisions key on the item. */
+  const decisionFor = (row: ResolvedItem): InboxDecision | undefined =>
+    decisions()[row.id.replace(/^resolved-/, "")];
 
   return (
     <div class="inbox" data-testid="inbox" data-desktop-route="inbox">
@@ -256,9 +290,25 @@ export function InboxView(props: InboxViewProps) {
                               data-testid={`inbox-completed-row-${row.id}`}
                             >
                               <Icon name={RESOLVED_ICON[row.kind]} size={11} />
-                              <span class="inbox-completed-title">
-                                {row.title}
-                              </span>
+                              <div style={{ flex: 1, "min-width": 0 }}>
+                                <span class="inbox-completed-title">
+                                  {row.title}
+                                </span>
+                                <Show when={decisionFor(row)?.comment}>
+                                  {(comment) => (
+                                    <span
+                                      class="inbox-completed-decision"
+                                      data-testid={`resolved-decision-${row.id}`}
+                                      style={{
+                                        color: "var(--text-muted)",
+                                        "font-size": "var(--t-meta)",
+                                      }}
+                                    >
+                                      {comment()}
+                                    </span>
+                                  )}
+                                </Show>
+                              </div>
                               <span
                                 class="inbox-resolution inbox-resolution-time"
                                 data-testid={`resolved-time-${row.id}`}
@@ -361,16 +411,19 @@ export function InboxView(props: InboxViewProps) {
 
       <Show
         when={selected()}
+        keyed
         fallback={
           <EmptyPane reason="Nothing needs you — approve something and it resolves right here." />
         }
       >
-        <InboxDetail
-          item={selected()!}
-          onApprove={() => resolveItem(selected()!.id)}
-          onSendBack={() => resolveItem(selected()!.id)}
-          onOpenWork={(locator) => props.nav.open(locator)}
-        />
+        {(item) => (
+          <InboxDetail
+            item={item}
+            onApprove={(comment) => approveItem(item.id, comment)}
+            onSendBack={(comment) => sendBackItem(item.id, comment)}
+            onOpenWork={(locator) => props.nav.open(locator)}
+          />
+        )}
       </Show>
     </div>
   );

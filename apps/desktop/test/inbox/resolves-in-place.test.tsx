@@ -15,6 +15,12 @@ const mount = () => {
   return { nav, ...r };
 };
 
+const typeComment = (box: Element, text: string) => {
+  const textarea = box as HTMLTextAreaElement;
+  textarea.value = text;
+  textarea.dispatchEvent(new Event("input", { bubbles: true }));
+};
+
 describe("inbox/resolves-in-place", () => {
   it("removes the item from the list", () => {
     const { getByTestId, queryByTestId } = mount();
@@ -70,7 +76,18 @@ describe("inbox/resolves-in-place", () => {
   it("resolves a send-back too — the decision is made either way", () => {
     const { getByTestId, queryByTestId } = mount();
     const [first] = useInboxItems();
+    // Send back carries its reason; the empty-comment submit is blocked (see
+    // inbox/send-back.test.tsx), so the decision is made with a comment.
+    typeComment(getByTestId("inbox-comment"), "Rework the sink boundary.");
     getByTestId("inbox-send-back").click();
     expect(queryByTestId(`inbox-card-${first.id}`)).toBe(null);
+  });
+
+  it("does not resolve a send-back without its comment — nothing was decided", () => {
+    const { getByTestId, queryByTestId } = mount();
+    const [first] = useInboxItems();
+    getByTestId("inbox-send-back").click();
+    expect(queryByTestId(`inbox-card-${first.id}`)).not.toBe(null);
+    expect(getByTestId("inbox-send-back-error")).toBeTruthy();
   });
 });

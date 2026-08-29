@@ -6,8 +6,9 @@ import type { InboxItem } from "../../data/inbox";
 
 export interface InboxDetailProps {
   item: InboxItem;
-  /** Resolves the item in place. The view does not change. */
+  /** Resolves the item in place. The comment is optional steering. The view does not change. */
   onApprove: (comment: string) => void;
+  /** Returns the work with the comment as its reason. An empty comment never reaches here. */
   onSendBack: (comment: string) => void;
   /** Opens the item's work where that work lives, by locator. */
   onOpenWork: (locator: string) => void;
@@ -24,6 +25,21 @@ const age = (minutes: number) =>
 
 export function InboxDetail(props: InboxDetailProps) {
   const [comment, setComment] = createSignal("");
+  const [sendBackBlocked, setSendBackBlocked] = createSignal(false);
+
+  /**
+   * Send back returns the work with its reason — the comment is the response,
+   * not a note, so an empty one blocks the submit instead of resolving.
+   * Approve does not ask for text; the two actions stay separate paths.
+   */
+  const requestSendBack = () => {
+    if (!comment().trim()) {
+      setSendBackBlocked(true);
+      return;
+    }
+    setSendBackBlocked(false);
+    props.onSendBack(comment());
+  };
 
   return (
     <section class="inbox-detail" data-testid="inbox-detail">
@@ -87,8 +103,26 @@ export function InboxDetail(props: InboxDetailProps) {
             data-testid="inbox-comment"
             value={comment()}
             placeholder="Optional"
-            onInput={(e) => setComment(e.currentTarget.value)}
+            aria-invalid={sendBackBlocked() ? "true" : undefined}
+            onInput={(e) => {
+              setComment(e.currentTarget.value);
+              if (sendBackBlocked()) setSendBackBlocked(false);
+            }}
           />
+          <Show when={sendBackBlocked()}>
+            <p
+              class="inbox-send-back-error"
+              role="alert"
+              data-testid="inbox-send-back-error"
+              style={{
+                margin: 0,
+                color: "var(--status-danger)",
+                "font-size": "var(--t-micro)",
+              }}
+            >
+              Write a comment — send back returns the work with your reason.
+            </p>
+          </Show>
         </div>
         <div class="inbox-explanations" data-testid="inbox-explanations">
           <p data-testid="inbox-why">
@@ -117,7 +151,7 @@ export function InboxDetail(props: InboxDetailProps) {
         <Button
           variant="secondary"
           data-testid="inbox-send-back"
-          onClick={() => props.onSendBack(comment())}
+          onClick={requestSendBack}
         >
           Send back with comment
         </Button>
