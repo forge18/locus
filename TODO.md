@@ -67,7 +67,6 @@ Of 24 modules in [apps/desktop/src/data/](apps/desktop/src/data/), only `bots.ts
 - [ ] **Reconcile 13 migrated tables no store code touches** — `agents.turns`, `board.github_issues`, `board.task_assignments`, `core.harness_adapter_configs`, `core.local_remotes`, `memory.probation`, `memory.edges`, `wiki.ingest_log`, `wiki.contradictions`, and four `market.*` tables ([0008](migrations/)) exist in [migrations/](migrations/) with no query; either the feature that needs them is unbuilt or the schema is dead.
 - [ ] **Fix the harness count** — [AGENTS.md](AGENTS.md) says twelve harnesses; [harnesses/](harnesses/) holds eleven TOMLs and the generated fixture asserts 11.
 
-
 ## UI/UX defects
 
 ### Dead controls
@@ -140,7 +139,7 @@ Of 24 modules in [apps/desktop/src/data/](apps/desktop/src/data/), only `bots.ts
 - [ ] **Add a `--scrim` token** — four different backdrop literals: [shell.css:147](apps/desktop/src/shell/shell.css#L147), [shell.css:239](apps/desktop/src/shell/shell.css#L239), [dispatch.css:35](apps/desktop/src/screens/dispatch/dispatch.css#L35), [projects.css:57](apps/desktop/src/screens/projects/projects.css#L57).
 - [ ] **Put overlay z-indexes on the ui.css ladder** — `.project-editor-overlay` is `z-index:20` ([projects.css:57](apps/desktop/src/screens/projects/projects.css#L57)) and `.dispatch-dialog-backdrop` is `2` ([dispatch.css:35](apps/desktop/src/screens/dispatch/dispatch.css#L35)); the ladder in [ui.css](apps/desktop/src/ui/ui.css) is 50/51/60/70, so a toast or menu stacks over the editor.
 - [ ] **Delete dead theme scaffolding and alias tokens** — `THEME_REGISTRY`/`registerThemes`/`ThemeRegistration` ([theme.ts:3-71](apps/desktop/src/styles/theme.ts#L3-L71)) duplicate 18 hex values from tokens.css and have no caller; 26 compatibility aliases in [tokens.css](apps/desktop/src/styles/tokens.css) (`--ac`, `--bg`, `--sf`, `--tx`, `--mu`, `--line`, `--ok`, `--bad-deep`, …) are referenced nowhere; `--data-blue` and `--text-link` are used only as fallback-bearing names ([agent-pane.css:360-484](apps/desktop/src/panes/agent-pane.css#L360)).
-- [ ] **Import each screen stylesheet once** — `manage.css` and `interact.css` load via [screens.css:4-5](apps/desktop/src/screens/screens.css#L4-L5) and again from [ManageView.tsx:42](apps/desktop/src/screens/manage/ManageView.tsx#L42) / [InteractView.tsx:7](apps/desktop/src/screens/interact/InteractView.tsx#L7).
+- [x] **Import each screen stylesheet once** — `manage.css` and `interact.css` load via [screens.css:4-5](apps/desktop/src/screens/screens.css#L4-L5) and again from [ManageView.tsx:42](apps/desktop/src/screens/manage/ManageView.tsx#L42) / [InteractView.tsx:7](apps/desktop/src/screens/interact/InteractView.tsx#L7).
 
 ## Plan adherence gaps
 
