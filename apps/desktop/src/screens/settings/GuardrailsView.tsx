@@ -7,6 +7,7 @@ import {
 import type { GuardrailControl } from "../../fixtures/settings-guardrails";
 import { AppearanceSelector } from "./AppearanceSelector";
 import { Button } from "../../ui/Button";
+import { AvatarStylePicker } from "./AvatarStylePicker";
 
 function Stepper(props: {
   id: string;
@@ -119,6 +120,7 @@ export function GuardrailsView() {
           </header>
 
           <AppearanceSelector />
+          <AvatarStylePicker />
           <For each={sections()}>
             {(section) => (
               <section

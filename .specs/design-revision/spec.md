@@ -32,7 +32,9 @@ of the same file. `Locus.dc.html` and the earlier desktop handoff are v1.
 
 Rail categories are **Setup, Plan, Manage, Interact, Bots, Review** (project-scoped) and **Analytics,
 Memory, Settings, Workshop** (cross-project). Inbox and Dispatch are title-bar pills, not rail
-items. Bots is the persistent named-agent surface and carries only the `bots` view. The former project,
+items. Bots is the persistent named-agent surface and carries only the `bots` view. Its list rows may
+show the bot's derived avatar, but the screen remains the only avatar surface; no panel or route
+contract changes. The former project,
 task, metrics, and project-list labels are retired: no spec, fixture, route id, or component may
 reintroduce them.
 

@@ -24,7 +24,9 @@ recipe line; the justfile adds naming and discoverability, never behavior.
 **The recipe set.** `setup`, `build`, `test`, `test-node`, `lint`, `typecheck`, `dev`, and `ci` (the
 full CI sequence). `test-named` delegates to `scripts/run-named-test.sh` and preserves its
 fail-if-filter-is-stale semantics. Recipes pass arguments through positionally and quoted, so
-`::`-suffixed test paths survive.
+`::`-suffixed test paths survive. The CI recipe uses the existing `locus-cli` `harness_lint` integration
+test instead of a second normal-profile `cargo run`; that test launches the compiled CLI and keeps the
+registry check while avoiding a redundant `locus-core` build.
 
 **Three surfaces call the recipes.**
 
@@ -40,9 +42,10 @@ fail-if-filter-is-stale semantics. Recipes pass arguments through positionally a
 
 **[ci](.specs/ci/spec.md) amended** to name the justfile as how its six checks run.
 
-**No behavior change.** Recipes change how commands are named, not what they do: no new flags, no new
-defaults, no reordering. Byte-determinism is untouched — the justfile is static text with no
-timestamps, run ids, or environment reads.
+**No product behavior change.** Recipes change how commands are named and remove duplicate build work,
+not what the checks assert: no new flags, no new defaults, no reordering of the remaining checks.
+Byte-determinism is untouched — the justfile is static text with no timestamps, run ids, or environment
+reads.
 
 ## Acceptance
 

@@ -66,6 +66,9 @@ Renames against the superseded design: Develop → **Interact**, Automate → **
 **Analytics**, Projects → **Setup**. Inbox and Dashboard leave the rail entirely. Review's landing
 view changes from Telemetry to a new QA screen.
 
+The Bots view may add a derived DiceBear avatar to each bot row and its screen header. The avatar uses
+the stable bot id, remains transparent under both themes, and never changes the Agent Pane contract.
+
 Every view has a `locus://` locator (`locus://<project|all|app>/<kind>/<id>`). A category click
 lands on that category's first view.
 

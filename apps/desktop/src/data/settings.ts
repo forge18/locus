@@ -1,26 +1,37 @@
-import { invoke } from '@tauri-apps/api/core'
-import { MODEL_TIERS, TIER_FALLBACK, DISCOVERED_MODEL_IDS, TIERS } from '../fixtures/settings'
-import { useHarnesses } from './harnesses'
-import type { ModelTier, ModelTierSetting } from '../types/core'
+import { invoke } from "@tauri-apps/api/core";
+import {
+ MODEL_TIERS,
+ TIER_FALLBACK,
+ DISCOVERED_MODEL_IDS,
+ TIERS,
+} from "../fixtures/settings";
+import { useHarnesses } from "./harnesses";
+import type { ModelTier, ModelTierSetting } from "../types/core";
 
-export { TIERS, TIER_FALLBACK } from '../fixtures/settings'
+export {
+ BOT_AVATAR_STYLE_SETTING,
+ DEFAULT_BOT_AVATAR_STYLE,
+ CORE_SETTINGS_DEFAULTS,
+} from "../avatars/setting";
+
+export { TIERS, TIER_FALLBACK } from "../fixtures/settings";
 
 export interface HarnessTierGridHarness {
-  name: string
-  /** `null` means the registry has no `list_argv`, so Settings accepts free text. */
-  models: string[] | null
-  tiers: ModelTierSetting[]
+ name: string;
+ /** `null` means the registry has no `list_argv`, so Settings accepts free text. */
+ models: string[] | null;
+ tiers: ModelTierSetting[];
 }
 
 export interface HarnessTierGridRequest {
-  projectId: string
-  harnesses: { name: string; models: string[] | null }[]
-  tierSettings: ModelTierSetting[]
+ projectId: string;
+ harnesses: { name: string; models: string[] | null }[];
+ tierSettings: ModelTierSetting[];
 }
 
 export interface HarnessTierGridResponse {
-  projectId: string
-  harnesses: HarnessTierGridHarness[]
+ projectId: string;
+ harnesses: HarnessTierGridHarness[];
 }
 
 /**
@@ -30,16 +41,20 @@ export interface HarnessTierGridResponse {
  * replacing it with `readHarnessTierGrid` does not change the screen.
  */
 export function useHarnessTierGrid(): HarnessTierGridHarness[] {
-  return useHarnesses().map((harness) => ({
-    name: harness.name,
-    models: harness.canEnumerateModels ? (DISCOVERED_MODEL_IDS[harness.name] ?? []) : null,
-    tiers: TIERS.map((tier) => ({
-      harness: harness.name,
-      tier,
-      model: MODEL_TIERS.find((setting) => setting.harness === harness.name && setting.tier === tier)
-        ?.model ?? null,
-    })),
-  }))
+ return useHarnesses().map((harness) => ({
+  name: harness.name,
+  models: harness.canEnumerateModels
+   ? (DISCOVERED_MODEL_IDS[harness.name] ?? [])
+   : null,
+  tiers: TIERS.map((tier) => ({
+   harness: harness.name,
+   tier,
+   model:
+    MODEL_TIERS.find(
+     (setting) => setting.harness === harness.name && setting.tier === tier,
+    )?.model ?? null,
+  })),
+ }));
 }
 
 /**
@@ -47,13 +62,17 @@ export function useHarnessTierGrid(): HarnessTierGridHarness[] {
  *
  * Read the same grid from the typed Tauri command once application bootstrap owns its inputs.
  */
-export function readHarnessTierGrid(request: HarnessTierGridRequest): Promise<HarnessTierGridResponse> {
-  return invoke<HarnessTierGridResponse>('harness_tier_grid', { request })
+export function readHarnessTierGrid(
+ request: HarnessTierGridRequest,
+): Promise<HarnessTierGridResponse> {
+ return invoke<HarnessTierGridResponse>("harness_tier_grid", { request });
 }
 
 /** Becomes: invoke("settings_model_tiers") */
 export function useModelTiers(harness?: string): ModelTierSetting[] {
-  return harness ? MODEL_TIERS.filter((m) => m.harness === harness) : MODEL_TIERS
+ return harness
+  ? MODEL_TIERS.filter((m) => m.harness === harness)
+  : MODEL_TIERS;
 }
 
 /**
@@ -69,20 +88,23 @@ export function useModelTiers(harness?: string): ModelTierSetting[] {
  * registered, unconfigured.
  */
 export function resolveTier(
-  harness: string,
-  tier: ModelTier,
+ harness: string,
+ tier: ModelTier,
 ): { model: string | null; fellBackTo: ModelTier | null } {
-  const mapped = (t: ModelTier) =>
-    MODEL_TIERS.find((m) => m.harness === harness && m.tier === t)?.model ?? null
+ const mapped = (t: ModelTier) =>
+  MODEL_TIERS.find((m) => m.harness === harness && m.tier === t)?.model ?? null;
 
-  const own = mapped(tier)
-  if (own) return { model: own, fellBackTo: null }
+ const own = mapped(tier);
+ if (own) return { model: own, fellBackTo: null };
 
-  const configured = TIER_FALLBACK[harness]
-  if (!configured || configured === tier) return { model: null, fellBackTo: null }
+ const configured = TIER_FALLBACK[harness];
+ if (!configured || configured === tier)
+  return { model: null, fellBackTo: null };
 
-  const fallback = mapped(configured)
-  return fallback ? { model: fallback, fellBackTo: configured } : { model: null, fellBackTo: null }
+ const fallback = mapped(configured);
+ return fallback
+  ? { model: fallback, fellBackTo: configured }
+  : { model: null, fellBackTo: null };
 }
 
 /**
@@ -91,7 +113,7 @@ export function resolveTier(
  * The tier this harness's settings nominate, or null where none is configured.
  */
 export function fallbackTierFor(harness: string): ModelTier | null {
-  return TIER_FALLBACK[harness] ?? null
+ return TIER_FALLBACK[harness] ?? null;
 }
 
 /**
@@ -100,5 +122,5 @@ export function fallbackTierFor(harness: string): ModelTier | null {
  * The marker an unmapped tier shows: where it resolved to, and that it went up.
  */
 export function fallbackMarker(fellBackTo: ModelTier): string {
-  return `↑ ${fellBackTo}`
+ return `↑ ${fellBackTo}`;
 }

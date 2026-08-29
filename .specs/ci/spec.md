@@ -21,8 +21,10 @@ Cheap now, and expensive to add after the first silent non-load has been debugge
 
 **On every push:** CI uses the root `justfile` entrypoints for the checks they wrap: `just test`,
 `just lint`, and `just test-named` preserve the Rust test, clippy, determinism, and per-harness
-commands verbatim. The desktop build and harness registry lint retain their raw commands because no
-recipe changes their behavior.
+commands verbatim. The desktop build retains its raw command. Harness registry lint runs the existing
+`locus-cli` integration test (`cargo test -p locus-cli --test harness_lint`), which launches the
+compiled CLI and checks the registry without a second dev-profile build. CI restores Rust build
+artifacts so this profile split is paid primarily on a cold cache.
 
 **The smoke test, per harness.** Start a run with a **canary skill and a canary rule**, and assert the
 agent can see both. That converts a silent non-load into a failing test, and it is the only reason the
@@ -51,6 +53,9 @@ trusted user harness plugins and needs no test-only instrumentation.
 6. Registering a new harness runs its smoke test before the registration is accepted.
 7. CI runs without Docker where possible, and clearly marks the tests that require it rather than
    silently skipping them.
+8. Harness registry lint uses the existing CLI integration test and does not invoke a redundant
+   `cargo run -p locus-cli -- harness lint` build.
+9. CI restores a Rust build cache keyed to the repository and toolchain.
 
 ## Open
 
