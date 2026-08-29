@@ -40,7 +40,6 @@ import {
   type WorkItemProviderRecord,
 } from "../../data/work-items";
 import type { BoardColumn, Task } from "../../types/board";
-import "./manage.css";
 
 type ManageViewKind = "kanban" | "list" | "graph" | "timeline";
 

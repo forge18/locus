@@ -5,7 +5,6 @@ import { Tag } from "../../ui/Tag";
 import { MergeModal } from "../../shell/MergeModal";
 import { AgentPane, type AgentPaneSession } from "../../panes/AgentPane";
 import type { AgentEvent } from "../../types/event";
-import "./interact.css";
 
 type InteractState = "open" | "promoted" | "discarded";
 interface InteractSession {
