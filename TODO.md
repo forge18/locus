@@ -110,7 +110,7 @@ Of 24 modules in [apps/desktop/src/data/](apps/desktop/src/data/), only `bots.ts
 
 - [ ] **Distinguish Approve from Send back in Inbox** — `InboxView` wires both to the same `resolveItem(id)` and drops the comment ([InboxView.tsx:368-369](apps/desktop/src/screens/inbox/InboxView.tsx#L368-L369), [InboxDetail.tsx:89,110-123](apps/desktop/src/screens/inbox/InboxDetail.tsx#L89)); [shell-revision](.specs/shell-revision/spec.md) acceptance 14 requires non-empty text for Send back.
 - [ ] **Show cost in Interact** — `showCost` is never passed ([InteractView.tsx:205,219-227](apps/desktop/src/screens/interact/InteractView.tsx#L205)) so `AgentPane` defaults it off ([AgentPane.tsx:88,224](apps/desktop/src/panes/AgentPane.tsx#L88)) while the header claims "token/cost shown"; [interact-sessions](.specs/interact-sessions/spec.md) acceptance 14. `permissionPosture: "bypass"` is hard-coded ([InteractView.tsx:65](apps/desktop/src/screens/interact/InteractView.tsx#L65)) so the built permission/elicitation/checkpoint surfaces never render.
-- [ ] **Redraw the Analytics trend from the selected measure** — the bars are a literal `[34, 50, 42, …]` independent of `measure()`/`range()` ([AnalyticsView.tsx:297-315](apps/desktop/src/screens/analytics/AnalyticsView.tsx#L297-L315)).
+- [x] **Redraw the Analytics trend from the selected measure** — the bars are a literal `[34, 50, 42, …]` independent of `measure()`/`range()` ([AnalyticsView.tsx:297-315](apps/desktop/src/screens/analytics/AnalyticsView.tsx#L297-L315)).
 
 ### Keyboard, focus, and accessibility
 
