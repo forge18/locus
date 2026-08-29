@@ -6,10 +6,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::{
-    ids::{ProjectId, TaskId},
-    runtime::dispatch::{PriorityMethod, QueuedRun},
-};
+use crate::ids::{ProjectId, TaskId};
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -205,17 +202,6 @@ pub fn graph_edges(
         .collect()
 }
 
-pub fn unblocks_most_order(runs: impl IntoIterator<Item = QueuedRun>) -> Vec<crate::ids::RunId> {
-    let policy = crate::runtime::dispatch::DispatchPolicy {
-        global_parallelism: u32::MAX,
-        per_project_parallelism: u32::MAX,
-        priority_method: PriorityMethod::UnblocksMost,
-        tie_break: crate::runtime::dispatch::TieBreak::LongestWaiting,
-        preemption_enabled: false,
-    };
-    crate::runtime::dispatch::select_to_start(&policy, runs)
-}
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TimelineSegment {
     pub task_id: TaskId,
@@ -331,7 +317,9 @@ mod manage {
         dwell_by_column as calculate_dwell, graph_edges as build_edges,
         stuck_banner_payload as make_banner, timeline_segments as build_segments,
     };
-    use crate::runtime::dispatch::{DispatchPriority, RunState};
+    use crate::runtime::dispatch::{
+        DispatchPolicy, DispatchPriority, PriorityMethod, QueuedRun, RunState,
+    };
     use uuid::Uuid;
 
     fn task(column: TaskColumn) -> TaskCard {
@@ -419,6 +407,17 @@ mod manage {
         held.insert(b);
         assert!(build_edges([(a, b)], &held)[0].approval_owed);
     }
+    fn unblocks_most_order(runs: impl IntoIterator<Item = QueuedRun>) -> Vec<crate::ids::RunId> {
+        let policy = DispatchPolicy {
+            global_parallelism: u32::MAX,
+            per_project_parallelism: u32::MAX,
+            priority_method: PriorityMethod::UnblocksMost,
+            tie_break: crate::runtime::dispatch::TieBreak::LongestWaiting,
+            preemption_enabled: false,
+        };
+        crate::runtime::dispatch::select_to_start(&policy, runs)
+    }
+
     #[test]
     fn unblocks_most_matches_dispatch() {
         let a = QueuedRun {

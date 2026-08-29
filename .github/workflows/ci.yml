@@ -11,6 +11,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
+
+      - name: Install just
+        uses: extractions/setup-just@v2
+        with:
+          just-version: 1.57.0
+
       - name: Install Rust with clippy
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -34,36 +53,48 @@ jobs:
       - name: Install desktop dependencies
         run: pnpm --dir apps/desktop install --frozen-lockfile
 
+      - name: Configure git for repository tests
+        run: |
+          git config --global user.name "Locus CI"
+          git config --global user.email "ci@localhost"
+          git config --global init.defaultBranch main
+
       - name: Rust tests
-        run: cargo test
+        env:
+          RUST_TEST_THREADS: 1
+        run: just test
 
       - name: Rust clippy (warnings fail)
-        run: cargo clippy --all-targets -- -D warnings
+        run: just lint
 
       - name: Desktop build
         run: pnpm -C apps/desktop build
 
       - name: locusd starts and serves its socket
         run: |
-          LOCUS_HARNESS_REGISTRY=harnesses LOCUS_SOCKET_PATH=/tmp/locusd-ci.sock \
+          LOCUS_HARNESS_REGISTRY=harnesses \
+            LOCUS_SOCKET_PATH=/tmp/locusd-ci.sock \
             cargo run -p locus-cli --bin locusd &
-          for _ in $(seq 1 30); do
+          for _ in $(seq 1 120); do
             [ -S /tmp/locusd-ci.sock ] && break
             sleep 1
           done
-          test -S /tmp/locusd-ci.sock || { echo 'locusd never bound its socket' >&2; exit 1; }
+          test -S /tmp/locusd-ci.sock || {
+            echo 'locusd never bound its socket' >&2
+            exit 1
+          }
           kill %1
 
       - name: Harness registry lint
         run: cargo run -p locus-cli -- harness lint
 
       - name: Materialization determinism
-        run: bash scripts/run-named-test.sh locus-core harness::materialize::ci_determinism
+        run: just test-named locus-core harness::materialize::ci_determinism
 
       - name: Per-harness canary smoke
         run: |
-          bash scripts/run-named-test.sh locus-core all_registered_harnesses --ignored
-          bash scripts/run-named-test.sh locus-core isolates_failure --ignored
+          just test-named locus-core all_registered_harnesses --ignored
+          just test-named locus-core isolates_failure --ignored
 
       - name: Architecture invariants
         run: |

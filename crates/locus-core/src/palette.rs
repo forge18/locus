@@ -181,6 +181,7 @@ pub fn resolve_palette_locator(locator: &str) -> Result<String> {
 }
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod palette {
     use super::*;
     use crate::services::manage::TaskColumn;

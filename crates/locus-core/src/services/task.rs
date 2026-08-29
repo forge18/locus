@@ -418,6 +418,7 @@ impl TaskOrchestrator {
 }
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod task {
     use super::*;
 

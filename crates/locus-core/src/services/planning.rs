@@ -1300,6 +1300,7 @@ mod revision_tests {
 }
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod planning {
     use super::*;
 

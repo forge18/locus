@@ -1862,7 +1862,7 @@ pub fn decode_semantic_tokens(data: &[u32]) -> Result<Vec<SemanticToken>, LspErr
     let mut line: u32 = 0;
     let mut start: u32 = 0;
     let mut tokens = Vec::with_capacity(data.len() / 5);
-    for chunk in data.chunks_exact(5) {
+    for chunk in data.as_chunks::<5>().0 {
         line = line
             .checked_add(chunk[0])
             .ok_or_else(|| LspError::Protocol("semantic token line overflow".into()))?;

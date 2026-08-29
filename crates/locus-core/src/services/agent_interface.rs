@@ -163,6 +163,7 @@ impl AgentPaneViewModel {
 }
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod agent_interface {
     use super::*;
     use crate::{

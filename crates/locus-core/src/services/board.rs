@@ -534,10 +534,7 @@ mod board {
 
     #[test]
     fn columns_are_closed() {
-        assert_eq!(
-            serde_json::from_str::<TaskColumn>("\"building\"").is_err(),
-            true
-        );
+        assert!(serde_json::from_str::<TaskColumn>("\"building\"").is_err());
         assert_eq!(
             serde_json::to_value(TaskColumn::Done).expect("column json"),
             json!("done")

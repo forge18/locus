@@ -185,6 +185,7 @@ pub fn docs_on_demand(manifest: &InstallManifest) -> String {
 }
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod install {
     use super::*;
     use std::collections::BTreeSet;

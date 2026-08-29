@@ -9,7 +9,6 @@
 
 use crate::bus::InProcessBus;
 use crate::ids::RunId;
-use crate::runtime::controls::PermissionPosture;
 use std::{
     collections::{BTreeSet, HashMap, VecDeque},
     sync::{Arc, Mutex},
@@ -220,14 +219,14 @@ impl EventCollector {
 
     /// Capture with the default bypass posture for legacy callers.
     pub fn capture(&self, run_id: RunId, captured: CapturedEvent) -> Event {
-        self.capture_with_posture(run_id, PermissionPosture::Bypass, captured)
+        self.capture_with_posture(run_id, false, captured)
     }
 
     /// Capture an event and classify permission requests using the immutable run posture.
     pub fn capture_with_posture(
         &self,
         run_id: RunId,
-        posture: PermissionPosture,
+        gated: bool,
         captured: CapturedEvent,
     ) -> Event {
         let seq = {
@@ -247,7 +246,7 @@ impl EventCollector {
         drop(journals);
         self.events_out.publish(event.clone());
         if event.verb == EventVerb::PermissionRequest {
-            if posture.is_gated() {
+            if gated {
                 self.gates.publish(PermissionGate {
                     run_id: event.run_id,
                     seq: event.seq,
@@ -662,8 +661,7 @@ mod tests {
         let collector = EventCollector::new(4);
         let mut alarms = collector.subscribe_alarms();
         let mut gates = collector.subscribe_gates();
-        let event =
-            collector.capture_with_posture(RunId::generate(), PermissionPosture::Gated, captured);
+        let event = collector.capture_with_posture(RunId::generate(), true, captured);
 
         assert_eq!(event.verb, EventVerb::PermissionRequest);
         assert!(alarms.try_recv().is_err());
@@ -681,7 +679,7 @@ mod tests {
         });
         let event = EventCollector::new(1).capture_with_posture(
             RunId::generate(),
-            PermissionPosture::Gated,
+            true,
             AcpAdapter.normalize(raw.clone()).unwrap().pop().unwrap(),
         );
         assert_eq!(event.raw, raw);

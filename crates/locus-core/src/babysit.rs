@@ -148,6 +148,7 @@ pub enum BabysitterError {
 }
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod babysit {
     use super::*;
     use crate::{forge::ForgeKind, runtime::dispatch::NetworkTier};
@@ -292,13 +293,11 @@ mod babysit {
     }
 
     #[test]
-    #[ignore]
     fn fixes_real_break() {
         assert!(within_budget(&[], &defaults()));
     }
 
     #[test]
-    #[ignore]
     fn gives_up_cleanly() {
         let attempt = BabysitterAttempt {
             branch: "b".into(),

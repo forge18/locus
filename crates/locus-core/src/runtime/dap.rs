@@ -755,6 +755,7 @@ pub const DEBUG_DOCS: &str =
     "Prefer --log logpoints before breakpoints: logpoints continue; breakpoints stop the program.";
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod dap {
     use super::*;
     use std::io::Cursor;

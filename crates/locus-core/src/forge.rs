@@ -436,7 +436,7 @@ fn decode_hex(value: &str) -> Option<Vec<u8>> {
         return None;
     }
     let mut bytes = Vec::with_capacity(32);
-    for pair in value.as_bytes().chunks_exact(2) {
+    for pair in value.as_bytes().as_chunks::<2>().0 {
         let high = (pair[0] as char).to_digit(16)? as u8;
         let low = (pair[1] as char).to_digit(16)? as u8;
         bytes.push((high << 4) | low);
@@ -452,6 +452,7 @@ pub fn sign_webhook(payload: &[u8], secret: &[u8]) -> String {
 }
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod forge {
     use super::*;
 
@@ -476,7 +477,7 @@ mod forge {
     #[test]
     fn contract_types() {
         assert_eq!(ForgeKind::ALL.len(), 5);
-        assert_eq!(ForgeCapabilities::ALL.issues, true);
+        const { assert!(ForgeCapabilities::ALL.issues) };
     }
 
     #[test]

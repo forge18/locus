@@ -358,6 +358,7 @@ pub struct MetricNetworkPolicy {
 }
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod metrics {
     use super::*;
 

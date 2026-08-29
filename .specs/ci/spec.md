@@ -19,8 +19,10 @@ Cheap now, and expensive to add after the first silent non-load has been debugge
 
 ## Contract
 
-**On every push:** `cargo test`, `cargo clippy --all-targets -- -D warnings`, `pnpm build`,
-`locus harness lint`, the materialization determinism check, and the per-harness smoke test.
+**On every push:** CI uses the root `justfile` entrypoints for the checks they wrap: `just test`,
+`just lint`, and `just test-named` preserve the Rust test, clippy, determinism, and per-harness
+commands verbatim. The desktop build and harness registry lint retain their raw commands because no
+recipe changes their behavior.
 
 **The smoke test, per harness.** Start a run with a **canary skill and a canary rule**, and assert the
 agent can see both. That converts a silent non-load into a failing test, and it is the only reason the

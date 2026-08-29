@@ -210,6 +210,20 @@ pub trait ContainerRuntime: Send {
     }
 }
 
+impl<T> crate::services::workflow::VerifyContainerRunner for T
+where
+    T: ContainerRuntime,
+{
+    fn run_fresh_container(
+        &mut self,
+        request: &crate::services::workflow::VerifyContainerRequest,
+    ) -> Result<crate::services::workflow::VerifyEvidence, crate::services::workflow::VerifyError>
+    {
+        self.run_verify_container(request)
+            .map_err(|_| crate::services::workflow::VerifyError::RunnerUnavailable)
+    }
+}
+
 /// Host-only Bollard adapter. Agents never receive the Docker client or its socket.
 #[derive(Clone)]
 pub struct DockerContainerRuntime {

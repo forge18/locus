@@ -1528,6 +1528,7 @@ impl CompletionOutbox {
 }
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod work_item {
     use super::*;
 

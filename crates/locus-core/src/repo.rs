@@ -983,7 +983,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn three_concurrent() {
         let (tmp, _checkout, manager, repo) = fixture();
         let a = manager.clone_run(&repo, "a", tmp.path().join("a")).unwrap();
