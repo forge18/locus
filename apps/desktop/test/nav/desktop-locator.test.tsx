@@ -53,7 +53,7 @@ describe("nav/desktop-locator", () => {
     expect(input.placeholder).toContain("code, wiki, tasks, and runs");
     fireEvent.input(input, { target: { value: "overview" } });
     expect(
-      document.querySelector("[data-testid=palette-results]"),
-    ).toHaveTextContent("locus");
+      document.querySelector("[data-testid=palette-results]")?.textContent ?? "",
+    ).toContain("locus");
   });
 });
