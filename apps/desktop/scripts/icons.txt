@@ -8,11 +8,13 @@ arrows-split
 book-bookmark
 book-open-text
 books
+brain
 broom
 caret-down
 caret-right
 chart-bar
 chat-teardrop-dots
+chats-circle
 chat-teardrop-text
 check
 check-circle
@@ -30,6 +32,7 @@ file-text
 flag
 flag-checkered
 funnel
+gear
 gavel
 git-branch
 git-commit
@@ -63,6 +66,7 @@ scales
 seal-check
 seal-question
 signpost
+sliders-horizontal
 sort-ascending
 sparkle
 square
