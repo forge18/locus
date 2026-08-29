@@ -1,6 +1,6 @@
 # TODO
 
-**Remaining:** 34 features · 477 tasks.
+**Remaining:** 35 features · 476 tasks.
 
 This is the unfinished-work index. [`PLAN.md`](PLAN.md) is the architecture authority. Each feature's
 `spec.md` is its contract; its `tasks.md` is the runnable decomposition and verification source.
@@ -14,7 +14,8 @@ would otherwise be forgotten.
 
 ## Where to start
 
-M1.5 is complete. M1.6's sbx-runtime row (36) is complete.
+M1.5 is complete. Row 38 (bot-avatars) has completed prerequisites and can proceed next. M1.6's
+sbx-runtime row (36) is complete.
 
 ## Progress
 
@@ -32,10 +33,10 @@ M1.5 is complete. M1.6's sbx-runtime row (36) is complete.
 | M3.5 | Agent capabilities: debug and browser | 3 | 56 | queued |
 | M4 | Workflow canvas | 3 | 69 | queued |
 | M5 | Project management | 5 | 127 | queued |
-| M6 | Automation and discoverability | 3 | 46 | queued |
+| M6 | Automation and discoverability | 4 | 56 | queued |
 | M7 | Forge providers | 4 | 88 | queued |
 | M8 | Marketplace installer | 1 | 11 | queued |
-| **Total** | | **81** | **1,770** | **477 remaining** |
+| **Total** | | **82** | **1,780** | **493 remaining** |
 
 ## Settled foundations
 
@@ -74,7 +75,7 @@ this Workshop provider reduction.
 
 ## Execution order
 
-Start with items 1–2. Items 3–9 and 36 have only completed prerequisites and can run in parallel. Item 10
+Start with items 1–2. Items 3–9 and 38 have only completed prerequisites and can run in parallel. Item 10
 locks the plugin contract before later plugin-backed surfaces. The remaining items follow their dependency
 edges. Items 32–33 are intentionally last because they depend on later planning and memory features.
 
@@ -261,6 +262,10 @@ edges. Items 32–33 are intentionally last because they depend on later plannin
   Thin root justfile as the single entrypoint for build steps: recipes wrap current commands verbatim, the AGENTS.md commands table and CI steps call them, and existing spec `verify:` rows stay raw. Repo tooling, not a product feature.
   *Depends on:* nothing — can run in parallel with any row
   *Completed:* root recipes, deterministic named-test pass-through, CI wiring, raw-command fallbacks, and the full local `just ci` sequence.
+
+- [ ] **38. M6 — [bot-avatars](.specs/bot-avatars/spec.md)** · [tasks](.specs/bot-avatars/tasks.md) · 10 tasks
+  Derived DiceBear bot avatars: id-seeded, never stored; one app-wide style setting defaulting to Bottts, with per-style creator/license attribution.
+  *Depends on:* completed `bots`
 
 ## Open decisions
 

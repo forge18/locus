@@ -439,9 +439,7 @@ function TaskDetail(props: { task: Task }) {
     return "not synced";
   };
   const completionStatus = () =>
-    completion()?.status ??
-    task.completionStatus ??
-    "pending";
+    completion()?.status ?? task.completionStatus ?? "pending";
   const completionAttempts = () =>
     completion()?.attempts ?? task.completionAttempts ?? 0;
   const resolutionSupported = () =>
@@ -478,7 +476,10 @@ function TaskDetail(props: { task: Task }) {
         </div>
       </dl>
       <Show when={task.comments?.length}>
-        <section class="manage-task-comments" data-testid="automate-task-comments">
+        <section
+          class="manage-task-comments"
+          data-testid="automate-task-comments"
+        >
           <strong>Notes</strong>
           <For each={task.comments ?? []}>
             {(comment) => (
@@ -587,18 +588,10 @@ function TaskDetail(props: { task: Task }) {
             {(message) => <p role="alert">{message()}</p>}
           </Show>
           <div class="manage-import-sync-actions">
-            <Button
-              variant="secondary"
-              disabled={syncBusy()}
-              onClick={syncNow}
-            >
+            <Button variant="secondary" disabled={syncBusy()} onClick={syncNow}>
               {syncBusy() ? "Syncing…" : "Sync now"}
             </Button>
-            <Button
-              variant="ghost"
-              disabled={syncBusy()}
-              onClick={pushStatus}
-            >
+            <Button variant="ghost" disabled={syncBusy()} onClick={pushStatus}>
               Push current status
             </Button>
           </div>
@@ -694,9 +687,7 @@ export function ManageView(props: ManageViewProps = {}) {
   });
   const selectedTask = () => {
     const taskId = selectedTaskId();
-    return taskId
-      ? tasks().find((task) => task.id === taskId)
-      : tasks()[0];
+    return taskId ? tasks().find((task) => task.id === taskId) : tasks()[0];
   };
   const openTask = (task: Task) => setSelectedTaskId(task.id);
   const openDraft = () => {

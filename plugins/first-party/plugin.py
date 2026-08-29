@@ -80,7 +80,9 @@ def _lookup(params):
     if any(lookup[name].startswith("-") for name in ("host", "project", "native_id")):
         raise ValueError("lookup values must not start with a dash")
     parts = lookup["project"].split("/")
-    if len(parts) != 2 or any(not part or any(char.isspace() for char in part) for part in parts):
+    if len(parts) != 2 or any(
+        not part or any(char.isspace() for char in part) for part in parts
+    ):
         raise ValueError("project must be an owner/repository pair")
     if not lookup["native_id"].isascii() or not lookup["native_id"].isdigit():
         raise ValueError("native_id must be a GitHub issue number")
@@ -268,11 +270,7 @@ def _pull(params):
         body = _required_string(comment.get("body"), "comment.body")
         occurred_at = _required_string(comment.get("createdAt"), "comment.createdAt")
         author_data = comment.get("author")
-        author = (
-            author_data.get("login")
-            if isinstance(author_data, dict)
-            else None
-        )
+        author = author_data.get("login") if isinstance(author_data, dict) else None
         author = _required_string(author, "comment.author.login")
         if cursor is None or occurred_at > cursor:
             changes.append(
