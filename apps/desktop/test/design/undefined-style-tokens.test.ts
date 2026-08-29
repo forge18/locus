@@ -3,7 +3,9 @@ import { read, rules } from "../css";
 
 const tokens = read("styles/tokens.css");
 const screens = read("screens/screens.css");
+const interact = read("screens/interact/interact.css");
 const manage = read("screens/manage/manage.css");
+const agentPane = read("panes/agent-pane.css");
 const extensionEditor = read("screens/workshop/ExtensionEditor.css");
 const tokenRules = rules(tokens);
 
@@ -91,6 +93,15 @@ describe("design/undefined-style-tokens", () => {
         "var(--action-attention)",
       );
     }
+  });
+
+  it("defines the shared pill radius for cross-surface consumers", () => {
+    const root = tokenRules.find((rule) => rule.selector === ":root");
+    expect(root?.body).toContain("--r-pill: 999px");
+    expect(agentPane).not.toMatch(/--r-pill\s*:/);
+    expect(screens).toContain(".inbox-throughput-meter {");
+    expect(screens).toContain("border-radius: var(--r-pill)");
+    expect(interact).toContain("border-radius:var(--r-pill)");
   });
 
   it("keeps warning text and danger-chip text at AA contrast in both themes", () => {
