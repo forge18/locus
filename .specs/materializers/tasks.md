@@ -2,7 +2,7 @@
 
 | # | Task | Deps | verify |
 | --- | --- | --- | --- |
-| 1 | `materialize/` module skeleton, strategy trait, and the extension-set input type | — | `cargo test -p locus-core materialize::trait_shape` |
+| 1 | `materialize/` module skeleton, strategy trait, and the extension-set input type | — | `cargo test -p locus-core materialize::` |
 | 2 | `dir` — copy as-is, with `suffix` and `flat` | 1 | `cargo test -p locus-core materialize::dir` |
 | 3 | `merged-into` — render to one target, optional frontmatter strip | 1 | `cargo test -p locus-core materialize::merged_into` |
 | 4 | `listed-in` — write paths into a config key | 1 | `cargo test -p locus-core materialize::listed_in` |
@@ -14,11 +14,11 @@
 | 10 | Deterministic file ordering across the whole tree | 2,3,4,5 | `cargo test -p locus-core materialize::sorted_file_order` |
 | 11 | Deterministic list ordering inside generated files | 3,4,5 | `cargo test -p locus-core materialize::sorted_inner_lists` |
 | 12 | No timestamps, run ids, or hostnames anywhere in output | 10,11 | `cargo test -p locus-core materialize::no_volatile_content` |
-| 13 | Byte-identical trees across two runs of the same agent | 12 | `cargo test -p locus-core materialize::byte_identical_twice` |
-| 14 | A deliberately non-deterministic materializer fails the determinism test | 13 | `cargo test -p locus-core materialize::detects_nondeterminism` |
+| 13 | Byte-identical trees across two runs of the same agent | 12 | `cargo test -p locus-core materialize::ci_determinism` |
+| 14 | A deliberately non-deterministic materializer fails the determinism test | 13 | `cargo test -p locus-core materialize::ci_detects_timestamp` |
 | 15 | Config tree frozen for the run; a mid-run write fails | 13 | `cargo test -p locus-core materialize::tree_is_frozen` |
 | 16 | pi's plugin: generate the TypeScript extension pi reads | 7 | `cargo test -p locus-core materialize::pi_plugin_generates` |
 | 17 | pi actually loads the generated extension in a container | 16 | `cargo test -p locus-core materialize::pi_loads_generated -- --ignored` |
-| 18 | Materialize all eight extensions for Pi and a trusted user harness plugin | 2,3,4,5,6,7 | `cargo test -p locus-core materialize::pi_and_user_plugin_all_eight` |
+| 18 | Materialize all eight extensions for Pi and a trusted user harness plugin | 2,3,4,5,6,7 | `cargo test -p locus-core materialize::all_registered_harnesses_all_eight` |
 | 19 | Materialization report carrying every `weaker_than_native` string | 18 | `cargo test -p locus-core materialize::report_carries_losses` |
 | 20 | Expose the report over IPC for the Extensions screen | 19 | `pnpm -C apps/desktop test -- extensions/report-from-core` |

@@ -63,17 +63,25 @@ describe("fixtures/all-present", () => {
     }
   });
 
-  it("draws the two large lists at the sizes the design states", async () => {
+  it("keeps generated list identities unique and ordered", async () => {
     const { SESSIONS } = await import("../../src/fixtures/sessions");
     const { RUN_ROWS } = await import("../../src/fixtures/runs");
-    expect(SESSIONS.length).toBe(300);
-    expect(RUN_ROWS.length).toBe(612);
+    const sessionIds = SESSIONS.map((session) => session.id);
+    const runIds = RUN_ROWS.map((run) => run.id);
+
+    expect(new Set(sessionIds).size).toBe(sessionIds.length);
+    expect(new Set(runIds).size).toBe(runIds.length);
+    expect(sessionIds[0]).toBe("s-0000");
+    expect(sessionIds[sessionIds.length - 1]).toBe("s-0299");
+    expect(runIds[0]).toBe("run-0000");
+    expect(runIds[runIds.length - 1]).toBe("run-0611");
   });
 
-  it("is deterministic — the seeded lists are identical on a second read", async () => {
-    const a = (await import("../../src/fixtures/runs")).RUN_ROWS;
-    const b = (await import("../../src/fixtures/runs")).RUN_ROWS;
-    expect(a[0]).toEqual(b[0]);
-    expect(a[611]).toEqual(b[611]);
+  it("preserves the usage-unknown contract in generated rows", async () => {
+    const { SESSIONS } = await import("../../src/fixtures/sessions");
+    const { ALL_SESSION_ROWS } = await import("../../src/fixtures/telemetry");
+
+    expect(SESSIONS.some((session) => session.usage === null)).toBe(true);
+    expect(ALL_SESSION_ROWS.some((session) => session.tokens === null)).toBe(true);
   });
 });

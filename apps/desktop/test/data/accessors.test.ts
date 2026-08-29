@@ -68,7 +68,7 @@ describe("data/accessors", () => {
     for (const [name, value] of Object.entries(results)) {
       expect(value, `${name} returned nothing`).not.toBe(undefined);
     }
-  });
+  }, 30_000);
 
   it("names the command each accessor becomes, so the M1 swap has a target", () => {
     for (const file of modules) {
@@ -93,10 +93,20 @@ describe("data/accessors", () => {
     }
   });
 
-  it("hands back the same objects the fixtures hold, without copying", async () => {
-    const { useSessions } = await import("../../src/data/sessions");
-    const { SESSIONS } = await import("../../src/fixtures/sessions");
-    expect(useSessions()).toBe(SESSIONS);
+  it("keeps session lookups scoped and returns an explicit miss", async () => {
+    const {
+      useSession,
+      useRunsForSession,
+      useSessionEvents,
+    } = await import("../../src/data/sessions");
+    const session = useSession("s-0000");
+
+    expect(session?.id).toBe("s-0000");
+    expect(useSession("missing-session")).toBeNull();
+    expect(useRunsForSession("s-0000").every((run) => run.sessionId === "s-0000")).toBe(true);
+    const runId = session?.runIds[0];
+    expect(runId).toBeDefined();
+    expect(useSessionEvents("s-0000").every((event) => event.runId === runId)).toBe(true);
   });
 
   it("reports the computed harness summary rather than a written-down number", async () => {

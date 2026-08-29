@@ -1,3 +1,6 @@
+// schema: mail.threads + mail.messages + mail.delivery
+// replaced by: invoke("mail_threads")
+
 import type { Message } from '../types/mail'
 
 export type MailStatus = 'waiting' | 'open' | 'replied' | 'you' | 'drained'

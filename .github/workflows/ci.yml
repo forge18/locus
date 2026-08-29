@@ -73,6 +73,12 @@ jobs:
       - name: Rust clippy (warnings fail)
         run: just lint
 
+      - name: Desktop tests
+        run: just test-node
+
+      - name: Desktop typecheck
+        run: just typecheck
+
       - name: Desktop build
         run: pnpm -C apps/desktop build
 
@@ -102,3 +108,5 @@ jobs:
           bash scripts/check-layering.sh
           bash scripts/check-lint-not-in-hooks.sh
           bash scripts/check-no-silent-skips.sh
+          bash apps/desktop/scripts/check-counts-follow-registry.sh
+          bash apps/desktop/scripts/check-no-literal-counts.sh

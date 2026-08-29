@@ -6,7 +6,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 # src/data/ is the seam and is supposed to import fixtures. Everything else is not.
-hits=$(grep -rn "from '[^']*fixtures/" src \
+hits=$(grep -rnE "from ['\"][^'\"]*fixtures/" src \
         --include='*.ts' --include='*.tsx' \
         --exclude-dir=fixtures \
         --exclude-dir=data || true)

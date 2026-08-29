@@ -1,3 +1,6 @@
+// schema: agents.runs + agents.events + workflows.verify_results
+// replaced by: invoke("analytics_aggregates")
+
 export type AnalyticsRange = "24h" | "7d" | "30d" | "90d" | "all";
 export type AnalyticsScope = "all" | string;
 export type AnalyticsMeasure = "spend" | "tokens" | "cache" | "runs";

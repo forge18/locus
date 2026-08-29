@@ -21,9 +21,10 @@ Cheap now, and expensive to add after the first silent non-load has been debugge
 
 **On every push:** CI uses the root `justfile` entrypoints for the checks they wrap: `just test`
 runs the complete Rust suite, including the registry and materialization checks; `just lint` runs
-Clippy; and `just test-named` runs the ignored per-harness smoke tests that the ordinary suite skips.
-The desktop build retains its raw command. CI restores Rust build artifacts so the test and lint
-steps are paid primarily on a cold cache.
+Clippy; `just test-node` runs the complete desktop suite; `just typecheck` runs the desktop
+TypeScript check; and `just test-named` runs the ignored per-harness smoke tests that the ordinary
+suite skips. The desktop build retains its raw command. CI restores Rust build artifacts so the test
+and lint steps are paid primarily on a cold cache.
 
 **The smoke test, per harness.** Start a run with a **canary skill and a canary rule**, and assert the
 agent can see both. That converts a silent non-load into a failing test, and it is the only reason the
@@ -43,7 +44,8 @@ trusted user harness plugins and needs no test-only instrumentation.
 
 ## Acceptance
 
-1. A push runs all six checks and fails on any one.
+1. A push runs the Rust test and lint checks, desktop tests and typecheck, the desktop build,
+   the per-harness smoke checks, and architecture/fixture gates; it fails on any one.
 2. `clippy` runs with `-D warnings` — a warning is a failure, not a note.
 3. The smoke test runs **per registered harness**, and a harness that cannot see its canary skill fails
    by name.
