@@ -43,9 +43,9 @@ Develop and Wiki have none.
 **Rail click lands on the category's first view:** Inbox→`inbox`, Automate→`board`, Review→`telemetry`,
 Workshop→`extensions`.
 
-**`agents` is a drill-down of Extensions, not a tab.** Entered from the `agents` card on Extensions;
-while open the **Extensions tab stays lit** and the sidebar shows a `← Extensions` back link. Automate
-has no Agents tab: task detail exposes a task's root session and child-agent run tree.
+**`agents` is a top-level Workshop view, not a drill-down.** The Workshop rail item lands on it and
+the rail lights **Workshop** while it is open. Automate has no Agents tab: task detail exposes a
+task's root session and child-agent run tree.
 
 **Locator grammar**, the one address space:
 
@@ -63,7 +63,7 @@ a stack of them.
 
 - **Detail opens in place** — as a sheet over the current category, never a new category or window.
 - **One viewer per kind, several entry points** — an artifact renders identically however you reached it.
-- **The category list is closed** at seven; a new surface joins one rather than adding an eighth.
+- **The category list is closed** at ten; a new surface joins one rather than adding an eleventh.
 
 **Project is a scope filter, defaulting to all.** You filter, never switch — switching means leaving
 somewhere that was still running.
@@ -73,7 +73,7 @@ somewhere that was still running.
 1. Every view in the table maps to its category, and the rail lights that category.
 2. Each category shows exactly its tab set; Plan, Develop and Wiki show none.
 3. Rail clicks land on the documented first view, not on whatever was last open in that category.
-4. Opening agent definitions keeps the **Extensions** tab lit and shows the back link. No Agents tab
+4. Opening `agents` keeps **Workshop** lit — it is a Workshop view, not a drill-down. No Agents tab
    exists in the Workshop bar.
 5. `resolve(locate(v, p))` equals `(v, p)` for every view — round-trip asserted, not assumed.
 6. Every navigation entry point calls the resolver. A component that sets `view` directly is a failure.

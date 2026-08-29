@@ -11,14 +11,14 @@ operational afterthought — and it is the one item PLAN.md's deferral table cal
 
 ## Governed by
 
-- PLAN.md §Data model — the eight schemas and their boundaries
+- PLAN.md §Data model — the ten schemas and their boundaries
 - PLAN.md §Containers — `locus-postgres`, per machine, `pgvector` + `tsvector` + window functions
 - PLAN.md §M1 — backup/restore with a drill
 - PLAN.md §Risks — "Risk — Postgres is now irreplaceable"
 
 ## Contract
 
-**Eight schemas**, `sqlx` migrations in `migrations/`:
+**Ten schemas**, `sqlx` migrations in `migrations/`:
 
 | Schema | Holds |
 | --- | --- |
@@ -30,6 +30,7 @@ operational afterthought — and it is the one item PLAN.md's deferral table cal
 | `workflows` | workflow_defs (versioned), schedules, executions, iterations, guardrail trips, verify results |
 | `mail` | threads, messages, delivery state |
 | `market` | manifests, installs, per-image tool sets |
+| `bots` | bots (named agents: definition, durable home session, `bots/` branch), routines, routine executions |
 | `log` | `entries` — Locus's domain event log; the only table any of the above is written *from* |
 
 **Which is derived and which is not.** Harness output, git, and the marketplace index are sources of
@@ -55,7 +56,7 @@ id only** — the payload cap is 8000 bytes, so anything larger is fetched by th
 **Backup**:
 
 ```
-locus backup                 dumps the eight schemas AND the artifact blob tree together
+locus backup                 dumps the ten schemas AND the artifact blob tree together
 locus restore --drill        restores into a scratch database, asserts row counts against the source
 ```
 
@@ -70,7 +71,7 @@ paths to nothing.
 
 ## Acceptance
 
-1. All eight schemas exist as `sqlx` migrations and apply to an empty database in one run.
+1. All ten schemas exist as `sqlx` migrations and apply to an empty database in one run.
 2. Migrations are reversible or explicitly marked one-way with a reason in the file.
 3. `pgvector` and `tsvector` are available and a round-trip embedding query returns a result.
 4. `locus backup` produces an artifact containing both the SQL dump and the blob tree.
@@ -78,13 +79,13 @@ paths to nothing.
    mismatch — proven by a test that corrupts a dump on purpose.
 6. A migration run triggers a backup first, and the backup's completion gates the migration.
 7. `NOTIFY` payloads are ids only; a test asserts none exceeds the 8000-byte cap.
-8. Backup covers `log.entries` alongside the eight schemas and the blob tree; a drill that restores
+8. Backup covers `log.entries` alongside the ten schemas and the blob tree; a drill that restores
    and then rebuilds produces the projections the source had.
 9. `agents.events` carries `stream_pos`, monotonic per project, with a `(project_id, stream_pos)`
    index — proven by a range-scan query plan test, not just by the column existing.
 
 ## Open
 
-- PLAN.md defers detailed table definitions for six of the eight schemas, keeping full tables only for
+- PLAN.md defers detailed table definitions for eight of the ten schemas, keeping full tables only for
   `memory` and `board`. The rest get written properly with their migration — this spec does not
   pre-empt that, and each consuming feature's spec carries its own tables.

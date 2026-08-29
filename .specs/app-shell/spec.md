@@ -65,7 +65,7 @@ running.
 ## Acceptance
 
 1. All four bands render on all fourteen screens; none is per-screen markup.
-2. The rail shows seven items and lights by **category** — opening Workshop Agent-definitions keeps
+2. The rail shows ten items and lights by **category** — opening Workshop Agent-definitions keeps
    Workshop lit, not a new entry.
 3. The inbox badge shows a count and disappears at zero. Silence is legible from anywhere.
 4. The tab bar shows only the current category's tabs; Plan, Develop and Wiki show none.

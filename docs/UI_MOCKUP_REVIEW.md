@@ -26,7 +26,7 @@ review.
 
 1. **The plan pipeline is seven stages.** Audit and Override are removed as stages. The auditor
    remains an agent role that runs on a schedule; user override is expressed by editing during
-   Recommend and Decompose. Core currently ships nine (`crates/locus-core/src/services/planning.rs`).
+   Recommend and Decompose. Core currently ships seven (`crates/locus-core/src/services/planning.rs`).
 2. **ACP-only stands.** The Telemetry screen shows a "capture source" facet with four values
    (hooks, acp, stream-json, session-log). `.specs/acp-client` and `.specs/telemetry` settled on ACP
    as the only transport. The facet is stale fixture content and is not implemented.
