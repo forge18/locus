@@ -47,6 +47,7 @@ async fn schema_memory() {
         "recall_count",
         "active_days",
         "strength",
+        "eviction_class",
     ] {
         let exists: bool = query_scalar(
             "SELECT EXISTS (
@@ -74,6 +75,39 @@ async fn schema_memory() {
         embedding_type, "vector",
         "memory.store.embedding uses pgvector"
     );
+
+    let attribution_view: bool = query_scalar(
+        "SELECT EXISTS (
+            SELECT 1
+            FROM information_schema.views
+            WHERE table_schema = 'agents' AND table_name = 'context_attribution'
+        )",
+    )
+    .fetch_one(store.test_pool())
+    .await
+    .expect("query context attribution view");
+    assert!(attribution_view, "agents.context_attribution exists");
+
+    for column in [
+        "context_event",
+        "materialization_snapshot",
+        "verification_duration_ms",
+        "verification_tokens",
+        "tool_result_event_id",
+    ] {
+        let exists: bool = query_scalar(
+            "SELECT EXISTS (
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_schema = 'agents' AND table_name = 'context_attribution' AND column_name = $1
+            )",
+        )
+        .bind(column)
+        .fetch_one(store.test_pool())
+        .await
+        .expect("query context attribution columns");
+        assert!(exists, "agents.context_attribution.{column} exists");
+    }
 
     for index in [
         "memory_core_project_agent_idx",

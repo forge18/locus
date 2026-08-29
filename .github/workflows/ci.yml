@@ -91,12 +91,6 @@ jobs:
           }
           kill %1
 
-      - name: Harness registry lint
-        run: cargo test -p locus-cli --test harness_lint
-
-      - name: Materialization determinism
-        run: just test-named locus-core harness::materialize::ci_determinism
-
       - name: Per-harness canary smoke
         run: |
           just test-named locus-core all_registered_harnesses --ignored

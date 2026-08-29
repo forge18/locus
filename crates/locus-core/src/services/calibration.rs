@@ -11,6 +11,7 @@ use crate::{
     services::{
         arbiter::{FailureClass, RegressionSet},
         planning::specialization_concept,
+        telemetry::Usage,
         wiki::WikiEvent,
     },
 };
@@ -252,6 +253,93 @@ pub fn specialization_injected(confidence: f32, threshold: f32) -> bool {
 
 pub fn default_specialization_threshold() -> f32 {
     0.8
+}
+
+/// Return the cache-read share of reported input tokens. Missing or zero input
+/// is unknown rather than a zero-rate claim.
+pub fn usage_cache_rate(usage: &Usage) -> Option<f64> {
+    let input = usage.input?;
+    let cache_read = usage.cache_read?;
+    (input > 0).then(|| cache_read as f64 / input as f64)
+}
+
+/// The paired-run acceptance primitive. A context-policy arm may not reduce the
+/// cache-read share of its input; incomplete telemetry fails closed.
+pub fn cache_rate_criterion(baseline: &Usage, candidate: &Usage) -> bool {
+    match (usage_cache_rate(baseline), usage_cache_rate(candidate)) {
+        (Some(baseline), Some(candidate)) => candidate >= baseline,
+        _ => false,
+    }
+}
+
+pub fn cache_rate_non_regression(baseline: &Usage, candidate: &Usage) -> bool {
+    cache_rate_criterion(baseline, candidate)
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CacheRateArm {
+    pub label: String,
+    pub usage: Vec<Usage>,
+}
+
+impl CacheRateArm {
+    pub fn new(label: impl Into<String>, usage: impl IntoIterator<Item = Usage>) -> Self {
+        Self {
+            label: label.into(),
+            usage: usage.into_iter().collect(),
+        }
+    }
+
+    pub fn cache_rate(&self) -> Option<f64> {
+        let mut input = 0_u64;
+        let mut cache_read = 0_u64;
+        for usage in &self.usage {
+            let current_input = usage.input?;
+            let current_cache_read = usage.cache_read?;
+            if current_input == 0 {
+                return None;
+            }
+            input = input.checked_add(current_input)?;
+            cache_read = cache_read.checked_add(current_cache_read)?;
+        }
+        (input > 0).then(|| cache_read as f64 / input as f64)
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PairedContextRuns {
+    pub baseline: CacheRateArm,
+    pub candidate: CacheRateArm,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum CacheRateDecision {
+    Pass { baseline: f64, candidate: f64 },
+    Violation { baseline: f64, candidate: f64 },
+    InsufficientData,
+}
+
+impl CacheRateDecision {
+    pub fn is_non_regression(self) -> bool {
+        matches!(self, Self::Pass { .. })
+    }
+}
+
+pub fn paired_cache_rate_criterion(comparison: &PairedContextRuns) -> CacheRateDecision {
+    match (
+        comparison.baseline.cache_rate(),
+        comparison.candidate.cache_rate(),
+    ) {
+        (Some(baseline), Some(candidate)) if candidate >= baseline => CacheRateDecision::Pass {
+            baseline,
+            candidate,
+        },
+        (Some(baseline), Some(candidate)) => CacheRateDecision::Violation {
+            baseline,
+            candidate,
+        },
+        _ => CacheRateDecision::InsufficientData,
+    }
 }
 
 #[cfg(test)]
@@ -504,5 +592,44 @@ mod calibrate {
             0.79,
             default_specialization_threshold()
         ));
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::module_inception)]
+mod calibration {
+    use super::*;
+
+    fn usage(input: u64, cache_read: u64) -> Usage {
+        Usage {
+            input: Some(input),
+            output: Some(1),
+            cache_read: Some(cache_read),
+            cache_write: None,
+        }
+    }
+
+    #[test]
+    fn cache_rate_criterion() {
+        assert!(super::cache_rate_criterion(
+            &usage(100, 80),
+            &usage(100, 80)
+        ));
+        assert!(!super::cache_rate_criterion(
+            &usage(100, 80),
+            &usage(100, 79)
+        ));
+        assert!(!super::cache_rate_criterion(
+            &Usage::default(),
+            &usage(100, 80)
+        ));
+
+        let comparison = PairedContextRuns {
+            baseline: CacheRateArm::new("control", [usage(100, 80), usage(50, 40)]),
+            candidate: CacheRateArm::new("context-policy", [usage(100, 90), usage(50, 45)]),
+        };
+        let decision = paired_cache_rate_criterion(&comparison);
+        assert!(decision.is_non_regression());
+        assert!(matches!(decision, CacheRateDecision::Pass { .. }));
     }
 }

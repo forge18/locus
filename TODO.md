@@ -267,6 +267,12 @@ edges. Items 32–33 are intentionally last because they depend on later plannin
   *Depends on:* completed `bots`
   *Completed:* bundled DiceBear derivation and attribution picker, reactive app-wide style setting, bot list/header surfaces, transparent theme-safe rendering, and CI's redundant harness-lint build removal.
 
+- [x] **39. M3 — [context-layer](.specs/context-layer/spec.md)** · [tasks](.specs/context-layer/tasks.md) · 14 tasks
+  Research-backed context-management increments: eviction classes, declared promotion, research-class diversity dedup, tail-append catalog freshness, recitation block, calibration-loop cache-rate acceptance, and a context-attribution view.
+  *Depends on:* completed `memory`, `tool-compaction`, `materializers`, and `telemetry`; task 13 amends `calibration-loop` (item 25) in place.
+  *No experiments by decision: every mechanism here is already validated by the research corpus ([RESEARCH-CONTEXT-MANAGEMENT.md](RESEARCH-CONTEXT-MANAGEMENT.md) §16.1); see [CONTEXT-LAYER-FIT.md](CONTEXT-LAYER-FIT.md) §9 for the decision record.*
+  *Completed:* eviction-class migration and overflow policy, declared promotion and `memory promote --json` allowlisting, deterministic derivation and stable catalog tail, recitation, cache-rate acceptance, and the `agents.context_attribution` view. Evidence: [verification](.specs/context-layer/verification.md).*
+
 ## Open decisions
 
 Only unresolved decisions remain here; the owning spec is the source of truth. Closed decisions from
@@ -285,6 +291,7 @@ completed milestones are omitted unless they still affect an active feature.
 | [handoffs](.specs/handoffs/spec.md) | Decide whether handoffs may cross projects; reassignment otherwise uses a new handoff session. |
 | [mail](.specs/mail/spec.md) | Decide whether agents can mail the human directly or must use `locus ask`. |
 | [memory](.specs/memory/spec.md) | Set the initial `importance` value before a memory is recalled. |
+| [context-layer](.specs/context-layer/spec.md) | Set the research-class similarity-dedup threshold (mechanism validated, constant is a setting; conservative default suppresses only near-identical). |
 | [repo-manager](.specs/repo-manager/spec.md) | Define when a linked repo syncs: on demand, on a timer, or on git change. |
 | [tool-compaction](.specs/tool-compaction/spec.md) | Choose one compaction threshold shared with `artifacts`. |
 | [locus-browse](.specs/locus-browse/spec.md) | Set the recording duration cap alongside the 30-day media retention policy. |

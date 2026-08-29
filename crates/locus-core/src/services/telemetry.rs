@@ -706,3 +706,33 @@ mod tests {
         .unwrap();
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::module_inception)]
+mod telemetry {
+    use std::fs;
+
+    #[test]
+    fn attribution_view() {
+        let sql = fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../migrations/0029_context_attribution.up.sql"
+        ))
+        .expect("read context attribution migration");
+        for column in [
+            "CREATE VIEW agents.context_attribution",
+            "context_event",
+            "materialization_snapshot",
+            "base_context",
+            "rules",
+            "skills",
+            "verify_passed",
+            "verification_duration_ms",
+            "verification_tokens",
+            "tool_result_event_id",
+        ] {
+            assert!(sql.contains(column), "view contains {column}");
+        }
+        assert!(!sql.contains("CREATE TABLE"), "attribution is view-only");
+    }
+}

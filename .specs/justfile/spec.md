@@ -24,9 +24,9 @@ recipe line; the justfile adds naming and discoverability, never behavior.
 **The recipe set.** `setup`, `build`, `test`, `test-node`, `lint`, `typecheck`, `dev`, and `ci` (the
 full CI sequence). `test-named` delegates to `scripts/run-named-test.sh` and preserves its
 fail-if-filter-is-stale semantics. Recipes pass arguments through positionally and quoted, so
-`::`-suffixed test paths survive. The CI recipe uses the existing `locus-cli` `harness_lint` integration
-test instead of a second normal-profile `cargo run`; that test launches the compiled CLI and keeps the
-registry check while avoiding a redundant `locus-core` build.
+`::`-suffixed test paths survive. The CI recipe relies on the full Rust test suite for the ordinary
+`locus-cli` registry and materialization checks, and reserves `test-named` for the ignored smoke tests
+that the ordinary suite does not run.
 
 **Three surfaces call the recipes.**
 

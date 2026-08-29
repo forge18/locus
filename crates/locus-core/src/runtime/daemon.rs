@@ -44,6 +44,8 @@ pub enum AgentSocketVerb {
     MemoryRecall,
     #[serde(rename = "memory.write")]
     MemoryWrite,
+    #[serde(rename = "memory.promote")]
+    MemoryPromote,
     #[serde(rename = "memory.forget")]
     MemoryForget,
     #[serde(rename = "memory.adjudicate")]
