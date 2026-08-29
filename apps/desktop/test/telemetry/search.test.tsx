@@ -8,16 +8,24 @@ const rule = (sel: string) => rules(read('screens/screens.css')).find((r) => r.s
 const mount = () => render(() => <TelemetryView />)
 
 describe('telemetry/search', () => {
-  it('shows the query in mono', () => {
+  it('is a real input, seeded empty with the fixture query as its placeholder', () => {
     const { getByTestId } = mount()
-    expect(getByTestId('tm-query').textContent).toBe(SEARCH_QUERY)
+    const input = getByTestId('tm-query')
+    expect(input.tagName).toBe('INPUT')
+    expect(input.getAttribute('type')).toBe('search')
+    expect((input as HTMLInputElement).value).toBe('')
+    expect(input.getAttribute('placeholder')).toBe(SEARCH_QUERY)
+  })
+
+  it('wears the mono query style', () => {
+    const { getByTestId } = mount()
+    expect(getByTestId('tm-query').className).toBe('tm-query')
     expect(rule('.tm-query').body).toContain('font-family: var(--fm)')
   })
 
-  it('blinks an accent caret after it', () => {
+  it('draws no fake caret — the input owns one', () => {
     const { getByTestId } = mount()
-    expect(getByTestId('tm-caret').className).toContain('blink')
-    expect(rule('.tm-caret').body).toContain('background: var(--action-attention)')
+    expect(getByTestId('tm-search').querySelector('.tm-caret')).toBeNull()
   })
 
   it('says what is being searched, and how', () => {
