@@ -61,6 +61,10 @@ pub const VERB_DISPATCHES: &[VerbDispatch] = &[
         verb: AgentSocketVerb::MemoryWrite,
     },
     VerbDispatch {
+        command: &["memory", "promote"],
+        verb: AgentSocketVerb::MemoryPromote,
+    },
+    VerbDispatch {
         command: &["memory", "forget"],
         verb: AgentSocketVerb::MemoryForget,
     },
@@ -1206,7 +1210,7 @@ mod run {
 
 #[cfg(test)]
 mod memory {
-    use super::{resolve_verb, AgentSocketVerb};
+    use super::{resolve_verb, without_json_flag, AgentSocketVerb};
 
     #[test]
     fn adjudicate() {
@@ -1252,6 +1256,16 @@ mod memory {
                 "store verb is allowlisted: {command:?}"
             );
         }
+    }
+
+    #[test]
+    fn promote_verb() {
+        let command = ["memory", "promote", "--json"];
+        let arguments: Vec<String> = command.iter().map(ToString::to_string).collect();
+        let arguments = without_json_flag(&arguments);
+        let (dispatch, args) = resolve_verb(&arguments).expect("memory promote dispatches");
+        assert_eq!(dispatch.verb, AgentSocketVerb::MemoryPromote);
+        assert!(args.is_empty());
     }
 }
 

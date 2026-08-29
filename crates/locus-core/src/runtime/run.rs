@@ -52,6 +52,103 @@ impl RunContext {
     }
 }
 
+/// The small deterministic state recited at the mutable end of a run's context.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RecitationState {
+    pub plan_active: bool,
+    pub objective: String,
+    pub step: String,
+    pub unresolved_errors: u32,
+}
+
+impl RecitationState {
+    pub fn planned(
+        objective: impl Into<String>,
+        step: impl Into<String>,
+        unresolved_errors: u32,
+    ) -> Self {
+        Self {
+            plan_active: true,
+            objective: objective.into(),
+            step: step.into(),
+            unresolved_errors,
+        }
+    }
+
+    pub fn without_plan() -> Self {
+        Self {
+            plan_active: false,
+            objective: String::new(),
+            step: String::new(),
+            unresolved_errors: 0,
+        }
+    }
+}
+
+/// A rendered recitation is plain text so it can travel through the existing hook
+/// `additionalContext` field without adding a telemetry verb or a model call.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RecitationBlock(String);
+
+impl RecitationBlock {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    pub fn hook_context(&self) -> serde_json::Value {
+        serde_json::json!({"additionalContext": self.0})
+    }
+}
+
+pub fn recitation_block(state: &RecitationState) -> Option<RecitationBlock> {
+    if !state.plan_active {
+        return None;
+    }
+    let objective = state.objective.trim();
+    let step = state.step.trim();
+    if objective.is_empty() || step.is_empty() {
+        return None;
+    }
+    Some(RecitationBlock(format!(
+        "Objective: {objective}\nStep: {step}\nUnresolved errors: {}",
+        state.unresolved_errors
+    )))
+}
+
+/// Emits only when task state changes. The comparison is local and deterministic;
+/// the hook path can therefore retain its 100ms/exit-0 guarantees.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct RecitationEmitter {
+    last_state: Option<RecitationState>,
+}
+
+impl RecitationEmitter {
+    pub fn on_task_state_change(&mut self, state: RecitationState) -> Option<RecitationBlock> {
+        if self.last_state.as_ref() == Some(&state) {
+            return None;
+        }
+        self.last_state = Some(state.clone());
+        recitation_block(&state)
+    }
+
+    pub fn reset(&mut self) {
+        self.last_state = None;
+    }
+}
+
+/// Place recitation after the caller's frozen context head. It never rewrites the
+/// head and returns the head byte-for-byte when no plan is active.
+pub fn append_recitation_tail(head: &str, block: Option<&RecitationBlock>) -> String {
+    let Some(block) = block else {
+        return head.to_owned();
+    };
+    if head.is_empty() {
+        block.as_str().to_owned()
+    } else {
+        format!("{head}\n\n{}", block.as_str())
+    }
+}
+
 /// Read boundary for the state that a connected run may observe.
 pub trait RunStateStore {
     fn read_run(&self, run_id: RunId) -> Result<Run>;
@@ -603,6 +700,42 @@ pub fn cancel(
     run.status = RunStatus::Cancelled;
     run.cancel_reason = Some(reason.into());
     Ok(())
+}
+
+#[cfg(test)]
+mod run_supervisor {
+    use super::*;
+
+    #[test]
+    fn recitation_block() {
+        let state = RecitationState::planned("ship the context layer", "verify the tail", 2);
+        let block = super::recitation_block(&state).expect("active plan recites");
+        assert!(block.as_str().lines().count() <= 3);
+        assert!(block.as_str().contains("Objective: ship the context layer"));
+        assert!(block.as_str().contains("Step: verify the tail"));
+        assert!(block.as_str().contains("Unresolved errors: 2"));
+
+        let head = "frozen base context";
+        let tail = append_recitation_tail(head, Some(&block));
+        assert!(tail.starts_with(head));
+        assert_eq!(
+            &tail[head.len()..],
+            "\n\nObjective: ship the context layer\nStep: verify the tail\nUnresolved errors: 2"
+        );
+        assert!(super::recitation_block(&RecitationState::without_plan()).is_none());
+        assert!(crate::services::workflow::orchestration_model_invocation_hook().is_none());
+    }
+
+    #[test]
+    fn recites_only_on_state_change() {
+        let state = RecitationState::planned("objective", "step", 0);
+        let mut emitter = RecitationEmitter::default();
+        assert!(emitter.on_task_state_change(state.clone()).is_some());
+        assert!(emitter.on_task_state_change(state).is_none());
+        assert!(emitter
+            .on_task_state_change(RecitationState::planned("objective", "next", 0))
+            .is_some());
+    }
 }
 
 #[cfg(test)]

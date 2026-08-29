@@ -19,12 +19,11 @@ Cheap now, and expensive to add after the first silent non-load has been debugge
 
 ## Contract
 
-**On every push:** CI uses the root `justfile` entrypoints for the checks they wrap: `just test`,
-`just lint`, and `just test-named` preserve the Rust test, clippy, determinism, and per-harness
-commands verbatim. The desktop build retains its raw command. Harness registry lint runs the existing
-`locus-cli` integration test (`cargo test -p locus-cli --test harness_lint`), which launches the
-compiled CLI and checks the registry without a second dev-profile build. CI restores Rust build
-artifacts so this profile split is paid primarily on a cold cache.
+**On every push:** CI uses the root `justfile` entrypoints for the checks they wrap: `just test`
+runs the complete Rust suite, including the registry and materialization checks; `just lint` runs
+Clippy; and `just test-named` runs the ignored per-harness smoke tests that the ordinary suite skips.
+The desktop build retains its raw command. CI restores Rust build artifacts so the test and lint
+steps are paid primarily on a cold cache.
 
 **The smoke test, per harness.** Start a run with a **canary skill and a canary rule**, and assert the
 agent can see both. That converts a silent non-load into a failing test, and it is the only reason the
@@ -34,8 +33,8 @@ It runs on registration as well as in CI — a harness is not registered until i
 
 **The determinism check.** Materialize the same agent twice and assert `diff -r` is empty. PLAN.md's
 prefix-stability risk is that *nothing fails when it breaks* — the runs just get more expensive, and
-the cause is whatever injection point was added last. The defence is that the determinism check is in
-CI and cache rate is on the dashboard, so a regression shows up as a number rather than as a slow drift
+the cause is whatever injection point was added last. The full Rust suite executes this check in CI,
+and cache rate is on the dashboard, so a regression shows up as a number rather than as a slow drift
 nobody attributes.
 
 **Tests assert on the event stream.** Unit tests cover the pure parts; everything above them is "run
@@ -53,7 +52,7 @@ trusted user harness plugins and needs no test-only instrumentation.
 6. Registering a new harness runs its smoke test before the registration is accepted.
 7. CI runs without Docker where possible, and clearly marks the tests that require it rather than
    silently skipping them.
-8. Harness registry lint uses the existing CLI integration test and does not invoke a redundant
+8. The full Rust suite runs the existing CLI registry integration test without invoking a redundant
    `cargo run -p locus-cli -- harness lint` build.
 9. CI restores a Rust build cache keyed to the repository and toolchain.
 
