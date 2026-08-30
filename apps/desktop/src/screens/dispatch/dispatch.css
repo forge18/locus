@@ -32,7 +32,9 @@
 .dispatch-stopped { display: flex; align-items: center; gap: var(--g-4); padding: 11px 18px; border-bottom: 1px solid var(--status-danger); background: color-mix(in srgb, var(--status-danger) 14%, var(--surface-ground)); font-size: var(--t-meta); color: var(--text-secondary); }
 .dispatch-stopped strong { color: var(--text-primary); }
 .dispatch-stopped .btn { margin-left: auto; }
-.dispatch-dialog-backdrop { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; padding: 24px; background: color-mix(in srgb, var(--scrim) 62%, transparent); }
+/* Stop-everything is a blocking modal: modal tier (80) on the ui.css ladder, so
+   the confirmation sits above toasts and popups until it is answered. */
+.dispatch-dialog-backdrop { position: absolute; inset: 0; z-index: 80; display: grid; place-items: center; padding: 24px; background: color-mix(in srgb, var(--scrim) 62%, transparent); }
 .dispatch-dialog { width: min(520px, 100%); border: 1px solid var(--status-danger); border-radius: var(--r-win); background: var(--surface-raised); box-shadow: var(--sh-window); overflow: hidden; }
 .dispatch-dialog h2 { margin: 0; padding: 15px 18px 13px; border-bottom: 1px solid var(--border-subtle); font-size: var(--t-title); font-weight: 500; }
 .dispatch-dialog > p, .dispatch-dialog > ul, .dispatch-handoff { margin: 15px 18px; color: var(--text-secondary); font-size: var(--t-body); line-height: 1.55; }
