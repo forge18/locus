@@ -16,7 +16,10 @@ describe("shell/running-count", () => {
     const envelope = await fetchRunningCount();
     expect(envelope).toEqual({
       status: "failed",
-      error: { command: "running_count", message: "IPC failure for running_count" },
+      error: {
+        command: "running_count",
+        message: "IPC failure for running_count",
+      },
     });
   });
 });

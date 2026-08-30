@@ -27,8 +27,20 @@ describe("shell/strip", () => {
   it("draws one card per live running agent", async () => {
     configureProjectsStub({
       stripCards: [
-        { id: "run-1", project: "tapestry", agent: "builder", status: "running", startedEpoch: Math.floor(Date.now() / 1000) },
-        { id: "run-2", project: "loom-db", agent: "builder", status: "running", startedEpoch: Math.floor(Date.now() / 1000) - 120 },
+        {
+          id: "run-1",
+          project: "tapestry",
+          agent: "builder",
+          status: "running",
+          startedEpoch: Math.floor(Date.now() / 1000),
+        },
+        {
+          id: "run-2",
+          project: "loom-db",
+          agent: "builder",
+          status: "running",
+          startedEpoch: Math.floor(Date.now() / 1000) - 120,
+        },
       ],
     });
     const envelope = await fetchStripCards();
