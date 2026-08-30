@@ -44,6 +44,32 @@ pub struct DispatchRunRow {
     pub started_at: Option<String>,
 }
 
+/// One row of `agents.sessions` with its project and agent names resolved —
+/// the session list's wire shape.
+#[derive(Debug, sqlx::FromRow)]
+pub struct SessionRow {
+    pub id: Uuid,
+    pub project_id: Uuid,
+    pub project: String,
+    pub agent: String,
+    pub name: String,
+    pub branch: String,
+    pub status: String,
+    pub created_at: Option<String>,
+}
+
+/// One session's runs, oldest first — the session detail's run list.
+#[derive(Debug, sqlx::FromRow)]
+pub struct SessionRunRow {
+    pub id: Uuid,
+    pub session_id: Uuid,
+    pub status: String,
+    pub resolved_model: String,
+    pub started_at: Option<String>,
+    pub ended_at: Option<String>,
+    pub exit_code: Option<i32>,
+}
+
 impl Store {
     pub async fn running_runs(
         &self,
@@ -65,7 +91,59 @@ impl Store {
         .context("list running runs")
     }
 
-    /// Agents only — the host shell itself never runs an agent.
+    /// Every session across projects, newest first — the run slice's session list.
+    pub async fn sessions_page(
+        &self,
+        project_id: Option<ProjectId>,
+        offset: i64,
+        limit: i64,
+    ) -> Result<Vec<SessionRow>> {
+        query_as(
+            "SELECT s.id, s.project_id, p.name AS project, ad.name AS agent,
+                    s.name, s.branch, s.status, s.created_at::text AS created_at
+             FROM agents.sessions s
+             JOIN core.projects p ON p.id = s.project_id
+             JOIN agents.agent_defs ad ON ad.id = s.agent_def_id
+             WHERE ($1::uuid IS NULL OR s.project_id = $1)
+             ORDER BY s.created_at DESC
+             LIMIT $2 OFFSET $3",
+        )
+        .bind(project_id)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&self.pool)
+        .await
+        .context("page sessions")
+    }
+
+    pub async fn sessions_count(&self, project_id: Option<ProjectId>) -> Result<i64> {
+        query_scalar(
+            "SELECT COUNT(*)
+             FROM agents.sessions s
+             WHERE ($1::uuid IS NULL OR s.project_id = $1)",
+        )
+        .bind(project_id)
+        .fetch_one(&self.pool)
+        .await
+        .context("count sessions")
+    }
+
+    pub async fn runs_for_session(&self, session_id: Uuid) -> Result<Vec<SessionRunRow>> {
+        query_as(
+            "SELECT id, session_id, status, resolved_model_id AS resolved_model,
+                    started_at::text AS started_at, ended_at::text AS ended_at, exit_code
+             FROM agents.runs
+             WHERE session_id = $1
+             ORDER BY COALESCE(started_at, created_at)",
+        )
+        .bind(session_id)
+        .fetch_all(&self.pool)
+        .await
+        .context("list session runs")
+    }
+
+    /// One row of the Dispatch runs table: every run, newest first. Event and
+    /// error counts roll up from `agents.events`.
     pub async fn dispatch_runs_page(
         &self,
         project_id: Option<ProjectId>,

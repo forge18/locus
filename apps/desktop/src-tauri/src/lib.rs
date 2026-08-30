@@ -821,6 +821,111 @@ async fn dispatch_runs_count(
     dispatch_runs_count_inner(store, project_id.as_deref()).await
 }
 
+/// The sessions family (slice 7): the session list and one session's runs.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SessionResponse {
+    id: String,
+    project_id: String,
+    project: String,
+    agent: String,
+    name: String,
+    branch: String,
+    status: String,
+    created_at: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SessionRunResponse {
+    id: String,
+    session_id: String,
+    status: String,
+    resolved_model: String,
+    started_at: Option<String>,
+    ended_at: Option<String>,
+    exit_code: Option<i32>,
+}
+
+async fn sessions_list_inner(
+    store: &Store,
+    project_id: Option<&str>,
+    offset: i64,
+    limit: i64,
+) -> Result<Vec<SessionResponse>, IpcError> {
+    let scoped = scope_project(store, project_id).await?;
+    store
+        .sessions_page(scoped, offset.max(0), limit.clamp(0, 500))
+        .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(|row| SessionResponse {
+                    id: row.id.to_string(),
+                    project_id: row.project_id.to_string(),
+                    project: row.project,
+                    agent: row.agent,
+                    name: row.name,
+                    branch: row.branch,
+                    status: row.status,
+                    created_at: row.created_at,
+                })
+                .collect()
+        })
+        .map_err(IpcError::internal)
+}
+
+async fn runs_for_session_inner(
+    store: &Store,
+    session_id: &str,
+) -> Result<Vec<SessionRunResponse>, IpcError> {
+    let session_id: uuid::Uuid = session_id
+        .parse()
+        .map_err(|_| IpcError::invalid_argument("session id must be a UUID"))?;
+    store
+        .runs_for_session(session_id)
+        .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(|row| SessionRunResponse {
+                    id: row.id.to_string(),
+                    session_id: row.session_id.to_string(),
+                    status: row.status,
+                    resolved_model: row.resolved_model,
+                    started_at: row.started_at,
+                    ended_at: row.ended_at,
+                    exit_code: row.exit_code,
+                })
+                .collect()
+        })
+        .map_err(IpcError::internal)
+}
+
+#[tauri::command]
+async fn sessions_list(
+    core: State<'_, Arc<Core>>,
+    project_id: Option<String>,
+    offset: Option<i64>,
+    limit: Option<i64>,
+) -> Result<Vec<SessionResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    sessions_list_inner(
+        store,
+        project_id.as_deref(),
+        offset.unwrap_or(0),
+        limit.unwrap_or(100),
+    )
+    .await
+}
+
+#[tauri::command]
+async fn runs_for_session(
+    core: State<'_, Arc<Core>>,
+    session_id: String,
+) -> Result<Vec<SessionRunResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    runs_for_session_inner(store, &session_id).await
+}
+
 /// Setup's settings mutations (slice 5): base context, archive, rename.
 async fn project_base_context_set_inner(
     store: &Store,
@@ -2646,6 +2751,8 @@ pub fn run() {
             inbox_pending_count,
             dispatch_runs_page,
             dispatch_runs_count,
+            sessions_list,
+            runs_for_session,
             harness_tier_grid,
             pty_subscribe,
             telemetry_subscribe,
@@ -3640,6 +3747,185 @@ mod run_queries {
         assert_eq!(
             serde_json::to_value(error).expect("serialize IPC error")["kind"],
             "not_found"
+        );
+    }
+}
+
+
+/// Session queries: the session list reads every session with its project and
+/// agent, scoped by project, and a session's runs read oldest first.
+#[cfg(test)]
+mod session_queries {
+    use super::*;
+    use uuid::Uuid;
+    use locus_core::testkit::postgres::{
+        start_postgres_named, test_backup_config, NoopMigrationBackup,
+    };
+
+    async fn test_store() -> (Store, locus_core::testkit::postgres::DockerCleanup) {
+        let (container, cleanup) = start_postgres_named("locus-tauri-sessions").await;
+        let store = Store::connect(&container.database_url())
+            .await
+            .expect("connect the session test store");
+        store
+            .run_migrations(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations"),
+                &NoopMigrationBackup,
+                &test_backup_config(),
+            )
+            .await
+            .expect("run migrations for the session test store");
+        (store, cleanup)
+    }
+
+    async fn seed_session(
+        store: &Store,
+        project_id: &str,
+        project_name: &str,
+        agent_def_id: &str,
+        agent_name: &str,
+        session_id: &str,
+        branch: &str,
+    ) {
+        sqlx::query("INSERT INTO core.projects (id, name) VALUES ($1::uuid, $2)")
+            .bind(project_id)
+            .bind(project_name)
+            .execute(store.test_pool())
+            .await
+            .expect("seed project");
+        sqlx::query(
+            "INSERT INTO agents.agent_defs (id, name, version, frontmatter, body)
+             VALUES ($1::uuid, $2, 1, '{}'::jsonb, 'test agent')",
+        )
+        .bind(agent_def_id)
+        .bind(agent_name)
+        .execute(store.test_pool())
+        .await
+        .expect("seed agent def");
+        sqlx::query(
+            "INSERT INTO agents.sessions (id, project_id, agent_def_id, name, branch)
+             VALUES ($1::uuid, $2::uuid, $3::uuid, 'session body', $4)",
+        )
+        .bind(session_id)
+        .bind(project_id)
+        .bind(agent_def_id)
+        .bind(branch)
+        .execute(store.test_pool())
+        .await
+        .expect("seed session");
+    }
+
+    #[tokio::test]
+    async fn lists_sessions_with_project_and_agent_resolved() {
+        let (store, _cleanup) = test_store().await;
+        seed_session(
+            &store,
+            "00000000-0000-0000-0000-000000000701",
+            "tapestry",
+            "00000000-0000-0000-0000-000000000711",
+            "builder",
+            "00000000-0000-0000-0000-000000000721",
+            "agent/tapestry",
+        )
+        .await;
+
+        let sessions = sessions_list_inner(&store, None, 0, 100)
+            .await
+            .expect("list sessions");
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].project, "tapestry");
+        assert_eq!(sessions[0].agent, "builder");
+        assert_eq!(sessions[0].branch, "agent/tapestry");
+        assert_eq!(sessions[0].status, "active");
+    }
+
+    #[tokio::test]
+    async fn a_project_scope_excludes_other_projects() {
+        let (store, _cleanup) = test_store().await;
+        seed_session(
+            &store,
+            "00000000-0000-0000-0000-000000000701",
+            "tapestry",
+            "00000000-0000-0000-0000-000000000711",
+            "builder",
+            "00000000-0000-0000-0000-000000000721",
+            "agent/tapestry",
+        )
+        .await;
+        seed_session(
+            &store,
+            "00000000-0000-0000-0000-000000000702",
+            "loom-db",
+            "00000000-0000-0000-0000-000000000712",
+            "reviewer",
+            "00000000-0000-0000-0000-000000000722",
+            "agent/loom",
+        )
+        .await;
+
+        let scoped = sessions_list_inner(
+            &store,
+            Some("00000000-0000-0000-0000-000000000701"),
+            0,
+            100,
+        )
+        .await
+        .expect("scoped sessions");
+        assert_eq!(scoped.len(), 1);
+        assert_eq!(scoped[0].project, "tapestry");
+
+        let error = sessions_list_inner(
+            &store,
+            Some("00000000-0000-0000-0000-0000000007ff"),
+            0,
+            100,
+        )
+        .await
+        .expect_err("unknown scope rejected");
+        assert_eq!(
+            serde_json::to_value(error).expect("serialize IPC error")["kind"],
+            "not_found"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_sessions_runs_read_oldest_first_and_rejects_bad_ids() {
+        let (store, _cleanup) = test_store().await;
+        seed_session(
+            &store,
+            "00000000-0000-0000-0000-000000000701",
+            "tapestry",
+            "00000000-0000-0000-0000-000000000711",
+            "builder",
+            "00000000-0000-0000-0000-000000000721",
+            "agent/tapestry",
+        )
+        .await;
+        sqlx::query(
+            "INSERT INTO agents.runs (id, session_id, resolved_model_id, status, started_at)
+             VALUES ('00000000-0000-0000-0000-000000000731', '00000000-0000-0000-0000-000000000721', 'claude-opus-4', 'completed', now() - interval '2 hours'),
+                    ('00000000-0000-0000-0000-000000000732', '00000000-0000-0000-0000-000000000721', 'claude-opus-4', 'running', now())",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed runs");
+
+        let runs = runs_for_session_inner(
+            &store,
+            "00000000-0000-0000-0000-000000000721",
+        )
+        .await
+        .expect("session runs");
+        assert_eq!(runs.len(), 2);
+        assert_eq!(runs[0].status, "completed");
+        assert_eq!(runs[1].status, "running");
+
+        let error = runs_for_session_inner(&store, "not-a-uuid")
+            .await
+            .expect_err("a malformed id is a typed rejection");
+        assert_eq!(
+            serde_json::to_value(error).expect("serialize IPC error")["kind"],
+            "invalid_argument"
         );
     }
 }

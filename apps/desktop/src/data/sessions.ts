@@ -1,75 +1,49 @@
-import {
-  RUNS,
-  SELECTED_DETAIL_ID,
-  SELECTED_SESSION_ID,
-  SESSIONS,
-  SESSION_DETAILS,
-  eventsFor,
-} from '../fixtures/sessions'
-import type { SessionDetail } from '../fixtures/sessions'
-import type { AgentEvent } from '../types/event'
-import type { Run, Session } from '../types/agents'
+import type { Envelope } from "./envelope";
+import { dataProvider } from "./provider";
 
-export {
-  GUARDRAIL_NOTE,
-  HANDOFF_SUMMARY,
-  PTY_NOTE,
-  SESSION_LIST_FOOTER,
-  WAITING_NOTE,
-} from '../fixtures/sessions'
-export type { SessionDetail, TranscriptLine } from '../fixtures/sessions'
+/** How many rows a page carries. One page is what a first paint has to wait for. */
+export const PAGE_SIZE = 100;
 
-/** Becomes: invoke("sessions_list") */
-export function useSessions(): Session[] {
-  return SESSIONS
+/** Wire type: one row of `agents.sessions` via the `sessions_list` command. */
+export interface SessionRow {
+  id: string;
+  projectId: string;
+  project: string;
+  agent: string;
+  name: string;
+  branch: string;
+  status: string;
+  createdAt: string | null;
 }
 
-/** Becomes: invoke("session", { id }) */
-export function useSession(id: string): Session | null {
-  return SESSIONS.find((s) => s.id === id) ?? null
+/** Wire type: one run of a session via the `runs_for_session` command. */
+export interface SessionRun {
+  id: string;
+  sessionId: string;
+  status: string;
+  resolvedModel: string;
+  startedAt: string | null;
+  endedAt: string | null;
+  exitCode: number | null;
 }
 
-/** Becomes: invoke("runs_for_session", { sessionId }) */
-export function useRunsForSession(sessionId: string): Run[] {
-  return RUNS.filter((r) => r.sessionId === sessionId)
+/** Live read: every session across projects, newest first. The host scopes by
+ * project when a projectId is given; an unknown project is a typed not-found. */
+export function fetchSessions(
+  projectId?: string,
+  offset = 0,
+  limit = PAGE_SIZE,
+): Promise<Envelope<SessionRow[]>> {
+  return dataProvider().query<SessionRow>("sessions_list", {
+    projectId,
+    offset,
+    limit,
+  });
 }
 
-/** Becomes: Channel<AgentEvent>("session_events", { sessionId }) */
-export function useSessionEvents(sessionId: string): AgentEvent[] {
-  return eventsFor(sessionId)
-}
-
-/** Becomes: pane state, once the pane manager owns it. */
-export function useDefaultSessionId(): string {
-  return SELECTED_SESSION_ID
-}
-
-/** How badly a session wants a person. Higher goes first. */
-function attention(s: SessionDetail): number {
-  if (s.status === 'stuck') return 3
-  if (s.status === 'waiting') return 2
-  if (s.status === 'idle') return 1
-  return 0
-}
-
-/**
- * Becomes: invoke("sessions_list", { detail: true })
- *
- * Sorted needs-attention first, then activity — the same rule the strip uses,
- * because it is the same question: what needs a person, and what moved recently.
- */
-export function useSessionDetails(): SessionDetail[] {
-  return [...SESSION_DETAILS].sort(
-    (a, b) => attention(b) - attention(a) || a.idleMinutes - b.idleMinutes,
-  )
-}
-
-/** Becomes: invoke("session", { id, detail: true }) */
-export function useSessionDetail(id: string): SessionDetail | null {
-  return SESSION_DETAILS.find((s) => s.id === id) ?? null
-}
-
-/** Becomes: pane state, once the pane manager owns it. */
-export function useDefaultDetailId(): string {
-  return SELECTED_DETAIL_ID
+/** Live read: one session's runs, oldest first. */
+export function fetchRunsForSession(
+  sessionId: string,
+): Promise<Envelope<SessionRun[]>> {
+  return dataProvider().query<SessionRun>("runs_for_session", { sessionId });
 }

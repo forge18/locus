@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { SRC } from "../css";
+import type { Envelope } from "../../src/data/envelope";
+import { configureDataProvider } from "../../src/data/provider";
 
 const dataDir = resolve(SRC, "data");
 const modules = readdirSync(dataDir)
@@ -23,7 +25,6 @@ const FIXTURE_DATA_SETS = [
   "mail",
   "plan",
   "qa",
-  "sessions",
   "settings",
   "telemetry",
   "workflow",
@@ -31,7 +32,7 @@ const FIXTURE_DATA_SETS = [
 ];
 const NON_FIXTURE_DATA_SETS = ["bots", "work-items"];
 /** Slices that migrated to the live provider leave the fixture list here. */
-const LIVE_DATA_SETS = ["core", "runs", "strip"];
+const LIVE_DATA_SETS = ["core", "runs", "sessions", "strip"];
 
 /** The task-2 seam: typed envelope + provider. Not data sets, never fixture-backed. */
 const SEAM_MODULES = ["envelope", "provider"];
@@ -109,37 +110,51 @@ describe("data/accessors", () => {
     expect(data.workflowEventsForTranscript()).toBe(fixture.WORKFLOW_EVENTS);
   });
 
-  it("sorts session details needs-attention first, then by idle time", async () => {
-    const { useSessionDetails } = await import("../../src/data/sessions");
+  it("pages sessions through the live provider with the project scope", async () => {
+    const calls: { command: string; args?: Record<string, unknown> }[] = [];
+    const rows = [{ id: "s-0000", project: "tapestry", agent: "builder" }];
+    configureDataProvider({
+      kind: "demo",
+      async query<T>(command: string, args?: Record<string, unknown>) {
+        calls.push({ command, args });
+        return { status: "ready", data: rows as T[] };
+      },
+      async queryOne<T>(command: string) {
+        calls.push({ command });
+        return { status: "empty" } as Envelope<T>;
+      },
+    });
 
-    // stuck, then waiting, then idle, then the rest; ties break to the most
-    // recently active. The same rule the strip sorts by.
-    expect(useSessionDetails().map((detail) => detail.id)).toEqual([
-      "sd-weaver", // stuck
-      "sd-texere", // waiting
-      "sd-loom-db", // idle
-      "sd-tapestry", // running, active now
-      "sd-review", // running, 2m idle
+    const { fetchSessions } = await import("../../src/data/sessions");
+    const envelope = await fetchSessions("p-tapestry", 0, 50);
+    expect(envelope.status).toBe("ready");
+    expect(calls).toEqual([
+      {
+        command: "sessions_list",
+        args: { projectId: "p-tapestry", offset: 0, limit: 50 },
+      },
     ]);
   });
 
-  it("misses explicitly instead of throwing, and scopes runs to one session", async () => {
-    const { useSessionDetail, useRunsForSession } = await import(
-      "../../src/data/sessions"
-    );
+  it("scopes a session's runs to that session through the live provider", async () => {
+    const calls: { command: string; args?: Record<string, unknown> }[] = [];
+    configureDataProvider({
+      kind: "demo",
+      async query<T>(command: string, args?: Record<string, unknown>) {
+        calls.push({ command, args });
+        return { status: "empty" } as Envelope<T[]>;
+      },
+      async queryOne<T>() {
+        return { status: "failed", error: { command: "unexpected", message: "no" } } as Envelope<T>;
+      },
+    });
 
-    expect(useSessionDetail("sd-weaver")?.status).toBe("stuck");
-    expect(useSessionDetail("sd-missing")).toBeNull();
-
-    // A detail id is not a session id: the run lookup misses with an empty list.
-    expect(useRunsForSession("sd-weaver")).toEqual([]);
-    const runs = useRunsForSession("s-0000");
-    expect(runs.length).toBeGreaterThan(0);
-    for (const run of runs) {
-      expect(run.sessionId, `${run.id} is another session's run`).toBe(
-        "s-0000",
-      );
-    }
+    const { fetchRunsForSession } = await import("../../src/data/sessions");
+    const envelope = await fetchRunsForSession("s-0000");
+    expect(envelope.status).toBe("empty");
+    expect(calls).toEqual([
+      { command: "runs_for_session", args: { sessionId: "s-0000" } },
+    ]);
   });
 
   it("reports the computed harness summary rather than a written-down number", async () => {
