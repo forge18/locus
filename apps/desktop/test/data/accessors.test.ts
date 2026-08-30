@@ -30,8 +30,9 @@ const FIXTURE_DATA_SETS = [
   "strip",
   "telemetry",
   "workflow",
+  "workflow-events",
 ];
-const NON_FIXTURE_DATA_SETS = ["bots", "work-items", "workflow-events"];
+const NON_FIXTURE_DATA_SETS = ["bots", "work-items"];
 const DATA_SETS = [...FIXTURE_DATA_SETS, ...NON_FIXTURE_DATA_SETS]
   .map((name) => `${name}.ts`)
   .sort()
@@ -91,6 +92,16 @@ describe("data/accessors", () => {
         /from ["']\.\.\/(fixtures|types)\//,
       );
     }
+  });
+
+  it("keeps the normalized event literal in fixtures, re-exported by data", async () => {
+    const fixture = await import("../../src/fixtures/workflow-events");
+    const data = await import("../../src/data/workflow-events");
+
+    expect(data.WORKFLOW_EVENTS).toBe(fixture.WORKFLOW_EVENTS);
+    expect(data.workflowEventsForTranscript()).toBe(
+      fixture.WORKFLOW_EVENTS,
+    );
   });
 
   it("keeps session lookups scoped and returns an explicit miss", async () => {
