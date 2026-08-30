@@ -527,9 +527,7 @@ struct ProjectSetupResponse {
     base_context_token_budget: Option<u32>,
 }
 
-async fn projects_list_inner(
-    store: &Store,
-) -> Result<Vec<ProjectSummaryResponse>, IpcError> {
+async fn projects_list_inner(store: &Store) -> Result<Vec<ProjectSummaryResponse>, IpcError> {
     store
         .projects_list()
         .await
@@ -554,10 +552,7 @@ async fn resolve_setup_project(store: &Store, identifier: &str) -> Result<Projec
         .ok_or_else(|| IpcError::not_found("project was not found"))
 }
 
-async fn repos_list_inner(
-    store: &Store,
-    project_id: &str,
-) -> Result<Vec<RepoResponse>, IpcError> {
+async fn repos_list_inner(store: &Store, project_id: &str) -> Result<Vec<RepoResponse>, IpcError> {
     let project_id = resolve_setup_project(store, project_id).await?;
     store
         .repos_list(project_id)
@@ -2583,10 +2578,11 @@ mod setup_live_data {
         seed_project(&store, "00000000-0000-0000-0000-000000000302", "weaver").await;
         seed_project(&store, "00000000-0000-0000-0000-000000000301", "amq").await;
 
-        let projects = projects_list_inner(&store)
-            .await
-            .expect("list projects");
-        let names: Vec<&str> = projects.iter().map(|project| project.name.as_str()).collect();
+        let projects = projects_list_inner(&store).await.expect("list projects");
+        let names: Vec<&str> = projects
+            .iter()
+            .map(|project| project.name.as_str())
+            .collect();
         assert_eq!(names, ["amq", "weaver"]);
         assert_eq!(projects[0].id, "00000000-0000-0000-0000-000000000301");
     }
@@ -2598,9 +2594,30 @@ mod setup_live_data {
         let loom = "00000000-0000-0000-0000-000000000302";
         seed_project(&store, tapestry, "tapestry").await;
         seed_project(&store, loom, "loom-db").await;
-        seed_repo(&store, "00000000-0000-0000-0000-000000000311", tapestry, "core", "/checkouts/tapestry-core").await;
-        seed_repo(&store, "00000000-0000-0000-0000-000000000312", tapestry, "desktop", "/checkouts/tapestry-desktop").await;
-        seed_repo(&store, "00000000-0000-0000-0000-000000000321", loom, "loom", "/checkouts/loom").await;
+        seed_repo(
+            &store,
+            "00000000-0000-0000-0000-000000000311",
+            tapestry,
+            "core",
+            "/checkouts/tapestry-core",
+        )
+        .await;
+        seed_repo(
+            &store,
+            "00000000-0000-0000-0000-000000000312",
+            tapestry,
+            "desktop",
+            "/checkouts/tapestry-desktop",
+        )
+        .await;
+        seed_repo(
+            &store,
+            "00000000-0000-0000-0000-000000000321",
+            loom,
+            "loom",
+            "/checkouts/loom",
+        )
+        .await;
 
         let tapestry_repos = repos_list_inner(&store, tapestry)
             .await
@@ -2622,19 +2639,20 @@ mod setup_live_data {
     async fn unknown_project_is_rejected_not_emptied() {
         let (store, _cleanup) = test_store().await;
         seed_project(&store, "00000000-0000-0000-0000-000000000301", "tapestry").await;
-        seed_repo(&store, "00000000-0000-0000-0000-000000000311", "00000000-0000-0000-0000-000000000301", "core", "/checkouts/core").await;
+        seed_repo(
+            &store,
+            "00000000-0000-0000-0000-000000000311",
+            "00000000-0000-0000-0000-000000000301",
+            "core",
+            "/checkouts/core",
+        )
+        .await;
 
         expect_not_found(repos_list_inner(&store, "00000000-0000-0000-0000-0000000003ff").await);
-        expect_not_found(local_remotes_list_inner(
-            &store,
-            "00000000-0000-0000-0000-0000000003ff",
-        )
-        .await);
-        expect_not_found(project_setup_inner(
-            &store,
-            "00000000-0000-0000-0000-0000000003ff",
-        )
-        .await);
+        expect_not_found(
+            local_remotes_list_inner(&store, "00000000-0000-0000-0000-0000000003ff").await,
+        );
+        expect_not_found(project_setup_inner(&store, "00000000-0000-0000-0000-0000000003ff").await);
     }
 
     #[tokio::test]
@@ -2650,10 +2668,7 @@ mod setup_live_data {
         }))
         .expect("shape seeded settings");
         store
-            .set_project_settings(
-                tapestry.parse().expect("seed project id"),
-                &settings,
-            )
+            .set_project_settings(tapestry.parse().expect("seed project id"), &settings)
             .await
             .expect("seed settings");
 
@@ -2688,8 +2703,22 @@ mod setup_live_data {
         let loom = "00000000-0000-0000-0000-000000000302";
         seed_project(&store, tapestry, "tapestry").await;
         seed_project(&store, loom, "loom-db").await;
-        seed_repo(&store, "00000000-0000-0000-0000-000000000311", tapestry, "core", "/checkouts/tapestry-core").await;
-        seed_repo(&store, "00000000-0000-0000-0000-000000000321", loom, "loom", "/checkouts/loom").await;
+        seed_repo(
+            &store,
+            "00000000-0000-0000-0000-000000000311",
+            tapestry,
+            "core",
+            "/checkouts/tapestry-core",
+        )
+        .await;
+        seed_repo(
+            &store,
+            "00000000-0000-0000-0000-000000000321",
+            loom,
+            "loom",
+            "/checkouts/loom",
+        )
+        .await;
         sqlx::query(
             "INSERT INTO core.local_remotes (id, repo_id, bare_path)
              VALUES ('00000000-0000-0000-0000-000000000331', '00000000-0000-0000-0000-000000000311', '/var/lib/locus/repos/tapestry-core.git'),

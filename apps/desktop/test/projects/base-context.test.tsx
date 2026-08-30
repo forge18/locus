@@ -20,7 +20,11 @@ describe("project base context", () => {
 
   it("says so when the project has no base context", async () => {
     configureProjectsStub({
-      setup: { harnessAllowList: ["claude"], baseContext: null, baseContextTokenBudget: null },
+      setup: {
+        harnessAllowList: ["claude"],
+        baseContext: null,
+        baseContextTokenBudget: null,
+      },
     });
     const { getByTestId } = render(() => <ProjectsView />);
     await waitFor(() =>

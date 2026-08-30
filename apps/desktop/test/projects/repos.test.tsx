@@ -6,9 +6,9 @@ import { TAPESTRY, configureProjectsStub } from "./provider-stub";
 describe("project repos", () => {
   it("renders the selected project's repos with their working-copy paths", async () => {
     configureProjectsStub();
-    const { getAllByTestId, getByTestId, getByText, getAllByText } = render(() => (
-      <ProjectsView />
-    ));
+    const { getAllByTestId, getByTestId, getByText, getAllByText } = render(
+      () => <ProjectsView />,
+    );
 
     // loom-db sorts first; select tapestry, which has two repos.
     await waitFor(() => expect(getByText("#tapestry")).toBeTruthy());
@@ -29,7 +29,10 @@ describe("project repos", () => {
   });
 
   it("renders an empty project honestly", async () => {
-    configureProjectsStub({ projects: [{ id: TAPESTRY, name: "tapestry" }], repos: [] });
+    configureProjectsStub({
+      projects: [{ id: TAPESTRY, name: "tapestry" }],
+      repos: [],
+    });
     const { getByTestId } = render(() => <ProjectsView />);
     await waitFor(() =>
       expect(getByTestId("project-repos").textContent).toContain(

@@ -19,7 +19,11 @@ describe("project harnesses", () => {
 
   it("says so when no harness policy is stored", async () => {
     configureProjectsStub({
-      setup: { harnessAllowList: [], baseContext: null, baseContextTokenBudget: null },
+      setup: {
+        harnessAllowList: [],
+        baseContext: null,
+        baseContextTokenBudget: null,
+      },
     });
     const { getByTestId } = render(() => <ProjectsView />);
     await waitFor(() =>

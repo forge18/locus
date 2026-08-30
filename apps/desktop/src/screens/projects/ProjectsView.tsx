@@ -15,7 +15,11 @@ import { plainTextDescriptor } from "../../editor/types";
 import { FixtureNotice } from "../../ui/FixtureNotice";
 import { fetchProjectSetup, fetchProjects, fetchRepos } from "../../data/core";
 import type { Envelope } from "../../data/envelope";
-import type { ProjectRepo, ProjectSetup, ProjectSummary } from "../../types/core";
+import type {
+  ProjectRepo,
+  ProjectSetup,
+  ProjectSummary,
+} from "../../types/core";
 import { AnalyticsView } from "../analytics/AnalyticsView";
 
 type ProjectTab = "settings" | "persistence" | "analytics";
@@ -310,7 +314,9 @@ export function ProjectsView(props: ProjectsViewProps = {}) {
                 </Match>
               </Switch>
               <For each={reposView.data() ?? []}>
-                {(repo) => <Repo name={repo.name} path={repo.workingCopyPath} />}
+                {(repo) => (
+                  <Repo name={repo.name} path={repo.workingCopyPath} />
+                )}
               </For>
               <p class="project-panel-note">
                 Moving a repo re-tags every run, artifact and memory fact that
@@ -333,7 +339,9 @@ export function ProjectsView(props: ProjectsViewProps = {}) {
                     class="project-budget"
                     data-testid="project-base-context-budget"
                   >
-                    <b>budget: {setupView.data()?.baseContextTokenBudget} tokens</b>
+                    <b>
+                      budget: {setupView.data()?.baseContextTokenBudget} tokens
+                    </b>
                   </div>
                 </Show>
               </div>
@@ -357,7 +365,9 @@ export function ProjectsView(props: ProjectsViewProps = {}) {
                   </div>
                 </Match>
                 <Match
-                  when={setupView.data() && setupView.data()?.baseContext == null}
+                  when={
+                    setupView.data() && setupView.data()?.baseContext == null
+                  }
                 >
                   <div
                     class="base-context"

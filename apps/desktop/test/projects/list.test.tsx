@@ -14,14 +14,18 @@ describe("project list", () => {
     const { getByTestId } = render(() => <ProjectsView />);
 
     await waitFor(() =>
-      expect(getByTestId("project-state-list").textContent).toContain("tapestry"),
+      expect(getByTestId("project-state-list").textContent).toContain(
+        "tapestry",
+      ),
     );
     expect(getByTestId("project-state-list").textContent).toContain("loom-db");
   });
 
   it("selects a project on click and retargets the detail header", async () => {
     configureProjectsStub();
-    const { getByText, getAllByText, getByTestId } = render(() => <ProjectsView />);
+    const { getByText, getAllByText, getByTestId } = render(() => (
+      <ProjectsView />
+    ));
 
     // loom-db sorts first, so it is selected by default; click tapestry.
     await waitFor(() => expect(getByText("#tapestry")).toBeTruthy());

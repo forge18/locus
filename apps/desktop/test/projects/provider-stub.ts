@@ -1,4 +1,7 @@
-import { configureDataProvider, type DataProvider } from "../../src/data/provider";
+import {
+  configureDataProvider,
+  type DataProvider,
+} from "../../src/data/provider";
 import { ready, readyOne, type Envelope } from "../../src/data/envelope";
 
 /**
@@ -75,9 +78,7 @@ export function configureProjectsStub(stub: ProjectsStub = {}): void {
   const repos = "repos" in stub ? (stub.repos ?? []) : SEED_REPOS;
   const setup = "setup" in stub ? (stub.setup ?? null) : SEED_SETUP;
   const failing = (command: string) =>
-    Array.isArray(stub.fail)
-      ? stub.fail.includes(command)
-      : stub.fail === true;
+    Array.isArray(stub.fail) ? stub.fail.includes(command) : stub.fail === true;
   const provider: DataProvider = {
     kind: "demo",
     async query<T>(
@@ -86,7 +87,10 @@ export function configureProjectsStub(stub: ProjectsStub = {}): void {
     ): Promise<Envelope<T[]>> {
       if (stub.hang) return new Promise(() => undefined);
       if (failing(command)) {
-        return { status: "failed", error: { command, message: `IPC failure for ${command}` } };
+        return {
+          status: "failed",
+          error: { command, message: `IPC failure for ${command}` },
+        };
       }
       if (command === "projects_list") {
         return ready(projects as T[]);
@@ -96,19 +100,26 @@ export function configureProjectsStub(stub: ProjectsStub = {}): void {
         const rows = repos.filter((repo) => repo.projectId === projectId);
         return ready(rows as T[]);
       }
-      return { status: "failed", error: { command, message: `unexpected command ${command}` } };
+      return {
+        status: "failed",
+        error: { command, message: `unexpected command ${command}` },
+      };
     },
-    async queryOne<T>(
-      command: string,
-    ): Promise<Envelope<T>> {
+    async queryOne<T>(command: string): Promise<Envelope<T>> {
       if (stub.hang) return new Promise(() => undefined);
       if (failing(command)) {
-        return { status: "failed", error: { command, message: `IPC failure for ${command}` } };
+        return {
+          status: "failed",
+          error: { command, message: `IPC failure for ${command}` },
+        };
       }
       if (command === "project_setup") {
         return readyOne(setup) as Envelope<T>;
       }
-      return { status: "failed", error: { command, message: `unexpected command ${command}` } };
+      return {
+        status: "failed",
+        error: { command, message: `unexpected command ${command}` },
+      };
     },
   };
   configureDataProvider(provider);
