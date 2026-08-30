@@ -1,4 +1,4 @@
-import { createSignal, onCleanup, onMount, Show } from "solid-js";
+import { createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
 import type { JSX } from "solid-js";
 import { AppTitleBar } from "./AppTitleBar";
 import { ProjectRail } from "./ProjectRail";
@@ -10,9 +10,11 @@ import {
 } from "../nav/LocatorPalette";
 import { Sheet } from "../ui/Sheet";
 import { notify, ToastRegion } from "../ui/Toast";
-import { useRunningCount, useStripCards } from "../data/strip";
+import { fetchRunningCount, fetchStripCards, type StripCard } from "../data/strip";
 import { stopAllDispatch } from "../data/dispatch";
-import { useInboxItems } from "../data/inbox";
+import { fetchInboxPendingCount } from "../data/inbox";
+import { fetchProjects } from "../data/core";
+import type { Envelope } from "../data/envelope";
 import type { ActiveSession } from "./RunningPill";
 import { BackLink, type NavStore, type View } from "../nav";
 import { destinationDesktop } from "../nav/desktop-navigation";
@@ -67,30 +69,82 @@ export function Shell(props: ShellProps) {
     const [paletteOpen, setPaletteOpen] = createSignal(false);
     const [paletteMode, setPaletteMode] = createSignal<PaletteMode>("locator");
     const [dispatchOpen, setDispatchOpen] = createSignal(false);
-    const inboxItems = useInboxItems();
-    const activeSessions: ActiveSession[] = useStripCards()
-        .filter((card) => card.kind === "agent")
-        .map((card) => ({
+    const [stripEnvelope, setStripEnvelope] = createSignal<
+        Envelope<StripCard[]>
+    >({ status: "loading" });
+    const [runningEnvelope, setRunningEnvelope] = createSignal<
+        Envelope<number>
+    >({ status: "loading" });
+    const [inboxEnvelope, setInboxEnvelope] = createSignal<Envelope<number>>(
+        { status: "loading" },
+    );
+    const [projectsEnvelope, setProjectsEnvelope] = createSignal<
+        Envelope<{ id: string; name: string }[]>
+    >({ status: "loading" });
+
+    const loadLiveStatus = async () => {
+        const [cards, running, inbox, projects] = await Promise.all([
+            fetchStripCards(),
+            fetchRunningCount(),
+            fetchInboxPendingCount(),
+            fetchProjects(),
+        ]);
+        setStripEnvelope(cards);
+        setRunningEnvelope(running);
+        setInboxEnvelope(inbox);
+        setProjectsEnvelope(projects);
+        for (const failed of [cards, running, inbox, projects]) {
+            if (failed.status === "failed") {
+                notify({
+                    title: "Live status unavailable",
+                    description: failed.error.message,
+                    type: "error",
+                });
+            }
+        }
+    };
+    onMount(() => {
+        void loadLiveStatus();
+    });
+
+    const activeSessions = createMemo<ActiveSession[]>(() => {
+        const envelope = stripEnvelope();
+        if (envelope.status !== "ready") return [];
+        return envelope.data.map((card) => ({
             id: card.id,
             label: `${card.project} · ${card.agent}`,
             needsAttention:
                 card.status === "waiting" || card.status === "stuck",
             lastActivityAt: card.idleMinutes,
             project: card.project,
-            role: card.role ?? undefined,
             elapsed:
                 card.idleMinutes === 0 ? "now" : `${card.idleMinutes}m ago`,
-            meta: card.status ?? card.tool ?? "running",
+            meta: card.status ?? "running",
         }));
-    const needsYou = activeSessions.filter(
-        (session) => session.needsAttention,
-    ).length;
-    const paletteSessions: PaletteSessionState[] = activeSessions.map(
-        (session) => ({
+    });
+    const needsYou = createMemo(
+        () => activeSessions().filter((session) => session.needsAttention).length,
+    );
+    const runningCount = createMemo(() => {
+        const envelope = runningEnvelope();
+        return envelope.status === "ready" ? envelope.data : 0;
+    });
+    const inboxCount = createMemo(() => {
+        const envelope = inboxEnvelope();
+        return envelope.status === "ready" ? envelope.data : 0;
+    });
+    const paletteSessions = createMemo<PaletteSessionState[]>(() =>
+        activeSessions().map((session) => ({
             project: session.project ?? "tapestry",
             needsAttention: session.needsAttention,
-        }),
+        })),
     );
+    const railProjects = createMemo(() => {
+        const envelope = projectsEnvelope();
+        return envelope.status === "ready"
+            ? envelope.data.map((project) => project.name)
+            : undefined;
+    });
     const openDesktopTarget = (target: DesktopNavTarget) => {
         const params =
             target.scope.kind === "project"
@@ -129,11 +183,10 @@ export function Shell(props: ShellProps) {
             <AppTitleBar
                 categoryLabel={props.nav.categoryLabel()}
                 viewLabel={props.nav.view()}
-                running={useRunningCount()}
-                needsYou={needsYou}
-                sessions={activeSessions}
-                inboxCount={inboxItems.length}
-                inboxItems={inboxItems}
+                running={runningCount()}
+                needsYou={needsYou()}
+                sessions={activeSessions()}
+                inboxCount={inboxCount()}
                 onOpenDispatch={() =>
                     openDesktopLocator(destinationDesktop("autorun"))
                 }
@@ -164,6 +217,7 @@ export function Shell(props: ShellProps) {
             <div class="body">
                 <ProjectRail
                     selectedProject={props.nav.params().project ?? "tapestry"}
+                    projects={railProjects()}
                     onNavigate={openDesktopLocator}
                 />
                 <div class="main">
@@ -186,7 +240,7 @@ export function Shell(props: ShellProps) {
                 current={currentDesktopLocator()}
                 project={props.nav.params().project ?? "tapestry"}
                 history={props.nav.history()}
-                sessions={paletteSessions}
+                sessions={paletteSessions()}
                 mode={paletteMode()}
                 searchAll={props.searchAll}
                 onResolve={openDesktopTarget}

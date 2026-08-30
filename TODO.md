@@ -11,8 +11,9 @@ owning workstream so nothing is tracked twice.
 
 - `chore/todo-completion` carries all completed work — 25 rows finished since the 2026-08-29
   audit; the record lives in this branch's git history, not here.
-- Active workstream: **1 — desktop data integration** (tasks 1–3 of 12 done: contract frozen,
-  provider seam landed, tracer bullet live; shell live state is next).
+- Active workstream: **1 — desktop data integration** (tasks 1–4 of 12 done: contract frozen,
+  provider seam, tracer bullet, and shell live state — the pills and rail read the real store;
+  title-bar mutations are next).
 
 ## 1 — Desktop data integration (the epic)
 
@@ -25,7 +26,9 @@ audit findings; each is one of the epic's slices, tracked here once:
   3. ~~tracer bullet: Setup reads the real store~~ done (`projects_list`/`repos_list`/
   `local_remotes_list`/`project_setup` live, ProjectsView on envelopes, cross-project rejection
   tested both sides) ·
-  4. shell live state (absorbs: surface backend errors) · 5. title-bar mutations ·
+  4. ~~shell live state~~ done (`strip_cards`/`running_count`/`inbox_pending_count` live, pills
+  and rail switcher on real counts, scope + rejection tested both sides) ·
+  5. title-bar mutations ·
   6. window-chrome ownership + rail rendering (absorbs: remove duplicate window chrome, fix rail
   control rendering) · 7. live run slice: Sessions/Runs/Dispatch/Inbox/Interact/Agent Pane (absorbs:
   wire Dispatch controls) · 8. configuration slice: Plan/Manage/Setup mutations/Workshop/agents

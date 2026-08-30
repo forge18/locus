@@ -6,6 +6,9 @@ import { applyTheme, INSTALLED_THEMES } from "../../src/styles/theme";
 
 afterEach(() => applyTheme(document.documentElement, "dark"));
 
+import { configureProjectsStub } from "../projects/provider-stub";
+configureProjectsStub();
+
 describe("shell/themes", () => {
   for (const theme of INSTALLED_THEMES) {
     it(`renders the shared shell in ${theme}`, () => {

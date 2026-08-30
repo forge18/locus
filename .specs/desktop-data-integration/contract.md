@@ -10,10 +10,11 @@ slice changes it.
 - `apps/desktop/src/data/` holds 23 accessor modules; 2 are fully live (`bots`,
   `work-items`), 21 return fixtures or mix fixtures with live calls.
 - The accessors promise **82 distinct Tauri commands** via `Becomes:` markers.
-- The host registers **46** commands; **8** of the promised 82 exist
+- The host registers **49** commands; **11** of the promised 82 exist
   (`artifacts_list`, `artifact_comments`, `harness_tier_grid`, `materialization_report`,
   `projects_list`, `repos_list`, `local_remotes_list`, `project_setup` — the last four are the
-  slice-3 tracer bullet). **74 commands are missing.**
+  slice-3 tracer bullet; `strip_cards`, `running_count`, `inbox_pending_count` are slice 4's
+  shell queries). **71 commands are missing.**
 
 ## Scope legend
 
@@ -48,6 +49,13 @@ slice changes it.
 | `guardrails.ts` | `settings_guardrails` **missing** | global |
 | `agent-defs.ts` | `agent_defs_list`, `agent_def` **live**; `materialization_report` **live** | global (defs are host-level) |
 | `strip.ts` | `strip_cards`, `running_count` — **missing** | global (cross-project running view) |
+
+## Shell pill queries (slice 4)
+
+`strip_cards` (global, optional project scope), `running_count` (same scope rules), and
+`inbox_pending_count` (global) — the dispatch pill's live sessions and the Inbox pill's
+pending-for-a-human count. `inbox_pending_count` was not among the original `Becomes:`
+markers; the Inbox's full row migration stays with slice 7 via `inbox_list`.
 
 ## Setup policy and base context
 

@@ -3,6 +3,10 @@ import { describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
 import { INBOX_ITEMS } from "../../src/fixtures/inbox";
 import { stopAllDispatch } from "../../src/data/dispatch";
+import { waitFor } from "@solidjs/testing-library";
+import { createNavStore } from "../../src/nav";
+import { Shell } from "../../src/shell/Shell";
+import { configureProjectsStub } from "../projects/provider-stub";
 import { DispatchPill } from "../../src/shell/DispatchPill";
 import { InboxPill } from "../../src/shell/InboxPill";
 
@@ -91,5 +95,34 @@ describe("M0.7 title-bar pills", () => {
     );
     await fireEvent.click(getByRole("button", { name: "Open Inbox" }));
     expect(onOpenInbox).toHaveBeenCalledOnce();
+  });
+});
+
+describe("title pills on live store data", () => {
+  it("reflects live running and inbox counts from the provider", async () => {
+    configureProjectsStub({
+      inboxPending: 2,
+      runningCount: 1,
+      stripCards: [
+        {
+          id: "run-1",
+          project: "tapestry",
+          agent: "builder",
+          status: "running",
+          startedEpoch: Math.floor(Date.now() / 1000),
+        },
+      ],
+    });
+    const nav = createNavStore();
+    const { getByTestId } = render(() => (
+      <Shell nav={nav}>
+        <div />
+      </Shell>
+    ));
+
+    await waitFor(() =>
+      expect(getByTestId("inbox-pill").textContent).toContain("2"),
+    );
+    expect(getByTestId("dispatch-pill").textContent).toContain("1");
   });
 });

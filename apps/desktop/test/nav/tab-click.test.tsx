@@ -15,6 +15,9 @@ const mount = () => {
   };
 };
 
+import { configureProjectsStub } from "../projects/provider-stub";
+configureProjectsStub();
+
 describe("nav/current-view-context", () => {
   it("shows the owning context for title-bar routes", () => {
     const { nav, getByTestId } = mount();

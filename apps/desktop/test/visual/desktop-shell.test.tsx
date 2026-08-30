@@ -5,6 +5,9 @@ import { Shell } from "../../src/shell/Shell";
 
 const fixtures = ["default", "running", "needs-you"] as const;
 
+import { configureProjectsStub } from "../projects/provider-stub";
+configureProjectsStub();
+
 describe("visual/desktop-shell", () => {
   for (const fixture of fixtures) {
     it(`captures the ${fixture} shell fixture`, () => {

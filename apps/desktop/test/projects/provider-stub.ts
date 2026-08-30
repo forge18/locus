@@ -3,6 +3,7 @@ import {
   type DataProvider,
 } from "../../src/data/provider";
 import { ready, readyOne, type Envelope } from "../../src/data/envelope";
+import type { StripCardRow } from "../../src/data/strip";
 
 /**
  * A provider stub for the Setup tracer-bullet tests. Data is store-shaped (the
@@ -62,6 +63,12 @@ export interface ProjectsStub {
   /** Every command fails, simulating a dead IPC boundary. A list of command
    * names fails only those — for testing one panel's error state. */
   fail?: boolean | string[];
+  /** Shell slice: running-run rows for the dispatch pill. Default none. */
+  stripCards?: StripCardRow[];
+  /** Shell slice: the running count for the dispatch pill. Default 0. */
+  runningCount?: number;
+  /** Shell slice: the Inbox pill's pending-for-a-human count. Default 0. */
+  inboxPending?: number;
   /** Queries never settle: pins the loading state. */
   hang?: boolean;
 }
@@ -100,6 +107,9 @@ export function configureProjectsStub(stub: ProjectsStub = {}): void {
         const rows = repos.filter((repo) => repo.projectId === projectId);
         return ready(rows as T[]);
       }
+      if (command === "strip_cards") {
+        return ready((stub.stripCards ?? []) as T[]);
+      }
       return {
         status: "failed",
         error: { command, message: `unexpected command ${command}` },
@@ -115,6 +125,12 @@ export function configureProjectsStub(stub: ProjectsStub = {}): void {
       }
       if (command === "project_setup") {
         return readyOne(setup) as Envelope<T>;
+      }
+      if (command === "running_count") {
+        return readyOne(stub.runningCount ?? 0) as Envelope<T>;
+      }
+      if (command === "inbox_pending_count") {
+        return readyOne(stub.inboxPending ?? 0) as Envelope<T>;
       }
       return {
         status: "failed",

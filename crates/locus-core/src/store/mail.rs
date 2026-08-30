@@ -2,10 +2,24 @@
 
 use crate::{ids::RunId, store::Store};
 use anyhow::{bail, Context, Result};
-use sqlx::query;
+use sqlx::{query, query_scalar};
 use uuid::Uuid;
 
 impl Store {
+    /// Human-addressed deliveries still pending — the Inbox pill's count. Agent
+    /// deliveries never appear here: the Inbox is what waits on a person.
+    pub async fn pending_human_delivery_count(&self) -> Result<i64> {
+        query_scalar(
+            "SELECT COUNT(*)
+             FROM mail.deliveries
+             WHERE recipient_kind = 'human' AND status = 'pending'",
+        )
+        .fetch_one(&self.pool)
+        .await
+        .context("count pending human deliveries")
+    }
+
+
     pub async fn create_mail_thread(
         &self,
         id: Uuid,

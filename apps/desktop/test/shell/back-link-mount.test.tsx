@@ -3,6 +3,9 @@ import { describe, expect, it } from "vitest";
 import { createNavStore } from "../../src/nav";
 import { Shell } from "../../src/shell/Shell";
 
+import { configureProjectsStub } from "../projects/provider-stub";
+configureProjectsStub();
+
 describe("shell/back-link-mount", () => {
   it("shows no back link on a view the rail lands on", () => {
     const { queryByTestId } = render(() => (

@@ -14,7 +14,6 @@ const FIXTURE_DATA_SETS = [
   "analytics",
   "artifacts",
   "board",
-  "core",
   "dispatch",
   "extensions",
   "guardrails",
@@ -27,18 +26,20 @@ const FIXTURE_DATA_SETS = [
   "runs",
   "sessions",
   "settings",
-  "strip",
   "telemetry",
   "workflow",
   "workflow-events",
 ];
 const NON_FIXTURE_DATA_SETS = ["bots", "work-items"];
+/** Slices that migrated to the live provider leave the fixture list here. */
+const LIVE_DATA_SETS = ["core", "strip"];
 
 /** The task-2 seam: typed envelope + provider. Not data sets, never fixture-backed. */
 const SEAM_MODULES = ["envelope", "provider"];
 const DATA_SETS = [
   ...FIXTURE_DATA_SETS,
   ...NON_FIXTURE_DATA_SETS,
+  ...LIVE_DATA_SETS,
   ...SEAM_MODULES,
 ]
   .map((name) => `${name}.ts`)

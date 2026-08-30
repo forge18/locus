@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { render } from "@solidjs/testing-library";
 import { Strip } from "../../src/shell/Strip";
-import { useStripCards } from "../../src/data/strip";
+import { fetchStripCards } from "../../src/data/strip";
+import { configureProjectsStub } from "../projects/provider-stub";
 import { read, rules } from "../css";
 
 const rule = (sel: string) =>
@@ -16,14 +17,23 @@ describe("shell/strip", () => {
   });
 
   it("carries the vertical STRIP label", () => {
-    const { getByTestId } = render(() => <Strip cards={useStripCards()} />);
+    configureProjectsStub();
+    const { getByTestId } = render(() => <Strip cards={[]} />);
     expect(getByTestId("strip-label").textContent).toBe("Strip");
     expect(rule(".strip-label")!.body).toContain("writing-mode: vertical-rl");
     expect(rule(".strip-label")!.body).toContain("text-transform: uppercase");
   });
 
-  it("draws one card per running agent and shell", () => {
-    const cards = useStripCards();
+  it("draws one card per live running agent", async () => {
+    configureProjectsStub({
+      stripCards: [
+        { id: "run-1", project: "tapestry", agent: "builder", status: "running", startedEpoch: Math.floor(Date.now() / 1000) },
+        { id: "run-2", project: "loom-db", agent: "builder", status: "running", startedEpoch: Math.floor(Date.now() / 1000) - 120 },
+      ],
+    });
+    const envelope = await fetchStripCards();
+    expect(envelope.status).toBe("ready");
+    const cards = envelope.status === "ready" ? envelope.data : [];
     const { getByTestId } = render(() => <Strip cards={cards} />);
     expect(getByTestId("strip").querySelectorAll(".strip-card").length).toBe(
       cards.length,
@@ -31,7 +41,7 @@ describe("shell/strip", () => {
   });
 
   it("states its own ordering on the right, so the order is not a mystery", () => {
-    const { getByTestId } = render(() => <Strip cards={useStripCards()} />);
+    const { getByTestId } = render(() => <Strip cards={[]} />);
     expect(getByTestId("strip").textContent).toContain(
       "sorted by needs-attention, then activity",
     );

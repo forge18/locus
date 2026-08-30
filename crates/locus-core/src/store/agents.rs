@@ -2,7 +2,7 @@
 //!
 //! Moved out of `services/agents.rs` so every query in the crate lives under `store/`.
 
-use crate::ids::RunId;
+use crate::ids::{ProjectId, RunId};
 use anyhow::{bail, Context, Result};
 use serde_json::Value;
 use sqlx::query_as;
@@ -15,7 +15,53 @@ use crate::{
     store::Store,
 };
 
+/// One running run with its project and agent — the shell's dispatch pill and
+/// session popover. A project id scopes the read; `None` is the cross-project
+/// shell view.
+#[derive(Debug, sqlx::FromRow)]
+pub struct RunningRunRow {
+    pub id: Uuid,
+    pub project: String,
+    pub agent: String,
+    pub status: String,
+    pub started_epoch: i64,
+}
+
 impl Store {
+    pub async fn running_runs(
+        &self,
+        project_id: Option<ProjectId>,
+    ) -> Result<Vec<RunningRunRow>> {
+        query_as(
+            "SELECT r.id, p.name AS project, ad.name AS agent, r.status,
+                    EXTRACT(EPOCH FROM COALESCE(r.started_at, r.created_at))::bigint AS started_epoch
+             FROM agents.runs r
+             JOIN agents.sessions s ON s.id = r.session_id
+             JOIN core.projects p ON p.id = s.project_id
+             JOIN agents.agent_defs ad ON ad.id = s.agent_def_id
+             WHERE r.status = 'running' AND ($1::uuid IS NULL OR s.project_id = $1)
+             ORDER BY COALESCE(r.started_at, r.created_at) DESC",
+        )
+        .bind(project_id)
+        .fetch_all(&self.pool)
+        .await
+        .context("list running runs")
+    }
+
+    /// Agents only — the host shell itself never runs an agent.
+    pub async fn running_run_count(&self, project_id: Option<ProjectId>) -> Result<i64> {
+        query_scalar(
+            "SELECT COUNT(*)
+             FROM agents.runs r
+             JOIN agents.sessions s ON s.id = r.session_id
+             WHERE r.status = 'running' AND ($1::uuid IS NULL OR s.project_id = $1)",
+        )
+        .bind(project_id)
+        .fetch_one(&self.pool)
+        .await
+        .context("count running runs")
+    }
+
     /// Save a new immutable version after checking its tool allowlist against the
     /// materialized marketplace index. Existing rows are never updated.
     pub async fn save_agent_definition(

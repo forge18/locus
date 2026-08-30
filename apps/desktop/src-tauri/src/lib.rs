@@ -641,6 +641,98 @@ async fn project_setup(
     project_setup_inner(store, &project_id).await
 }
 
+/// The shell's live pill data (slice 4): dispatch running counts and sessions,
+/// and the Inbox pill's pending-for-a-human count.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct StripCardResponse {
+    id: String,
+    project: String,
+    agent: String,
+    status: String,
+    /// Seconds since the run started, so the UI derives elapsed time locally.
+    started_epoch: i64,
+}
+
+async fn scope_project(
+    store: &Store,
+    project_id: Option<&str>,
+) -> Result<Option<ProjectId>, IpcError> {
+    match project_id {
+        None => Ok(None),
+        Some(identifier) => Ok(Some(
+            store
+                .resolve_project_id(identifier)
+                .await
+                .map_err(IpcError::internal)?
+                .ok_or_else(|| IpcError::not_found("project was not found"))?,
+        )),
+    }
+}
+
+async fn strip_cards_inner(
+    store: &Store,
+    project_id: Option<&str>,
+) -> Result<Vec<StripCardResponse>, IpcError> {
+    let project_id = scope_project(store, project_id).await?;
+    store
+        .running_runs(project_id)
+        .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(|row| StripCardResponse {
+                    id: row.id.to_string(),
+                    project: row.project,
+                    agent: row.agent,
+                    status: row.status,
+                    started_epoch: row.started_epoch,
+                })
+                .collect()
+        })
+        .map_err(IpcError::internal)
+}
+
+async fn running_count_inner(
+    store: &Store,
+    project_id: Option<&str>,
+) -> Result<usize, IpcError> {
+    let project_id = scope_project(store, project_id).await?;
+    let count = store.running_run_count(project_id).await.map_err(IpcError::internal)?;
+    usize::try_from(count).map_err(|_| IpcError::internal("run count exceeds usize"))
+}
+
+async fn inbox_pending_count_inner(store: &Store) -> Result<usize, IpcError> {
+    let count = store
+        .pending_human_delivery_count()
+        .await
+        .map_err(IpcError::internal)?;
+    usize::try_from(count).map_err(|_| IpcError::internal("inbox count exceeds usize"))
+}
+
+#[tauri::command]
+async fn strip_cards(
+    core: State<'_, Arc<Core>>,
+    project_id: Option<String>,
+) -> Result<Vec<StripCardResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    strip_cards_inner(store, project_id.as_deref()).await
+}
+
+#[tauri::command]
+async fn running_count(
+    core: State<'_, Arc<Core>>,
+    project_id: Option<String>,
+) -> Result<usize, IpcError> {
+    let store = connected_store(&core).await?;
+    running_count_inner(store, project_id.as_deref()).await
+}
+
+#[tauri::command]
+async fn inbox_pending_count(core: State<'_, Arc<Core>>) -> Result<usize, IpcError> {
+    let store = connected_store(&core).await?;
+    inbox_pending_count_inner(store).await
+}
+
 #[tauri::command]
 async fn external_work_item_providers(
     core: State<'_, Arc<Core>>,
@@ -2332,6 +2424,9 @@ pub fn run() {
             repos_list,
             local_remotes_list,
             project_setup,
+            strip_cards,
+            running_count,
+            inbox_pending_count,
             harness_tier_grid,
             pty_subscribe,
             telemetry_subscribe,
@@ -2739,6 +2834,294 @@ mod setup_live_data {
         assert_eq!(
             tapestry_remotes[0].repo_id,
             "00000000-0000-0000-0000-000000000311"
+        );
+    }
+}
+
+/// Shell pill queries: the dispatch pill counts and lists running runs; the Inbox
+/// pill counts human-pending deliveries.
+#[cfg(test)]
+mod shell_queries {
+    use locus_core::testkit::postgres::{
+        start_postgres_named, test_backup_config, NoopMigrationBackup,
+    };
+    use super::*;
+
+    async fn test_store() -> (Store, locus_core::testkit::postgres::DockerCleanup) {
+        let (container, cleanup) = start_postgres_named("locus-tauri-shell-test").await;
+        let store = Store::connect(&container.database_url())
+            .await
+            .expect("connect the shell test store");
+        store
+            .run_migrations(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations"),
+                &NoopMigrationBackup,
+                &test_backup_config(),
+            )
+            .await
+            .expect("run migrations for the shell test store");
+        (store, cleanup)
+    }
+
+    async fn seed_running_run(
+        store: &Store,
+        project_id: &str,
+        project_name: &str,
+        agent_def_id: &str,
+        agent_name: &str,
+        session_id: &str,
+        run_id: &str,
+        status: &str,
+    ) {
+        sqlx::query("INSERT INTO core.projects (id, name) VALUES ($1::uuid, $2)")
+            .bind(project_id)
+            .bind(project_name)
+            .execute(store.test_pool())
+            .await
+            .expect("seed project");
+        sqlx::query(
+            "INSERT INTO agents.agent_defs (id, name, version, frontmatter, body)
+             VALUES ($1::uuid, $2, 1, '{}'::jsonb, 'test agent')",
+        )
+        .bind(agent_def_id)
+        .bind(agent_name)
+        .execute(store.test_pool())
+        .await
+        .expect("seed agent def");
+        sqlx::query(
+            "INSERT INTO agents.sessions (id, project_id, agent_def_id, name, branch)
+             VALUES ($1::uuid, $2::uuid, $3::uuid, 'shell session', 'agent/shell')",
+        )
+        .bind(session_id)
+        .bind(project_id)
+        .bind(agent_def_id)
+        .execute(store.test_pool())
+        .await
+        .expect("seed session");
+        sqlx::query(
+            "INSERT INTO agents.runs (id, session_id, resolved_model_id, status, started_at)
+             VALUES ($1::uuid, $2::uuid, 'test-model', $3, now())",
+        )
+        .bind(run_id)
+        .bind(session_id)
+        .bind(status)
+        .execute(store.test_pool())
+        .await
+        .expect("seed run");
+    }
+
+    #[tokio::test]
+    async fn running_count_and_cards_agree() {
+        let (store, _cleanup) = test_store().await;
+        seed_running_run(
+            &store,
+            "00000000-0000-0000-0000-000000000401",
+            "tapestry",
+            "00000000-0000-0000-0000-000000000411",
+            "builder",
+            "00000000-0000-0000-0000-000000000421",
+            "00000000-0000-0000-0000-000000000431",
+            "running",
+        )
+        .await;
+        let count = running_count_inner(&store, None).await.expect("running count");
+        assert_eq!(count, 1);
+        let cards = strip_cards_inner(&store, None).await.expect("strip cards");
+        assert_eq!(cards.len(), 1);
+        assert_eq!(cards[0].project, "tapestry");
+        assert_eq!(cards[0].agent, "builder");
+        assert_eq!(cards[0].status, "running");
+    }
+
+    #[tokio::test]
+    async fn only_running_runs_count() {
+        let (store, _cleanup) = test_store().await;
+        seed_running_run(
+            &store,
+            "00000000-0000-0000-0000-000000000401",
+            "tapestry",
+            "00000000-0000-0000-0000-000000000411",
+            "builder",
+            "00000000-0000-0000-0000-000000000421",
+            "00000000-0000-0000-0000-000000000431",
+            "completed",
+        )
+        .await;
+        let count = running_count_inner(&store, None).await.expect("running count");
+        assert_eq!(count, 0);
+        assert!(strip_cards_inner(&store, None).await.expect("strip cards").is_empty());
+    }
+
+    #[tokio::test]
+    async fn the_inbox_pill_counts_only_human_pending_deliveries() {
+        let (store, _cleanup) = test_store().await;
+        // Seed the chain a human delivery hangs off: thread → message → delivery.
+        sqlx::query("INSERT INTO core.projects (id, name) VALUES ('00000000-0000-0000-0000-000000000401', 'tapestry')")
+            .execute(store.test_pool())
+            .await
+            .expect("seed project");
+        sqlx::query(
+            "INSERT INTO agents.agent_defs (id, name, version, frontmatter, body)
+             VALUES ('00000000-0000-0000-0000-000000000411', 'builder', 1, '{}'::jsonb, 'test agent')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed agent def");
+        sqlx::query(
+            "INSERT INTO agents.sessions (id, project_id, agent_def_id, name, branch)
+             VALUES ('00000000-0000-0000-0000-000000000421', '00000000-0000-0000-0000-000000000401', '00000000-0000-0000-0000-000000000411', 'shell session', 'agent/shell')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed session");
+        sqlx::query(
+            "INSERT INTO mail.threads (id, project_id, subject)
+             VALUES ('00000000-0000-0000-0000-000000000441', '00000000-0000-0000-0000-000000000401', 'gate')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed thread");
+        sqlx::query(
+            "INSERT INTO mail.messages (id, thread_id, sender_kind, body)
+             VALUES ('00000000-0000-0000-0000-000000000451', '00000000-0000-0000-0000-000000000441', 'agent', 'needs a human')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed message");
+        sqlx::query(
+            "INSERT INTO mail.deliveries (id, message_id, recipient_kind, recipient_session_id, status)
+             VALUES ('00000000-0000-0000-0000-000000000461', '00000000-0000-0000-0000-000000000451', 'human', NULL, 'pending'),
+                    ('00000000-0000-0000-0000-000000000462', '00000000-0000-0000-0000-000000000451', 'agent', '00000000-0000-0000-0000-000000000421', 'pending')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed deliveries");
+
+        let count = inbox_pending_count_inner(&store)
+            .await
+            .expect("inbox pending count");
+        // The agent-addressed pending delivery is not the Inbox's business.
+        assert_eq!(count, 1);
+    }
+}
+
+/// Shell scope: the same queries accept a project filter and never leak another
+/// project's rows into it.
+#[cfg(test)]
+mod shell_scope {
+    use locus_core::testkit::postgres::{
+        start_postgres_named, test_backup_config, NoopMigrationBackup,
+    };
+    use super::*;
+
+    async fn test_store() -> (Store, locus_core::testkit::postgres::DockerCleanup) {
+        let (container, cleanup) = start_postgres_named("locus-tauri-shell-scope").await;
+        let store = Store::connect(&container.database_url())
+            .await
+            .expect("connect the shell scope test store");
+        store
+            .run_migrations(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations"),
+                &NoopMigrationBackup,
+                &test_backup_config(),
+            )
+            .await
+            .expect("run migrations for the shell scope test store");
+        (store, cleanup)
+    }
+
+    async fn seed_run(
+        store: &Store,
+        project_id: &str,
+        project_name: &str,
+        agent_def_id: &str,
+        session_id: &str,
+        run_id: &str,
+    ) {
+        sqlx::query("INSERT INTO core.projects (id, name) VALUES ($1::uuid, $2)")
+            .bind(project_id)
+            .bind(project_name)
+            .execute(store.test_pool())
+            .await
+            .expect("seed project");
+        sqlx::query(
+            "INSERT INTO agents.agent_defs (id, name, version, frontmatter, body)
+             VALUES ($1::uuid, $2, 1, '{}'::jsonb, 'test agent')",
+        )
+        .bind(agent_def_id)
+        .bind(project_name)
+        .execute(store.test_pool())
+        .await
+        .expect("seed agent def");
+        sqlx::query(
+            "INSERT INTO agents.sessions (id, project_id, agent_def_id, name, branch)
+             VALUES ($1::uuid, $2::uuid, $3::uuid, 'shell session', 'agent/shell')",
+        )
+        .bind(session_id)
+        .bind(project_id)
+        .bind(agent_def_id)
+        .execute(store.test_pool())
+        .await
+        .expect("seed session");
+        sqlx::query(
+            "INSERT INTO agents.runs (id, session_id, resolved_model_id, status, started_at)
+             VALUES ($1::uuid, $2::uuid, 'test-model', 'running', now())",
+        )
+        .bind(run_id)
+        .bind(session_id)
+        .execute(store.test_pool())
+        .await
+        .expect("seed run");
+    }
+
+    #[tokio::test]
+    async fn a_scoped_read_excludes_other_projects() {
+        let (store, _cleanup) = test_store().await;
+        let tapestry = "00000000-0000-0000-0000-000000000401";
+        let loom = "00000000-0000-0000-0000-000000000402";
+        seed_run(
+            &store,
+            tapestry,
+            "tapestry",
+            "00000000-0000-0000-0000-000000000411",
+            "00000000-0000-0000-0000-000000000421",
+            "00000000-0000-0000-0000-000000000431",
+        )
+        .await;
+        seed_run(
+            &store,
+            loom,
+            "loom-db",
+            "00000000-0000-0000-0000-000000000412",
+            "00000000-0000-0000-0000-000000000422",
+            "00000000-0000-0000-0000-000000000432",
+        )
+        .await;
+
+        let tapestry_cards = strip_cards_inner(&store, Some(tapestry))
+            .await
+            .expect("scoped strip cards");
+        assert_eq!(tapestry_cards.len(), 1);
+        assert_eq!(tapestry_cards[0].project, "tapestry");
+
+        let tapestry_count = running_count_inner(&store, Some(tapestry))
+            .await
+            .expect("scoped running count");
+        assert_eq!(tapestry_count, 1);
+
+        // The unscoped shell view still sees both.
+        assert_eq!(running_count_inner(&store, None).await.expect("count"), 2);
+    }
+
+    #[tokio::test]
+    async fn an_unknown_scope_is_rejected_not_emptied() {
+        let (store, _cleanup) = test_store().await;
+        let error = strip_cards_inner(&store, Some("00000000-0000-0000-0000-0000000004ff"))
+            .await
+            .expect_err("an unknown scope is a typed not-found");
+        assert_eq!(
+            serde_json::to_value(error).expect("serialize IPC error")["kind"],
+            "not_found"
         );
     }
 }

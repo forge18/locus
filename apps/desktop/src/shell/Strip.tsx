@@ -5,9 +5,9 @@ export interface StripProps {
   cards: StripCard[];
 }
 
-const tokens = (n: number | null) =>
+const tokens = (n: number | null | undefined) =>
   // Unknown is not zero. A harness that reports nothing gets the word, not a number.
-  n === null ? "unknown" : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
+  n == null ? "unknown" : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
 
 /**
  * The running-agent footer. It persists across categories: leaving Manage is not
