@@ -2049,6 +2049,21 @@ fn telemetry_subscribe(core: State<'_, Arc<Core>>, channel: Channel<Event>) {
     });
 }
 
+/// Replays a run's durable telemetry events from `agents.events` in capture order.
+/// The live subscription only carries events since connect; this is how Telemetry
+/// and Analytics rebuild a run's history after a restart.
+#[tauri::command]
+async fn telemetry_events_replay(
+    core: State<'_, Arc<Core>>,
+    run_id: String,
+) -> Result<Vec<Event>, IpcError> {
+    let run_id: RunId = run_id
+        .parse()
+        .map_err(|_| IpcError::internal("run id must be a UUID"))?;
+    let store = connected_store(&core).await?;
+    store.events_for_run(run_id).await.map_err(IpcError::internal)
+}
+
 #[tauri::command]
 fn linter_count(root: String) -> Result<usize, IpcError> {
     discover_linters(root)
@@ -2164,6 +2179,7 @@ pub fn run() {
             harness_tier_grid,
             pty_subscribe,
             telemetry_subscribe,
+            telemetry_events_replay,
             lsp_attach,
             lsp_enable_descriptor,
             lsp_disable_descriptor,

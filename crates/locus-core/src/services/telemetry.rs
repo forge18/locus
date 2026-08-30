@@ -75,6 +75,14 @@ impl EventVerb {
             Self::SessionEnd => "session_end",
         }
     }
+
+    /// Inverse of `as_str`, used when replaying persisted events.
+    pub fn parse(value: &str) -> Option<Self> {
+        Self::ALL
+            .iter()
+            .copied()
+            .find(|verb| verb.as_str() == value)
+    }
 }
 
 impl std::fmt::Display for EventVerb {

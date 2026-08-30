@@ -45,7 +45,7 @@ use anyhow::{bail, Context, Result};
 use sqlx::{migrate::Migrator, postgres::PgPoolOptions, PgPool};
 
 use crate::{
-    services::{compact::ToolOffender, telemetry::Event},
+    services::{compact::ToolOffender, telemetry::Event, telemetry::EventVerb},
     store::backup::{gate_migration, MigrationBackup, MigrationRunner, RetainedBackupConfig},
 };
 use tokio::{process::Command, time::sleep};
@@ -406,6 +406,23 @@ impl Store {
         self.persist_events([(event_id, event)]).await
     }
 
+    /// Replays every persisted normalized event for one run in capture order. This is
+    /// how Telemetry and Analytics survive a restart: the live collector only carries
+    /// recent events in memory; `agents.events` is the durable record.
+    pub async fn events_for_run(&self, run_id: RunId) -> Result<Vec<Event>> {
+        let rows = sqlx::query_as::<_, PersistedEventRow>(
+            "SELECT run_id, seq, ts::text AS ts, verb, payload, raw
+             FROM agents.events
+             WHERE run_id = $1
+             ORDER BY seq",
+        )
+        .bind(run_id)
+        .fetch_all(&self.pool)
+        .await
+        .context("replay persisted telemetry events")?;
+        rows.into_iter().map(|row| row.try_into()).collect()
+    }
+
     /// Rank tool-result payloads from normalized events without adding compaction telemetry.
     pub async fn tool_result_offender_ranking(&self) -> Result<Vec<ToolOffender>> {
         let rows = sqlx::query_as::<_, PersistedToolOffender>(
@@ -427,6 +444,42 @@ impl Store {
         .await
         .context("rank tool-result offenders")?;
         rows.into_iter().map(TryInto::try_into).collect()
+    }
+}
+
+#[derive(sqlx::FromRow)]
+struct PersistedEventRow {
+    run_id: RunId,
+    seq: i64,
+    ts: String,
+    verb: String,
+    payload: serde_json::Value,
+    raw: serde_json::Value,
+}
+
+impl TryFrom<PersistedEventRow> for Event {
+    type Error = anyhow::Error;
+
+    fn try_from(row: PersistedEventRow) -> Result<Self> {
+        let payload = row.payload;
+        Ok(Self {
+            run_id: row.run_id,
+            seq: u64::try_from(row.seq).context("event sequence exceeds usize")?,
+            ts: row.ts,
+            verb: EventVerb::parse(&row.verb)
+                .with_context(|| format!("unknown persisted event verb {:?}", row.verb))?,
+            text: payload.get("text").and_then(serde_json::Value::as_str).map(str::to_owned),
+            tool: payload.get("tool").and_then(serde_json::Value::as_str).map(str::to_owned),
+            args: payload
+                .get("args")
+                .cloned()
+                .filter(|value| !value.is_null()),
+            usage: payload
+                .get("usage")
+                .filter(|value| !value.is_null())
+                .and_then(|value| serde_json::from_value(value.clone()).ok()),
+            raw: row.raw,
+        })
     }
 }
 

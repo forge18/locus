@@ -21,6 +21,7 @@ use crate::{
         registry::HarnessDefinition,
     },
     runtime::session::{Run, RunStatus},
+    services::telemetry::EventCollector,
     sandbox::{
         credential_proxy::CredentialProxy,
         egress::{DestinationAllowlists, EgressTier},
@@ -273,6 +274,10 @@ pub struct SpawnRequest<'a> {
     /// Optional session context used by the ownership-transfer route.
     pub handoff_context: Option<HandoffContext>,
     pub plugin: Option<&'a PluginHost>,
+    /// The shared telemetry collector this run's events flow through — the same
+    /// one the UI subscribes to — so persisted events and the live stream stay
+    /// the same sequence.
+    pub collector: &'a EventCollector,
 }
 
 /// Secret-free endpoint through which an agent can request host-brokered egress.
@@ -617,8 +622,12 @@ pub async fn spawn_persisted(
     let backend = runtime.backend();
     let agent_command = request.harness.binary.clone();
     let agent_args: Vec<String> = request.harness.launch.argv.clone();
+    let collector = request.collector.clone();
     match spawn_at_port(run, request, port, runtime) {
         Ok(mut spawned) => {
+            // Subscribe before the handshake so updates streamed during
+            // establishment reach the durable pump.
+            let updates = spawned.acp_updates.subscribe();
             // The conversation is the run: a container that spawns but hosts no ACP
             // session is a failed start, handled like a failed PTY attach.
             if let Err(error) =
@@ -635,6 +644,13 @@ pub async fn spawn_persisted(
                 store.release_run_port(run.id).await?;
                 return Err(error).context("establish the run's ACP session");
             }
+            // Detached: the pump ends on its own when the session's bus closes.
+            crate::runtime::normalize::spawn_acp_event_pump(
+                store.clone(),
+                collector,
+                run.id,
+                updates,
+            );
             Ok(spawned)
         }
         Err(error) => {
@@ -1145,6 +1161,7 @@ mod spawns {
         config_root: PathBuf,
         credential_proxy_authorizer: &'a CredentialProxy,
         project_settings: ProjectSettings,
+        collector: &'a EventCollector,
     ) -> SpawnRequest<'a> {
         let egress_policy_root = config_root.with_file_name("locus-forwarding-proxy-policies");
         SpawnRequest {
@@ -1190,6 +1207,7 @@ mod spawns {
             project_settings,
             handoff_context: None,
             plugin: None,
+            collector,
         }
     }
 
@@ -1227,12 +1245,14 @@ mod spawns {
             artifacts: vec![],
         };
         let credential_proxy_authorizer = CredentialProxy::new("test-secret", "api_key");
+        let collector = EventCollector::new(1024);
         let request = spawn_request(
             registry.by_name("claude").expect("claude harness"),
             &extensions,
             config_root.clone(),
             &credential_proxy_authorizer,
             ProjectSettings::default(),
+            &collector,
         );
         let mut runtime = RecordingRuntime::default();
 
@@ -1385,12 +1405,14 @@ mod spawns {
             artifacts: vec![],
         };
         let credential_proxy_authorizer = CredentialProxy::new("test-secret", "api_key");
+        let collector = EventCollector::new(1024);
         let request = spawn_request(
             registry.by_name("claude").expect("claude harness"),
             &extensions,
             config_root.clone(),
             &credential_proxy_authorizer,
             ProjectSettings::default(),
+            &collector,
         );
         let mut runtime = RecordingRuntime {
             fail_attach: true,

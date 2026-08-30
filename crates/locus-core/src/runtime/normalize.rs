@@ -9,9 +9,11 @@ use anyhow::Result;
 use serde_json::Value;
 
 use crate::{
-    services::telemetry::{Adapter, CapturedEvent, Event, EventCollector},
+    services::telemetry::{AcpAdapter, Adapter, CapturedEvent, Event, EventCollector},
     store::Store,
 };
+use agent_client_protocol::schema::v1::SessionNotification;
+use tokio::sync::broadcast;
 
 /// Normalize captured source records through the adapter selected for this run's telemetry source.
 pub fn normalize(
@@ -33,16 +35,82 @@ pub async fn persist_normalized_events(
     run_id: RunId,
     captured: impl IntoIterator<Item = CapturedEvent>,
 ) -> Result<Vec<Event>> {
-    let events = captured
-        .into_iter()
-        .map(|event| collector.capture(run_id, event))
-        .collect::<Vec<_>>();
+    persist_captured_events(
+        store.clone(),
+        collector.clone(),
+        run_id,
+        captured.into_iter().collect(),
+    )
+    .await
+}
 
-    store
-        .persist_events(events.iter().map(|event| (EventId::generate(), event)))
-        .await?;
+/// Owned, concrete-argument form of [`persist_normalized_events`] — the shape a
+/// detached pump task needs, since generics and borrows cannot prove `Send` across
+/// the await once this future is spawned.
+pub async fn persist_captured_events(
+    store: Store,
+    collector: EventCollector,
+    run_id: RunId,
+    captured: Vec<CapturedEvent>,
+) -> Result<Vec<Event>> {
+    let mut events = Vec::with_capacity(captured.len());
+    for captured in captured {
+        events.push(collector.capture(run_id, captured));
+    }
+    let mut pairs = Vec::with_capacity(events.len());
+    for event in &events {
+        pairs.push((EventId::generate(), event));
+    }
+
+    store.persist_events(pairs).await?;
 
     Ok(events)
+}
+
+/// Streams one run's ACP `session/update` notifications through the shared adapter
+/// mapping and the durable event store for as long as the session lives. The pump
+/// detaches: it ends when the run's update bus closes, i.e. once both the spawned
+/// run and its session handle are gone. A malformed notification is skipped so one
+/// bad record cannot end a run's telemetry; a store failure is logged and pumping
+/// continues so later events still persist.
+pub fn spawn_acp_event_pump(
+    store: Store,
+    collector: EventCollector,
+    run_id: RunId,
+    mut updates: broadcast::Receiver<SessionNotification>,
+) {
+    tokio::spawn(async move {
+        loop {
+            match updates.recv().await {
+                Ok(notification) => {
+                    let record = serde_json::json!({
+                        "method": "session/update",
+                        "params": notification,
+                    });
+                    let captured = match normalize(&AcpAdapter, [record]) {
+                        Ok(events) => events,
+                        Err(error) => {
+                            tracing::warn!(run = %run_id, %error, "skip unnormalizable session update");
+                            continue;
+                        }
+                    };
+                    if captured.is_empty() {
+                        continue;
+                    }
+                    if let Err(error) =
+                        persist_captured_events(store.clone(), collector.clone(), run_id, captured)
+                            .await
+                    {
+                        tracing::warn!(run = %run_id, %error, "persist run telemetry events");
+                    }
+                }
+                Err(broadcast::error::RecvError::Lagged(skipped)) => {
+                    tracing::warn!(run = %run_id, skipped, "run telemetry pump lagged");
+                }
+                Err(broadcast::error::RecvError::Closed) => break,
+            }
+        }
+    });
 }
 
 /// Normalize two live sources through the same collector without exposing their harness dialects
