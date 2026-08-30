@@ -104,20 +104,35 @@ describe("data/accessors", () => {
     );
   });
 
-  it("keeps session lookups scoped and returns an explicit miss", async () => {
-    const {
-      useSession,
-      useRunsForSession,
-      useSessionEvents,
-    } = await import("../../src/data/sessions");
-    const session = useSession("s-0000");
+  it("sorts session details needs-attention first, then by idle time", async () => {
+    const { useSessionDetails } = await import("../../src/data/sessions");
 
-    expect(session?.id).toBe("s-0000");
-    expect(useSession("missing-session")).toBeNull();
-    expect(useRunsForSession("s-0000").every((run) => run.sessionId === "s-0000")).toBe(true);
-    const runId = session?.runIds[0];
-    expect(runId).toBeDefined();
-    expect(useSessionEvents("s-0000").every((event) => event.runId === runId)).toBe(true);
+    // stuck, then waiting, then idle, then the rest; ties break to the most
+    // recently active. The same rule the strip sorts by.
+    expect(useSessionDetails().map((detail) => detail.id)).toEqual([
+      "sd-weaver", // stuck
+      "sd-texere", // waiting
+      "sd-loom-db", // idle
+      "sd-tapestry", // running, active now
+      "sd-review", // running, 2m idle
+    ]);
+  });
+
+  it("misses explicitly instead of throwing, and scopes runs to one session", async () => {
+    const { useSessionDetail, useRunsForSession } = await import(
+      "../../src/data/sessions"
+    );
+
+    expect(useSessionDetail("sd-weaver")?.status).toBe("stuck");
+    expect(useSessionDetail("sd-missing")).toBeNull();
+
+    // A detail id is not a session id: the run lookup misses with an empty list.
+    expect(useRunsForSession("sd-weaver")).toEqual([]);
+    const runs = useRunsForSession("s-0000");
+    expect(runs.length).toBeGreaterThan(0);
+    for (const run of runs) {
+      expect(run.sessionId, `${run.id} is another session's run`).toBe("s-0000");
+    }
   });
 
   it("reports the computed harness summary rather than a written-down number", async () => {
