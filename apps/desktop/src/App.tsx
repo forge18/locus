@@ -5,6 +5,7 @@ import { SkeletonRows } from "./ui/SkeletonRows";
 import { mountIconSprite } from "./ui/sprite";
 import { createNavStore } from "./nav";
 import { applyTheme, savedTheme } from "./styles/theme";
+import { configureDataProvider, liveProvider } from "./data/provider";
 import { MailView } from "./screens/mail/MailView";
 import { AnalyticsView } from "./screens/analytics/AnalyticsView";
 import { QAView } from "./screens/review/QAView";
@@ -21,6 +22,11 @@ import {
         MemoryWikiFixture,
 } from "./screens/memory/MemoryFixtures";
 import "./styles/app.css";
+
+// The Tauri bootstrap always selects the live provider: a runtime that forgets to
+// configure one fails loudly at the first accessor, and demo data is reachable only
+// where a host explicitly selects the demo provider (see data/provider.ts).
+configureDataProvider(liveProvider);
 
 const InboxView = lazy(() => import("./screens/inbox/InboxView"));
 const PlanView = lazy(() => import("./screens/plan/PlanView"));

@@ -33,7 +33,10 @@ const FIXTURE_DATA_SETS = [
   "workflow-events",
 ];
 const NON_FIXTURE_DATA_SETS = ["bots", "work-items"];
-const DATA_SETS = [...FIXTURE_DATA_SETS, ...NON_FIXTURE_DATA_SETS]
+
+/** The task-2 seam: typed envelope + provider. Not data sets, never fixture-backed. */
+const SEAM_MODULES = ["envelope", "provider"];
+const DATA_SETS = [...FIXTURE_DATA_SETS, ...NON_FIXTURE_DATA_SETS, ...SEAM_MODULES]
   .map((name) => `${name}.ts`)
   .sort()
   .map((file) => file.slice(0, -3));
