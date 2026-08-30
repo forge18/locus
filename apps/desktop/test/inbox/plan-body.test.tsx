@@ -11,6 +11,9 @@ const mount = (item = gate) =>
     <InboxDetail item={item} onApprove={() => {}} onSendBack={() => {}} onOpenWork={() => {}} />
   ))
 
+import { configureProjectsStub } from "../projects/provider-stub";
+configureProjectsStub();
+
 describe('inbox/plan-body', () => {
   it('labels a gate body PLAN, in accent uppercase', () => {
     const { getByTestId } = mount()

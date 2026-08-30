@@ -1,6 +1,6 @@
 # TODO
 
-**Remaining:** 48 open rows across 11 workstreams, worked top to bottom.
+**Remaining:** 49 open rows across 12 workstreams, worked top to bottom.
 
 This is the unfinished-work index. [`PLAN.md`](PLAN.md) is the architecture authority. Each feature's
 `spec.md` is its contract; its `tasks.md` is the runnable decomposition and verification source. One
@@ -11,8 +11,8 @@ owning workstream so nothing is tracked twice.
 
 - `chore/todo-completion` carries all completed work — 25 rows finished since the 2026-08-29
   audit; the record lives in this branch's git history, not here.
-- Active workstream: **1 — desktop data integration** (tasks 1–2 of 12 done: contract frozen,
-  provider seam landed; tracer bullet is next).
+- Active workstream: **1 — desktop data integration** (tasks 1–3 of 12 done: contract frozen,
+  provider seam landed, tracer bullet live; shell live state is next).
 
 ## 1 — Desktop data integration (the epic)
 
@@ -22,8 +22,9 @@ Owner of everything data-backed. [spec](.specs/desktop-data-integration/spec.md)
 audit findings; each is one of the epic's slices, tracked here once:
 
 - [ ] **Run the epic slices in tasks.md order** —
-  3. **tracer bullet: Setup reads the real store** (absorbs: expose `projects_list`/`repos_list`,
-  remove ProjectsView hard-coded rows, wire Setup actions) ·
+  3. ~~tracer bullet: Setup reads the real store~~ done (`projects_list`/`repos_list`/
+  `local_remotes_list`/`project_setup` live, ProjectsView on envelopes, cross-project rejection
+  tested both sides) ·
   4. shell live state (absorbs: surface backend errors) · 5. title-bar mutations ·
   6. window-chrome ownership + rail rendering (absorbs: remove duplicate window chrome, fix rail
   control rendering) · 7. live run slice: Sessions/Runs/Dispatch/Inbox/Interact/Agent Pane (absorbs:
@@ -221,3 +222,16 @@ pair exists.
   `workflow_log`.
 - [ ] **Run or delete the never-run ignored tests** — `pi_loads_generated`, `docker::connects` are
   `#[ignore]` with no `--ignored` recipe; `browse::open_contract` has an empty body.
+
+## 12 — Model-visible resource pressure
+
+[spec](.specs/model-resource-signal/spec.md) ·
+[tasks](.specs/model-resource-signal/tasks.md)
+
+- [ ] **Expose last-reported context occupancy and cost budgets to the agent** — freeze one short
+  CTX~/BUD legend near the beginning, then keep compact `CTX~117k/200k; R~74k; N` and active
+  cost-budget lines at the mutable tail. Every harness uses the same normalized ACP usage path;
+  missing latest-call usage stays `CTX U`. Cost budgets are user-configured in Settings at run,
+  cumulative root-task, project-day, and global-day scopes, with per-scope warning/action thresholds
+  and notify/pause/cancel behavior at outer-turn boundaries. Exact values remain available through
+  `locus usage --json`; the implementation follows tasks.md order.

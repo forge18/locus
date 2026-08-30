@@ -1,48 +1,45 @@
-import { For, Show, createSignal } from "solid-js";
+import {
+  For,
+  Match,
+  Show,
+  Switch,
+  createEffect,
+  createMemo,
+  createSignal,
+  onMount,
+  type Accessor,
+} from "solid-js";
 import { EditorPane } from "../../editor/EditorPane";
 import { FullWindowEditor } from "../../editor/FullWindowEditor";
 import { plainTextDescriptor } from "../../editor/types";
 import { FixtureNotice } from "../../ui/FixtureNotice";
+import { fetchProjectSetup, fetchProjects, fetchRepos } from "../../data/core";
+import type { Envelope } from "../../data/envelope";
+import type { ProjectRepo, ProjectSetup, ProjectSummary } from "../../types/core";
 import { AnalyticsView } from "../analytics/AnalyticsView";
 
 type ProjectTab = "settings" | "persistence" | "analytics";
 
-const projects = [
-  {
-    name: "tapestry",
-    detail: "2 repos · core, desktop",
-    activity: "3 running",
-  },
-  { name: "loom-db", detail: "1 repo · loom", activity: "2 running" },
-  {
-    name: "weaver",
-    detail: "3 repos · keymap, term, ui",
-    activity: "2 running",
-  },
-  { name: "texere", detail: "1 repo · media", activity: "1 waiting" },
-  { name: "amq", detail: "1 repo · amq · archived 6d", activity: "idle" },
-];
+/**
+ * Narrows one `Envelope` signal into per-state accessors, so the markup never
+ * re-reads the signal inside a ternary (a second call returns a fresh union and
+ * TypeScript cannot narrow it).
+ */
+function envelopeParts<T>(envelope: Accessor<Envelope<T>>) {
+  const data = createMemo<T | null>(() => {
+    const value = envelope();
+    return value.status === "ready" ? value.data : null;
+  });
+  const error = createMemo(() => {
+    const value = envelope();
+    return value.status === "failed" ? value.error : null;
+  });
+  const loading = createMemo(() => envelope().status === "loading");
+  const empty = createMemo(() => envelope().status === "empty");
+  return { data, error, loading, empty };
+}
 
-const harnesses = [
-  { id: "claude", adapter: "ACP", detail: "Anthropic · opus-4.6" },
-  { id: "codex", adapter: "ACP", detail: "OpenAI · gpt-5.2-pro" },
-  { id: "gemini", adapter: "ACP", detail: "Google · gemini-3-ultra" },
-  { id: "cursor", adapter: "ACP", detail: "Cursor · composer-2" },
-];
-
-const baseContextFile = {
-  uri: "file:///workspace/base.md",
-  path: "base.md",
-  languageId: "plain",
-  content: `# Working in tapestry
-
-You are working in a clone of a bare local remote. Your branch is never main and you cannot reach the host filesystem.
-
-Record what you learn with locus memory write at project scope, and recall before you explore.
-
-Verify with cargo nextest run.`,
-};
-
+/** Fixture until epic slice 8 (`extension_inventory`); flagged in place below. */
 const extensions = [
   ["Agents", "4 enabled"],
   ["Commands", "6 enabled"],
@@ -65,21 +62,10 @@ export function ProjectsView(props: ProjectsViewProps = {}) {
   const [tab, setTab] = createSignal<ProjectTab>("settings");
   const [editorOpen, setEditorOpen] = createSignal(false);
   const [editorFullscreen, setEditorFullscreen] = createSignal(false);
-  const [defaultHarness, setDefaultHarness] = createSignal("claude");
-  const [enabledHarnesses, setEnabledHarnesses] = createSignal(
-    new Set(harnesses.map(({ id }) => id)),
-  );
   const [enabledExtensions, setEnabledExtensions] = createSignal(
     new Set<string>(extensions.map(([name]) => name)),
   );
 
-  const toggleHarness = (id: string) => {
-    const next = new Set(enabledHarnesses());
-    if (next.has(id) && next.size > 1) next.delete(id);
-    else next.add(id);
-    if (!next.has(defaultHarness())) setDefaultHarness([...next][0]);
-    setEnabledHarnesses(next);
-  };
   const toggleExtension = (name: string) => {
     const next = new Set(enabledExtensions());
     if (next.has(name)) next.delete(name);
@@ -87,12 +73,70 @@ export function ProjectsView(props: ProjectsViewProps = {}) {
     setEnabledExtensions(next);
   };
 
+  const [projects, setProjects] = createSignal<Envelope<ProjectSummary[]>>({
+    status: "loading",
+  });
+  const [selectedId, setSelectedId] = createSignal<string | null>(null);
+  const [repos, setRepos] = createSignal<Envelope<ProjectRepo[]>>({
+    status: "loading",
+  });
+  const [setup, setSetup] = createSignal<Envelope<ProjectSetup>>({
+    status: "loading",
+  });
+  const projectsView = envelopeParts(projects);
+  const reposView = envelopeParts(repos);
+  const setupView = envelopeParts(setup);
+
+  const selected = createMemo(() => {
+    const list = projectsView.data();
+    return list?.find((project) => project.id === selectedId()) ?? null;
+  });
+
+  async function refreshProjects() {
+    const envelope = await fetchProjects();
+    setProjects(envelope);
+    if (envelope.status === "ready" && selectedId() === null) {
+      setSelectedId(envelope.data[0]?.id ?? null);
+    }
+  }
+
+  async function refreshProjectDetail(projectId: string) {
+    setRepos({ status: "loading" });
+    setSetup({ status: "loading" });
+    const [reposEnvelope, setupEnvelope] = await Promise.all([
+      fetchRepos(projectId),
+      fetchProjectSetup(projectId),
+    ]);
+    // A slower response for an abandoned selection must not win the race.
+    if (selectedId() !== projectId) return;
+    setRepos(reposEnvelope);
+    setSetup(setupEnvelope);
+  }
+
+  onMount(() => {
+    void refreshProjects();
+  });
+  createEffect(() => {
+    const projectId = selectedId();
+    if (projectId) void refreshProjectDetail(projectId);
+  });
+
+  const baseContextFile = () => ({
+    uri: `locus://project/${selectedId() ?? ""}/settings/base-context`,
+    path: "base.md",
+    languageId: "plain",
+    content: setupView.data()?.baseContext ?? "",
+  });
+
   return (
     <div class="projects-view" data-testid="projects-view">
       <aside class="projects-list">
         <div class="projects-list-head">
           <div class="section-title">
-            Projects <span>5</span>
+            Projects
+            <Show when={projectsView.data()}>
+              <span>{projectsView.data()?.length}</span>
+            </Show>
           </div>
           <p>
             A project is a set of repos, a memory scope, and a tag. Nothing is
@@ -101,25 +145,54 @@ export function ProjectsView(props: ProjectsViewProps = {}) {
           <button class="btn btn-primary btn-block">New project</button>
         </div>
         <div class="projects-list-items" data-testid="project-state-list">
-          <For each={projects}>
-            {(project, index) => (
-              <button
-                class="project-list-item"
-                classList={{ "project-list-current": index() === 0 }}
-              >
-                <span class="mono">#{project.name}</span>
-                <span>{project.activity}</span>
-                <small>{project.detail}</small>
-              </button>
-            )}
-          </For>
+          <Show
+            when={projectsView.data()}
+            fallback={
+              <Switch>
+                <Match when={projectsView.loading()}>
+                  <p class="project-panel-note">Loading projects…</p>
+                </Match>
+                <Match when={projectsView.empty()}>
+                  <p class="project-panel-note">
+                    No projects yet. Create one to begin.
+                  </p>
+                </Match>
+                <Match when={projectsView.error()}>
+                  <p class="project-panel-note" role="alert">
+                    {projectsView.error()?.message}
+                  </p>
+                  <button
+                    class="btn btn-secondary btn-block"
+                    onClick={() => void refreshProjects()}
+                  >
+                    Retry
+                  </button>
+                </Match>
+              </Switch>
+            }
+          >
+            <For each={projectsView.data()}>
+              {(project) => (
+                <button
+                  class="project-list-item"
+                  classList={{
+                    "project-list-current": project.id === selectedId(),
+                  }}
+                  onClick={() => setSelectedId(project.id)}
+                >
+                  <span class="mono">#{project.name}</span>
+                </button>
+              )}
+            </For>
+          </Show>
         </div>
       </aside>
       <main class="project-detail">
-        <FixtureNotice surface="Projects" command='invoke("projects_list")' />
         <header class="project-detail-head">
-          <h1>#tapestry</h1>
-          <span class="mono project-locator">locus://tapestry</span>
+          <h1>#{selected()?.name ?? "…"}</h1>
+          <span class="mono project-locator">
+            {selected() ? `locus://${selected()?.name}` : "locus://…"}
+          </span>
           <div class="project-tabs" role="tablist" aria-label="Project view">
             <button
               data-testid="project-tab-settings"
@@ -157,7 +230,7 @@ export function ProjectsView(props: ProjectsViewProps = {}) {
             tab() === "persistence" ? (
               <Persistence />
             ) : (
-              <AnalyticsView scope="tapestry" />
+              <AnalyticsView scope={selected()?.name ?? ""} />
             )
           }
         >
@@ -167,39 +240,32 @@ export function ProjectsView(props: ProjectsViewProps = {}) {
                 title="Harnesses"
                 note="which harnesses may run here, and which one an unattended agent gets by default"
               />
-              <div class="project-harness-head">
-                <span>Enabled</span>
-                <span>Harness</span>
-                <span>Adapter</span>
-                <span>Provider · model</span>
-                <span>Agent default</span>
-              </div>
-              <For each={harnesses}>
+              <Switch>
+                <Match when={setupView.loading()}>
+                  <p class="project-panel-note">Loading harness policy…</p>
+                </Match>
+                <Match when={setupView.error()}>
+                  <p class="project-panel-note" role="alert">
+                    {setupView.error()?.message}
+                  </p>
+                </Match>
+                <Match when={setupView.data()?.harnessAllowList.length === 0}>
+                  <p class="project-panel-note">
+                    No harness policy is stored for this project yet.
+                  </p>
+                </Match>
+              </Switch>
+              <For each={setupView.data()?.harnessAllowList ?? []}>
                 {(harness) => (
                   <div class="project-harness-row">
                     <button
                       class="project-check"
-                      aria-label={`Enable ${harness.id}`}
-                      aria-pressed={enabledHarnesses().has(harness.id)}
-                      onClick={() => toggleHarness(harness.id)}
+                      aria-label={`${harness} is allowed here`}
+                      aria-pressed="true"
                     >
-                      {enabledHarnesses().has(harness.id) ? "✓" : ""}
+                      ✓
                     </button>
-                    <span class="mono">{harness.id}</span>
-                    <span class="project-adapter">{harness.adapter}</span>
-                    <span>{harness.detail}</span>
-                    <button
-                      data-testid={`harness-default-${harness.id}`}
-                      class="project-default"
-                      disabled={!enabledHarnesses().has(harness.id)}
-                      aria-pressed={defaultHarness() === harness.id}
-                      onClick={() => setDefaultHarness(harness.id)}
-                    >
-                      <i />
-                      {defaultHarness() === harness.id
-                        ? "default"
-                        : "make default"}
-                    </button>
+                    <span class="mono">{harness}</span>
                   </div>
                 )}
               </For>
@@ -218,18 +284,34 @@ export function ProjectsView(props: ProjectsViewProps = {}) {
                 note="a repo belongs to exactly one project — this is where that is decided"
                 action="Add repo"
               />
-              <Repo
-                name="core"
-                url="git@github.com:forge18/tapestry-core.git"
-                status="main + 3 agent branches"
-                activity="3 running"
-              />
-              <Repo
-                name="desktop"
-                url="git@github.com:forge18/tapestry-desktop.git"
-                status="main + 1 agent branch"
-                activity="clean"
-              />
+              <Switch>
+                <Match when={reposView.loading()}>
+                  <p class="project-panel-note">Loading repos…</p>
+                </Match>
+                <Match when={reposView.empty()}>
+                  <p class="project-panel-note">
+                    No repos in this project yet. Add one to give agents a
+                    workspace.
+                  </p>
+                </Match>
+                <Match when={reposView.error()}>
+                  <p class="project-panel-note" role="alert">
+                    {reposView.error()?.message}
+                  </p>
+                  <button
+                    class="btn btn-secondary"
+                    onClick={() => {
+                      const id = selected()?.id;
+                      if (id) void refreshProjectDetail(id);
+                    }}
+                  >
+                    Retry
+                  </button>
+                </Match>
+              </Switch>
+              <For each={reposView.data() ?? []}>
+                {(repo) => <Repo name={repo.name} path={repo.workingCopyPath} />}
+              </For>
               <p class="project-panel-note">
                 Moving a repo re-tags every run, artifact and memory fact that
                 came from it. The old tag stays on the record so history does
@@ -246,65 +328,110 @@ export function ProjectsView(props: ProjectsViewProps = {}) {
                     there is no second
                   </small>
                 </div>
-                <div
-                  class="project-budget"
-                  data-testid="project-base-context-budget"
-                >
-                  <b>1,240 / 1,500 tokens</b>
-                  <i>
-                    <em />
-                  </i>
-                </div>
-              </div>
-              <div
-                class="base-context"
-                data-testid="project-base-context-editor"
-              >
-                <header>
-                  <strong class="mono">base.md</strong>
-                  <small>v9 · edited 5h ago · loaded by 1,204 runs</small>
-                  <button class="btn btn-secondary">History</button>
-                  <button
-                    class="btn btn-secondary"
-                    data-testid="project-base-context-edit"
-                    onClick={() => setEditorOpen(!editorOpen())}
+                <Show when={setupView.data()?.baseContextTokenBudget != null}>
+                  <div
+                    class="project-budget"
+                    data-testid="project-base-context-budget"
                   >
-                    {editorOpen() ? "Preview" : "Edit"}
-                  </button>
-                  <button class="btn btn-primary">Save</button>
-                </header>
-                <Show
-                  when={editorOpen()}
-                  fallback={
-                    <div class="base-prose">
-                      <strong># Working in tapestry</strong>
-                      <p>
-                        You are working in a clone of a bare local remote. Your
-                        branch is never main and you cannot reach the host
-                        filesystem. Push the branch; a human decides what lands.
-                      </p>
-                      <p>
-                        Record what you learn with <b>locus memory write</b> at
-                        project scope, and recall before you explore — the
-                        answer is usually already a fact.
-                      </p>
-                      <p>
-                        Verify with <b>cargo nextest run</b>. A claim without
-                        the command and its exit code is not a claim.
-                        <i />
-                      </p>
-                    </div>
-                  }
+                    <b>budget: {setupView.data()?.baseContextTokenBudget} tokens</b>
+                  </div>
+                </Show>
+              </div>
+              <Switch>
+                <Match when={setupView.loading()}>
+                  <div
+                    class="base-context"
+                    data-testid="project-base-context-editor"
+                  >
+                    <p class="project-panel-note">Loading base context…</p>
+                  </div>
+                </Match>
+                <Match when={setupView.error()}>
+                  <div
+                    class="base-context"
+                    data-testid="project-base-context-editor"
+                  >
+                    <p class="project-panel-note" role="alert">
+                      {setupView.error()?.message}
+                    </p>
+                  </div>
+                </Match>
+                <Match
+                  when={setupView.data() && setupView.data()?.baseContext == null}
                 >
-                  <EditorPane
-                    file={baseContextFile}
+                  <div
+                    class="base-context"
+                    data-testid="project-base-context-editor"
+                  >
+                    <p class="project-panel-note">
+                      No base context yet — this project's runs start with none.
+                    </p>
+                  </div>
+                </Match>
+              </Switch>
+              <Show when={setupView.data()?.baseContext != null}>
+                <div
+                  class="base-context"
+                  data-testid="project-base-context-editor"
+                >
+                  <header>
+                    <strong class="mono">base.md</strong>
+                    <button class="btn btn-secondary">History</button>
+                    <button
+                      class="btn btn-secondary"
+                      data-testid="project-base-context-edit"
+                      onClick={() => setEditorOpen(!editorOpen())}
+                    >
+                      {editorOpen() ? "Preview" : "Edit"}
+                    </button>
+                    <button class="btn btn-primary">Save</button>
+                  </header>
+                  <Show
+                    when={editorOpen()}
+                    fallback={
+                      <div
+                        class="base-prose"
+                        style={{ "white-space": "pre-wrap" }}
+                      >
+                        {setupView.data()?.baseContext}
+                      </div>
+                    }
+                  >
+                    <EditorPane
+                      file={baseContextFile()}
+                      language={plainTextDescriptor}
+                      projectRoot={props.editorProjectRoot}
+                      projectId={props.editorProjectId}
+                      paneId={props.editorPaneId}
+                    />
+                  </Show>
+                </div>
+              </Show>
+              <Show when={editorFullscreen()}>
+                <div
+                  class="project-editor-overlay"
+                  role="dialog"
+                  aria-label="Base context editor"
+                  data-testid="project-editor-overlay"
+                >
+                  <header>
+                    <strong class="mono">base.md</strong>
+                    <button
+                      class="btn btn-secondary"
+                      onClick={() => setEditorFullscreen(false)}
+                    >
+                      Close
+                    </button>
+                  </header>
+                  <FullWindowEditor
+                    file={baseContextFile()}
                     language={plainTextDescriptor}
                     projectRoot={props.editorProjectRoot}
                     projectId={props.editorProjectId}
                     paneId={props.editorPaneId}
                   />
-                </Show>
-              </div>
+                </div>
+              </Show>
               <Show when={editorOpen()}>
                 <button
                   class="btn btn-secondary project-editor-fullscreen"
@@ -320,36 +447,15 @@ export function ProjectsView(props: ProjectsViewProps = {}) {
                 instead.
               </p>
             </section>
-            <Show when={editorFullscreen()}>
-              <div
-                class="project-editor-overlay"
-                role="dialog"
-                aria-label="Base context editor"
-                data-testid="project-editor-overlay"
-              >
-                <header>
-                  <strong class="mono">base.md</strong>
-                  <button
-                    class="btn btn-secondary"
-                    onClick={() => setEditorFullscreen(false)}
-                  >
-                    Close
-                  </button>
-                </header>
-                <FullWindowEditor
-                  file={baseContextFile}
-                  language={plainTextDescriptor}
-                  projectRoot={props.editorProjectRoot}
-                  projectId={props.editorProjectId}
-                  paneId={props.editorPaneId}
-                />
-              </div>
-            </Show>
 
             <section
               class="project-panel"
               data-testid="project-extension-groups"
             >
+              <FixtureNotice
+                surface="Extension counts"
+                command='invoke("extension_inventory")'
+              />
               <PanelTitle
                 title="Extensions"
                 note="pulled from the defaults in Workshop — switch one off and this project materializes without it"
@@ -387,6 +493,10 @@ export function ProjectsView(props: ProjectsViewProps = {}) {
             </section>
 
             <section class="project-panel" data-testid="project-cli-tools">
+              <FixtureNotice
+                surface="CLI tools"
+                command='invoke("extension_inventory")'
+              />
               <PanelTitle
                 title="CLI tools"
                 note="installed in this project’s container image — agents get exactly these, nothing else"
@@ -478,22 +588,13 @@ function PanelTitle(props: { title: string; note: string; action?: string }) {
   );
 }
 
-function Repo(props: {
-  name: string;
-  url: string;
-  status: string;
-  activity: string;
-}) {
+function Repo(props: { name: string; path: string }) {
   return (
-    <div class="project-repo">
+    <div class="project-repo" data-testid="project-repo-row">
       <div>
         <strong class="mono">{props.name}</strong>
-        <small class="mono">{props.url}</small>
+        <small class="mono">{props.path}</small>
       </div>
-      <span class="mono" data-testid="project-repo-branch-state">
-        {props.status} · {props.activity}
-      </span>
-      <b>#tapestry</b>
     </div>
   );
 }

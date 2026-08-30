@@ -1,4 +1,4 @@
-import { For, Show, createMemo, createSignal } from "solid-js";
+import { For, Show, createMemo, createSignal, onMount } from "solid-js";
 import { InboxCard } from "./InboxCard";
 import { InboxDetail } from "./InboxDetail";
 import { EmptyPane } from "../../ui/EmptyPane";
@@ -10,7 +10,7 @@ import {
   useInboxThroughput,
   useResolvedToday,
 } from "../../data/inbox";
-import { useProjects } from "../../data/core";
+import { fetchProjects } from "../../data/core";
 import type { ResolvedItem } from "../../data/inbox";
 import type { NavStore } from "../../nav";
 
@@ -77,16 +77,23 @@ export function InboxView(props: InboxViewProps) {
     {},
   );
 
-  const projects = useProjects().map((project) => ({
-    id: project.id,
-    name: project.name,
-  }));
+  // Live read (slice 3): the filter offers the real project list; a failure
+  // leaves the filter empty rather than inventing projects. InboxView's own data
+  // migration is slice 7.
+  const [projects, setProjects] = createSignal<{ id: string; name: string }[]>(
+    [],
+  );
+  onMount(() => {
+    void fetchProjects().then((envelope) => {
+      if (envelope.status === "ready") setProjects(envelope.data);
+    });
+  });
   const throughput = useInboxThroughput();
   const projectNames = createMemo(() => {
     const selected = selectedProjects();
     if (selected.length === 0) return null;
     return new Set(
-      projects
+      projects()
         .filter((project) => selected.includes(project.id))
         .map((project) => project.name),
     );
@@ -233,7 +240,7 @@ export function InboxView(props: InboxViewProps) {
 
         <div class="inbox-filter" data-testid="inbox-project-filter">
           <ProjectFilter
-            projects={projects}
+            projects={projects()}
             selected={selectedProjects()}
             onChange={setSelectedProjects}
           />

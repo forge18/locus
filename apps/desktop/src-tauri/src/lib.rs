@@ -492,6 +492,160 @@ async fn resolve_project_id(store: &Store, identifier: &str) -> Result<ProjectId
         .ok_or_else(|| IpcError::invalid_argument("active project was not found"))
 }
 
+/// The Setup screen's live read path: projects, their repos and local remotes, and
+/// the per-project harness policy and base context. The `*_inner` fns are the test
+/// surface — a Tauri `State` cannot be constructed outside the runtime.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProjectSummaryResponse {
+    id: String,
+    name: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RepoResponse {
+    id: String,
+    project_id: String,
+    name: String,
+    working_copy_path: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LocalRemoteResponse {
+    id: String,
+    repo_id: String,
+    bare_path: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProjectSetupResponse {
+    harness_allow_list: Vec<String>,
+    base_context: Option<String>,
+    base_context_token_budget: Option<u32>,
+}
+
+async fn projects_list_inner(
+    store: &Store,
+) -> Result<Vec<ProjectSummaryResponse>, IpcError> {
+    store
+        .projects_list()
+        .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(|row| ProjectSummaryResponse {
+                    id: row.id.to_string(),
+                    name: row.name,
+                })
+                .collect()
+        })
+        .map_err(IpcError::internal)
+}
+
+/// A Setup read is scoped to a project that exists: an unknown id is a typed
+/// not-found, never an empty success pretending the project has nothing.
+async fn resolve_setup_project(store: &Store, identifier: &str) -> Result<ProjectId, IpcError> {
+    store
+        .resolve_project_id(identifier)
+        .await
+        .map_err(IpcError::internal)?
+        .ok_or_else(|| IpcError::not_found("project was not found"))
+}
+
+async fn repos_list_inner(
+    store: &Store,
+    project_id: &str,
+) -> Result<Vec<RepoResponse>, IpcError> {
+    let project_id = resolve_setup_project(store, project_id).await?;
+    store
+        .repos_list(project_id)
+        .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(|row| RepoResponse {
+                    id: row.id.to_string(),
+                    project_id: row.project_id.to_string(),
+                    name: row.name,
+                    working_copy_path: row.working_copy_path,
+                })
+                .collect()
+        })
+        .map_err(IpcError::internal)
+}
+
+async fn local_remotes_list_inner(
+    store: &Store,
+    project_id: &str,
+) -> Result<Vec<LocalRemoteResponse>, IpcError> {
+    let project_id = resolve_setup_project(store, project_id).await?;
+    store
+        .local_remotes_list(project_id)
+        .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(|row| LocalRemoteResponse {
+                    id: row.id.to_string(),
+                    repo_id: row.repo_id.to_string(),
+                    bare_path: row.bare_path,
+                })
+                .collect()
+        })
+        .map_err(IpcError::internal)
+}
+
+async fn project_setup_inner(
+    store: &Store,
+    project_id: &str,
+) -> Result<ProjectSetupResponse, IpcError> {
+    let project_id = resolve_setup_project(store, project_id).await?;
+    store
+        .project_settings(project_id)
+        .await
+        .map(|settings| ProjectSetupResponse {
+            harness_allow_list: settings.harness_allow_list().to_vec(),
+            base_context: settings.base_context().map(str::to_owned),
+            base_context_token_budget: settings.base_context_token_budget(),
+        })
+        .map_err(IpcError::internal)
+}
+
+#[tauri::command]
+async fn projects_list(
+    core: State<'_, Arc<Core>>,
+) -> Result<Vec<ProjectSummaryResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    projects_list_inner(store).await
+}
+
+#[tauri::command]
+async fn repos_list(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+) -> Result<Vec<RepoResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    repos_list_inner(store, &project_id).await
+}
+
+#[tauri::command]
+async fn local_remotes_list(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+) -> Result<Vec<LocalRemoteResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    local_remotes_list_inner(store, &project_id).await
+}
+
+#[tauri::command]
+async fn project_setup(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+) -> Result<ProjectSetupResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    project_setup_inner(store, &project_id).await
+}
+
 #[tauri::command]
 async fn external_work_item_providers(
     core: State<'_, Arc<Core>>,
@@ -2179,6 +2333,10 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             agent_def,
             agent_defs_list,
+            projects_list,
+            repos_list,
+            local_remotes_list,
+            project_setup,
             harness_tier_grid,
             pty_subscribe,
             telemetry_subscribe,
@@ -2358,5 +2516,200 @@ mod tests {
             Some("opus")
         );
         assert_eq!(response.harnesses[0].tiers[3].model, None);
+    }
+}
+
+/// The tracer bullet: Setup reads projects, repos, local remotes, harness policy,
+/// and base context from a real store. Two projects are seeded so every read is
+/// also proven project-scoped.
+#[cfg(test)]
+mod setup_live_data {
+    use super::*;
+    use locus_core::services::project::ProjectSettings;
+    use locus_core::testkit::postgres::{
+        start_postgres_named, test_backup_config, NoopMigrationBackup,
+    };
+
+    fn expect_not_found<T: std::fmt::Debug>(read: Result<T, IpcError>) {
+        let error = read.expect_err("an unknown project is a typed not-found");
+        assert_eq!(
+            serde_json::to_value(error).expect("serialize IPC error")["kind"],
+            "not_found"
+        );
+    }
+
+    async fn test_store() -> (Store, locus_core::testkit::postgres::DockerCleanup) {
+        let (container, cleanup) = start_postgres_named("locus-tauri-setup-test").await;
+        let store = Store::connect(&container.database_url())
+            .await
+            .expect("connect the setup test store");
+        store
+            .run_migrations(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations"),
+                &NoopMigrationBackup,
+                &test_backup_config(),
+            )
+            .await
+            .expect("run migrations for the setup test store");
+        (store, cleanup)
+    }
+
+    async fn seed_project(store: &Store, id: &str, name: &str) {
+        sqlx::query("INSERT INTO core.projects (id, name) VALUES ($1::uuid, $2)")
+            .bind(id)
+            .bind(name)
+            .execute(store.test_pool())
+            .await
+            .expect("seed project");
+    }
+
+    async fn seed_repo(store: &Store, id: &str, project_id: &str, name: &str, path: &str) {
+        sqlx::query(
+            "INSERT INTO core.repos (id, project_id, name, working_copy_path)
+             VALUES ($1::uuid, $2::uuid, $3, $4)",
+        )
+        .bind(id)
+        .bind(project_id)
+        .bind(name)
+        .bind(path)
+        .execute(store.test_pool())
+        .await
+        .expect("seed repo");
+    }
+
+    #[tokio::test]
+    async fn lists_projects_alphabetically() {
+        let (store, _cleanup) = test_store().await;
+        seed_project(&store, "00000000-0000-0000-0000-000000000302", "weaver").await;
+        seed_project(&store, "00000000-0000-0000-0000-000000000301", "amq").await;
+
+        let projects = projects_list_inner(&store)
+            .await
+            .expect("list projects");
+        let names: Vec<&str> = projects.iter().map(|project| project.name.as_str()).collect();
+        assert_eq!(names, ["amq", "weaver"]);
+        assert_eq!(projects[0].id, "00000000-0000-0000-0000-000000000301");
+    }
+
+    #[tokio::test]
+    async fn repos_never_cross_the_project_boundary() {
+        let (store, _cleanup) = test_store().await;
+        let tapestry = "00000000-0000-0000-0000-000000000301";
+        let loom = "00000000-0000-0000-0000-000000000302";
+        seed_project(&store, tapestry, "tapestry").await;
+        seed_project(&store, loom, "loom-db").await;
+        seed_repo(&store, "00000000-0000-0000-0000-000000000311", tapestry, "core", "/checkouts/tapestry-core").await;
+        seed_repo(&store, "00000000-0000-0000-0000-000000000312", tapestry, "desktop", "/checkouts/tapestry-desktop").await;
+        seed_repo(&store, "00000000-0000-0000-0000-000000000321", loom, "loom", "/checkouts/loom").await;
+
+        let tapestry_repos = repos_list_inner(&store, tapestry)
+            .await
+            .expect("list tapestry repos");
+        assert_eq!(tapestry_repos.len(), 2);
+        assert!(tapestry_repos
+            .iter()
+            .all(|repo| repo.project_id == tapestry));
+
+        let loom_repos = repos_list_inner(&store, loom)
+            .await
+            .expect("list loom repos");
+        assert_eq!(loom_repos.len(), 1);
+        assert_eq!(loom_repos[0].name, "loom");
+        assert_eq!(loom_repos[0].working_copy_path, "/checkouts/loom");
+    }
+
+    #[tokio::test]
+    async fn unknown_project_is_rejected_not_emptied() {
+        let (store, _cleanup) = test_store().await;
+        seed_project(&store, "00000000-0000-0000-0000-000000000301", "tapestry").await;
+        seed_repo(&store, "00000000-0000-0000-0000-000000000311", "00000000-0000-0000-0000-000000000301", "core", "/checkouts/core").await;
+
+        expect_not_found(repos_list_inner(&store, "00000000-0000-0000-0000-0000000003ff").await);
+        expect_not_found(local_remotes_list_inner(
+            &store,
+            "00000000-0000-0000-0000-0000000003ff",
+        )
+        .await);
+        expect_not_found(project_setup_inner(
+            &store,
+            "00000000-0000-0000-0000-0000000003ff",
+        )
+        .await);
+    }
+
+    #[tokio::test]
+    async fn setup_reads_harness_policy_and_base_context() {
+        let (store, _cleanup) = test_store().await;
+        let tapestry = "00000000-0000-0000-0000-000000000301";
+        seed_project(&store, tapestry, "tapestry").await;
+        let settings: ProjectSettings = serde_json::from_value(serde_json::json!({
+            "version": 1,
+            "harness_allow_list": ["claude", "codex"],
+            "base_context": "# Working in tapestry\n\nYour branch is never main.",
+            "base_context_token_budget": 1500,
+        }))
+        .expect("shape seeded settings");
+        store
+            .set_project_settings(
+                tapestry.parse().expect("seed project id"),
+                &settings,
+            )
+            .await
+            .expect("seed settings");
+
+        let setup = project_setup_inner(&store, tapestry)
+            .await
+            .expect("read project setup");
+        assert_eq!(setup.harness_allow_list, ["claude", "codex"]);
+        assert_eq!(
+            setup.base_context.as_deref(),
+            Some("# Working in tapestry\n\nYour branch is never main.")
+        );
+        assert_eq!(setup.base_context_token_budget, Some(1500));
+    }
+
+    #[tokio::test]
+    async fn setup_defaults_when_no_policy_is_stored() {
+        let (store, _cleanup) = test_store().await;
+        seed_project(&store, "00000000-0000-0000-0000-000000000301", "tapestry").await;
+
+        let setup = project_setup_inner(&store, "00000000-0000-0000-0000-000000000301")
+            .await
+            .expect("read default setup");
+        assert!(setup.harness_allow_list.is_empty());
+        assert_eq!(setup.base_context, None);
+        assert_eq!(setup.base_context_token_budget, None);
+    }
+
+    #[tokio::test]
+    async fn local_remotes_scope_through_their_repo() {
+        let (store, _cleanup) = test_store().await;
+        let tapestry = "00000000-0000-0000-0000-000000000301";
+        let loom = "00000000-0000-0000-0000-000000000302";
+        seed_project(&store, tapestry, "tapestry").await;
+        seed_project(&store, loom, "loom-db").await;
+        seed_repo(&store, "00000000-0000-0000-0000-000000000311", tapestry, "core", "/checkouts/tapestry-core").await;
+        seed_repo(&store, "00000000-0000-0000-0000-000000000321", loom, "loom", "/checkouts/loom").await;
+        sqlx::query(
+            "INSERT INTO core.local_remotes (id, repo_id, bare_path)
+             VALUES ('00000000-0000-0000-0000-000000000331', '00000000-0000-0000-0000-000000000311', '/var/lib/locus/repos/tapestry-core.git'),
+                    ('00000000-0000-0000-0000-000000000332', '00000000-0000-0000-0000-000000000321', '/var/lib/locus/repos/loom.git')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed local remotes");
+
+        let tapestry_remotes = local_remotes_list_inner(&store, tapestry)
+            .await
+            .expect("list tapestry remotes");
+        assert_eq!(tapestry_remotes.len(), 1);
+        assert_eq!(
+            tapestry_remotes[0].bare_path,
+            "/var/lib/locus/repos/tapestry-core.git"
+        );
+        assert_eq!(
+            tapestry_remotes[0].repo_id,
+            "00000000-0000-0000-0000-000000000311"
+        );
     }
 }

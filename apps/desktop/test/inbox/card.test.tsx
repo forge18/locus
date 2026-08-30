@@ -7,6 +7,9 @@ const ITEM = useInboxItems()[0]
 const mount = (item = ITEM, selected = false) =>
   render(() => <InboxCard item={item} selected={selected} onSelect={() => {}} />)
 
+import { configureProjectsStub } from "../projects/provider-stub";
+configureProjectsStub();
+
 describe('inbox/card', () => {
   it('shows the title', () => {
     const { getByTestId } = mount()

@@ -3,6 +3,9 @@ import { describe, expect, it } from "vitest";
 import { createNavStore } from "../../src/nav";
 import { InboxView } from "../../src/screens/inbox/InboxView";
 
+import { configureProjectsStub } from "../projects/provider-stub";
+configureProjectsStub();
+
 describe("inbox/reflection-queue", () => {
   it("shares the human review queue with calibration proposals", async () => {
     const { getByTestId, getByText } = render(() => (

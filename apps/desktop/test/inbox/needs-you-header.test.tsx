@@ -7,6 +7,9 @@ import { read, rules } from "../css";
 
 const mount = () => render(() => <InboxView nav={createNavStore()} />);
 
+import { configureProjectsStub } from "../projects/provider-stub";
+configureProjectsStub();
+
 describe("inbox/needs-you-header", () => {
   it("reads NEEDS YOU", () => {
     const { getByTestId } = mount();

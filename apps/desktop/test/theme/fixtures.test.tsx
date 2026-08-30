@@ -4,6 +4,9 @@ import { InboxView } from "../../src/screens/inbox/InboxView";
 import { AnalyticsView } from "../../src/screens/analytics/AnalyticsView";
 import { createNavStore } from "../../src/nav";
 import { INSTALLED_THEMES } from "../../src/styles/theme";
+import { configureProjectsStub } from "../projects/provider-stub";
+
+configureProjectsStub();
 
 afterEach(cleanup);
 

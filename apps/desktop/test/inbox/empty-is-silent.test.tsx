@@ -12,6 +12,9 @@ const emptied = () => {
   return r
 }
 
+import { configureProjectsStub } from "../projects/provider-stub";
+configureProjectsStub();
+
 describe('inbox/empty-is-silent', () => {
   it('says "Nothing needs you"', () => {
     const { container } = emptied()

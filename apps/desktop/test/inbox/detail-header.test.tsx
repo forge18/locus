@@ -17,6 +17,9 @@ const mount = (item = gate) =>
     />
   ));
 
+import { configureProjectsStub } from "../projects/provider-stub";
+configureProjectsStub();
+
 describe("inbox/detail-header", () => {
   it("tags the kind in accent", () => {
     const { getByTestId } = mount();

@@ -7,6 +7,9 @@ import { read, rules } from '../css'
 
 const mount = () => render(() => <InboxView nav={createNavStore()} />)
 
+import { configureProjectsStub } from "../projects/provider-stub";
+configureProjectsStub();
+
 describe('inbox/resolved', () => {
   it('is headed RESOLVED TODAY', () => {
     const { getByTestId } = mount()

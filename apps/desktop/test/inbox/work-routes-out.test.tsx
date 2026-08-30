@@ -10,6 +10,9 @@ const mount = () => {
   return { nav, ...r };
 };
 
+import { configureProjectsStub } from "../projects/provider-stub";
+configureProjectsStub();
+
 describe("inbox/work-routes-out", () => {
   it("lands a plan gate in Plan", () => {
     const { nav, getByTestId } = mount();

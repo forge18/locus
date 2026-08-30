@@ -10,9 +10,10 @@ slice changes it.
 - `apps/desktop/src/data/` holds 23 accessor modules; 2 are fully live (`bots`,
   `work-items`), 21 return fixtures or mix fixtures with live calls.
 - The accessors promise **82 distinct Tauri commands** via `Becomes:` markers.
-- The host registers **42** commands; only **4** of the promised 82 exist
-  (`artifacts_list`, `artifact_comments`, `harness_tier_grid`, `materialization_report`).
-  **78 commands are missing.**
+- The host registers **46** commands; **8** of the promised 82 exist
+  (`artifacts_list`, `artifact_comments`, `harness_tier_grid`, `materialization_report`,
+  `projects_list`, `repos_list`, `local_remotes_list`, `project_setup` — the last four are the
+  slice-3 tracer bullet). **74 commands are missing.**
 
 ## Scope legend
 
@@ -26,7 +27,7 @@ slice changes it.
 | --- | --- | --- |
 | `bots.ts` | `bots_list`, `bot_create`, `bot_routines`, `bot_routine_executions`, `bot_routine_set_enabled`, `bot_routine_update`, `bot_routine_delete` — **live** | project (bot rows are project-scoped) |
 | `work-items.ts` | `external_work_item_*` (13) — **live** | project |
-| `core.ts` | `projects_list` **missing**, `repos_list` **missing**, `local_remotes_list` **missing** | `projects_list` global; `repos_list`/`local_remotes_list` project |
+| `core.ts` | `projects_list`, `repos_list`, `local_remotes_list` — **live** (slice 3) | `projects_list` global; `repos_list`/`local_remotes_list` project |
 | `sessions.ts` | `sessions_list`, `session`, `runs_for_session` — **missing** | project |
 | `runs.ts` | `runs_list`, `runs_page`, `runs_count`, `run_stats` — **missing** | project |
 | `telemetry.ts` | `telemetry_metrics`, `telemetry_spend`, `telemetry_facets`, `telemetry_filters`, `telemetry_actions`, `telemetry_tools`, `telemetry_verb_counts`, `telemetry_sessions`, `telemetry_sessions_page`, `telemetry_sessions_count`, `sessions_over_time` — **missing** | project |
@@ -47,6 +48,12 @@ slice changes it.
 | `guardrails.ts` | `settings_guardrails` **missing** | global |
 | `agent-defs.ts` | `agent_defs_list`, `agent_def` **live**; `materialization_report` **live** | global (defs are host-level) |
 | `strip.ts` | `strip_cards`, `running_count` — **missing** | global (cross-project running view) |
+
+## Setup policy and base context
+
+`project_setup` (project) — added in slice 3, serves the Setup screen's harness policy
+(`harnessAllowList`) and base context (`baseContext`, `baseContextTokenBudget`) from
+`ProjectSettings`. It was not among the original `Becomes:` markers; the contract owns it now.
 
 ## Envelope
 

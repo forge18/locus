@@ -21,6 +21,9 @@ const typeComment = (box: Element, text: string) => {
   textarea.dispatchEvent(new Event("input", { bubbles: true }));
 };
 
+import { configureProjectsStub } from "../projects/provider-stub";
+configureProjectsStub();
+
 describe("inbox/resolves-in-place", () => {
   it("removes the item from the list", () => {
     const { getByTestId, queryByTestId } = mount();

@@ -1,4 +1,6 @@
-//! Persistence for project settings and their analytics rollup (`core.settings`).
+//! Persistence for projects, their repos and local remotes, project settings, and
+//! the project analytics rollup (`core.projects`, `core.repos`, `core.local_remotes`,
+//! `core.settings`).
 //!
 //! Moved out of `services/project.rs` so every query in the crate lives under `store/`.
 
@@ -13,7 +15,69 @@ use crate::{lsp::DescriptorPin, services::project::ProjectSettings, store::Store
 
 const SETTINGS_KEY: &str = "project_settings";
 
+/// One row of `core.projects`.
+#[derive(Debug, sqlx::FromRow)]
+pub struct ProjectRow {
+    pub id: ProjectId,
+    pub name: String,
+}
+
+/// One row of `core.repos`.
+#[derive(Debug, sqlx::FromRow)]
+pub struct RepoRow {
+    pub id: Uuid,
+    pub project_id: ProjectId,
+    pub name: String,
+    pub working_copy_path: String,
+}
+
+/// One row of `core.local_remotes`, scoped to a project through its repo.
+#[derive(Debug, sqlx::FromRow)]
+pub struct LocalRemoteRow {
+    pub id: Uuid,
+    pub repo_id: Uuid,
+    pub bare_path: String,
+}
+
 impl Store {
+    /// Every project, alphabetically — the Setup screen's project list.
+    pub async fn projects_list(&self) -> Result<Vec<ProjectRow>> {
+        sqlx::query_as::<_, ProjectRow>("SELECT id, name FROM core.projects ORDER BY name")
+            .fetch_all(&self.pool)
+            .await
+            .context("list projects")
+    }
+
+    /// Every repo of exactly one project, alphabetically. The WHERE clause is the
+    /// ownership boundary: a repo of another project can never appear here.
+    pub async fn repos_list(&self, project_id: ProjectId) -> Result<Vec<RepoRow>> {
+        sqlx::query_as::<_, RepoRow>(
+            "SELECT id, project_id, name, working_copy_path
+             FROM core.repos
+             WHERE project_id = $1
+             ORDER BY name",
+        )
+        .bind(project_id)
+        .fetch_all(&self.pool)
+        .await
+        .context("list project repos")
+    }
+
+    /// The bare remotes of one project's repos, joined through `core.repos`.
+    pub async fn local_remotes_list(&self, project_id: ProjectId) -> Result<Vec<LocalRemoteRow>> {
+        sqlx::query_as::<_, LocalRemoteRow>(
+            "SELECT lr.id, lr.repo_id, lr.bare_path
+             FROM core.local_remotes lr
+             JOIN core.repos r ON r.id = lr.repo_id
+             WHERE r.project_id = $1
+             ORDER BY lr.bare_path",
+        )
+        .bind(project_id)
+        .fetch_all(&self.pool)
+        .await
+        .context("list project local remotes")
+    }
+
     pub async fn resolve_project_id(&self, identifier: &str) -> Result<Option<ProjectId>> {
         if let Ok(project_id) = identifier.parse::<ProjectId>() {
             return query_scalar::<_, ProjectId>("SELECT id FROM core.projects WHERE id = $1")

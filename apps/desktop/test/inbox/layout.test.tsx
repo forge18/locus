@@ -7,6 +7,9 @@ import { read, rules } from '../css'
 const rule = (sel: string) => rules(read('screens/screens.css')).find((r) => r.selector === sel)
 const mount = () => render(() => <InboxView nav={createNavStore()} />)
 
+import { configureProjectsStub } from "../projects/provider-stub";
+configureProjectsStub();
+
 describe('inbox/layout', () => {
   it('is two panes', () => {
     const { getByTestId } = mount()

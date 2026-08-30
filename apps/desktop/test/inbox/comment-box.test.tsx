@@ -10,6 +10,9 @@ const mount = (onApprove: (c: string) => void = () => {}) =>
     <InboxDetail item={gate} onApprove={onApprove} onSendBack={() => {}} onOpenWork={() => {}} />
   ))
 
+import { configureProjectsStub } from "../projects/provider-stub";
+configureProjectsStub();
+
 describe('inbox/comment-box', () => {
   it('captions the box with what a comment does', () => {
     const { getByTestId } = mount()

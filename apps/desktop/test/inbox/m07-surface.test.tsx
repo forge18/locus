@@ -8,6 +8,9 @@ import type { NavStore } from '../../src/nav'
 const nav = { open: () => ({}) } as unknown as NavStore
 const mount = () => render(() => <InboxView nav={nav} />)
 
+import { configureProjectsStub } from "../projects/provider-stub";
+configureProjectsStub();
+
 describe('inbox/m07-surface', () => {
   it('renders the To do and Completed tabs, throughput, and a live item log', () => {
     const { getByTestId } = mount()

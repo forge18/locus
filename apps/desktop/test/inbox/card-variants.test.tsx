@@ -12,6 +12,9 @@ const mount = (item = gate, selected = false) =>
 const iconOf = (el: HTMLElement) =>
   el.querySelector("use")!.getAttribute("href");
 
+import { configureProjectsStub } from "../projects/provider-stub";
+configureProjectsStub();
+
 describe("inbox/card-variants", () => {
   it("gives a gate the filled seal-check", () => {
     const { getByTestId } = mount(gate);

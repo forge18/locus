@@ -11,6 +11,9 @@ const mount = () =>
     <InboxDetail item={gate} onApprove={() => {}} onSendBack={() => {}} onOpenWork={() => {}} />
   ))
 
+import { configureProjectsStub } from "../projects/provider-stub";
+configureProjectsStub();
+
 describe('inbox/footer', () => {
   it('sits on the deep ground under a top hairline', () => {
     const body = rule('.inbox-footer')!.body

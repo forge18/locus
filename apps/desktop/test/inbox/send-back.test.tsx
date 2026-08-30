@@ -40,6 +40,9 @@ const mountDetail = (handlers: DetailHandlers = {}) => {
 
 const mountView = () => render(() => <InboxView nav={createNavStore()} />);
 
+import { configureProjectsStub } from "../projects/provider-stub";
+configureProjectsStub();
+
 describe("inbox/send-back — the detail pane", () => {
   it("blocks an empty comment and says why", () => {
     const { seen, getByTestId } = mountDetail();
