@@ -30,8 +30,9 @@ audit findings; each is one of the epic's slices, tracked here once:
   and rail switcher on real counts, scope + rejection tested both sides) ·
   5. ~~title-bar mutations~~ done (`project_base_context_set`/`project_archive_set`/`project_rename`
   live with typed rejections; the Inbox-response command wiring moves with slice 7's live list) ·
-  6. window-chrome ownership + rail rendering (absorbs: remove duplicate window chrome, fix rail
-  control rendering) · 7. live run slice: Sessions/Runs/Dispatch/Inbox/Interact/Agent Pane (absorbs:
+  6. ~~window-chrome ownership + rail rendering~~ done (`decorations: false` — the custom title bar
+  owns the chrome, its traffic lights call the real window API, the surface is a drag region, and
+  the rail buttons carry the shared control reset) · 7. live run slice: Sessions/Runs/Dispatch/Inbox/Interact/Agent Pane (absorbs:
   wire Dispatch controls) · 8. configuration slice: Plan/Manage/Setup mutations/Workshop/agents
   (absorbs: wire Manage's New Task and TaskDetail, wire Settings → Guardrails, expose the 13 core
   service families as commands, reconcile the TypeScript types with the Rust DTOs) ·
