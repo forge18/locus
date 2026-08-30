@@ -1,4 +1,4 @@
-import { For, Show, createSignal } from "solid-js";
+import { For, Show, createEffect, createSignal, onCleanup } from "solid-js";
 import type { InboxItem } from "../fixtures/inbox";
 
 export interface InboxPillProps {
@@ -9,13 +9,37 @@ export interface InboxPillProps {
 
 export function InboxPill(props: InboxPillProps) {
     const [open, setOpen] = createSignal(false);
+    let wrap: HTMLDivElement | undefined;
+    let trigger: HTMLButtonElement | undefined;
+    // Escape closes and hands focus back to the pill; a press outside the
+    // popover closes it without stealing focus from wherever the user pointed.
+    createEffect(() => {
+        if (!open()) return;
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key !== "Escape") return;
+            setOpen(false);
+            trigger?.focus();
+        };
+        const onPointerDown = (event: PointerEvent) => {
+            if (event.target instanceof Node && wrap?.contains(event.target))
+                return;
+            setOpen(false);
+        };
+        document.addEventListener("keydown", onKeyDown);
+        document.addEventListener("pointerdown", onPointerDown);
+        onCleanup(() => {
+            document.removeEventListener("keydown", onKeyDown);
+            document.removeEventListener("pointerdown", onPointerDown);
+        });
+    });
     return (
-        <div class="title-pill-wrap">
+        <div class="title-pill-wrap" ref={wrap}>
             <button
                 type="button"
                 class="title-pill"
                 data-testid="inbox-pill"
                 aria-expanded={open()}
+                ref={trigger}
                 onClick={() => setOpen(!open())}
             >
                 <span aria-hidden="true">▱</span>
