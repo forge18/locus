@@ -9,17 +9,18 @@ owning workstream so nothing is tracked twice.
 
 ## Where we are
 
-- `chore/todo-completion` carries all completed work — 25 rows finished since the 2026-08-29
+- `chore/todo-completion` carries all completed work — 30 rows finished since the 2026-08-29
   audit; the record lives in this branch's git history, not here.
-- Active workstream: **1 — desktop data integration** (tasks 1–5 of 12 done: contract frozen,
-  provider seam, tracer bullet, shell live state, and title-bar mutations — Save/Archive/Rename
-  hit the real store; the live run slice is next).
+- Active workstream: **1 — desktop data integration** (tasks 1–7 of 12 done: contract frozen,
+  provider seam, tracer bullet, shell live state, title-bar mutations, window chrome, and the
+  live run slice — runs, sessions, inbox, schedules, and the agent-pane event channel all hit
+  the real store; the configuration slice is next).
 
 ## 1 — Desktop data integration (the epic)
 
 Owner of everything data-backed. [spec](.specs/desktop-data-integration/spec.md) ·
 [tasks](.specs/desktop-data-integration/tasks.md) · [contract](.specs/desktop-data-integration/contract.md)
-(82 commands promised, 78 missing from the host, scope per command). The rows below were separate
+(82 commands promised, 60 missing from the host, 22 live, scope per command). The rows below were separate
 audit findings; each is one of the epic's slices, tracked here once:
 
 - [ ] **Run the epic slices in tasks.md order** —
@@ -33,13 +34,12 @@ audit findings; each is one of the epic's slices, tracked here once:
   6. ~~window-chrome ownership + rail rendering~~ done (`decorations: false` — the custom title bar
   owns the chrome, its traffic lights call the real window API, the surface is a drag region, and
   the rail buttons carry the shared control reset) · 
-  7. live run slice: Sessions/Runs/Dispatch/Inbox/Interact/Agent Pane (absorbs:
-  wire Dispatch controls) — IN PROGRESS: runs read path live, sessions read path live,
-  inbox read + resolve live (19/19 inbox test files pass, the full gate-action flow works
-  against the real store); schedules/autorun reads live from workflows.schedules/executions.
-  The agent-pane event channel is plumbed (replay accessor, Channel stream, store query,
-  commands) but cannot render live events until the dispatch loop runs agents — that is a
-  workstream-2 dependency · 
+  7. ~~live run slice: Sessions/Runs/Dispatch/Inbox/Agent Pane read the same run/event
+  source~~ done (`dispatch_runs_page`/`dispatch_runs_count`, `sessions_list`/`runs_for_session`,
+  `inbox_list`/`inbox_resolve`/`inbox_throughput`, `dispatch_schedules`/
+  `dispatch_schedule_executions` all live; the AgentPane replays persisted events and
+  subscribes to the live Channel; the per-project autorun switches stay fixture until the
+  autorun policy schema is designed in slice 8; InteractView is superseded by workstream 3) · 
   8. configuration slice: Plan/Manage/Setup mutations/Workshop/agents
   (absorbs: wire Manage's New Task and TaskDetail, wire Settings → Guardrails, expose the 13 core
   service families as commands, reconcile the TypeScript types with the Rust DTOs) ·
