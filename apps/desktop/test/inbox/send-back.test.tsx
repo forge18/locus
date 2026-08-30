@@ -1,11 +1,12 @@
-import { render } from "@solidjs/testing-library";
+import { render, waitFor } from "@solidjs/testing-library";
 import { describe, expect, it } from "vitest";
 import { InboxDetail } from "../../src/screens/inbox/InboxDetail";
 import { InboxView } from "../../src/screens/inbox/InboxView";
 import { createNavStore } from "../../src/nav";
-import { useInboxItems } from "../../src/data/inbox";
+import { PENDING } from "./deliveries";
+import { configureInboxStub } from "./inbox-stub";
 
-const [gate, second] = useInboxItems();
+const [gate, second] = PENDING;
 
 /** Same contract comment-box.test.tsx uses: set the value, then let Solid see it. */
 const typeInto = (box: Element, text: string) => {
@@ -32,7 +33,6 @@ const mountDetail = (handlers: DetailHandlers = {}) => {
         seen.sendBack = comment;
         handlers.onSendBack?.(comment);
       }}
-      onOpenWork={() => {}}
     />
   ));
   return { seen, ...r };
@@ -40,8 +40,8 @@ const mountDetail = (handlers: DetailHandlers = {}) => {
 
 const mountView = () => render(() => <InboxView nav={createNavStore()} />);
 
-import { configureProjectsStub } from "../projects/provider-stub";
-configureProjectsStub();
+
+configureInboxStub();
 
 describe("inbox/send-back — the detail pane", () => {
   it("blocks an empty comment and says why", () => {
@@ -93,39 +93,50 @@ describe("inbox/send-back — the detail pane", () => {
 });
 
 describe("inbox/send-back — the view wiring", () => {
-  it("resolves a send-back that carries its comment", () => {
+  it("resolves a send-back that carries its comment", async () => {
     const { getByTestId, queryByTestId } = mountView();
+    await waitFor(() => getByTestId("inbox-comment"));
     typeInto(getByTestId("inbox-comment"), "  Split the sink work out.  ");
     getByTestId("inbox-send-back").click();
-    expect(queryByTestId(`inbox-card-${gate.id}`)).toBe(null);
+    await waitFor(() =>
+      expect(queryByTestId(`inbox-card-${gate.id}`)).toBe(null),
+    );
   });
 
-  it("keeps the reason in the completed record — the decision is auditable", () => {
+  it("keeps the reason in the completed record — the decision is auditable", async () => {
     const { getByTestId } = mountView();
-    typeInto(
-      getByTestId("inbox-comment"),
-      "  Split the sink work out.  ",
-    );
+    await waitFor(() => getByTestId("inbox-comment"));
+    typeInto(getByTestId("inbox-comment"), "  Split the sink work out.  ");
     getByTestId("inbox-send-back").click();
     getByTestId("inbox-tab-completed").click();
-    expect(
-      getByTestId(`resolved-decision-resolved-${gate.id}`).textContent,
-    ).toBe("Split the sink work out.");
+    await waitFor(() =>
+      expect(
+        getByTestId(`resolved-decision-${gate.id}`).textContent,
+      ).toBe("Sent back: Split the sink work out."),
+    );
   });
 
-  it("records no decision line when a comment-less approve resolves", () => {
+  it("records no decision line when a comment-less approve resolves", async () => {
     const { getByTestId, queryByTestId } = mountView();
+    await waitFor(() => getByTestId("inbox-approve"));
     getByTestId("inbox-approve").click();
+    await waitFor(() =>
+      expect(getByTestId("inbox-todo-count").textContent).toBe("2"),
+    );
     getByTestId("inbox-tab-completed").click();
-    expect(queryByTestId(`resolved-decision-resolved-${gate.id}`)).toBe(null);
+    expect(queryByTestId(`resolved-decision-${gate.id}`)).toBe(null);
   });
 
-  it("starts the next item with a clean comment — a draft never steers the wrong agent", () => {
+  it("starts the next item with a clean comment — a draft never steers the wrong agent", async () => {
     const { getByTestId } = mountView();
-    expect(getByTestId("inbox-detail-title").textContent).toBe(gate.title);
+    await waitFor(() =>
+      expect(getByTestId("inbox-detail-title").textContent).toContain(gate.subject),
+    );
     typeInto(getByTestId("inbox-comment"), "Only about the first item.");
     getByTestId("inbox-approve").click();
-    expect(getByTestId("inbox-detail-title").textContent).toBe(second.title);
+    await waitFor(() =>
+      expect(getByTestId("inbox-detail-title").textContent).toContain(second.subject),
+    );
     expect((getByTestId("inbox-comment") as HTMLTextAreaElement).value).toBe("");
   });
 });

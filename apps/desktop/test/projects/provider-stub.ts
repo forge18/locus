@@ -4,6 +4,11 @@ import {
 } from "../../src/data/provider";
 import { ready, readyOne, type Envelope } from "../../src/data/envelope";
 import type { StripCardRow } from "../../src/data/strip";
+import type {
+  InboxDelivery,
+  ResolvedDelivery,
+  InboxThroughput,
+} from "../../src/data/inbox";
 
 /**
  * A provider stub for the Setup tracer-bullet tests. Data is store-shaped (the
@@ -67,6 +72,10 @@ export interface ProjectsStub {
   stripCards?: StripCardRow[];
   /** Run-slice rows for the dispatch runs table. Default none. */
   runsPage?: unknown[];
+  /** Inbox-slice rows and counts. Default none/zero. */
+  inboxList?: InboxDelivery[];
+  inboxResolvedToday?: ResolvedDelivery[];
+  inboxThroughput?: InboxThroughput;
   /** Shell slice: the running count for the dispatch pill. Default 0. */
   runningCount?: number;
   /** Shell slice: the Inbox pill's pending-for-a-human count. Default 0. */
@@ -131,6 +140,12 @@ export function configureProjectsStub(stub: ProjectsStub = {}): {
       if (command === "dispatch_runs_page") {
         return ready((stub.runsPage ?? []) as T[]);
       }
+      if (command === "inbox_list") {
+        return ready((stub.inboxList ?? []) as T[]);
+      }
+      if (command === "inbox_resolved_today") {
+        return ready((stub.inboxResolvedToday ?? []) as T[]);
+      }
       return {
         status: "failed",
         error: { command, message: `unexpected command ${command}` },
@@ -173,6 +188,14 @@ export function configureProjectsStub(stub: ProjectsStub = {}): {
       }
       if (command === "dispatch_runs_count") {
         return readyOne((stub.runsPage ?? []).length) as Envelope<T>;
+      }
+      if (command === "inbox_throughput") {
+        return readyOne(
+          stub.inboxThroughput ?? { pending: 0, resolvedToday: 0 },
+        ) as Envelope<T>;
+      }
+      if (command === "inbox_resolve") {
+        return { status: "ready", data: undefined } as Envelope<T>;
       }
       return {
         status: "failed",

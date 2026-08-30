@@ -1,50 +1,65 @@
-import { describe, expect, it } from 'vitest'
-import { render } from '@solidjs/testing-library'
-import { InboxView } from '../../src/screens/inbox/InboxView'
-import { createNavStore } from '../../src/nav'
-import { useResolvedToday } from '../../src/data/inbox'
-import { read, rules } from '../css'
+import { render, waitFor } from "@solidjs/testing-library";
+import { describe, expect, it } from "vitest";
+import { InboxView } from "../../src/screens/inbox/InboxView";
+import { createNavStore } from "../../src/nav";
+import { configureInboxStub, RESOLVED_TODAY } from "./inbox-stub";
+import { read, rules } from "../css";
 
-const mount = () => render(() => <InboxView nav={createNavStore()} />)
+const mount = () => render(() => <InboxView nav={createNavStore()} />);
 
-import { configureProjectsStub } from "../projects/provider-stub";
-configureProjectsStub();
+configureInboxStub();
 
-describe('inbox/resolved', () => {
-  it('is headed RESOLVED TODAY', () => {
-    const { getByTestId } = mount()
-    expect(getByTestId('resolved-title').textContent).toBe('Resolved today')
-  })
+describe("inbox/resolved", () => {
+  it("is headed RESOLVED TODAY", async () => {
+    const { getByTestId } = mount();
+    await waitFor(() =>
+      expect(getByTestId("resolved-title").textContent).toBe("Resolved today"),
+    );
+  });
 
-  it('lists one row per resolved item', () => {
-    const { getByTestId } = mount()
-    expect(getByTestId('inbox-resolved').querySelectorAll('.inbox-resolved-row').length).toBe(
-      useResolvedToday().length,
-    )
-  })
+  it("lists one row per resolved item", async () => {
+    const { getByTestId } = mount();
+    await waitFor(() =>
+      expect(
+        getByTestId("inbox-resolved").querySelectorAll(".inbox-resolved-row")
+          .length,
+      ).toBe(RESOLVED_TODAY.length),
+    );
+  });
 
-  it('dims the rows to .6 — done is context, not work', () => {
-    const rule = rules(read('screens/screens.css')).find(
-      (r) => r.selector === '.inbox-resolved-row',
-    )!
-    expect(rule.body).toMatch(/opacity:\s*\.6/)
-  })
+  it("dims the rows to .6 — done is context, not work", () => {
+    const rule = rules(read("screens/screens.css")).find(
+      (r) => r.selector === ".inbox-resolved-row",
+    )!;
+    expect(rule.body).toMatch(/opacity:\s*\.6/);
+  });
 
-  it('shows an icon, the title and the age on each row', () => {
-    const { getByTestId } = mount()
-    const row = getByTestId(`resolved-${useResolvedToday()[0].id}`)
-    expect(row.querySelector('use')).not.toBe(null)
-    expect(row.textContent).toContain(useResolvedToday()[0].title)
-    expect(row.textContent).toContain('1h')
-  })
-
-  it('sits below the live items, not among them', () => {
-    const { getByTestId } = mount()
-    const list = getByTestId('inbox-list')
-    const cards = list.querySelectorAll('.inbox-card')
-    const resolved = getByTestId('inbox-resolved')
+  it("shows the subject and the age on each row", async () => {
+    const { getByTestId } = mount();
+    await waitFor(() =>
+      expect(
+        getByTestId(`resolved-${RESOLVED_TODAY[0].id}`).textContent,
+      ).toContain(RESOLVED_TODAY[0].subject),
+    );
     expect(
-      cards[cards.length - 1].compareDocumentPosition(resolved) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy()
-  })
-})
+      getByTestId(`resolved-${RESOLVED_TODAY[0].id}`).textContent,
+    ).toContain("1h");
+  });
+
+  it("sits below the live items, not among them", async () => {
+    const { getByTestId } = mount();
+    await waitFor(() =>
+      expect(
+        getByTestId("inbox-resolved").querySelectorAll(".inbox-resolved-row")
+          .length,
+      ).toBeGreaterThan(0),
+    );
+    const list = getByTestId("inbox-list");
+    const cards = list.querySelectorAll(".inbox-card");
+    const resolved = getByTestId("inbox-resolved");
+    expect(
+      cards[cards.length - 1].compareDocumentPosition(resolved) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+});

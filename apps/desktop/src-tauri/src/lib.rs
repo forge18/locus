@@ -926,6 +926,160 @@ async fn runs_for_session(
     runs_for_session_inner(store, &session_id).await
 }
 
+/// The Inbox (slice 7): pending human deliveries are the items; resolving one
+/// drains the delivery and records the decision as a human reply on the thread.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct InboxDeliveryResponse {
+    id: String,
+    thread_id: String,
+    subject: String,
+    body: String,
+    sender_kind: String,
+    project: String,
+    created_at: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ResolvedDeliveryResponse {
+    id: String,
+    subject: String,
+    body: String,
+    project: String,
+    resolved_at: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct InboxThroughputResponse {
+    pending: usize,
+    resolved_today: usize,
+}
+
+async fn inbox_list_inner(
+    store: &Store,
+    project_id: Option<&str>,
+) -> Result<Vec<InboxDeliveryResponse>, IpcError> {
+    let scoped = scope_project(store, project_id).await?;
+    store
+        .pending_human_inbox(scoped)
+        .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(|row| InboxDeliveryResponse {
+                    id: row.id.to_string(),
+                    thread_id: row.thread_id.to_string(),
+                    subject: row.subject,
+                    body: row.body,
+                    sender_kind: row.sender_kind,
+                    project: row.project,
+                    created_at: row.created_at,
+                })
+                .collect()
+        })
+        .map_err(IpcError::internal)
+}
+
+async fn inbox_resolved_today_inner(
+    store: &Store,
+    project_id: Option<&str>,
+) -> Result<Vec<ResolvedDeliveryResponse>, IpcError> {
+    let scoped = scope_project(store, project_id).await?;
+    store
+        .resolved_today(scoped)
+        .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(|row| ResolvedDeliveryResponse {
+                    id: row.id.to_string(),
+                    subject: row.subject,
+                    body: row.body,
+                    project: row.project,
+                    resolved_at: row.resolved_at,
+                })
+                .collect()
+        })
+        .map_err(IpcError::internal)
+}
+
+async fn inbox_throughput_inner(store: &Store) -> Result<InboxThroughputResponse, IpcError> {
+    let pending = inbox_pending_count_inner(store).await?;
+    let drained = store
+        .resolved_today_count()
+        .await
+        .map_err(IpcError::internal)?;
+    Ok(InboxThroughputResponse {
+        pending,
+        resolved_today: usize::try_from(drained)
+            .map_err(|_| IpcError::internal("inbox count exceeds usize"))?,
+    })
+}
+
+async fn inbox_resolve_inner(
+    store: &Store,
+    delivery_id: &str,
+    comment: &str,
+) -> Result<(), IpcError> {
+    let delivery: uuid::Uuid = delivery_id
+        .parse()
+        .map_err(|_| IpcError::invalid_argument("delivery id must be a UUID"))?;
+    // An unknown delivery is a typed not-found, checked before anything moves.
+    let thread_id = store
+        .mail_thread_of_delivery(delivery)
+        .await
+        .map_err(IpcError::internal)?
+        .ok_or_else(|| IpcError::not_found("delivery was not found"))?;
+    // The decision is auditable: the human's comment lands on the thread as a
+    // reply, and the delivery drains so it leaves every pending view.
+    if !comment.trim().is_empty() {
+        let message_id = uuid::Uuid::new_v4();
+        store
+            .append_mail_message(message_id, thread_id, "human", None, comment)
+            .await
+            .map_err(IpcError::internal)?;
+    }
+    store
+        .set_mail_delivery_status(delivery, "drained")
+        .await
+        .map_err(IpcError::internal)?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn inbox_list(
+    core: State<'_, Arc<Core>>,
+    project_id: Option<String>,
+) -> Result<Vec<InboxDeliveryResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    inbox_list_inner(store, project_id.as_deref()).await
+}
+
+#[tauri::command]
+async fn inbox_resolved_today(
+    core: State<'_, Arc<Core>>,
+    project_id: Option<String>,
+) -> Result<Vec<ResolvedDeliveryResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    inbox_resolved_today_inner(store, project_id.as_deref()).await
+}
+
+#[tauri::command]
+async fn inbox_throughput(core: State<'_, Arc<Core>>) -> Result<InboxThroughputResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    inbox_throughput_inner(store).await
+}
+
+#[tauri::command]
+async fn inbox_resolve(
+    core: State<'_, Arc<Core>>,
+    delivery_id: String,
+    comment: String,
+) -> Result<(), IpcError> {
+    let store = connected_store(&core).await?;
+    inbox_resolve_inner(store, &delivery_id, &comment).await
+}
+
 /// Setup's settings mutations (slice 5): base context, archive, rename.
 async fn project_base_context_set_inner(
     store: &Store,
@@ -2753,6 +2907,10 @@ pub fn run() {
             dispatch_runs_count,
             sessions_list,
             runs_for_session,
+            inbox_list,
+            inbox_resolved_today,
+            inbox_throughput,
+            inbox_resolve,
             harness_tier_grid,
             pty_subscribe,
             telemetry_subscribe,
@@ -3751,16 +3909,15 @@ mod run_queries {
     }
 }
 
-
 /// Session queries: the session list reads every session with its project and
 /// agent, scoped by project, and a session's runs read oldest first.
 #[cfg(test)]
 mod session_queries {
     use super::*;
-    use uuid::Uuid;
     use locus_core::testkit::postgres::{
         start_postgres_named, test_backup_config, NoopMigrationBackup,
     };
+    use uuid::Uuid;
 
     async fn test_store() -> (Store, locus_core::testkit::postgres::DockerCleanup) {
         let (container, cleanup) = start_postgres_named("locus-tauri-sessions").await;
@@ -3863,25 +4020,17 @@ mod session_queries {
         )
         .await;
 
-        let scoped = sessions_list_inner(
-            &store,
-            Some("00000000-0000-0000-0000-000000000701"),
-            0,
-            100,
-        )
-        .await
-        .expect("scoped sessions");
+        let scoped =
+            sessions_list_inner(&store, Some("00000000-0000-0000-0000-000000000701"), 0, 100)
+                .await
+                .expect("scoped sessions");
         assert_eq!(scoped.len(), 1);
         assert_eq!(scoped[0].project, "tapestry");
 
-        let error = sessions_list_inner(
-            &store,
-            Some("00000000-0000-0000-0000-0000000007ff"),
-            0,
-            100,
-        )
-        .await
-        .expect_err("unknown scope rejected");
+        let error =
+            sessions_list_inner(&store, Some("00000000-0000-0000-0000-0000000007ff"), 0, 100)
+                .await
+                .expect_err("unknown scope rejected");
         assert_eq!(
             serde_json::to_value(error).expect("serialize IPC error")["kind"],
             "not_found"
@@ -3910,12 +4059,9 @@ mod session_queries {
         .await
         .expect("seed runs");
 
-        let runs = runs_for_session_inner(
-            &store,
-            "00000000-0000-0000-0000-000000000721",
-        )
-        .await
-        .expect("session runs");
+        let runs = runs_for_session_inner(&store, "00000000-0000-0000-0000-000000000721")
+            .await
+            .expect("session runs");
         assert_eq!(runs.len(), 2);
         assert_eq!(runs[0].status, "completed");
         assert_eq!(runs[1].status, "running");
@@ -3926,6 +4072,195 @@ mod session_queries {
         assert_eq!(
             serde_json::to_value(error).expect("serialize IPC error")["kind"],
             "invalid_argument"
+        );
+    }
+}
+/// Inbox queries and mutations: pending human deliveries, today's resolved list,
+/// the pill's counts, and the drain-on-resolve decision with its audit reply.
+#[cfg(test)]
+mod inbox_flow {
+    use super::*;
+    use locus_core::testkit::postgres::{
+        start_postgres_named, test_backup_config, NoopMigrationBackup,
+    };
+
+    async fn test_store() -> (Store, locus_core::testkit::postgres::DockerCleanup) {
+        let (container, cleanup) = start_postgres_named("locus-tauri-inbox").await;
+        let store = Store::connect(&container.database_url())
+            .await
+            .expect("connect the inbox test store");
+        store
+            .run_migrations(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations"),
+                &NoopMigrationBackup,
+                &test_backup_config(),
+            )
+            .await
+            .expect("run migrations for the inbox test store");
+        (store, cleanup)
+    }
+
+    /// One thread with one agent message and two deliveries: a human-pending one
+    /// (the Inbox item) and an agent-pending one (never the Inbox's business).
+    async fn seed_pending_delivery(store: &Store) {
+        sqlx::query("INSERT INTO core.projects (id, name) VALUES ('00000000-0000-0000-0000-000000000801', 'tapestry')")
+            .execute(store.test_pool())
+            .await
+            .expect("seed project");
+        sqlx::query(
+            "INSERT INTO agents.agent_defs (id, name, version, frontmatter, body)
+             VALUES ('00000000-0000-0000-0000-000000000841', 'builder', 1, '{}'::jsonb, 'test agent')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed agent def");
+        sqlx::query(
+            "INSERT INTO agents.sessions (id, project_id, agent_def_id, name, branch)
+             VALUES ('00000000-0000-0000-0000-000000000851', '00000000-0000-0000-0000-000000000801', '00000000-0000-0000-0000-000000000841', 'inbox session', 'agent/inbox')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed session");
+        sqlx::query(
+            "INSERT INTO mail.threads (id, project_id, subject)
+             VALUES ('00000000-0000-0000-0000-000000000811', '00000000-0000-0000-0000-000000000801', 'merge gate')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed thread");
+        sqlx::query(
+            "INSERT INTO mail.messages (id, thread_id, sender_kind, body)
+             VALUES ('00000000-0000-0000-0000-000000000821', '00000000-0000-0000-0000-000000000811', 'agent', 'approve the merge'),
+                    ('00000000-0000-0000-0000-000000000822', '00000000-0000-0000-0000-000000000811', 'agent', 'background note')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed messages");
+        sqlx::query(
+            "INSERT INTO mail.deliveries (id, message_id, recipient_kind, recipient_session_id, status)
+             VALUES ('00000000-0000-0000-0000-000000000831', '00000000-0000-0000-0000-000000000821', 'human', NULL, 'pending'),
+                    ('00000000-0000-0000-0000-000000000832', '00000000-0000-0000-0000-000000000822', 'agent', '00000000-0000-0000-0000-000000000851', 'pending')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed deliveries");
+    }
+
+    #[tokio::test]
+    async fn the_inbox_lists_only_human_pending_deliveries() {
+        let (store, _cleanup) = test_store().await;
+        seed_pending_delivery(&store).await;
+
+        let items = inbox_list_inner(&store, None).await.expect("list inbox");
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].subject, "merge gate");
+        assert_eq!(items[0].body, "approve the merge");
+        assert_eq!(items[0].project, "tapestry");
+
+        let throughput = inbox_throughput_inner(&store).await.expect("throughput");
+        assert_eq!(throughput.pending, 1);
+        assert_eq!(throughput.resolved_today, 0);
+    }
+
+    #[tokio::test]
+    async fn resolving_drains_the_delivery_and_records_the_comment() {
+        let (store, _cleanup) = test_store().await;
+        seed_pending_delivery(&store).await;
+        let delivery = "00000000-0000-0000-0000-000000000831";
+
+        inbox_resolve_inner(&store, delivery, "approved — tests pass")
+            .await
+            .expect("resolve delivery");
+
+        // The delivery drained, so the list and the pill both drop it.
+        assert!(inbox_list_inner(&store, None)
+            .await
+            .expect("list")
+            .is_empty());
+        let throughput = inbox_throughput_inner(&store).await.expect("throughput");
+        assert_eq!(throughput.pending, 0);
+        assert_eq!(throughput.resolved_today, 1);
+
+        // The decision is auditable on the thread as a human reply.
+        let replies: Vec<String> = sqlx::query_scalar(
+            "SELECT body FROM mail.messages WHERE sender_kind = 'human' ORDER BY created_at",
+        )
+        .fetch_all(store.test_pool())
+        .await
+        .expect("read replies");
+        assert_eq!(replies, ["approved — tests pass"]);
+    }
+
+    #[tokio::test]
+    async fn resolving_without_a_comment_still_drains() {
+        let (store, _cleanup) = test_store().await;
+        seed_pending_delivery(&store).await;
+
+        inbox_resolve_inner(&store, "00000000-0000-0000-0000-000000000831", "")
+            .await
+            .expect("resolve without comment");
+        assert!(inbox_list_inner(&store, None)
+            .await
+            .expect("list")
+            .is_empty());
+    }
+
+    #[tokio::test]
+    async fn an_unknown_delivery_is_rejected_not_emptied() {
+        let (store, _cleanup) = test_store().await;
+        seed_pending_delivery(&store).await;
+
+        let error = inbox_resolve_inner(&store, "00000000-0000-0000-0000-0000000008ff", "x")
+            .await
+            .expect_err("unknown delivery rejected");
+        assert_eq!(
+            serde_json::to_value(error).expect("serialize IPC error")["kind"],
+            "not_found"
+        );
+
+        let malformed = inbox_resolve_inner(&store, "not-a-uuid", "x")
+            .await
+            .expect_err("malformed id rejected");
+        assert_eq!(
+            serde_json::to_value(malformed).expect("serialize IPC error")["kind"],
+            "invalid_argument"
+        );
+    }
+
+    #[tokio::test]
+    async fn the_resolved_today_list_scopes_by_project() {
+        let (store, _cleanup) = test_store().await;
+        seed_pending_delivery(&store).await;
+        inbox_resolve_inner(&store, "00000000-0000-0000-0000-000000000831", "done")
+            .await
+            .expect("resolve");
+
+        let today = inbox_resolved_today_inner(&store, None)
+            .await
+            .expect("resolved today");
+        assert_eq!(today.len(), 1);
+        assert_eq!(today[0].subject, "merge gate");
+
+        // An existing second project has nothing resolved: the scope excludes
+        // another project's rows rather than failing.
+        sqlx::query("INSERT INTO core.projects (id, name) VALUES ('00000000-0000-0000-0000-000000000802', 'loom-db')")
+            .execute(store.test_pool())
+            .await
+            .expect("seed second project");
+        let scoped =
+            inbox_resolved_today_inner(&store, Some("00000000-0000-0000-0000-000000000802"))
+                .await
+                .expect("scoped resolved today");
+        assert!(scoped.is_empty());
+
+        // An unknown scope is still a typed rejection, not an empty list.
+        let error =
+            inbox_resolved_today_inner(&store, Some("00000000-0000-0000-0000-0000000008ff"))
+                .await
+                .expect_err("unknown scope rejected");
+        assert_eq!(
+            serde_json::to_value(error).expect("serialize IPC error")["kind"],
+            "not_found"
         );
     }
 }

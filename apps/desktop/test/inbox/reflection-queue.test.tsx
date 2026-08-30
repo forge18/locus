@@ -1,22 +1,20 @@
-import { fireEvent, render } from "@solidjs/testing-library";
+import { render, waitFor } from "@solidjs/testing-library";
 import { describe, expect, it } from "vitest";
-import { createNavStore } from "../../src/nav";
 import { InboxView } from "../../src/screens/inbox/InboxView";
+import { createNavStore } from "../../src/nav";
+import { configureInboxStub } from "./inbox-stub";
 
-import { configureProjectsStub } from "../projects/provider-stub";
-configureProjectsStub();
+configureInboxStub();
 
 describe("inbox/reflection-queue", () => {
-  it("shares the human review queue with calibration proposals", async () => {
-    const { getByTestId, getByText } = render(() => (
+  it("renders agent-sent deliveries in the same list, without a kind badge", async () => {
+    const { getByTestId } = render(() => (
       <InboxView nav={createNavStore({ view: "inbox" })} />
     ));
-    const card = getByTestId("inbox-card-in-reflection-1");
-    expect(card.getAttribute("data-kind")).toBe("reflection");
-    await fireEvent.click(card);
-    expect(getByText("Reflection proposal")).toBeTruthy();
-    expect(getByTestId("inbox-detail").textContent).toContain(
-      "nothing applies automatically",
+    await waitFor(() =>
+      expect(getByTestId("inbox-card-d-0000")).toBeTruthy(),
     );
+    // The live wire has no kind field: every card renders the same shape.
+    expect(getByTestId("inbox-card-d-0000").getAttribute("data-kind")).toBeNull();
   });
 });

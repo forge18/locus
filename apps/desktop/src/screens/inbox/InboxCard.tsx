@@ -1,69 +1,38 @@
-import { Icon } from "../../ui/Icon";
-import type { InboxItem, InboxKind } from "../../data/inbox";
-
-/** Each kind gets its own glyph, so the list is readable without reading it. */
-const KIND_ICON: Record<
-    InboxKind,
-    { name: string; weight: "regular" | "fill"; color: string }
-> = {
-    gate: {
-        name: "seal-check",
-        weight: "fill",
-        color: "var(--action-attention)",
-    },
-    ask: {
-        name: "question",
-        weight: "regular",
-        color: "var(--text-secondary)",
-    },
-    guardrail: {
-        name: "warning-octagon",
-        weight: "fill",
-        color: "var(--status-danger)",
-    },
-    reflection: {
-        name: "sparkle",
-        weight: "fill",
-        color: "var(--action-attention)",
-    },
-};
+import type { InboxDelivery } from "../../data/inbox";
 
 export interface InboxCardProps {
-    item: InboxItem;
+    item: InboxDelivery;
     selected: boolean;
     onSelect: () => void;
 }
 
-const age = (minutes: number) =>
-    minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h`;
+const age = (createdAt: string | null) => {
+    if (!createdAt) return "—";
+    const minutes = Math.max(
+        0,
+        Math.floor((Date.now() - Date.parse(createdAt)) / 60000),
+    );
+    return minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h`;
+};
 
 export function InboxCard(props: InboxCardProps) {
-    const icon = () => KIND_ICON[props.item.kind];
-
     return (
         <button
             type="button"
             class="inbox-card"
             data-testid={`inbox-card-${props.item.id}`}
-            data-kind={props.item.kind}
             aria-selected={props.selected ? "true" : "false"}
             onClick={props.onSelect}
         >
             <div class="inbox-card-head">
-                <Icon
-                    name={icon().name}
-                    weight={icon().weight}
-                    size={13}
-                    style={{ color: icon().color, "flex-shrink": 0 }}
-                />
-                <span class="inbox-card-title">{props.item.title}</span>
+                <span class="inbox-card-title">{props.item.subject}</span>
                 <span class="inbox-card-age" data-testid="inbox-card-age">
-                    {age(props.item.ageMinutes)}
+                    {age(props.item.createdAt)}
                 </span>
             </div>
             <div class="inbox-card-sub" data-testid="inbox-card-sub">
-                {props.item.project} · {props.item.agent} ·{" "}
-                <span class="mono">{props.item.branch}</span>
+                {props.item.project} ·{" "}
+                <span class="mono">{props.item.senderKind}</span>
             </div>
         </button>
     );

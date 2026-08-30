@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { render } from '@solidjs/testing-library'
 import { InboxDetail } from '../../src/screens/inbox/InboxDetail'
-import { useInboxItems } from '../../src/data/inbox'
+import { PENDING } from './deliveries'
 import { read, rules } from '../css'
 
-const [gate] = useInboxItems()
+const gate = PENDING[0]
 const rule = (sel: string) => rules(read('screens/screens.css')).find((r) => r.selector === sel)
 const mount = () =>
   render(() => (
-    <InboxDetail item={gate} onApprove={() => {}} onSendBack={() => {}} onOpenWork={() => {}} />
+    <InboxDetail item={gate} onApprove={() => {}} onSendBack={() => {}} />
   ))
 
 import { configureProjectsStub } from "../projects/provider-stub";
@@ -38,7 +38,7 @@ describe('inbox/footer', () => {
   it('carries the note about where things resolve and where work opens', () => {
     const { getByTestId } = mount()
     expect(getByTestId('inbox-footer-note').textContent).toBe(
-      'Resolves here · the work opens where the work lives',
+      'Resolves here · the decision is recorded on the thread',
     )
     expect(rule('.inbox-footer-note')!.body).toContain('margin-left: auto')
   })

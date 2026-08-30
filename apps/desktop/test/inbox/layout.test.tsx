@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { render } from '@solidjs/testing-library'
+import { render, waitFor } from '@solidjs/testing-library'
 import { InboxView } from '../../src/screens/inbox/InboxView'
 import { createNavStore } from '../../src/nav'
 import { read, rules } from '../css'
@@ -7,14 +7,14 @@ import { read, rules } from '../css'
 const rule = (sel: string) => rules(read('screens/screens.css')).find((r) => r.selector === sel)
 const mount = () => render(() => <InboxView nav={createNavStore()} />)
 
-import { configureProjectsStub } from "../projects/provider-stub";
-configureProjectsStub();
+import { configureInboxStub } from "./inbox-stub";
+configureInboxStub();
 
 describe('inbox/layout', () => {
-  it('is two panes', () => {
+  it('is two panes', async () => {
     const { getByTestId } = mount()
+    await waitFor(() => expect(getByTestId('inbox-detail')).toBeTruthy())
     expect(getByTestId('inbox-list')).toBeTruthy()
-    expect(getByTestId('inbox-detail')).toBeTruthy()
   })
 
   it('holds the left pane near 392px with a right hairline, and lets it flex', () => {
@@ -32,10 +32,10 @@ describe('inbox/layout', () => {
     expect(rule('.inbox-list')!.body).toContain('overflow: auto')
   })
 
-  it('opens on the first item, so the right pane is never blank on arrival', () => {
+  it('opens on the first item, so the right pane is never blank on arrival', async () => {
     const { getByTestId } = mount()
-    expect(getByTestId('inbox-detail-title').textContent).toBe(
-      'Gate — approve plan before implementation',
+    await waitFor(() =>
+      expect(getByTestId('inbox-detail-title').textContent).toContain('sign-off'),
     )
   })
 })

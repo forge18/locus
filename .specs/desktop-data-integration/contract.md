@@ -10,12 +10,14 @@ slice changes it.
 - `apps/desktop/src/data/` holds 23 accessor modules; 2 are fully live (`bots`,
   `work-items`), 21 return fixtures or mix fixtures with live calls.
 - The accessors promise **82 distinct Tauri commands** via `Becomes:` markers.
-- The host registers **54** commands; **16** of the promised 82 exist
+- The host registers **58** commands; **20** of the promised 82 exist
   (`artifacts_list`, `artifact_comments`, `harness_tier_grid`, `materialization_report`,
   `projects_list`, `repos_list`, `local_remotes_list`, `project_setup` — the last four are the
   slice-3 tracer bullet; `strip_cards`, `running_count`, `inbox_pending_count` are slice 4's
   shell queries; `project_base_context_set`, `project_archive_set`, `project_rename` are slice 5's
-  mutations; `dispatch_runs_page`, `dispatch_runs_count` are slice 7's runs read). **66 commands are missing.**
+  mutations; `dispatch_runs_page`, `dispatch_runs_count` are slice 7's runs read;
+  `inbox_list`, `inbox_resolved_today`, `inbox_throughput`, `inbox_resolve` are slice 7's
+  inbox read/mutation). **62 commands are missing.**
 
 ## Scope legend
 
