@@ -99,9 +99,7 @@ describe("data/accessors", () => {
     const data = await import("../../src/data/workflow-events");
 
     expect(data.WORKFLOW_EVENTS).toBe(fixture.WORKFLOW_EVENTS);
-    expect(data.workflowEventsForTranscript()).toBe(
-      fixture.WORKFLOW_EVENTS,
-    );
+    expect(data.workflowEventsForTranscript()).toBe(fixture.WORKFLOW_EVENTS);
   });
 
   it("sorts session details needs-attention first, then by idle time", async () => {
@@ -131,7 +129,9 @@ describe("data/accessors", () => {
     const runs = useRunsForSession("s-0000");
     expect(runs.length).toBeGreaterThan(0);
     for (const run of runs) {
-      expect(run.sessionId, `${run.id} is another session's run`).toBe("s-0000");
+      expect(run.sessionId, `${run.id} is another session's run`).toBe(
+        "s-0000",
+      );
     }
   });
 
