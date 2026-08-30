@@ -23,7 +23,6 @@ const FIXTURE_DATA_SETS = [
   "mail",
   "plan",
   "qa",
-  "runs",
   "sessions",
   "settings",
   "telemetry",
@@ -32,7 +31,7 @@ const FIXTURE_DATA_SETS = [
 ];
 const NON_FIXTURE_DATA_SETS = ["bots", "work-items"];
 /** Slices that migrated to the live provider leave the fixture list here. */
-const LIVE_DATA_SETS = ["core", "strip"];
+const LIVE_DATA_SETS = ["core", "runs", "strip"];
 
 /** The task-2 seam: typed envelope + provider. Not data sets, never fixture-backed. */
 const SEAM_MODULES = ["envelope", "provider"];

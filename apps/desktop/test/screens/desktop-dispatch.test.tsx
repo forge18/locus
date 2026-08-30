@@ -1,6 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { fireEvent, render } from "@solidjs/testing-library";
+import { fireEvent, render, waitFor } from "@solidjs/testing-library";
 import { DispatchView } from "../../src/screens/dispatch/DispatchView";
+import { configureProjectsStub } from "../projects/provider-stub";
+
+configureProjectsStub({
+  runsPage: [
+    {
+      id: "run-1",
+      project: "tapestry",
+      agent: "builder",
+      branch: "agent/tapestry",
+      status: "completed",
+      harness: "claude",
+      role: "builder",
+      model: "claude-opus-4",
+      events: 3,
+      errors: 1,
+      startedAt: "2026-08-30T12:00:00Z",
+    },
+  ],
+});
 import { DISPATCH_PROJECTS, SCHEDULES } from "../../src/fixtures/dispatch";
 
 const mount = (tab: "autorun" | "schedules" | "runs" = "autorun") =>
@@ -74,8 +93,13 @@ describe("screens/desktop-dispatch", () => {
     );
   });
 
-  it("renders every run with resolved models rather than tiers", () => {
+  it("renders every run with resolved models rather than tiers", async () => {
     const { getByTestId } = mount("runs");
+
+    // The runs table is a live read now: wait for the page to land.
+    await waitFor(() =>
+      expect(getByTestId("dispatch-runs-table").textContent).toContain("run-1"),
+    );
 
     const screen = getByTestId("dispatch-runs");
     expect(screen.textContent).toContain("Every run, scheduled or not");

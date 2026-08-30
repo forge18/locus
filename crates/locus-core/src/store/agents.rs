@@ -27,6 +27,23 @@ pub struct RunningRunRow {
     pub started_epoch: i64,
 }
 
+/// One row of the Dispatch runs table: every run, newest first. Event and
+/// error counts roll up from `agents.events`.
+#[derive(Debug, sqlx::FromRow)]
+pub struct DispatchRunRow {
+    pub id: Uuid,
+    pub project: String,
+    pub agent: String,
+    pub branch: String,
+    pub status: String,
+    pub harness: Option<String>,
+    pub role: Option<String>,
+    pub model: String,
+    pub events: i64,
+    pub errors: i64,
+    pub started_at: Option<String>,
+}
+
 impl Store {
     pub async fn running_runs(
         &self,
@@ -49,7 +66,59 @@ impl Store {
     }
 
     /// Agents only — the host shell itself never runs an agent.
-    pub async fn running_run_count(&self, project_id: Option<ProjectId>) -> Result<i64> {
+    pub async fn dispatch_runs_page(
+        &self,
+        project_id: Option<ProjectId>,
+        offset: i64,
+        limit: i64,
+    ) -> Result<Vec<DispatchRunRow>> {
+        query_as(
+            "SELECT r.id, p.name AS project, ad.name AS agent, s.branch, r.status,
+                    ad.frontmatter ->> 'harness' AS harness,
+                    ad.frontmatter ->> 'role' AS role,
+                    r.resolved_model_id AS model,
+                    COALESCE(ev.events, 0) AS events,
+                    COALESCE(ev.errors, 0) AS errors,
+                    COALESCE(r.started_at, r.created_at)::text AS started_at
+             FROM agents.runs r
+             JOIN agents.sessions s ON s.id = r.session_id
+             JOIN core.projects p ON p.id = s.project_id
+             JOIN agents.agent_defs ad ON ad.id = s.agent_def_id
+             LEFT JOIN (
+                 SELECT run_id, COUNT(*) AS events,
+                        COUNT(*) FILTER (WHERE verb = 'tool_error') AS errors
+                 FROM agents.events GROUP BY run_id
+             ) ev ON ev.run_id = r.id
+             WHERE ($1::uuid IS NULL OR s.project_id = $1)
+             ORDER BY COALESCE(r.started_at, r.created_at) DESC
+             LIMIT $2 OFFSET $3",
+        )
+        .bind(project_id)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&self.pool)
+        .await
+        .context("page dispatch runs")
+    }
+
+    pub async fn dispatch_runs_count(&self, project_id: Option<ProjectId>) -> Result<i64> {
+        query_scalar(
+            "SELECT COUNT(*)
+             FROM agents.runs r
+             JOIN agents.sessions s ON s.id = r.session_id
+             WHERE ($1::uuid IS NULL OR s.project_id = $1)",
+        )
+        .bind(project_id)
+        .fetch_one(&self.pool)
+        .await
+        .context("count dispatch runs")
+    }
+
+    /// Agents only — the host shell itself never runs an agent.
+    pub async fn running_run_count(
+        &self,
+        project_id: Option<ProjectId>,
+    ) -> Result<i64> {
         query_scalar(
             "SELECT COUNT(*)
              FROM agents.runs r

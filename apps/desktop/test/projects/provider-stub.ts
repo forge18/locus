@@ -65,6 +65,8 @@ export interface ProjectsStub {
   fail?: boolean | string[];
   /** Shell slice: running-run rows for the dispatch pill. Default none. */
   stripCards?: StripCardRow[];
+  /** Run-slice rows for the dispatch runs table. Default none. */
+  runsPage?: unknown[];
   /** Shell slice: the running count for the dispatch pill. Default 0. */
   runningCount?: number;
   /** Shell slice: the Inbox pill's pending-for-a-human count. Default 0. */
@@ -126,6 +128,9 @@ export function configureProjectsStub(stub: ProjectsStub = {}): {
       if (command === "strip_cards") {
         return ready((stub.stripCards ?? []) as T[]);
       }
+      if (command === "dispatch_runs_page") {
+        return ready((stub.runsPage ?? []) as T[]);
+      }
       return {
         status: "failed",
         error: { command, message: `unexpected command ${command}` },
@@ -162,6 +167,9 @@ export function configureProjectsStub(stub: ProjectsStub = {}): {
       }
       if (command === "inbox_pending_count") {
         return readyOne(stub.inboxPending ?? 0) as Envelope<T>;
+      }
+      if (command === "dispatch_runs_count") {
+        return readyOne((stub.runsPage ?? []).length) as Envelope<T>;
       }
       return {
         status: "failed",

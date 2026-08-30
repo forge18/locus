@@ -733,6 +733,94 @@ async fn inbox_pending_count(core: State<'_, Arc<Core>>) -> Result<usize, IpcErr
     inbox_pending_count_inner(store).await
 }
 
+/// The Dispatch runs table (slice 7): every run across projects, newest first,
+/// with event and error rollups.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DispatchRunResponse {
+    id: String,
+    project: String,
+    agent: String,
+    branch: String,
+    status: String,
+    harness: Option<String>,
+    role: Option<String>,
+    model: String,
+    events: i64,
+    errors: i64,
+    started_at: Option<String>,
+}
+
+async fn dispatch_runs_page_inner(
+    store: &Store,
+    project_id: Option<&str>,
+    offset: i64,
+    limit: i64,
+) -> Result<Vec<DispatchRunResponse>, IpcError> {
+    let scoped = scope_project(store, project_id).await?;
+    let offset = i64::try_from(offset.max(0) as u64).unwrap_or(0);
+    let limit = i64::try_from(limit.clamp(0, 500) as u64).unwrap_or(100);
+    store
+        .dispatch_runs_page(scoped, offset, limit)
+        .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(|row| DispatchRunResponse {
+                    id: row.id.to_string(),
+                    project: row.project,
+                    agent: row.agent,
+                    branch: row.branch,
+                    status: row.status,
+                    harness: row.harness,
+                    role: row.role,
+                    model: row.model,
+                    events: row.events,
+                    errors: row.errors,
+                    started_at: row.started_at,
+                })
+                .collect()
+        })
+        .map_err(IpcError::internal)
+}
+
+async fn dispatch_runs_count_inner(
+    store: &Store,
+    project_id: Option<&str>,
+) -> Result<usize, IpcError> {
+    let scoped = scope_project(store, project_id).await?;
+    let count = store
+        .dispatch_runs_count(scoped)
+        .await
+        .map_err(IpcError::internal)?;
+    usize::try_from(count).map_err(|_| IpcError::internal("run count exceeds usize"))
+}
+
+#[tauri::command]
+async fn dispatch_runs_page(
+    core: State<'_, Arc<Core>>,
+    project_id: Option<String>,
+    offset: Option<i64>,
+    limit: Option<i64>,
+) -> Result<Vec<DispatchRunResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    dispatch_runs_page_inner(
+        store,
+        project_id.as_deref(),
+        offset.unwrap_or(0),
+        limit.unwrap_or(100),
+    )
+    .await
+}
+
+#[tauri::command]
+async fn dispatch_runs_count(
+    core: State<'_, Arc<Core>>,
+    project_id: Option<String>,
+) -> Result<usize, IpcError> {
+    let store = connected_store(&core).await?;
+    dispatch_runs_count_inner(store, project_id.as_deref()).await
+}
+
 /// Setup's settings mutations (slice 5): base context, archive, rename.
 async fn project_base_context_set_inner(
     store: &Store,
@@ -2553,6 +2641,8 @@ pub fn run() {
             strip_cards,
             running_count,
             inbox_pending_count,
+            dispatch_runs_page,
+            dispatch_runs_count,
             harness_tier_grid,
             pty_subscribe,
             telemetry_subscribe,
@@ -3404,5 +3494,145 @@ mod shell_mutations {
         // The round trip through the serialized settings preserved the allow list.
         assert_eq!(setup.harness_allow_list, ["claude"]);
         assert_eq!(setup.base_context.as_deref(), Some("# kept"));
+    }
+}
+
+/// Run queries: the Dispatch runs table reads every run with its event rollups,
+/// scoped by project, ordered newest first.
+#[cfg(test)]
+mod run_queries {
+    use super::*;
+    use locus_core::testkit::postgres::{
+        start_postgres_named, test_backup_config, NoopMigrationBackup,
+    };
+
+    async fn test_store() -> (Store, locus_core::testkit::postgres::DockerCleanup) {
+        let (container, cleanup) = start_postgres_named("locus-tauri-run-queries").await;
+        let store = Store::connect(&container.database_url())
+            .await
+            .expect("connect the run query test store");
+        store
+            .run_migrations(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations"),
+                &NoopMigrationBackup,
+                &test_backup_config(),
+            )
+            .await
+            .expect("run migrations for the run query test store");
+        (store, cleanup)
+    }
+
+    #[tokio::test]
+    async fn pages_runs_newest_first_with_event_rollups() {
+        let (store, _cleanup) = test_store().await;
+        sqlx::query("INSERT INTO core.projects (id, name) VALUES ('00000000-0000-0000-0000-000000000601', 'tapestry')")
+            .execute(store.test_pool())
+            .await
+            .expect("seed project");
+        sqlx::query(
+            "INSERT INTO agents.agent_defs (id, name, version, frontmatter, body)
+             VALUES ('00000000-0000-0000-0000-000000000611', 'builder', 1, '{\"harness\": \"claude\", \"role\": \"builder\"}'::jsonb, 'test agent')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed agent def");
+        sqlx::query(
+            "INSERT INTO agents.sessions (id, project_id, agent_def_id, name, branch)
+             VALUES ('00000000-0000-0000-0000-000000000621', '00000000-0000-0000-0000-000000000601', '00000000-0000-0000-0000-000000000611', 'run query session', 'agent/run-queries')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed session");
+        // Two runs, an hour apart: the newer one must page first.
+        sqlx::query(
+            "INSERT INTO agents.runs (id, session_id, resolved_model_id, status, started_at)
+             VALUES ('00000000-0000-0000-0000-000000000631', '00000000-0000-0000-0000-000000000621', 'claude-opus-4', 'completed', now() - interval '1 hour'),
+                    ('00000000-0000-0000-0000-000000000632', '00000000-0000-0000-0000-000000000621', 'claude-opus-4', 'running', now())",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed runs");
+        sqlx::query(
+            "INSERT INTO agents.events (id, run_id, seq, ts, verb, raw)
+             VALUES ('00000000-0000-0000-0000-000000000641', '00000000-0000-0000-0000-000000000632', 0, now(), 'assistant', '{}'::jsonb),
+                    ('00000000-0000-0000-0000-000000000642', '00000000-0000-0000-0000-000000000632', 1, now(), 'tool_call', '{}'::jsonb),
+                    ('00000000-0000-0000-0000-000000000643', '00000000-0000-0000-0000-000000000632', 2, now(), 'tool_error', '{}'::jsonb)",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed events");
+
+        let page = dispatch_runs_page_inner(&store, None, 0, 100)
+            .await
+            .expect("page runs");
+        assert_eq!(page.len(), 2);
+        assert_eq!(page[0].id, "00000000-0000-0000-0000-000000000632");
+        assert_eq!(page[0].project, "tapestry");
+        assert_eq!(page[0].harness.as_deref(), Some("claude"));
+        assert_eq!(page[0].role.as_deref(), Some("builder"));
+        assert_eq!(page[0].events, 3);
+        assert_eq!(page[0].errors, 1);
+        // The older run has no events: unknown would be a lie here — zero is the
+        // truth the rollup knows.
+        assert_eq!(page[1].events, 0);
+
+        let count = dispatch_runs_count_inner(&store, None).await.expect("count runs");
+        assert_eq!(count, 2);
+    }
+
+    #[tokio::test]
+    async fn a_project_scope_excludes_other_projects_and_unknown_rejects() {
+        let (store, _cleanup) = test_store().await;
+        sqlx::query("INSERT INTO core.projects (id, name) VALUES ('00000000-0000-0000-0000-000000000601', 'tapestry'), ('00000000-0000-0000-0000-000000000602', 'loom-db')")
+            .execute(store.test_pool())
+            .await
+            .expect("seed projects");
+        sqlx::query(
+            "INSERT INTO agents.agent_defs (id, name, version, frontmatter, body)
+             VALUES ('00000000-0000-0000-0000-000000000611', 'builder', 1, '{}'::jsonb, 'test agent')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed agent def");
+        sqlx::query(
+            "INSERT INTO agents.sessions (id, project_id, agent_def_id, name, branch)
+             VALUES ('00000000-0000-0000-0000-000000000621', '00000000-0000-0000-0000-000000000601', '00000000-0000-0000-0000-000000000611', 'a', 'agent/a'),
+                    ('00000000-0000-0000-0000-000000000622', '00000000-0000-0000-0000-000000000602', '00000000-0000-0000-0000-000000000611', 'b', 'agent/b')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed sessions");
+        sqlx::query(
+            "INSERT INTO agents.runs (id, session_id, resolved_model_id, status, started_at)
+             VALUES ('00000000-0000-0000-0000-000000000631', '00000000-0000-0000-0000-000000000621', 'm', 'running', now()),
+                    ('00000000-0000-0000-0000-000000000632', '00000000-0000-0000-0000-000000000622', 'm', 'running', now())",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed runs");
+
+        let scoped = dispatch_runs_page_inner(
+            &store,
+            Some("00000000-0000-0000-0000-000000000601"),
+            0,
+            100,
+        )
+        .await
+        .expect("scoped page");
+        assert_eq!(scoped.len(), 1);
+        assert_eq!(scoped[0].project, "tapestry");
+
+        let error = dispatch_runs_page_inner(
+            &store,
+            Some("00000000-0000-0000-0000-0000000006ff"),
+            0,
+            100,
+        )
+        .await
+        .expect_err("unknown scope rejected");
+        assert_eq!(
+            serde_json::to_value(error).expect("serialize IPC error")["kind"],
+            "not_found"
+        );
     }
 }

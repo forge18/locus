@@ -32,16 +32,23 @@ audit findings; each is one of the epic's slices, tracked here once:
   live with typed rejections; the Inbox-response command wiring moves with slice 7's live list) ·
   6. ~~window-chrome ownership + rail rendering~~ done (`decorations: false` — the custom title bar
   owns the chrome, its traffic lights call the real window API, the surface is a drag region, and
-  the rail buttons carry the shared control reset) · 7. live run slice: Sessions/Runs/Dispatch/Inbox/Interact/Agent Pane (absorbs:
-  wire Dispatch controls) · 8. configuration slice: Plan/Manage/Setup mutations/Workshop/agents
+  the rail buttons carry the shared control reset) · 
+  7. live run slice: Sessions/Runs/Dispatch/Inbox/Interact/Agent Pane (absorbs:
+  wire Dispatch controls) — IN PROGRESS: the runs read path is live
+  (`dispatch_runs_page`/`dispatch_runs_count`, the Runs tab renders envelopes, the tab
+  Segmented switches routes; remaining: sessions list, inbox list + gate commands,
+  dispatch schedules/autorun reads, agent-pane event channel) · 
+  8. configuration slice: Plan/Manage/Setup mutations/Workshop/agents
   (absorbs: wire Manage's New Task and TaskDetail, wire Settings → Guardrails, expose the 13 core
   service families as commands, reconcile the TypeScript types with the Rust DTOs) ·
   9. knowledge/analytics slice: Memory/Wiki/Artifacts/Telemetry/Review/Analytics (absorbs: wire
   Memory actions, build the Wiki kind filter, surface backend errors in Memory) ·
   10. demo/test bootstrap + delete fixture routes (absorbs: retire `WorkshopFixtureView`, retire
   `MemoryFixtures`, use the already-wired accessors, fix the fixture-import guard's remaining
-  9 violations) · 11. real Tauri-window acceptance coverage (absorbs: add live desktop integration
-  coverage) · 12. release gate.
+  9 violations) · 
+  11. real Tauri-window acceptance coverage (absorbs: add live desktop integration
+  coverage) · 
+  12. release gate.
 - [ ] **Stop serving compiled-in fixtures from the host** — `artifacts_list`/`artifact_comments`
   ([lib.rs:1531](apps/desktop/src-tauri/src/lib.rs#L1531)) read a store seeded by
   `seeded_artifact_store()` with fresh ids each launch, and `agent_defs_list`/`agent_def` return

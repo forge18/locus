@@ -1,4 +1,4 @@
-import { For, Show, createSignal } from "solid-js";
+import { For, Match, Show, Switch, createMemo, createSignal, onMount } from "solid-js";
 import {
   DISPATCH_PROJECTS,
   SCHEDULE_EXECUTIONS,
@@ -8,10 +8,12 @@ import {
   NEVER_AUTORUN_EXCLUSIONS,
   VERIFY_VOCABULARY,
   autorunMasterState,
-  useDispatchRuns,
   type AutorunState,
   type PermissionPosture,
 } from "../../data/dispatch";
+import { fetchRunsCount, fetchRunsPage, type DispatchRunRow } from "../../data/runs";
+import type { Envelope } from "../../data/envelope";
+import { notify } from "../../ui/Toast";
 import { Button } from "../../ui/Button";
 import { FixtureNotice } from "../../ui/FixtureNotice";
 import { Segmented } from "../../ui/Segmented";
@@ -23,6 +25,8 @@ export type DispatchTab = "autorun" | "schedules" | "runs";
 export interface DispatchViewProps {
   /** The fixture route decides which Dispatch sub-surface is rendered. */
   tab: DispatchTab;
+  /** Switching tabs is navigation: the shell's locator decides the route. */
+  onSwitchTab?: (tab: DispatchTab) => void;
 }
 
 const DISPATCH_TABS = [
@@ -32,12 +36,6 @@ const DISPATCH_TABS = [
 ];
 
 const dispatchCommand = (_tab: DispatchTab) => 'invoke("dispatch_snapshot")';
-
-const RUN_ROWS = useDispatchRuns();
-const RUN_FIXTURE_ROWS = [
-  ...RUN_ROWS.slice(0, 11),
-  RUN_ROWS.find((row) => row.tokens === null)!,
-];
 
 function AutorunSwitch(props: {
   state: AutorunState;
@@ -59,18 +57,21 @@ function AutorunSwitch(props: {
   );
 }
 
-function DispatchTabs(props: { active: DispatchTab }) {
+function DispatchTabs(props: {
+  active: DispatchTab;
+  onSwitch?: (tab: DispatchTab) => void;
+}) {
   return (
     <Segmented
       options={DISPATCH_TABS}
       value={props.active}
-      onChange={() => undefined}
+      onChange={(value) => props.onSwitch?.(value as DispatchTab)}
       label="Dispatch"
     />
   );
 }
 
-function AutorunView() {
+function AutorunView(props: { onSwitch?: (tab: DispatchTab) => void }) {
   const [projects, setProjects] = createSignal(DISPATCH_PROJECTS);
   const [stopOpen, setStopOpen] = createSignal(false);
   const [stopped, setStopped] = createSignal(false);
@@ -94,7 +95,7 @@ function AutorunView() {
         command={dispatchCommand("autorun")}
       />
       <header class="dispatch-header">
-        <DispatchTabs active="autorun" />
+        <DispatchTabs active="autorun" onSwitch={props.onSwitch} />
         <span class="dispatch-header-note">
           5 projects · 3 running · 1 review slot free
         </span>
@@ -282,7 +283,7 @@ function AutorunView() {
   );
 }
 
-function SchedulesView() {
+function SchedulesView(props: { onSwitch?: (tab: DispatchTab) => void }) {
   const [permissionPosture, setPermissionPosture] =
     createSignal<PermissionPosture>("bypass");
 
@@ -293,7 +294,7 @@ function SchedulesView() {
         command={dispatchCommand("schedules")}
       />
       <header class="dispatch-header">
-        <DispatchTabs active="schedules" />
+        <DispatchTabs active="schedules" onSwitch={props.onSwitch} />
         <span class="dispatch-header-note">
           6 schedules · 248 fired · 17 skipped
         </span>
@@ -489,28 +490,62 @@ function SchedulesView() {
   );
 }
 
-function RunsFixtureView() {
+function RunsView(props: { onSwitch?: (tab: DispatchTab) => void }) {
+  const [runs, setRuns] = createSignal<Envelope<DispatchRunRow[]>>({
+    status: "loading",
+  });
+  const [count, setCount] = createSignal<Envelope<number>>({
+    status: "loading",
+  });
+
+  async function refreshRuns() {
+    const [page, total] = await Promise.all([fetchRunsPage(0), fetchRunsCount()]);
+    setRuns(page);
+    setCount(total);
+    for (const failed of [page, total]) {
+      if (failed.status === "failed") {
+        notify({
+          title: "Runs unavailable",
+          description: failed.error.message,
+          type: "error",
+        });
+      }
+    }
+  }
+
+  onMount(() => {
+    void refreshRuns();
+  });
+
+  const runCount = createMemo(() => {
+    const envelope = count();
+    return envelope.status === "ready" ? envelope.data : 0;
+  });
+  const runsError = createMemo(() => {
+    const envelope = runs();
+    return envelope.status === "failed" ? envelope.error : null;
+  });
+  const runsReady = createMemo(() => {
+    const envelope = runs();
+    return envelope.status === "ready" ? envelope.data : null;
+  });
+
   return (
     <div class="dispatch-view" data-testid="dispatch-runs">
-      <FixtureNotice
-        surface="Dispatch"
-        command={dispatchCommand("runs")}
-      />
       <header class="dispatch-header">
-        <DispatchTabs active="runs" />
+        <DispatchTabs active="runs" onSwitch={props.onSwitch} />
         <span class="dispatch-header-note">
           Every run, scheduled or not · a schedule is just one way a run starts
         </span>
       </header>
       <div class="dispatch-runs-controls" data-testid="dispatch-pause-controls">
-        <span>Search every run — a path, a tool name, an event verb</span>
-        <span>
-          Today · 7d · <strong>30d</strong>
-        </span>
-        <span>612 runs · 300 sessions · 4 projects</span>
+        <span>Every run, scheduled or not</span>
+        <Show when={runCount() > 0}>
+          <span>{runCount()} runs</span>
+        </Show>
       </div>
       <section class="dispatch-runs-table" data-testid="dispatch-runs-table">
-        <h2>Runs (612)</h2>
+        <h2>Runs</h2>
         <div
           class="dispatch-verify-vocabulary"
           data-testid="runs-verify-vocabulary"
@@ -544,37 +579,74 @@ function RunsFixtureView() {
             </tr>
           </thead>
           <tbody>
-            <For each={RUN_FIXTURE_ROWS}>
-              {(run) => (
-                <tr>
-                  <td>{run.at.slice(0, 16).replace("T", " ")}</td>
-                  <td>{run.harness}</td>
-                  <td>{run.project}</td>
-                  <td>core</td>
-                  <td>{run.agent}</td>
-                  <td>{run.role}</td>
-                  <td>{run.model}</td>
-                  <td>{run.events.toLocaleString("en-US")}</td>
-                  <td class={run.errors > 0 ? "verify-bad" : ""}>
-                    {run.errors || "—"}
-                  </td>
-                  <td>
-                    {run.tokens === null ? (
-                      <span class="unknown">unknown</span>
-                    ) : (
-                      `${(run.tokens / 1000).toFixed(1)}k`
-                    )}
-                  </td>
-                  <td
-                    class={`verify-${run.status === "passed" ? "ok" : run.status === "failed" ? "bad" : "skipped"}`}
+            <Switch>
+            <Match when={runs().status === "loading"}>
+              <tr>
+                <td colspan={12}>
+                  <p class="project-panel-note">Loading runs…</p>
+                </td>
+              </tr>
+            </Match>
+            <Match when={runs().status === "empty"}>
+              <tr>
+                <td colspan={12}>
+                  <p class="project-panel-note">
+                    No runs yet. Dispatch an agent to start one.
+                  </p>
+                </td>
+              </tr>
+            </Match>
+            <Match when={runsError()}>
+              <tr>
+                <td colspan={12}>
+                  <p class="project-panel-note" role="alert">
+                    {runsError()?.message}
+                  </p>
+                  <button
+                    class="btn btn-secondary"
+                    onClick={() => void refreshRuns()}
                   >
-                    {run.status}
-                  </td>
-                  <td>{run.id}</td>
-                </tr>
-              )}
-            </For>
+                    Retry
+                  </button>
+                </td>
+              </tr>
+            </Match>
+            </Switch>
           </tbody>
+          <Show when={runsReady()}>
+            <tbody>
+              <For each={runsReady() ?? []}>
+                {(run) => (
+                  <tr>
+                    <td>
+                      {run.startedAt
+                        ? run.startedAt.slice(0, 16).replace("T", " ")
+                        : "—"}
+                    </td>
+                    <td>{run.harness ?? "—"}</td>
+                    <td>{run.project}</td>
+                    <td>{run.branch}</td>
+                    <td>{run.agent}</td>
+                    <td>{run.role ?? "—"}</td>
+                    <td>{run.model}</td>
+                    <td>{run.events.toLocaleString("en-US")}</td>
+                    <td class={run.errors > 0 ? "verify-bad" : ""}>
+                      {run.errors || "—"}
+                    </td>
+                    <td>
+                      <span class="unknown">unknown</span>
+                    </td>
+                    <td
+                      class={`verify-${run.status === "passed" ? "ok" : run.status === "failed" ? "bad" : "skipped"}`}
+                    >
+                      {run.status}
+                    </td>
+                    <td>{run.id}</td>
+                  </tr>
+                )}
+              </For>
+            </tbody>
+          </Show>
         </table>
       </section>
     </div>
@@ -583,9 +655,9 @@ function RunsFixtureView() {
 
 /** Dispatch's three durable-queue fixture routes. */
 export function DispatchView(props: DispatchViewProps) {
-  if (props.tab === "schedules") return <SchedulesView />;
-  if (props.tab === "runs") return <RunsFixtureView />;
-  return <AutorunView />;
+  if (props.tab === "schedules") return <SchedulesView onSwitch={props.onSwitchTab} />;
+  if (props.tab === "runs") return <RunsView onSwitch={props.onSwitchTab} />;
+  return <AutorunView onSwitch={props.onSwitchTab} />;
 }
 
 export default DispatchView;
