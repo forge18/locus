@@ -136,7 +136,10 @@ export function configureProjectsStub(stub: ProjectsStub = {}): {
         error: { command, message: `unexpected command ${command}` },
       };
     },
-    async queryOne<T>(command: string, args?: Record<string, unknown>): Promise<Envelope<T>> {
+    async queryOne<T>(
+      command: string,
+      args?: Record<string, unknown>,
+    ): Promise<Envelope<T>> {
       if (stub.hang) return new Promise(() => undefined);
       calls.push({ command, args });
       if (failing(command)) {

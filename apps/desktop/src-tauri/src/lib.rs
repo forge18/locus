@@ -692,12 +692,12 @@ async fn strip_cards_inner(
         .map_err(IpcError::internal)
 }
 
-async fn running_count_inner(
-    store: &Store,
-    project_id: Option<&str>,
-) -> Result<usize, IpcError> {
+async fn running_count_inner(store: &Store, project_id: Option<&str>) -> Result<usize, IpcError> {
     let project_id = scope_project(store, project_id).await?;
-    let count = store.running_run_count(project_id).await.map_err(IpcError::internal)?;
+    let count = store
+        .running_run_count(project_id)
+        .await
+        .map_err(IpcError::internal)?;
     usize::try_from(count).map_err(|_| IpcError::internal("run count exceeds usize"))
 }
 
@@ -853,7 +853,10 @@ async fn project_base_context_set_inner(
             serde_json::Value::Number(budget.into()),
         )
     };
-    let settings = store.project_settings(project_id).await.map_err(IpcError::internal)?;
+    let settings = store
+        .project_settings(project_id)
+        .await
+        .map_err(IpcError::internal)?;
     // ProjectSettings keeps its policy fields private; the round trip through the
     // serialized form updates exactly the two base-context keys.
     let mut value = serde_json::to_value(&settings).map_err(IpcError::internal)?;
@@ -3058,10 +3061,10 @@ mod setup_live_data {
 /// pill counts human-pending deliveries.
 #[cfg(test)]
 mod shell_queries {
+    use super::*;
     use locus_core::testkit::postgres::{
         start_postgres_named, test_backup_config, NoopMigrationBackup,
     };
-    use super::*;
 
     async fn test_store() -> (Store, locus_core::testkit::postgres::DockerCleanup) {
         let (container, cleanup) = start_postgres_named("locus-tauri-shell-test").await;
@@ -3140,7 +3143,9 @@ mod shell_queries {
             "running",
         )
         .await;
-        let count = running_count_inner(&store, None).await.expect("running count");
+        let count = running_count_inner(&store, None)
+            .await
+            .expect("running count");
         assert_eq!(count, 1);
         let cards = strip_cards_inner(&store, None).await.expect("strip cards");
         assert_eq!(cards.len(), 1);
@@ -3163,9 +3168,14 @@ mod shell_queries {
             "completed",
         )
         .await;
-        let count = running_count_inner(&store, None).await.expect("running count");
+        let count = running_count_inner(&store, None)
+            .await
+            .expect("running count");
         assert_eq!(count, 0);
-        assert!(strip_cards_inner(&store, None).await.expect("strip cards").is_empty());
+        assert!(strip_cards_inner(&store, None)
+            .await
+            .expect("strip cards")
+            .is_empty());
     }
 
     #[tokio::test]
@@ -3225,10 +3235,10 @@ mod shell_queries {
 /// project's rows into it.
 #[cfg(test)]
 mod shell_scope {
+    use super::*;
     use locus_core::testkit::postgres::{
         start_postgres_named, test_backup_config, NoopMigrationBackup,
     };
-    use super::*;
 
     async fn test_store() -> (Store, locus_core::testkit::postgres::DockerCleanup) {
         let (container, cleanup) = start_postgres_named("locus-tauri-shell-scope").await;
@@ -3432,7 +3442,10 @@ mod shell_mutations {
             .await
             .expect("archive project");
         assert!(archived.archived);
-        assert!(store.project_archived(TAPESTRY.parse().expect("id")).await.expect("read archived"));
+        assert!(store
+            .project_archived(TAPESTRY.parse().expect("id"))
+            .await
+            .expect("read archived"));
 
         let renamed = project_rename_inner(&store, TAPESTRY, "weaver")
             .await
@@ -3576,7 +3589,9 @@ mod run_queries {
         // truth the rollup knows.
         assert_eq!(page[1].events, 0);
 
-        let count = dispatch_runs_count_inner(&store, None).await.expect("count runs");
+        let count = dispatch_runs_count_inner(&store, None)
+            .await
+            .expect("count runs");
         assert_eq!(count, 2);
     }
 
@@ -3611,25 +3626,17 @@ mod run_queries {
         .await
         .expect("seed runs");
 
-        let scoped = dispatch_runs_page_inner(
-            &store,
-            Some("00000000-0000-0000-0000-000000000601"),
-            0,
-            100,
-        )
-        .await
-        .expect("scoped page");
+        let scoped =
+            dispatch_runs_page_inner(&store, Some("00000000-0000-0000-0000-000000000601"), 0, 100)
+                .await
+                .expect("scoped page");
         assert_eq!(scoped.len(), 1);
         assert_eq!(scoped[0].project, "tapestry");
 
-        let error = dispatch_runs_page_inner(
-            &store,
-            Some("00000000-0000-0000-0000-0000000006ff"),
-            0,
-            100,
-        )
-        .await
-        .expect_err("unknown scope rejected");
+        let error =
+            dispatch_runs_page_inner(&store, Some("00000000-0000-0000-0000-0000000006ff"), 0, 100)
+                .await
+                .expect_err("unknown scope rejected");
         assert_eq!(
             serde_json::to_value(error).expect("serialize IPC error")["kind"],
             "not_found"

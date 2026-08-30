@@ -36,9 +36,24 @@ const COLUMNS: Column<DispatchRunRow>[] = [
   { key: "branch", header: "Branch", type: "mono", cell: (r) => r.branch },
   { key: "status", header: "Status", cell: (r) => r.status },
   { key: "model", header: "Model", type: "mono", cell: (r) => r.model },
-  { key: "events", header: "Events", type: "numeric", cell: (r) => String(r.events) },
-  { key: "errors", header: "Errors", type: "numeric", cell: (r) => String(r.errors) },
-  { key: "startedAt", header: "At", type: "mono", cell: (r) => r.startedAt ?? "—" },
+  {
+    key: "events",
+    header: "Events",
+    type: "numeric",
+    cell: (r) => String(r.events),
+  },
+  {
+    key: "errors",
+    header: "Errors",
+    type: "numeric",
+    cell: (r) => String(r.errors),
+  },
+  {
+    key: "startedAt",
+    header: "At",
+    type: "mono",
+    cell: (r) => r.startedAt ?? "—",
+  },
 ];
 
 /** Page one of the live read: what a first paint waits for. */
@@ -77,9 +92,9 @@ describe("fixtures/large-table-budget", () => {
     expect(calls).toEqual([
       { command: "dispatch_runs_page", args: { offset: 0, limit: PAGE_SIZE } },
     ]);
-    expect(
-      envelope.status === "ready" ? envelope.data.length : 0,
-    ).toBe(PAGE_SIZE);
+    expect(envelope.status === "ready" ? envelope.data.length : 0).toBe(
+      PAGE_SIZE,
+    );
   });
 
   it("opens on one page, not on all 612 rows", () => {
@@ -91,7 +106,8 @@ describe("fixtures/large-table-budget", () => {
 
   it("renders only the window, which is a fraction of the page", () => {
     const { getByTestId } = virtual();
-    const rendered = getByTestId("table-rows").querySelectorAll("tbody tr").length;
+    const rendered =
+      getByTestId("table-rows").querySelectorAll("tbody tr").length;
     const window_ = Math.ceil(BODY_HEIGHT / ROW_HEIGHT);
     expect(rendered).toBeGreaterThan(0);
     expect(rendered).toBeLessThan(window_ * 2 + 20);
@@ -100,7 +116,9 @@ describe("fixtures/large-table-budget", () => {
 
   it("costs a fraction of the nodes the full table would", () => {
     const windowed = virtual();
-    const windowedNodes = windowed.getByTestId("table").querySelectorAll("*").length;
+    const windowedNodes = windowed
+      .getByTestId("table")
+      .querySelectorAll("*").length;
     windowed.unmount();
 
     const full = render(() => (
@@ -125,7 +143,10 @@ describe("fixtures/large-table-budget", () => {
 
     // Spacers plus rendered rows add up to the whole list, so the scrollbar is
     // the size it would be if every row were there.
-    const total = first * ROW_HEIGHT + (last - first) * ROW_HEIGHT + (TOTAL - last) * ROW_HEIGHT;
+    const total =
+      first * ROW_HEIGHT +
+      (last - first) * ROW_HEIGHT +
+      (TOTAL - last) * ROW_HEIGHT;
     expect(total).toBe(TOTAL * ROW_HEIGHT);
   });
 
@@ -148,7 +169,9 @@ describe("fixtures/large-table-budget", () => {
       />
     ));
     expect(empty.getByTestId("table").getAttribute("data-state")).toBe("empty");
-    expect(empty.getByTestId("table-empty").textContent).toContain("No rows to display.");
+    expect(empty.getByTestId("table-empty").textContent).toContain(
+      "No rows to display.",
+    );
     empty.unmount();
 
     const loading = render(() => (
@@ -162,7 +185,9 @@ describe("fixtures/large-table-budget", () => {
         height={BODY_HEIGHT}
       />
     ));
-    expect(loading.getByTestId("table").getAttribute("data-state")).toBe("loading");
+    expect(loading.getByTestId("table").getAttribute("data-state")).toBe(
+      "loading",
+    );
     expect(loading.getByTestId("table-loading").textContent).toBe("Loading…");
     expect(loading.getByTestId("skeleton-rows")).toBeTruthy();
   });
@@ -180,7 +205,9 @@ describe("fixtures/large-table-budget", () => {
       />
     ));
     expect(getByTestId("table").getAttribute("data-state")).toBe("error");
-    expect(getByTestId("inline-error-cause").textContent).toBe("Runs unavailable");
+    expect(getByTestId("inline-error-cause").textContent).toBe(
+      "Runs unavailable",
+    );
     expect(queryByTestId("table-empty")).toBe(null);
   });
 });

@@ -48,7 +48,12 @@ describe("shell/window-chrome", () => {
   it("the title bar surface is a drag region", () => {
     configureProjectsStub();
     const { getByTestId } = render(() => (
-      <AppTitleBar categoryLabel="Project" viewLabel="Setup" running={0} needsYou={0} />
+      <AppTitleBar
+        categoryLabel="Project"
+        viewLabel="Setup"
+        running={0}
+        needsYou={0}
+      />
     ));
     expect(
       getByTestId("app-titlebar").hasAttribute("data-tauri-drag-region"),
@@ -58,7 +63,12 @@ describe("shell/window-chrome", () => {
   it("the traffic lights are real controls that call the window API", () => {
     configureProjectsStub();
     const { getByTestId } = render(() => (
-      <AppTitleBar categoryLabel="Project" viewLabel="Setup" running={0} needsYou={0} />
+      <AppTitleBar
+        categoryLabel="Project"
+        viewLabel="Setup"
+        running={0}
+        needsYou={0}
+      />
     ));
 
     fireEvent.click(getByTestId("window-minimize"));

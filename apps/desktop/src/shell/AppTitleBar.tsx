@@ -54,10 +54,7 @@ export function AppTitleBar(props: AppTitleBarProps) {
             <div class="wordmark" data-testid="wordmark" data-tauri-drag-region>
                 Locus
             </div>
-            <div
-                class="title-context"
-                data-tauri-drag-region
-            >
+            <div class="title-context" data-tauri-drag-region>
                 <span data-testid="title-category">{props.categoryLabel}</span>
                 <span data-testid="title-view">{props.viewLabel}</span>
             </div>
