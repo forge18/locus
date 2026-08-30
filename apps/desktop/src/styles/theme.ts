@@ -74,19 +74,40 @@ export const INSTALLED_THEMES = ["dark", "light"] as const;
 
 export type ThemeId = (typeof INSTALLED_THEMES)[number];
 
-export function normalizeTheme(value: string | null | undefined): ThemeId {
-  return value === "light" ? "light" : "dark";
+/** The slice of `window` theme resolution needs; jsdom may leave matchMedia undefined. */
+export type ThemePreferenceSource = {
+  matchMedia?: (query: string) => { matches: boolean };
+};
+
+const PREFER_DARK_QUERY = "(prefers-color-scheme: dark)";
+
+/** The OS color-scheme preference. Dark stays the default while it cannot be read. */
+export function systemTheme(source: ThemePreferenceSource = window): ThemeId {
+  const preference = source.matchMedia?.(PREFER_DARK_QUERY);
+  return preference?.matches === false ? "light" : "dark";
 }
 
-export function savedTheme(storage: Pick<Storage, "getItem">): ThemeId {
-  return normalizeTheme(storage.getItem(THEME_STORAGE_KEY));
+export function normalizeTheme(
+  value: string | null | undefined,
+  source: ThemePreferenceSource = window,
+): ThemeId {
+  if (value === "light" || value === "dark") return value;
+  return systemTheme(source);
+}
+
+export function savedTheme(
+  storage: Pick<Storage, "getItem">,
+  source: ThemePreferenceSource = window,
+): ThemeId {
+  return normalizeTheme(storage.getItem(THEME_STORAGE_KEY), source);
 }
 
 export function applyTheme(
   documentElement: Pick<HTMLElement, "dataset">,
   theme: string | null | undefined,
+  source: ThemePreferenceSource = window,
 ): ThemeId {
-  const resolved = normalizeTheme(theme);
+  const resolved = normalizeTheme(theme, source);
   documentElement.dataset.theme = resolved;
   return resolved;
 }
