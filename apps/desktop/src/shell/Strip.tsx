@@ -1,5 +1,4 @@
 import { For, Show } from "solid-js";
-import { Icon } from "../ui/Icon";
 import type { StripCard } from "../data/strip";
 
 export interface StripProps {
@@ -27,7 +26,6 @@ export function Strip(props: StripProps) {
               class={[
                 "strip-card",
                 card.status === "stuck" ? "strip-card-stuck" : "",
-                card.kind === "shell" ? "strip-card-shell" : "",
               ]
                 .filter(Boolean)
                 .join(" ")}
@@ -42,16 +40,7 @@ export function Strip(props: StripProps) {
               }
             >
               <div class="strip-card-top">
-                <Show when={card.kind === "shell"}>
-                  <Icon
-                    name="terminal-window"
-                    size={10}
-                    style={{ "margin-right": "4px" }}
-                  />
-                </Show>
-                {card.kind === "shell"
-                  ? `${card.project} · your shell`
-                  : `${card.project} · ${card.agent} · ${card.role}`}
+                {`${card.project} · ${card.agent} · ${card.role}`}
               </div>
               <div class="strip-card-bottom">
                 <Show when={card.taskId}>
@@ -63,9 +52,7 @@ export function Strip(props: StripProps) {
                     task
                   </a>
                 </Show>
-                {card.kind === "shell"
-                  ? "no agent · no cost"
-                  : `${card.status} · ${card.tool ?? "no tool"} · ${tokens(card.tokens)}`}
+                {`${card.status} · ${card.tool ?? "no tool"} · ${tokens(card.tokens)}`}
               </div>
             </div>
           )}

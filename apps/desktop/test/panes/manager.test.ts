@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { close, focus, minimize, panes, promote, resize, split, type Pane, type PaneTree } from '../../src/panes/manager'
 
-const a: Pane = { id: 'a', kind: 'shell', focusedAt: 1 }
+const a: Pane = { id: 'a', kind: 'agent', focusedAt: 1 }
 const b: Pane = { id: 'b', kind: 'agent', focusedAt: 2 }
 const tree: PaneTree = { type: 'leaf', pane: a }
 
@@ -16,7 +16,7 @@ describe('panes/manager', () => {
     expect(panes(close(splitTree, 'a')!)).toEqual([b])
   })
   it('minimizes without closing and promotes by demoting the least recent pane', () => {
-    const layout = { focused: [a, b, { id: 'c', kind: 'editor' as const, focusedAt: 3 }, { id: 'd', kind: 'shell' as const, focusedAt: 4 }], strip: [{ id: 'e', kind: 'agent' as const, focusedAt: 5 }] }
+    const layout = { focused: [a, b, { id: 'c', kind: 'editor' as const, focusedAt: 3 }, { id: 'd', kind: 'agent' as const, focusedAt: 4 }], strip: [{ id: 'e', kind: 'agent' as const, focusedAt: 5 }] }
     expect(minimize(layout, 'a').strip.map((pane) => pane.id)).toContain('a')
     const result = promote(layout, 'e', 10)
     expect(result.focused.map((pane) => pane.id)).toContain('e')

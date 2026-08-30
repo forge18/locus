@@ -3,7 +3,7 @@ import { promote, type PaneLayout } from '../../src/panes/manager'
 
 it('promotes a strip pane by demoting the least recently focused pane', () => {
   const layout: PaneLayout = {
-    focused: [1, 2, 3, 4].map((focusedAt) => ({ id: String(focusedAt), kind: 'shell' as const, focusedAt })),
+    focused: [1, 2, 3, 4].map((focusedAt) => ({ id: String(focusedAt), kind: 'agent' as const, focusedAt })),
     strip: [{ id: 'five', kind: 'agent', focusedAt: 5 }],
   }
 
