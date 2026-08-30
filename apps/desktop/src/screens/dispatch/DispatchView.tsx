@@ -13,6 +13,7 @@ import {
   type AutorunState,
   type PermissionPosture,
 } from "../../data/dispatch";
+import { fetchRunningCount } from "../../data/strip";
 import type { Envelope } from "../../data/envelope";
 import { fetchRunsCount, fetchRunsPage, type DispatchRunRow } from "../../data/runs";
 import { notify } from "../../ui/Toast";
@@ -78,7 +79,14 @@ function AutorunView(props: { onSwitch?: (tab: DispatchTab) => void }) {
   const [stopOpen, setStopOpen] = createSignal(false);
   const [stopped, setStopped] = createSignal(false);
   const [handoff, setHandoff] = createSignal(true);
+  const [runningCount, setRunningCount] = createSignal(0);
   const master = () => autorunMasterState(projects());
+
+  onMount(() => {
+    void fetchRunningCount().then((envelope) => {
+      if (envelope.status === "ready") setRunningCount(envelope.data);
+    });
+  });
 
   const toggleProject = (id: string) => {
     setProjects((current) =>
@@ -99,7 +107,7 @@ function AutorunView(props: { onSwitch?: (tab: DispatchTab) => void }) {
       <header class="dispatch-header">
         <DispatchTabs active="autorun" onSwitch={props.onSwitch} />
         <span class="dispatch-header-note">
-          5 projects · 3 running · 1 review slot free
+          {DISPATCH_PROJECTS.length} projects · {runningCount()} running
         </span>
         <Button variant="secondary">Pause everything</Button>
         <Button variant="secondary" onClick={() => setStopOpen(true)}>

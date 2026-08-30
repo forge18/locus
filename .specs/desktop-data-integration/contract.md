@@ -22,10 +22,10 @@ slice changes it.
   schedules read — backed by the existing `workflows.schedules` and `workflows.executions`
   tables, which closes two of the 13 orphaned-table rows). **60 commands are missing.**
 
-The agent-pane event channel is plumbed (replay accessor in `transcript/from-core.ts`,
-Channel subscription, store query, Tauri command) but the pane cannot render live events
-until the dispatch loop runs agents — that is a workstream-2 dependency, not a
-data-integration gap.
+The agent-pane event channel is fully wired: `replayRunEvents` replays persisted
+events from `agents.events` and `streamFromCore` subscribes to the live Channel. The
+pane merges both via `mergeEvents`. Live rendering requires the dispatch loop to
+run agents (workstream 2), not a data-integration change.
 
 ## Scope legend
 

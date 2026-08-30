@@ -9,7 +9,7 @@ import {
 } from "solid-js";
 import { InlineError } from "../ui/InlineError";
 import { coalesce } from "./coalesce";
-import { streamFromCore } from "../transcript/from-core";
+import { replayRunEvents, streamFromCore } from "../transcript/from-core";
 import type { AgentEvent } from "../types/event";
 import type {
   AgentGateMode,
@@ -138,6 +138,18 @@ export function AgentPane(props: AgentPaneProps) {
         setContextOpen(false);
         setMenuOpen(false);
         if (untrack(() => props.live) === false) return;
+
+        // Replay the persisted events from agents.events (the durable record).
+        void replayRunEvents(runId)
+            .then((replayed) => {
+                if (stopped) return;
+                const snapshot = eventsForRun(replayed, runId);
+                setProvidedEvents((current) =>
+                    mergeEvents(current, snapshot),
+                );
+                setEvents(mergeEvents(providedEvents(), streamEvents()));
+            })
+            .catch(() => undefined);
 
         let stopped = false;
         const frames = coalesce<AgentEvent>((items) => {
