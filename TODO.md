@@ -9,7 +9,8 @@ owning workstream so nothing is tracked twice.
 
 ## Where we are
 
-- `chore/todo-completion` carries all completed work; 25 rows checked since the 2026-08-29 audit.
+- `chore/todo-completion` carries all completed work — 25 rows finished since the 2026-08-29
+  audit; the record lives in this branch's git history, not here.
 - Active workstream: **1 — desktop data integration** (tasks 1–2 of 12 done: contract frozen,
   provider seam landed; tracer bullet is next).
 
@@ -21,18 +22,17 @@ Owner of everything data-backed. [spec](.specs/desktop-data-integration/spec.md)
 audit findings; each is one of the epic's slices, tracked here once:
 
 - [ ] **Run the epic slices in tasks.md order** —
-  1. ~~freeze the live-data contract~~ done · 2. ~~provider seam~~ done ·
-  2. **tracer bullet: Setup reads the real store** (absorbs: expose `projects_list`/`repos_list`,
+  3. **tracer bullet: Setup reads the real store** (absorbs: expose `projects_list`/`repos_list`,
   remove ProjectsView hard-coded rows, wire Setup actions) ·
-  3. shell live state (absorbs: surface backend errors) · 5. title-bar mutations ·
-  4. window-chrome ownership + rail rendering (absorbs: remove duplicate window chrome, fix rail
+  4. shell live state (absorbs: surface backend errors) · 5. title-bar mutations ·
+  6. window-chrome ownership + rail rendering (absorbs: remove duplicate window chrome, fix rail
   control rendering) · 7. live run slice: Sessions/Runs/Dispatch/Inbox/Interact/Agent Pane (absorbs:
   wire Dispatch controls) · 8. configuration slice: Plan/Manage/Setup mutations/Workshop/agents
   (absorbs: wire Manage's New Task and TaskDetail, wire Settings → Guardrails, expose the 13 core
   service families as commands, reconcile the TypeScript types with the Rust DTOs) ·
-  5. knowledge/analytics slice: Memory/Wiki/Artifacts/Telemetry/Review/Analytics (absorbs: wire
+  9. knowledge/analytics slice: Memory/Wiki/Artifacts/Telemetry/Review/Analytics (absorbs: wire
   Memory actions, build the Wiki kind filter, surface backend errors in Memory) ·
-  6. demo/test bootstrap + delete fixture routes (absorbs: retire `WorkshopFixtureView`, retire
+  10. demo/test bootstrap + delete fixture routes (absorbs: retire `WorkshopFixtureView`, retire
   `MemoryFixtures`, use the already-wired accessors, fix the fixture-import guard's remaining
   9 violations) · 11. real Tauri-window acceptance coverage (absorbs: add live desktop integration
   coverage) · 12. release gate.
@@ -47,10 +47,9 @@ audit findings; each is one of the epic's slices, tracked here once:
 
 ## 2 — Runtime integrity chain
 
-The core can materialize, clone, and start a container; the session layer now exists
-([x] ACP session after spawn — `spawn_persisted` opens the conversation, stores it on `SpawnedRun`;
-[x] telemetry persist + `events_for_run` replay; [x] memory-promote daemon routing). Remaining, in
-dependency order:
+The core can materialize, clone, and start a container. The session layer it needs is in place
+(ACP session establishment, telemetry persistence + replay, and daemon memory-promote routing are
+done and checked off in git history). Remaining, in dependency order:
 
 - [ ] **Wire the dispatch loop** — `Daemon::spawn_run` ([daemon.rs:281](crates/locus-core/src/runtime/daemon.rs#L281))
   has zero callers and `Store::claim_dispatchable_runs` is called only from tests; `locusd` has no
@@ -222,17 +221,3 @@ pair exists.
   `workflow_log`.
 - [ ] **Run or delete the never-run ignored tests** — `pi_loads_generated`, `docker::connects` are
   `#[ignore]` with no `--ignored` recipe; `browse::open_contract` has an empty body.
-
----
-
-## Completed since the audit (context, not tasks)
-
-Fixture state honestly flagged · title-bar Stop all · fixture-import guard grep · locator palette
-sections · nav persistence · BackLink reachable · harness count · merge modal · composer stop/send ·
-"+ New bot" · QA honesty · `WORKFLOW_EVENTS` relocation · popovers dismiss · PTY pane retirement ·
-round-trip tests · theme before first paint · z-index ladder · stale contracts · memory-promote
-routing · ACP session establishment · telemetry persist + replay · mail composer · inbox
-approve/send-back · Interact discard gating · telemetry facets/search · analytics trend redraw ·
-`--json` verbs · token-based colors · `--scrim` · pill token · rail icons · selected-theme style ·
-stylesheet imports once · PLAN.md awk · panic guards · CI desktop gates · fixture-freshness scripts ·
-empty/loading states.
