@@ -32,6 +32,7 @@ use locus_core::{
         dap::{DapError, DebugSessionRegistry},
     },
     services::handoff::{HandoffContext, HandoffPayload, HandoffRegistry, HandoffTrigger},
+    services::memory::{DurableMemoryStore, MemoryEntry, Reverification},
 };
 
 const DEFAULT_HARNESS_REGISTRY: &str = "harnesses";
@@ -534,6 +535,113 @@ struct DaemonRouter {
     lsp: LspRouter,
     debug: DebugRouter,
     handoff: HandoffRouter,
+    memory: MemoryRouter,
+}
+
+/// Routes declared memory promotions (context-layer R2) against the daemon-owned durable
+/// memory store. The candidate arrives as one JSON memory entry; cluster density is
+/// bypassed while re-verification and path deduplication still run in the store.
+struct MemoryRouter {
+    memory: Arc<Mutex<DurableMemoryStore>>,
+}
+
+impl MemoryRouter {
+    /// `memory promote <candidate-json> [--method codanna|test|verify-result|provenance]
+    /// [--passed|--failed]`. The re-verification declaration defaults to a passing
+    /// `provenance` check, so a candidate whose own provenance carries the evidence
+    /// promotes as-is; the store still refuses one that fails its checks.
+    fn parse(
+        args: &[String],
+    ) -> std::result::Result<(MemoryEntry, Reverification, bool), AgentSocketError> {
+        let mut positional = Vec::new();
+        let mut method = None;
+        let mut passed = None;
+        let mut index = 0;
+        while index < args.len() {
+            match args[index].as_str() {
+                "--method" => {
+                    let value = args.get(index + 1).ok_or_else(|| {
+                        AgentSocketError::unavailable("--method requires a value")
+                    })?;
+                    if method.replace(Self::reverification(value)?).is_some() {
+                        return Err(AgentSocketError::unavailable("duplicate option --method"));
+                    }
+                    index += 2;
+                }
+                "--passed" | "--failed" => {
+                    if passed.replace(args[index] == "--passed").is_some() {
+                        return Err(AgentSocketError::unavailable(
+                            "one re-verification outcome at most: --passed or --failed",
+                        ));
+                    }
+                    index += 1;
+                }
+                option if option.starts_with("--") => {
+                    return Err(AgentSocketError::unavailable(format!(
+                        "unknown memory promote option: {option}"
+                    )));
+                }
+                token => {
+                    positional.push(token.to_owned());
+                    index += 1;
+                }
+            }
+        }
+        if positional.is_empty() {
+            return Err(AgentSocketError::unavailable(
+                "memory promote requires a JSON memory candidate",
+            ));
+        }
+        let candidate: MemoryEntry = serde_json::from_str(&positional.join(" ")).map_err(|error| {
+            AgentSocketError::unavailable(format!(
+                "memory promote candidate must be one JSON memory entry: {error}"
+            ))
+        })?;
+        candidate
+            .validate()
+            .map_err(|error| AgentSocketError::unavailable(error.to_string()))?;
+        Ok((
+            candidate,
+            method.unwrap_or(Reverification::Provenance),
+            passed.unwrap_or(true),
+        ))
+    }
+
+    fn reverification(name: &str) -> std::result::Result<Reverification, AgentSocketError> {
+        match name {
+            "codanna" => Ok(Reverification::Codanna),
+            "test" => Ok(Reverification::Test),
+            "verify-result" => Ok(Reverification::VerifyResult),
+            "provenance" => Ok(Reverification::Provenance),
+            other => Err(AgentSocketError::unavailable(format!(
+                "unknown re-verification method: {other}"
+            ))),
+        }
+    }
+
+    fn authorize(
+        &self,
+        _run_id: RunId,
+        args: &[String],
+    ) -> std::result::Result<(), AgentSocketError> {
+        Self::parse(args).map(|_| ())
+    }
+
+    fn route(
+        &self,
+        _run_id: RunId,
+        args: &[String],
+    ) -> std::result::Result<serde_json::Value, AgentSocketError> {
+        let (candidate, method, passed) = Self::parse(args)?;
+        let receipt = self
+            .memory
+            .lock()
+            .map_err(|_| AgentSocketError::unavailable("memory store lock is poisoned"))?
+            .promote_declared(candidate, method, passed)
+            .map_err(|error| AgentSocketError::unavailable(error.to_string()))?;
+        serde_json::to_value(receipt)
+            .map_err(|error| AgentSocketError::unavailable(error.to_string()))
+    }
 }
 
 impl AgentSocketRouter for DaemonRouter {
@@ -549,6 +657,9 @@ impl AgentSocketRouter for DaemonRouter {
         if verb == AgentSocketVerb::Handoff {
             return self.handoff.authorize(run_id, args);
         }
+        if verb == AgentSocketVerb::MemoryPromote {
+            return self.memory.authorize(run_id, args);
+        }
         self.lsp.authorize(run_id, verb, args)
     }
 
@@ -563,6 +674,9 @@ impl AgentSocketRouter for DaemonRouter {
         }
         if verb == AgentSocketVerb::Handoff {
             return self.handoff.route(run_id, args);
+        }
+        if verb == AgentSocketVerb::MemoryPromote {
+            return self.memory.route(run_id, args);
         }
         self.lsp.route(run_id, verb, args)
     }
@@ -714,6 +828,9 @@ fn main() -> Result<()> {
                 registry: core.handoffs(),
                 capabilities: capabilities.clone(),
                 successor_contexts: Arc::new(Mutex::new(BTreeMap::new())),
+            },
+            memory: MemoryRouter {
+                memory: Arc::new(Mutex::new(DurableMemoryStore::default())),
             },
         });
         if let Some(relay_listener) = relay_listener {
@@ -1025,5 +1142,170 @@ mod tests {
             )
             .unwrap_err();
         assert!(error.to_string().contains("not available"));
+    }
+
+    fn memory_candidate(id: &str, path: &str) -> MemoryEntry {
+        locus_core::services::memory::MemoryEntry::new(
+            id,
+            locus_core::ids::ProjectId::generate(),
+            locus_core::services::memory::MemoryScopeKind::Project,
+            None,
+            path,
+            "Stable auth flow",
+            locus_core::services::memory::MemoryCategory::Fact,
+            "Auth tokens rotate on a 24 day half-life.",
+            serde_json::json!({"source": "declared"}),
+            Vec::new(),
+            "test-model",
+            0.5,
+        )
+        .unwrap()
+    }
+
+    fn daemon_router_with_memory() -> (DaemonRouter, Arc<Mutex<DurableMemoryStore>>) {
+        let memory = Arc::new(Mutex::new(DurableMemoryStore::default()));
+        let router = DaemonRouter {
+            lsp: LspRouter {
+                catalog: LanguageCatalog::builtin().unwrap(),
+            },
+            debug: DebugRouter {
+                registry: DebugSessionRegistry::default(),
+                capabilities: AgentSocketCapabilities::default(),
+                container_runtime: None,
+                recording_for_tests: false,
+            },
+            handoff: HandoffRouter {
+                registry: Arc::new(Mutex::new(HandoffRegistry::default())),
+                capabilities: AgentSocketCapabilities::default(),
+                successor_contexts: Arc::new(Mutex::new(BTreeMap::new())),
+            },
+            memory: MemoryRouter {
+                memory: memory.clone(),
+            },
+        };
+        (router, memory)
+    }
+
+    fn promote_args(candidate: &MemoryEntry, extra: &[&str]) -> Vec<String> {
+        let mut args = vec![serde_json::to_string(candidate).unwrap()];
+        args.extend(extra.iter().map(|value| (*value).to_owned()));
+        args
+    }
+
+    #[test]
+    fn memory_promote_routes_a_declared_promotion_through_the_daemon() {
+        let (router, memory) = daemon_router_with_memory();
+        let run_id = RunId::generate();
+        let args = promote_args(&memory_candidate("fact-1", "src/auth.rs"), &[]);
+
+        // Before the route existed this authorize landed in the LSP fallback and was
+        // refused with "is not routed by the LSP executor".
+        router
+            .authorize(run_id, AgentSocketVerb::MemoryPromote, &args)
+            .unwrap();
+        let receipt = router
+            .route(run_id, AgentSocketVerb::MemoryPromote, &args)
+            .unwrap();
+
+        assert_eq!(receipt["id"], "fact-1");
+        assert_eq!(receipt["metadata"]["density_bypassed"], true);
+        assert_eq!(receipt["metadata"]["reverified"], true);
+        let promoted = memory.lock().unwrap().get("fact-1").unwrap().clone();
+        assert_eq!(
+            promoted.capture_origin,
+            locus_core::services::memory::MemoryCaptureOrigin::DeclaredPromotion
+        );
+        let promotion = promoted.promotion.expect("promoted record");
+        assert!(promotion.density_bypassed && promotion.reverified);
+    }
+
+    #[test]
+    fn memory_promote_dedups_the_previous_entry_on_the_path() {
+        let (router, memory) = daemon_router_with_memory();
+        let run_id = RunId::generate();
+        memory
+            .lock()
+            .unwrap()
+            .insert(memory_candidate("fact-1", "src/auth.rs"))
+            .unwrap();
+
+        let receipt = router
+            .route(
+                run_id,
+                AgentSocketVerb::MemoryPromote,
+                &promote_args(&memory_candidate("fact-2", "src/auth.rs"), &[]),
+            )
+            .unwrap();
+
+        assert_eq!(receipt["id"], "fact-2-promoted");
+        assert_eq!(receipt["metadata"]["deduplicated"], true);
+        let store = memory.lock().unwrap();
+        assert!(store.get("fact-1").unwrap().archived);
+        assert!(store.get("fact-2-promoted").is_some());
+    }
+
+    #[test]
+    fn memory_promote_declares_its_reverification_method() {
+        let (router, memory) = daemon_router_with_memory();
+        let run_id = RunId::generate();
+        let receipt = router
+            .route(
+                run_id,
+                AgentSocketVerb::MemoryPromote,
+                &promote_args(
+                    &memory_candidate("fact-1", "src/auth.rs"),
+                    &["--method", "test"],
+                ),
+            )
+            .unwrap();
+
+        assert_eq!(receipt["metadata"]["reverified"], true);
+        assert_eq!(memory.lock().unwrap().get("fact-1").unwrap().subject, "Stable auth flow");
+    }
+
+    #[test]
+    fn memory_promote_refuses_bad_candidates_and_failed_reverification() {
+        let (router, _memory) = daemon_router_with_memory();
+        let run_id = RunId::generate();
+
+        let error = router
+            .route(run_id, AgentSocketVerb::MemoryPromote, &[])
+            .unwrap_err();
+        assert!(error.to_string().contains("JSON memory candidate"));
+
+        let error = router
+            .route(run_id, AgentSocketVerb::MemoryPromote, &["not-json".into()])
+            .unwrap_err();
+        assert!(error.to_string().contains("JSON memory entry"));
+
+        let mut secret_candidate = memory_candidate("fact-3", "src/auth.rs");
+        secret_candidate.body = "the key is sk-abcdef".into();
+        let error = router
+            .route(
+                run_id,
+                AgentSocketVerb::MemoryPromote,
+                &promote_args(&secret_candidate, &[]),
+            )
+            .unwrap_err();
+        assert!(error.to_string().contains("credential-like"));
+
+        let candidate = memory_candidate("fact-4", "src/auth.rs");
+        let error = router
+            .route(
+                run_id,
+                AgentSocketVerb::MemoryPromote,
+                &promote_args(&candidate, &["--method", "test", "--failed"]),
+            )
+            .unwrap_err();
+        assert!(error.to_string().contains("failed re-verification"));
+
+        let error = router
+            .route(
+                run_id,
+                AgentSocketVerb::MemoryPromote,
+                &promote_args(&candidate, &["--method", "vibes"]),
+            )
+            .unwrap_err();
+        assert!(error.to_string().contains("unknown re-verification method"));
     }
 }
