@@ -90,7 +90,10 @@ async fn events_replay_in_capture_order_with_payload_intact() {
     };
 
     store
-        .persist_events([(EventId::generate(), &first), (EventId::generate(), &second)])
+        .persist_events([
+            (EventId::generate(), &first),
+            (EventId::generate(), &second),
+        ])
         .await
         .expect("persist events");
 

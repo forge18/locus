@@ -468,8 +468,14 @@ impl TryFrom<PersistedEventRow> for Event {
             ts: row.ts,
             verb: EventVerb::parse(&row.verb)
                 .with_context(|| format!("unknown persisted event verb {:?}", row.verb))?,
-            text: payload.get("text").and_then(serde_json::Value::as_str).map(str::to_owned),
-            tool: payload.get("tool").and_then(serde_json::Value::as_str).map(str::to_owned),
+            text: payload
+                .get("text")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_owned),
+            tool: payload
+                .get("tool")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_owned),
             args: payload
                 .get("args")
                 .cloned()

@@ -2061,7 +2061,10 @@ async fn telemetry_events_replay(
         .parse()
         .map_err(|_| IpcError::internal("run id must be a UUID"))?;
     let store = connected_store(&core).await?;
-    store.events_for_run(run_id).await.map_err(IpcError::internal)
+    store
+        .events_for_run(run_id)
+        .await
+        .map_err(IpcError::internal)
 }
 
 #[tauri::command]

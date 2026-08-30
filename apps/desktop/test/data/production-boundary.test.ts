@@ -30,9 +30,9 @@ describe("data/production-boundary", () => {
   it("never reaches the demo provider except through its explicit demo module", () => {
     // The seam's imports reference neither fixtures nor the demo provider, so a
     // Tauri runtime cannot silently serve demo data through it.
-    const imports = [...read("provider.ts").matchAll(/from\s+["']([^"']+)['"]/g)].map(
-      (entry) => entry[1],
-    );
+    const imports = [
+      ...read("provider.ts").matchAll(/from\s+["']([^"']+)['"]/g),
+    ].map((entry) => entry[1]);
     expect(imports).toContain("@tauri-apps/api/core");
     for (const specifier of imports) {
       expect(specifier).not.toMatch(/demo/);
@@ -41,10 +41,7 @@ describe("data/production-boundary", () => {
   });
 
   it("the Tauri bootstrap configures the live provider", () => {
-    const app = readFileSync(
-      resolve(__dirname, "../../src/App.tsx"),
-      "utf8",
-    );
+    const app = readFileSync(resolve(__dirname, "../../src/App.tsx"), "utf8");
     expect(app).toContain("configureDataProvider(liveProvider)");
   });
 

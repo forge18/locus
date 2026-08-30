@@ -21,7 +21,6 @@ use crate::{
         registry::HarnessDefinition,
     },
     runtime::session::{Run, RunStatus},
-    services::telemetry::EventCollector,
     sandbox::{
         credential_proxy::CredentialProxy,
         egress::{DestinationAllowlists, EgressTier},
@@ -33,6 +32,7 @@ use crate::{
         ports::project_network,
         ports::PortAllocator,
     },
+    services::telemetry::EventCollector,
     services::{
         handoff::HandoffContext,
         project::ProjectSettings,
@@ -680,10 +680,13 @@ async fn start_acp_session(
         agent_command,
         agent_args,
     );
-    let session =
-        crate::runtime::acp::establish_session(transport, WORKSPACE_CWD, spawned.acp_updates.clone())
-            .await
-            .context("open the run's ACP conversation")?;
+    let session = crate::runtime::acp::establish_session(
+        transport,
+        WORKSPACE_CWD,
+        spawned.acp_updates.clone(),
+    )
+    .await
+    .context("open the run's ACP conversation")?;
     spawned.acp_session = Some(session);
     Ok(())
 }

@@ -16,35 +16,41 @@ import type { DataProvider } from "../provider";
 type FixtureQuery = (args?: Record<string, unknown>) => unknown[];
 
 const FIXTURES: Record<string, FixtureQuery> = {
-  projects_list: () => PROJECTS,
-  repos_list: (args) => {
-    const projectId = args?.projectId;
-    return typeof projectId === "string"
-      ? REPOS.filter((repo) => repo.projectId === projectId)
-      : REPOS;
-  },
-  local_remotes_list: () => LOCAL_REMOTES,
+ projects_list: () => PROJECTS,
+ repos_list: (args) => {
+  const projectId = args?.projectId;
+  return typeof projectId === "string"
+   ? REPOS.filter((repo) => repo.projectId === projectId)
+   : REPOS;
+ },
+ local_remotes_list: () => LOCAL_REMOTES,
 };
 
 function demoEnvelope<T>(
-  command: string,
-  args: Record<string, unknown> | undefined,
+ command: string,
+ args: Record<string, unknown> | undefined,
 ): Envelope<T[]> {
-  const fixture = FIXTURES[command];
-  if (!fixture) {
-    return failed(command, `demo provider has no fixture for ${command}`);
-  }
-  return ready(fixture(args) as T[]);
+ const fixture = FIXTURES[command];
+ if (!fixture) {
+  return failed(command, `demo provider has no fixture for ${command}`);
+ }
+ return ready(fixture(args) as T[]);
 }
 
 export const demoProvider: DataProvider = {
-  kind: "demo",
-  async query<T>(command: string, args?: Record<string, unknown>) {
-    return demoEnvelope<T>(command, args);
-  },
-  async queryOne<T>(command: string, _args?: Record<string, unknown>): Promise<Envelope<T>> {
-    // Single-value demo fixtures arrive with the slice that needs them; the honest
-    // answer until then is a typed failure, never a fabricated row.
-    return failed(command, `demo provider has no single-value fixture for ${command}`);
-  },
+ kind: "demo",
+ async query<T>(command: string, args?: Record<string, unknown>) {
+  return demoEnvelope<T>(command, args);
+ },
+ async queryOne<T>(
+  command: string,
+  _args?: Record<string, unknown>,
+ ): Promise<Envelope<T>> {
+  // Single-value demo fixtures arrive with the slice that needs them; the honest
+  // answer until then is a typed failure, never a fabricated row.
+  return failed(
+   command,
+   `demo provider has no single-value fixture for ${command}`,
+  );
+ },
 };

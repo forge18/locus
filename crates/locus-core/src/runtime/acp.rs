@@ -156,14 +156,19 @@ impl Drop for AgentSession {
 /// `session/update` notification into `updates`. Resolves once the agent answers
 /// `session/new`; the connection keeps running in the background until the returned
 /// handle is dropped.
-pub async fn establish_session<T>(agent: T, cwd: impl Into<PathBuf>, updates: UpdateStream) -> anyhow::Result<AgentSession>
+pub async fn establish_session<T>(
+    agent: T,
+    cwd: impl Into<PathBuf>,
+    updates: UpdateStream,
+) -> anyhow::Result<AgentSession>
 where
     T: ConnectTo<Client> + 'static,
 {
     let (session_tx, session_rx) = tokio::sync::oneshot::channel();
     let cwd: PathBuf = cwd.into();
     let handler_updates = updates.clone();
-    let connection = Client.builder()
+    let connection = Client
+        .builder()
         .on_receive_notification::<SessionNotification, _, _, _>(
             move |notification: SessionNotification, _cx| {
                 let updates = handler_updates.clone();
@@ -285,9 +290,7 @@ mod session_new {
 
 #[cfg(test)]
 mod session_establishment {
-    use agent_client_protocol::schema::v1::{
-        ContentChunk, NewSessionResponse, SessionUpdate,
-    };
+    use agent_client_protocol::schema::v1::{ContentChunk, NewSessionResponse, SessionUpdate};
     use agent_client_protocol::{Agent, Channel};
 
     use super::*;
