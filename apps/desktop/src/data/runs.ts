@@ -26,14 +26,18 @@ export interface DispatchRunRow {
 export function fetchRunsPage(
   offset: number,
   limit = PAGE_SIZE,
+  projectId?: string,
 ): Promise<Envelope<DispatchRunRow[]>> {
   return dataProvider().query<DispatchRunRow>("dispatch_runs_page", {
     offset,
     limit,
+    projectId,
   });
 }
 
 /** Live count of every run — the header's headline number. */
-export function fetchRunsCount(): Promise<Envelope<number>> {
-  return dataProvider().queryOne<number>("dispatch_runs_count");
+export function fetchRunsCount(
+  projectId?: string,
+): Promise<Envelope<number>> {
+  return dataProvider().queryOne<number>("dispatch_runs_count", { projectId });
 }

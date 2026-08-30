@@ -1,4 +1,4 @@
-import { For, Show, createMemo, createSignal, onMount } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, on, onMount } from "solid-js";
 import { InboxCard } from "./InboxCard";
 import { InboxDetail } from "./InboxDetail";
 import { EmptyPane } from "../../ui/EmptyPane";
@@ -87,9 +87,10 @@ export function InboxView(_props: InboxViewProps) {
   );
 
   async function refreshInbox() {
+    const scope = selectedProjects().length === 1 ? selectedProjects()[0] : undefined;
     const [list, today, counts] = await Promise.all([
-      fetchInboxList(),
-      fetchResolvedToday(),
+      fetchInboxList(scope),
+      fetchResolvedToday(scope),
       fetchInboxThroughput(),
     ]);
     setItemsEnvelope(list);
@@ -112,6 +113,14 @@ export function InboxView(_props: InboxViewProps) {
       if (envelope.status === "ready") setProjects(envelope.data);
     });
   });
+
+  // Scoped invalidation: narrowing to exactly one project re-reads from the
+  // store with that scope; "all projects" reads the cross-project view.
+  createEffect(
+    on(selectedProjects, () => {
+      void refreshInbox();
+    }),
+  );
 
   const [recentlyResolved, setRecentlyResolved] = createSignal<
     { delivery: InboxDelivery; comment: string; resolvedAt: string }[]

@@ -41,6 +41,11 @@ export function fetchSessions(
   });
 }
 
+/** Live read: one session by id. An unknown id is a typed not-found. */
+export function fetchSession(sessionId: string): Promise<Envelope<SessionRow>> {
+  return dataProvider().queryOne<SessionRow>("session", { sessionId });
+}
+
 /** Live read: one session's runs, oldest first. */
 export function fetchRunsForSession(
   sessionId: string,

@@ -31,6 +31,30 @@ export interface DispatchScheduleExecution {
   endedAt: string | null;
 }
 
+/** Wire type: one project's tri-state autorun posture. */
+export interface AutorunStateRow {
+  projectId: string;
+  project: string;
+  state: "on" | "off" | "suspended";
+}
+
+/** Every project's autorun posture, for the switchboard. A project with no
+ * row defaults to off. */
+export function fetchAutorunStates(): Promise<Envelope<AutorunStateRow[]>> {
+  return dataProvider().query<AutorunStateRow>("autorun_states");
+}
+
+/** Set one project's tri-state autorun posture. */
+export function setAutorunState(
+  projectId: string,
+  state: "on" | "off" | "suspended",
+): Promise<Envelope<void>> {
+  return dataProvider().queryOne<void>("set_project_autorun_state", {
+    projectId,
+    state,
+  });
+}
+
 export function fetchDispatchSchedules(): Promise<Envelope<DispatchSchedule[]>> {
   return dataProvider().query<DispatchSchedule>("dispatch_schedules");
 }

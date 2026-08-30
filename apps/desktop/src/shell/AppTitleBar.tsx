@@ -1,7 +1,7 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { DispatchPill } from "./DispatchPill";
 import { InboxPill } from "./InboxPill";
-import type { InboxItem } from "../fixtures/inbox";
+import type { InboxDelivery } from "../data/inbox";
 import type { ActiveSession } from "./RunningPill";
 
 export interface AppTitleBarProps {
@@ -11,7 +11,7 @@ export interface AppTitleBarProps {
     needsYou: number;
     sessions?: ActiveSession[];
     inboxCount?: number;
-    inboxItems?: readonly InboxItem[];
+    inboxItems?: readonly InboxDelivery[];
     onOpenDispatch?: () => void;
     onStopAll?: () => void;
     onOpenInbox?: () => void;

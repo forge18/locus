@@ -92,6 +92,22 @@ impl Store {
     }
 
     /// Every session across projects, newest first — the run slice's session list.
+    /// One session by id, with its project and agent names resolved.
+    pub async fn session(&self, session_id: Uuid) -> Result<Option<SessionRow>> {
+        query_as(
+            "SELECT s.id, s.project_id, p.name AS project, ad.name AS agent,
+                    s.name, s.branch, s.status, s.created_at::text AS created_at
+             FROM agents.sessions s
+             JOIN core.projects p ON p.id = s.project_id
+             JOIN agents.agent_defs ad ON ad.id = s.agent_def_id
+             WHERE s.id = $1",
+        )
+        .bind(session_id)
+        .fetch_optional(&self.pool)
+        .await
+        .context("read one session")
+    }
+
     pub async fn sessions_page(
         &self,
         project_id: Option<ProjectId>,

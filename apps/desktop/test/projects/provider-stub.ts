@@ -82,6 +82,8 @@ export interface ProjectsStub {
   inboxPending?: number;
   /** Slice-5 mutations: command name -> response value. */
   mutations?: Record<string, unknown>;
+  /** Autorun states for the dispatch switchboard. */
+  autorunStates?: unknown[];
   /** Queries never settle: pins the loading state. */
   hang?: boolean;
 }
@@ -139,6 +141,12 @@ export function configureProjectsStub(stub: ProjectsStub = {}): {
       }
       if (command === "dispatch_runs_page") {
         return ready((stub.runsPage ?? []) as T[]);
+      }
+      if (command === "autorun_states") {
+        return ready((stub.autorunStates ?? []) as T[]);
+      }
+      if (command === "set_project_autorun_state") {
+        return { status: "ready", data: undefined } as unknown as Envelope<T[]>;
       }
       if (command === "inbox_list") {
         return ready((stub.inboxList ?? []) as T[]);

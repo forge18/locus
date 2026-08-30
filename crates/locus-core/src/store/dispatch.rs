@@ -39,6 +39,14 @@ pub struct ScheduleExecutionRow {
     pub ended_at: Option<String>,
 }
 
+/// One project's tri-state autorun posture with its project name.
+#[derive(Debug, sqlx::FromRow)]
+pub struct AutorunStateRow {
+    pub project_id: Uuid,
+    pub project: String,
+    pub state: String,
+}
+
 impl Store {
     /// Read the durable, machine-wide dispatch policy.
     pub async fn dispatch_policy(&self) -> Result<DispatchPolicy> {
@@ -159,6 +167,21 @@ impl Store {
         query("UPDATE core.guardrail_defaults SET max_iterations = $1, token_budget = $2, stuck_iterations = $3, change_lines_ceiling = $4, change_files_ceiling = $5, kill_and_reassign = $6, network_tier = $7, block_system_changes = $8, autopilot = $9, updated_at = now() WHERE singleton = TRUE")
             .bind(i32::try_from(defaults.max_iterations)?).bind(defaults.token_budget.map(|value| value as i64)).bind(i32::try_from(defaults.stuck_iterations)?).bind(defaults.change_lines.map(|value| value as i32)).bind(defaults.change_files.map(|value| value as i32)).bind(defaults.kill_and_reassign).bind(match defaults.network_tier { NetworkTier::Closed => "closed", NetworkTier::Internal => "internal", NetworkTier::Open => "open" }).bind(defaults.block_system_changes).bind(defaults.autopilot).execute(self.pool()).await.context("persist guardrail defaults")?;
         Ok(())
+    }
+
+    /// Every project's tri-state autorun posture, for the Autorun switchboard.
+    /// A project with no row defaults to Off.
+    pub async fn autorun_states(&self) -> Result<Vec<AutorunStateRow>> {
+        query_as(
+            "SELECT p.id AS project_id, p.name AS project,
+                    COALESCE(a.state, 'off') AS state
+             FROM core.projects p
+             LEFT JOIN core.project_autorun a ON a.project_id = p.id
+             ORDER BY p.name",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .context("list project autorun states")
     }
 
     /// Set whether a project may automatically start dispatchable work.

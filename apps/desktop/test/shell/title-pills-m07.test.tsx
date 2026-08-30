@@ -1,7 +1,7 @@
 import { fireEvent, render } from "@solidjs/testing-library";
 import { describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
-import { INBOX_ITEMS } from "../../src/fixtures/inbox";
+import { PENDING } from "../inbox/deliveries";
 import { stopAllDispatch } from "../../src/data/dispatch";
 import { waitFor } from "@solidjs/testing-library";
 import { createNavStore } from "../../src/nav";
@@ -83,15 +83,15 @@ describe("M0.7 title-bar pills", () => {
     const onOpenInbox = vi.fn();
     const { getByTestId, getByRole } = render(() => (
       <InboxPill
-        count={INBOX_ITEMS.length}
-        items={INBOX_ITEMS}
+        count={PENDING.length}
+        items={PENDING}
         onOpenInbox={onOpenInbox}
       />
     ));
 
     await fireEvent.click(getByTestId("inbox-pill"));
     expect(getByTestId("inbox-preview-items").textContent).toContain(
-      INBOX_ITEMS[0].title,
+      PENDING[0].subject,
     );
     await fireEvent.click(getByRole("button", { name: "Open Inbox" }));
     expect(onOpenInbox).toHaveBeenCalledOnce();

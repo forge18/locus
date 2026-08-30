@@ -90,7 +90,7 @@ function App() {
                                                 />
                                         </Match>
                                         <Match when={nav.view() === "runs"}>
-                                                <DispatchView tab="runs" />
+                                                <DispatchView tab="runs" nav={nav} />
                                         </Match>
                                         <Match when={nav.view() === "artifact"}>
                                                 <MemoryArtifactsFixture />
@@ -136,10 +136,10 @@ function App() {
                                                 />
                                         </Match>
                                         <Match when={nav.view() === "autorun"}>
-                                                <DispatchView tab="autorun" />
+                                                <DispatchView tab="autorun" nav={nav} />
                                         </Match>
                                         <Match when={nav.view() === "schedule"}>
-                                                <DispatchView tab="schedules" />
+                                                <DispatchView tab="schedules" nav={nav} />
                                         </Match>
                                         <Match when={nav.view() === "short"}>
                                                 <MemoryShortTermFixture />

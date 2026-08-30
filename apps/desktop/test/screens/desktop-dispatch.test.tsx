@@ -4,6 +4,13 @@ import { DispatchView } from "../../src/screens/dispatch/DispatchView";
 import { configureProjectsStub } from "../projects/provider-stub";
 
 configureProjectsStub({
+  autorunStates: [
+    { projectId: "00000000-0000-0000-0000-000000000a01", project: "tapestry", state: "suspended" },
+    { projectId: "00000000-0000-0000-0000-000000000a02", project: "loom-db", state: "on" },
+    { projectId: "00000000-0000-0000-0000-000000000a03", project: "weaver", state: "off" },
+    { projectId: "00000000-0000-0000-0000-000000000a04", project: "texere", state: "off" },
+    { projectId: "00000000-0000-0000-0000-000000000a05", project: "amq", state: "suspended" },
+  ],
   runsPage: [
     {
       id: "run-1",
@@ -20,34 +27,31 @@ configureProjectsStub({
     },
   ],
 });
-import { DISPATCH_PROJECTS } from "../../src/fixtures/dispatch";
 
 const mount = (tab: "autorun" | "schedules" | "runs" = "autorun") =>
   render(() => <DispatchView tab={tab} />);
 
 describe("screens/desktop-dispatch", () => {
-  it("renders autorun as a per-project switch with unavailable projects held off", () => {
+  it("renders autorun as a per-project switch from the live states", async () => {
     const { getByTestId } = mount();
 
+    await waitFor(() =>
+      expect(
+        getByTestId("autorun-projects").querySelectorAll("[data-project]")
+          .length,
+      ).toBe(5),
+    );
     expect(getByTestId("dispatch-autorun").textContent).toContain(
       "Autorun is on or off, per project",
     );
     expect(
-      getByTestId("autorun-projects").querySelectorAll("[data-project]").length,
-    ).toBe(DISPATCH_PROJECTS.length);
+      getByTestId("autorun-project-00000000-0000-0000-0000-000000000a03")
+        .getAttribute("data-state"),
+    ).toBe("off");
     expect(
-      getByTestId("autorun-project-weaver").getAttribute("data-state"),
-    ).toBe("suspended");
-    expect(getByTestId("autorun-project-amq").getAttribute("data-state")).toBe(
-      "archived",
-    );
-    expect(
-      (
-        getByTestId("autorun-project-amq").querySelector(
-          "button",
-        ) as HTMLButtonElement
-      ).disabled,
-    ).toBe(true);
+      getByTestId("autorun-project-00000000-0000-0000-0000-000000000a02")
+        .getAttribute("data-state"),
+    ).toBe("on");
   });
 
   it("surfaces stop-all scope, handoff preservation, and its ten-minute restore window", async () => {

@@ -1001,6 +1001,123 @@ async fn dispatch_schedules(core: State<'_, Arc<Core>>) -> Result<Vec<ScheduleRe
     schedules_list_inner(store).await
 }
 
+/// One session by id (the detail read) and the autorun switchboard.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AutorunStateResponse {
+    project_id: String,
+    project: String,
+    state: String,
+}
+
+async fn autorun_states_inner(store: &Store) -> Result<Vec<AutorunStateResponse>, IpcError> {
+    store
+        .autorun_states()
+        .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(|row| AutorunStateResponse {
+                    project_id: row.project_id.to_string(),
+                    project: row.project,
+                    state: row.state,
+                })
+                .collect()
+        })
+        .map_err(IpcError::internal)
+}
+
+async fn set_project_autorun_state_inner(
+    store: &Store,
+    project_id: &str,
+    state: &str,
+) -> Result<(), IpcError> {
+    let pid = resolve_setup_project(store, project_id).await?;
+    let state = match state {
+        "on" => locus_core::runtime::dispatch::AutorunState::On,
+        "off" => locus_core::runtime::dispatch::AutorunState::Off,
+        "suspended" => locus_core::runtime::dispatch::AutorunState::Suspended,
+        other => {
+            return Err(IpcError::invalid_argument(format!(
+                "unknown autorun state {other}"
+            )))
+        }
+    };
+    store
+        .set_project_autorun_state(pid, state)
+        .await
+        .map_err(IpcError::internal)
+}
+
+#[tauri::command]
+async fn session(
+    core: State<'_, Arc<Core>>,
+    session_id: String,
+) -> Result<SessionResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    let session_id: uuid::Uuid = session_id
+        .parse()
+        .map_err(|_| IpcError::invalid_argument("session id must be a UUID"))?;
+    store
+        .session(session_id)
+        .await
+        .map_err(IpcError::internal)?
+        .map(|row| SessionResponse {
+            id: row.id.to_string(),
+            project_id: row.project_id.to_string(),
+            project: row.project,
+            agent: row.agent,
+            name: row.name,
+            branch: row.branch,
+            status: row.status,
+            created_at: row.created_at,
+        })
+        .ok_or_else(|| IpcError::not_found("session was not found"))
+}
+
+#[tauri::command]
+async fn autorun_states(
+    core: State<'_, Arc<Core>>,
+) -> Result<Vec<AutorunStateResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    store
+        .autorun_states()
+        .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(|row| AutorunStateResponse {
+                    project_id: row.project_id.to_string(),
+                    project: row.project,
+                    state: row.state,
+                })
+                .collect()
+        })
+        .map_err(IpcError::internal)
+}
+
+#[tauri::command]
+async fn set_project_autorun_state(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    state: String,
+) -> Result<(), IpcError> {
+    let store = connected_store(&core).await?;
+    let pid = resolve_setup_project(store, &project_id).await?;
+    let state = match state.as_str() {
+        "on" => locus_core::runtime::dispatch::AutorunState::On,
+        "off" => locus_core::runtime::dispatch::AutorunState::Off,
+        "suspended" => locus_core::runtime::dispatch::AutorunState::Suspended,
+        other => {
+            return Err(IpcError::invalid_argument(format!(
+                "unknown autorun state {other}"
+            )))
+        }
+    };
+    store
+        .set_project_autorun_state(pid, state)
+        .await
+        .map_err(IpcError::internal)
+}
+
 #[tauri::command]
 async fn dispatch_schedule_executions(
     core: State<'_, Arc<Core>>,
@@ -2994,6 +3111,9 @@ pub fn run() {
             runs_for_session,
             dispatch_schedules,
             dispatch_schedule_executions,
+            session,
+            autorun_states,
+            set_project_autorun_state,
             inbox_list,
             inbox_resolved_today,
             inbox_throughput,
@@ -4443,5 +4563,114 @@ mod schedule_queries {
         assert_eq!(executions.len(), 1);
         assert_eq!(executions[0].schedule_name, "nightly reconcile");
         assert_eq!(executions[0].status, "completed");
+    }
+}
+/// The autorun switchboard and session detail: the last slice-7 gaps.
+#[cfg(test)]
+mod autorun_and_session {
+    use super::*;
+    use locus_core::testkit::postgres::{
+        start_postgres_named, test_backup_config, NoopMigrationBackup,
+    };
+
+    async fn test_store() -> (Store, locus_core::testkit::postgres::DockerCleanup) {
+        let (container, cleanup) = start_postgres_named("locus-tauri-autorun").await;
+        let store = Store::connect(&container.database_url())
+            .await
+            .expect("connect the autorun test store");
+        store
+            .run_migrations(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations"),
+                &NoopMigrationBackup,
+                &test_backup_config(),
+            )
+            .await
+            .expect("run migrations for the autorun test store");
+        (store, cleanup)
+    }
+
+    #[tokio::test]
+    async fn autorun_states_list_every_project_defaulting_to_off() {
+        let (store, _cleanup) = test_store().await;
+        sqlx::query("INSERT INTO core.projects (id, name) VALUES ('00000000-0000-0000-0000-000000000901', 'tapestry'), ('00000000-0000-0000-0000-000000000902', 'amq')")
+            .execute(store.test_pool())
+            .await
+            .expect("seed projects");
+        sqlx::query(
+            "INSERT INTO core.project_autorun (project_id, enabled, state)
+             VALUES ('00000000-0000-0000-0000-000000000901', TRUE, 'on')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed autorun");
+
+        let states = autorun_states_inner(&store).await.expect("list autorun states");
+        assert_eq!(states.len(), 2);
+        assert_eq!(states[0].project, "amq");
+        assert_eq!(states[0].state, "off");
+        assert_eq!(states[1].state, "on");
+    }
+
+    #[tokio::test]
+    async fn set_project_autorun_state_persists_and_refuses_archived() {
+        let (store, _cleanup) = test_store().await;
+        sqlx::query("INSERT INTO core.projects (id, name) VALUES ('00000000-0000-0000-0000-000000000901', 'tapestry')")
+            .execute(store.test_pool())
+            .await
+            .expect("seed project");
+
+        set_project_autorun_state_inner(&store, "00000000-0000-0000-0000-000000000901", "on")
+            .await
+            .expect("turn autorun on");
+        let state = store
+            .project_autorun_state("00000000-0000-0000-0000-000000000901".parse().expect("id"))
+            .await
+            .expect("read state");
+        assert_eq!(state, locus_core::runtime::dispatch::AutorunState::On);
+
+        let error = set_project_autorun_state_inner(&store, "00000000-0000-0000-0000-0000000009ff", "on")
+            .await
+            .expect_err("unknown project rejected");
+        assert_eq!(
+            serde_json::to_value(error).expect("serialize IPC error")["kind"],
+            "not_found"
+        );
+    }
+
+    #[tokio::test]
+    async fn session_reads_one_session_and_rejects_unknown() {
+        let (store, _cleanup) = test_store().await;
+        sqlx::query("INSERT INTO core.projects (id, name) VALUES ('00000000-0000-0000-0000-000000000901', 'tapestry')")
+            .execute(store.test_pool())
+            .await
+            .expect("seed project");
+        sqlx::query(
+            "INSERT INTO agents.agent_defs (id, name, version, frontmatter, body)
+             VALUES ('00000000-0000-0000-0000-000000000911', 'builder', 1, '{}'::jsonb, 'test agent')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed agent def");
+        sqlx::query(
+            "INSERT INTO agents.sessions (id, project_id, agent_def_id, name, branch)
+             VALUES ('00000000-0000-0000-0000-000000000921', '00000000-0000-0000-0000-000000000901', '00000000-0000-0000-0000-000000000911', 'session detail', 'agent/detail')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed session");
+
+        let session = store
+            .session("00000000-0000-0000-0000-000000000921".parse().expect("id"))
+            .await
+            .expect("read session")
+            .expect("session found");
+        assert_eq!(session.project, "tapestry");
+        assert_eq!(session.name, "session detail");
+
+        let missing = store
+            .session("00000000-0000-0000-0000-0000000009ff".parse().expect("id"))
+            .await
+            .expect("read missing session");
+        assert!(missing.is_none());
     }
 }

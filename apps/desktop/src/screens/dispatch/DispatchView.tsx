@@ -1,24 +1,41 @@
-import { For, Match, Show, Switch, createMemo, createSignal, onMount } from "solid-js";
 import {
-  DISPATCH_PROJECTS,
+  For,
+  Match,
+  Show,
+  Switch,
+  createEffect,
+  createMemo,
+  createSignal,
+  on,
+  onMount,
+} from "solid-js";
+import {
   STOP_ALL_AGENT_COUNT,
   STOP_ALL_RESTORE_MINUTES,
   NEVER_AUTORUN_EXCLUSIONS,
   VERIFY_VOCABULARY,
   autorunMasterState,
   fetchDispatchSchedules,
+  fetchAutorunStates,
+  setAutorunState,
+  type AutorunStateRow,
   fetchScheduleExecutions,
   type DispatchSchedule,
   type DispatchScheduleExecution,
   type AutorunState,
   type PermissionPosture,
 } from "../../data/dispatch";
+import type { NavStore } from "../../nav";
 import { fetchRunningCount } from "../../data/strip";
 import type { Envelope } from "../../data/envelope";
-import { fetchRunsCount, fetchRunsPage, type DispatchRunRow } from "../../data/runs";
+import {
+  PAGE_SIZE,
+  fetchRunsCount,
+  fetchRunsPage,
+  type DispatchRunRow,
+} from "../../data/runs";
 import { notify } from "../../ui/Toast";
 import { Button } from "../../ui/Button";
-import { FixtureNotice } from "../../ui/FixtureNotice";
 import { Segmented } from "../../ui/Segmented";
 
 import "./dispatch.css";
@@ -30,6 +47,8 @@ export interface DispatchViewProps {
   tab: DispatchTab;
   /** Switching tabs is navigation: the shell's locator decides the route. */
   onSwitchTab?: (tab: DispatchTab) => void;
+  /** The nav store: the scoped reads refetch when the project scope changes. */
+  nav?: NavStore;
 }
 
 const DISPATCH_TABS = [
@@ -38,7 +57,6 @@ const DISPATCH_TABS = [
   { value: "runs", label: "Runs" },
 ];
 
-const dispatchCommand = (_tab: DispatchTab) => 'invoke("dispatch_snapshot")';
 
 function AutorunSwitch(props: {
   state: AutorunState;
@@ -74,40 +92,79 @@ function DispatchTabs(props: {
   );
 }
 
-function AutorunView(props: { onSwitch?: (tab: DispatchTab) => void }) {
-  const [projects, setProjects] = createSignal(DISPATCH_PROJECTS);
+function AutorunView(props: {
+  onSwitch?: (tab: DispatchTab) => void;
+  nav?: NavStore;
+}) {
+  const [states, setStates] = createSignal<Envelope<AutorunStateRow[]>>({
+    status: "loading",
+  });
   const [stopOpen, setStopOpen] = createSignal(false);
   const [stopped, setStopped] = createSignal(false);
   const [handoff, setHandoff] = createSignal(true);
   const [runningCount, setRunningCount] = createSignal(0);
+  const projects = createMemo(() => {
+    const envelope = states();
+    if (envelope.status !== "ready") return [];
+    return envelope.data.map((row) => ({
+      id: row.projectId,
+      name: row.project,
+      state: row.state as AutorunState,
+      repos: "",
+      detail: "",
+      activity: "",
+    }));
+  });
   const master = () => autorunMasterState(projects());
 
+  async function refreshAutorun() {
+    const [statesEnvelope, running] = await Promise.all([
+      fetchAutorunStates(),
+      fetchRunningCount(),
+    ]);
+    setStates(statesEnvelope);
+    if (running.status === "ready") setRunningCount(running.data);
+  }
+
   onMount(() => {
-    void fetchRunningCount().then((envelope) => {
-      if (envelope.status === "ready") setRunningCount(envelope.data);
-    });
+    void refreshAutorun();
   });
 
   const toggleProject = (id: string) => {
-    setProjects((current) =>
-      current.map((project) =>
-        project.id === id && (project.state === "on" || project.state === "off")
-          ? { ...project, state: project.state === "on" ? "off" : "on" }
-          : project,
-      ),
+    // Optimistic flip, then the command; a failure rolls back with a toast.
+    setStates((current) => {
+      if (current.status !== "ready") return current;
+      return {
+        status: "ready",
+        data: current.data.map((row) =>
+          row.projectId === id && row.state !== "suspended"
+            ? { ...row, state: row.state === "on" ? "off" : "on" }
+            : row,
+        ),
+      };
+    });
+    const next = projects().find((project) => project.id === id);
+    if (!next) return;
+    void setAutorunState(id, next.state === "on" ? "off" : "on").then(
+      (envelope) => {
+        if (envelope.status === "failed") {
+          notify({
+            title: "Autorun change failed",
+            description: envelope.error.message,
+            type: "error",
+          });
+          void refreshAutorun();
+        }
+      },
     );
   };
 
   return (
     <div class="dispatch-view" data-testid="dispatch-autorun">
-      <FixtureNotice
-        surface="Dispatch"
-        command={dispatchCommand("autorun")}
-      />
       <header class="dispatch-header">
         <DispatchTabs active="autorun" onSwitch={props.onSwitch} />
         <span class="dispatch-header-note">
-          {DISPATCH_PROJECTS.length} projects · {runningCount()} running
+          {projects().length} projects · {runningCount()} running
         </span>
         <Button variant="secondary">Pause everything</Button>
         <Button variant="secondary" onClick={() => setStopOpen(true)}>
@@ -293,7 +350,10 @@ function AutorunView(props: { onSwitch?: (tab: DispatchTab) => void }) {
   );
 }
 
-function SchedulesView(props: { onSwitch?: (tab: DispatchTab) => void }) {
+function SchedulesView(props: {
+  onSwitch?: (tab: DispatchTab) => void;
+  nav?: NavStore;
+}) {
   const [schedules, setSchedules] = createSignal<Envelope<DispatchSchedule[]>>({
     status: "loading",
   });
@@ -325,14 +385,11 @@ function SchedulesView(props: { onSwitch?: (tab: DispatchTab) => void }) {
 
   return (
     <div class="dispatch-view" data-testid="dispatch-schedules">
-      <FixtureNotice
-        surface="Dispatch"
-        command={dispatchCommand("schedules")}
-      />
       <header class="dispatch-header">
         <DispatchTabs active="schedules" onSwitch={props.onSwitch} />
         <span class="dispatch-header-note">
-          6 schedules · 248 fired · 17 skipped
+          {scheduleRows().length} schedules · {executionRows().length} recent
+          executions
         </span>
         <Button>New schedule</Button>
       </header>
@@ -521,7 +578,10 @@ function SchedulesView(props: { onSwitch?: (tab: DispatchTab) => void }) {
   );
 }
 
-function RunsView(props: { onSwitch?: (tab: DispatchTab) => void }) {
+function RunsView(props: {
+  onSwitch?: (tab: DispatchTab) => void;
+  nav?: NavStore;
+}) {
   const [runs, setRuns] = createSignal<Envelope<DispatchRunRow[]>>({
     status: "loading",
   });
@@ -530,7 +590,11 @@ function RunsView(props: { onSwitch?: (tab: DispatchTab) => void }) {
   });
 
   async function refreshRuns() {
-    const [page, total] = await Promise.all([fetchRunsPage(0), fetchRunsCount()]);
+    const projectId = props.nav?.params().project;
+    const [page, total] = await Promise.all([
+      fetchRunsPage(0, PAGE_SIZE, projectId),
+      fetchRunsCount(projectId),
+    ]);
     setRuns(page);
     setCount(total);
     for (const failed of [page, total]) {
@@ -547,6 +611,17 @@ function RunsView(props: { onSwitch?: (tab: DispatchTab) => void }) {
   onMount(() => {
     void refreshRuns();
   });
+
+  // Scoped invalidation: a project-scope change refetches the page.
+  createEffect(
+    on(
+      () => props.nav?.params().project,
+      () => {
+        void refreshRuns();
+      },
+      { defer: true },
+    ),
+  );
 
   const runCount = createMemo(() => {
     const envelope = count();
@@ -686,9 +761,11 @@ function RunsView(props: { onSwitch?: (tab: DispatchTab) => void }) {
 
 /** Dispatch's three durable-queue fixture routes. */
 export function DispatchView(props: DispatchViewProps) {
-  if (props.tab === "schedules") return <SchedulesView onSwitch={props.onSwitchTab} />;
-  if (props.tab === "runs") return <RunsView onSwitch={props.onSwitchTab} />;
-  return <AutorunView onSwitch={props.onSwitchTab} />;
+  if (props.tab === "schedules")
+    return <SchedulesView onSwitch={props.onSwitchTab} nav={props.nav} />;
+  if (props.tab === "runs")
+    return <RunsView onSwitch={props.onSwitchTab} nav={props.nav} />;
+  return <AutorunView onSwitch={props.onSwitchTab} nav={props.nav} />;
 }
 
 export default DispatchView;
