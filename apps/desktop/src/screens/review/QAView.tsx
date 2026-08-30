@@ -26,7 +26,12 @@ export function QAView(props: QAViewProps) {
   const project = () => props.projectId ?? 'tapestry'
   const [schedule, setSchedule] = createSignal< QaSchedule >(schedules.get(project()) ?? 'manual')
   const [findings, setFindings] = createSignal(useQaFindings(project()))
-  const [lastRun, setLastRun] = createSignal(QA_LAST_RUN)
+  // The last recorded run comes from the fixture seam; nothing can update it
+  // until a real QA command exists, so the signal is read-only for now.
+  const [lastRun] = createSignal(QA_LAST_RUN)
+  // Manual Refresh cannot start a real check until the backend registers a QA
+  // command, so `refresh` records that honestly instead of reporting success.
+  const [refreshUnsupported, setRefreshUnsupported] = createSignal(false)
   const [sentIds, setSentIds] = createSignal<string[]>(findings().filter((finding) => finding.sentToInbox).map((finding) => finding.id))
 
   const setProjectSchedule = (value: string) => {
@@ -37,9 +42,11 @@ export function QAView(props: QAViewProps) {
 
   const refresh = () => {
     // All sources use the same run entry point for manual and scheduled checks.
-    useQaSources().forEach((source) => runQaCheck(project(), source.id))
-    setFindings(useQaFindings(project()))
-    setLastRun('just now')
+    // Every attempt comes back `unsupported` (no QA command exists yet), so the
+    // checks did not run: no fresh findings, and the last-run stamp stays as it
+    // was. The view says so rather than claiming a successful new run.
+    const attempts = useQaSources().map((source) => runQaCheck(project(), source.id))
+    setRefreshUnsupported(attempts.every((attempt) => attempt.status === 'unsupported'))
   }
 
   const send = (id: string) => {
@@ -63,6 +70,12 @@ export function QAView(props: QAViewProps) {
         />
         <Button onClick={refresh} data-testid="qa-refresh">Refresh</Button>
       </header>
+
+      <Show when={refreshUnsupported()}>
+        <p class="qa-empty" role="status" data-testid="qa-refresh-unsupported">
+          Refresh can't run checks — the desktop backend registers no QA command yet, so findings stay as of the last recorded run.
+        </p>
+      </Show>
 
       <main class="qa-groups">
         <For each={useQaSources()}>
