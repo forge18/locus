@@ -10,7 +10,8 @@ slice changes it.
 - `apps/desktop/src/data/` holds 23 accessor modules; 2 are fully live (`bots`,
   `work-items`), 21 return fixtures or mix fixtures with live calls.
 - The accessors promise **82 distinct Tauri commands** via `Becomes:` markers.
-- The host registers **60** commands; **22** of the promised 82 exist
+- The host registers **60** commands; **22** of the promised 82 exist (plus
+  `telemetry_events_replay`, the run-event replay accessor from the telemetry persistence work)
   (`artifacts_list`, `artifact_comments`, `harness_tier_grid`, `materialization_report`,
   `projects_list`, `repos_list`, `local_remotes_list`, `project_setup` — the last four are the
   slice-3 tracer bullet; `strip_cards`, `running_count`, `inbox_pending_count` are slice 4's
@@ -20,6 +21,11 @@ slice changes it.
   inbox read/mutation; `dispatch_schedules`, `dispatch_schedule_executions` are slice 7's
   schedules read — backed by the existing `workflows.schedules` and `workflows.executions`
   tables, which closes two of the 13 orphaned-table rows). **60 commands are missing.**
+
+The agent-pane event channel is plumbed (replay accessor in `transcript/from-core.ts`,
+Channel subscription, store query, Tauri command) but the pane cannot render live events
+until the dispatch loop runs agents — that is a workstream-2 dependency, not a
+data-integration gap.
 
 ## Scope legend
 

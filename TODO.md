@@ -36,8 +36,10 @@ audit findings; each is one of the epic's slices, tracked here once:
   7. live run slice: Sessions/Runs/Dispatch/Inbox/Interact/Agent Pane (absorbs:
   wire Dispatch controls) — IN PROGRESS: runs read path live, sessions read path live,
   inbox read + resolve live (19/19 inbox test files pass, the full gate-action flow works
-  against the real store); remaining: agent-pane event
-  channel; schedules/autorun reads live from workflows.schedules/executions · 
+  against the real store); schedules/autorun reads live from workflows.schedules/executions.
+  The agent-pane event channel is plumbed (replay accessor, Channel stream, store query,
+  commands) but cannot render live events until the dispatch loop runs agents — that is a
+  workstream-2 dependency · 
   8. configuration slice: Plan/Manage/Setup mutations/Workshop/agents
   (absorbs: wire Manage's New Task and TaskDetail, wire Settings → Guardrails, expose the 13 core
   service families as commands, reconcile the TypeScript types with the Rust DTOs) ·
