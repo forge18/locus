@@ -1,26 +1,49 @@
-import { RUN_ROWS } from "../fixtures/runs";
-import {
+import { dataProvider } from "./provider";
+import type { Envelope } from "./envelope";
+export {
   DISPATCH_PROJECTS,
   NEVER_AUTORUN_EXCLUSIONS,
-  SCHEDULE_EXECUTIONS,
-  SCHEDULES,
   STOP_ALL_AGENT_COUNT,
   STOP_ALL_RESTORE_MINUTES,
   VERIFY_VOCABULARY,
   autorunMasterState,
 } from "../fixtures/dispatch";
-
-export {
-  DISPATCH_PROJECTS,
-  NEVER_AUTORUN_EXCLUSIONS,
-  SCHEDULE_EXECUTIONS,
-  SCHEDULES,
-  STOP_ALL_AGENT_COUNT,
-  STOP_ALL_RESTORE_MINUTES,
-  VERIFY_VOCABULARY,
-  autorunMasterState,
-};
 export type { AutorunState, PermissionPosture } from "../fixtures/dispatch";
+
+/** Wire type: one dispatch schedule from `workflows.schedules`. */
+export interface DispatchSchedule {
+  id: string;
+  projectId: string;
+  project: string;
+  name: string;
+  cron: string;
+  enabled: boolean;
+}
+
+/** Wire type: one execution of a dispatch schedule. */
+export interface DispatchScheduleExecution {
+  id: string;
+  scheduleName: string;
+  project: string;
+  status: string;
+  scheduledFor: string | null;
+  startedAt: string | null;
+  endedAt: string | null;
+}
+
+export function fetchDispatchSchedules(): Promise<Envelope<DispatchSchedule[]>> {
+  return dataProvider().query<DispatchSchedule>("dispatch_schedules");
+}
+
+export function fetchScheduleExecutions(
+  projectId?: string,
+  limit = 50,
+): Promise<Envelope<DispatchScheduleExecution[]>> {
+  return dataProvider().query<DispatchScheduleExecution>(
+    "dispatch_schedule_executions",
+    { projectId, limit },
+  );
+}
 
 export interface DispatchStopAllResult {
   snapshotId: string;
@@ -36,22 +59,3 @@ export async function stopAllDispatch(writeHandoffs = true) {
   ) as Promise<DispatchStopAllResult>;
 }
 
-/** Becomes: invoke('dispatch_runs', { query }) */
-export function useDispatchRuns() {
-  return RUN_ROWS;
-}
-
-/** Becomes: invoke('dispatch_autorun', { projectId }) */
-export function useDispatchProjects() {
-  return DISPATCH_PROJECTS;
-}
-
-/** Becomes: invoke('dispatch_schedules', { projectId }) */
-export function useDispatchSchedules() {
-  return SCHEDULES;
-}
-
-/** Becomes: invoke('dispatch_schedule_executions', { projectId }) */
-export function useDispatchScheduleExecutions() {
-  return SCHEDULE_EXECUTIONS;
-}

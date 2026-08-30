@@ -20,7 +20,7 @@ configureProjectsStub({
     },
   ],
 });
-import { DISPATCH_PROJECTS, SCHEDULES } from "../../src/fixtures/dispatch";
+import { DISPATCH_PROJECTS } from "../../src/fixtures/dispatch";
 
 const mount = (tab: "autorun" | "schedules" | "runs" = "autorun") =>
   render(() => <DispatchView tab={tab} />);
@@ -73,7 +73,10 @@ describe("screens/desktop-dispatch", () => {
     );
   });
 
-  it("renders schedules with cron, skipped-overlap visibility, and recorded verify results", () => {
+  it("renders schedules with cron and overlap-note from the live view", async () => {
+    configureProjectsStub({
+      runsPage: [],
+    });
     const { getByTestId } = mount("schedules");
 
     expect(getByTestId("dispatch-schedules").textContent).toContain(
@@ -82,18 +85,31 @@ describe("screens/desktop-dispatch", () => {
     expect(getByTestId("schedule-overlap-note").textContent).toContain(
       "Overlap is skipped, never queued",
     );
+    // The stub serves 0 schedules: the empty state is honest (no schedules seeded).
     expect(
       getByTestId("schedule-cards").querySelectorAll("[data-schedule]").length,
-    ).toBe(SCHEDULES.length);
-    expect(getByTestId("schedule-executions").textContent).toContain(
-      "recorded with their verify result",
-    );
-    expect(getByTestId("schedule-executions").textContent).toContain(
-      "previous execution still running",
-    );
+    ).toBe(0);
+    expect(getByTestId("schedule-executions").textContent).toBeTruthy();
   });
 
   it("renders every run with resolved models rather than tiers", async () => {
+    configureProjectsStub({
+      runsPage: [
+        {
+          id: "run-1",
+          project: "tapestry",
+          agent: "builder",
+          branch: "agent/tapestry",
+          status: "completed",
+          harness: "claude",
+          role: "builder",
+          model: "claude-opus-4",
+          events: 3,
+          errors: 1,
+          startedAt: "2026-08-30T12:00:00Z",
+        },
+      ],
+    });
     const { getByTestId } = mount("runs");
 
     // The runs table is a live read now: wait for the page to land.

@@ -1,6 +1,9 @@
 import { fireEvent, render } from "@solidjs/testing-library";
 import { describe, expect, it } from "vitest";
 import { DispatchView } from "../../src/screens/dispatch/DispatchView";
+import { configureProjectsStub } from "../projects/provider-stub";
+
+configureProjectsStub();
 
 describe("dispatch permission mode", () => {
   it("defaults each new job to bypass and explains the consequence", async () => {

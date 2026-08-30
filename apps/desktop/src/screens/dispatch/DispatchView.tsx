@@ -1,18 +1,20 @@
 import { For, Match, Show, Switch, createMemo, createSignal, onMount } from "solid-js";
 import {
   DISPATCH_PROJECTS,
-  SCHEDULE_EXECUTIONS,
-  SCHEDULES,
   STOP_ALL_AGENT_COUNT,
   STOP_ALL_RESTORE_MINUTES,
   NEVER_AUTORUN_EXCLUSIONS,
   VERIFY_VOCABULARY,
   autorunMasterState,
+  fetchDispatchSchedules,
+  fetchScheduleExecutions,
+  type DispatchSchedule,
+  type DispatchScheduleExecution,
   type AutorunState,
   type PermissionPosture,
 } from "../../data/dispatch";
-import { fetchRunsCount, fetchRunsPage, type DispatchRunRow } from "../../data/runs";
 import type { Envelope } from "../../data/envelope";
+import { fetchRunsCount, fetchRunsPage, type DispatchRunRow } from "../../data/runs";
 import { notify } from "../../ui/Toast";
 import { Button } from "../../ui/Button";
 import { FixtureNotice } from "../../ui/FixtureNotice";
@@ -284,6 +286,32 @@ function AutorunView(props: { onSwitch?: (tab: DispatchTab) => void }) {
 }
 
 function SchedulesView(props: { onSwitch?: (tab: DispatchTab) => void }) {
+  const [schedules, setSchedules] = createSignal<Envelope<DispatchSchedule[]>>({
+    status: "loading",
+  });
+  const [executions, setExecutions] = createSignal<
+    Envelope<DispatchScheduleExecution[]>
+  >({ status: "loading" });
+
+  onMount(() => {
+    void Promise.all([fetchDispatchSchedules(), fetchScheduleExecutions()]).then(
+      ([s, e]) => {
+        setSchedules(s);
+        setExecutions(e);
+      },
+    );
+  });
+
+  const scheduleRows = createMemo<DispatchSchedule[]>(() => {
+    const envelope = schedules();
+    return envelope.status === "ready" ? envelope.data : [];
+  });
+  const executionRows = createMemo<DispatchScheduleExecution[]>(() => {
+    const envelope = executions();
+    return envelope.status === "ready" ? envelope.data : [];
+  });
+
+
   const [permissionPosture, setPermissionPosture] =
     createSignal<PermissionPosture>("bypass");
 
@@ -423,7 +451,7 @@ function SchedulesView(props: { onSwitch?: (tab: DispatchTab) => void }) {
           </span>
         </aside>
         <section class="schedule-cards" data-testid="schedule-cards">
-          <For each={SCHEDULES}>
+          <For each={scheduleRows()}>
             {(schedule) => (
               <article class="schedule-card" data-schedule={schedule.id}>
                 <header>
@@ -432,16 +460,11 @@ function SchedulesView(props: { onSwitch?: (tab: DispatchTab) => void }) {
                   <span>{schedule.enabled ? "live" : "paused"}</span>
                 </header>
                 <code>{schedule.cron}</code>
-                <span>{schedule.cadence}</span>
-                <p>{schedule.workflow}</p>
+                <span>{schedule.cron}</span>
+                <p>{schedule.project}</p>
                 <footer>
-                  <span
-                    class={`schedule-last schedule-last-${schedule.last.split(" ")[0]}`}
-                  >
-                    {schedule.last}
-                  </span>
-                  <span>
-                    Skipped <strong>{schedule.skipped}</strong>
+                  <span class="schedule-last">
+                    {schedule.enabled ? "live" : "paused"}
                   </span>
                 </footer>
               </article>
@@ -467,18 +490,18 @@ function SchedulesView(props: { onSwitch?: (tab: DispatchTab) => void }) {
               </tr>
             </thead>
             <tbody>
-              <For each={SCHEDULE_EXECUTIONS}>
+              <For each={executionRows()}>
                 {(execution) => (
                   <tr>
-                    <td>{execution.firedAt}</td>
-                    <td>{execution.schedule}</td>
+                    <td>{execution.scheduledFor ?? "—"}</td>
+                    <td>{execution.scheduleName}</td>
                     <td
-                      class={`verify-${execution.result === "passed" ? "ok" : execution.result === "failed" ? "bad" : "skipped"}`}
+                      class={`verify-${execution.status === "completed" ? "ok" : execution.status === "failed" ? "bad" : "skipped"}`}
                     >
-                      {execution.result}
+                      {execution.status}
                     </td>
-                    <td>{execution.duration}</td>
-                    <td>{execution.evidence}</td>
+                    <td>—</td>
+                    <td>—</td>
                   </tr>
                 )}
               </For>

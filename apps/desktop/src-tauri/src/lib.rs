@@ -926,6 +926,91 @@ async fn runs_for_session(
     runs_for_session_inner(store, &session_id).await
 }
 
+/// Dispatch schedules and their execution history (slice 7).
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ScheduleResponse {
+    id: String,
+    project_id: String,
+    project: String,
+    name: String,
+    cron: String,
+    enabled: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ScheduleExecutionResponse {
+    id: String,
+    schedule_name: String,
+    project: String,
+    status: String,
+    scheduled_for: Option<String>,
+    started_at: Option<String>,
+    ended_at: Option<String>,
+}
+
+async fn schedules_list_inner(store: &Store) -> Result<Vec<ScheduleResponse>, IpcError> {
+    store
+        .schedules_list()
+        .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(|row| ScheduleResponse {
+                    id: row.id.to_string(),
+                    project_id: row.project_id.to_string(),
+                    project: row.project,
+                    name: row.name,
+                    cron: row.cron_expression,
+                    enabled: row.enabled,
+                })
+                .collect()
+        })
+        .map_err(IpcError::internal)
+}
+
+async fn schedule_executions_inner(
+    store: &Store,
+    project_id: Option<&str>,
+    limit: i64,
+) -> Result<Vec<ScheduleExecutionResponse>, IpcError> {
+    let scoped = scope_project(store, project_id).await?;
+    let limit = i64::try_from(limit.clamp(0, 500) as u64).unwrap_or(50);
+    store
+        .schedule_executions(scoped, limit)
+        .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(|row| ScheduleExecutionResponse {
+                    id: row.id.to_string(),
+                    schedule_name: row.schedule_name,
+                    project: row.project,
+                    status: row.status,
+                    scheduled_for: row.scheduled_for,
+                    started_at: row.started_at,
+                    ended_at: row.ended_at,
+                })
+                .collect()
+        })
+        .map_err(IpcError::internal)
+}
+
+#[tauri::command]
+async fn dispatch_schedules(core: State<'_, Arc<Core>>) -> Result<Vec<ScheduleResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    schedules_list_inner(store).await
+}
+
+#[tauri::command]
+async fn dispatch_schedule_executions(
+    core: State<'_, Arc<Core>>,
+    project_id: Option<String>,
+    limit: Option<i64>,
+) -> Result<Vec<ScheduleExecutionResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    schedule_executions_inner(store, project_id.as_deref(), limit.unwrap_or(50)).await
+}
+
 /// The Inbox (slice 7): pending human deliveries are the items; resolving one
 /// drains the delivery and records the decision as a human reply on the thread.
 #[derive(Debug, Serialize)]
@@ -2907,6 +2992,8 @@ pub fn run() {
             dispatch_runs_count,
             sessions_list,
             runs_for_session,
+            dispatch_schedules,
+            dispatch_schedule_executions,
             inbox_list,
             inbox_resolved_today,
             inbox_throughput,
@@ -4262,5 +4349,99 @@ mod inbox_flow {
             serde_json::to_value(error).expect("serialize IPC error")["kind"],
             "not_found"
         );
+    }
+}
+
+
+/// Schedule queries: the dispatch schedules read from the existing
+/// `workflows.schedules` and `workflows.executions` tables.
+#[cfg(test)]
+mod schedule_queries {
+    use super::*;
+    use locus_core::testkit::postgres::{
+        start_postgres_named, test_backup_config, NoopMigrationBackup,
+    };
+
+    async fn test_store() -> (Store, locus_core::testkit::postgres::DockerCleanup) {
+        let (container, cleanup) = start_postgres_named("locus-tauri-schedules").await;
+        let store = Store::connect(&container.database_url())
+            .await
+            .expect("connect the schedule test store");
+        store
+            .run_migrations(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations"),
+                &NoopMigrationBackup,
+                &test_backup_config(),
+            )
+            .await
+            .expect("run migrations for the schedule test store");
+        (store, cleanup)
+    }
+
+    #[tokio::test]
+    async fn schedules_read_with_their_project_and_workflow_name() {
+        let (store, _cleanup) = test_store().await;
+        sqlx::query("INSERT INTO core.projects (id, name) VALUES ('00000000-0000-0000-0000-000000000901', 'tapestry')")
+            .execute(store.test_pool())
+            .await
+            .expect("seed project");
+        sqlx::query(
+            "INSERT INTO workflows.workflow_defs (id, project_id, name, version, graph, spec, verify_command)
+             VALUES ('00000000-0000-0000-0000-000000000911', '00000000-0000-0000-0000-000000000901', 'nightly reconcile', 1, '{}'::jsonb, '{}'::jsonb, 'cargo test')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed workflow def");
+        sqlx::query(
+            "INSERT INTO workflows.schedules (id, workflow_def_id, cron_expression)
+             VALUES ('00000000-0000-0000-0000-000000000921', '00000000-0000-0000-0000-000000000911', '0 2 * * *')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed schedule");
+
+        let schedules = schedules_list_inner(&store).await.expect("list schedules");
+        assert_eq!(schedules.len(), 1);
+        assert_eq!(schedules[0].project, "tapestry");
+        assert_eq!(schedules[0].name, "nightly reconcile");
+        assert_eq!(schedules[0].cron, "0 2 * * *");
+        assert!(schedules[0].enabled);
+    }
+
+    #[tokio::test]
+    async fn schedule_executions_read_with_their_schedule_name() {
+        let (store, _cleanup) = test_store().await;
+        sqlx::query("INSERT INTO core.projects (id, name) VALUES ('00000000-0000-0000-0000-000000000901', 'tapestry')")
+            .execute(store.test_pool())
+            .await
+            .expect("seed project");
+        sqlx::query(
+            "INSERT INTO workflows.workflow_defs (id, project_id, name, version, graph, spec, verify_command)
+             VALUES ('00000000-0000-0000-0000-000000000911', '00000000-0000-0000-0000-000000000901', 'nightly reconcile', 1, '{}'::jsonb, '{}'::jsonb, 'cargo test')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed workflow def");
+        sqlx::query(
+            "INSERT INTO workflows.schedules (id, workflow_def_id, cron_expression)
+             VALUES ('00000000-0000-0000-0000-000000000921', '00000000-0000-0000-0000-000000000911', '0 2 * * *')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed schedule");
+        sqlx::query(
+            "INSERT INTO workflows.executions (id, workflow_def_id, schedule_id, status, started_at)
+             VALUES ('00000000-0000-0000-0000-000000000931', '00000000-0000-0000-0000-000000000911', '00000000-0000-0000-0000-000000000921', 'completed', now() - interval '4 minutes')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed execution");
+
+        let executions = schedule_executions_inner(&store, None, 50)
+            .await
+            .expect("list schedule executions");
+        assert_eq!(executions.len(), 1);
+        assert_eq!(executions[0].schedule_name, "nightly reconcile");
+        assert_eq!(executions[0].status, "completed");
     }
 }

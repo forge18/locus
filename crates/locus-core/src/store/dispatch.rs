@@ -4,7 +4,7 @@
 
 use crate::ids::{ProjectId, RunId};
 use anyhow::{bail, Context, Result};
-use sqlx::{query, Row};
+use sqlx::{query, query_as, query_scalar, Row};
 use uuid::Uuid;
 
 use crate::{
@@ -15,6 +15,29 @@ use crate::{
     },
     store::Store,
 };
+
+/// One dispatch schedule: a named cron that fires a workflow run.
+#[derive(Debug, sqlx::FromRow)]
+pub struct ScheduleRow {
+    pub id: Uuid,
+    pub project_id: Uuid,
+    pub project: String,
+    pub name: String,
+    pub cron_expression: String,
+    pub enabled: bool,
+}
+
+/// One schedule-execution row with its workflow name — the history list.
+#[derive(Debug, sqlx::FromRow)]
+pub struct ScheduleExecutionRow {
+    pub id: Uuid,
+    pub schedule_name: String,
+    pub project: String,
+    pub status: String,
+    pub scheduled_for: Option<String>,
+    pub started_at: Option<String>,
+    pub ended_at: Option<String>,
+}
 
 impl Store {
     /// Read the durable, machine-wide dispatch policy.
@@ -58,6 +81,47 @@ impl Store {
         .await
         .context("persist dispatch policy")?;
         Ok(())
+    }
+
+    /// One dispatch schedule: a named cron that fires a workflow run.
+    /// Every dispatch schedule with its project and workflow name, newest first.
+    pub async fn schedules_list(&self) -> Result<Vec<ScheduleRow>> {
+        query_as(
+            "SELECT s.id, d.project_id, p.name AS project, d.name,
+                    s.cron_expression AS cron_expression, s.paused_at IS NULL AS enabled,
+                    d.created_at
+             FROM workflows.schedules s
+             JOIN workflows.workflow_defs d ON d.id = s.workflow_def_id
+             JOIN core.projects p ON p.id = d.project_id
+             ORDER BY d.created_at DESC",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .context("list dispatch schedules")
+    }
+
+    pub async fn schedule_executions(
+        &self,
+        project_id: Option<ProjectId>,
+        limit: i64,
+    ) -> Result<Vec<ScheduleExecutionRow>> {
+        query_as(
+            "SELECT e.id, d.name AS schedule_name, e.status, p.name AS project,
+                    COALESCE(e.started_at, e.scheduled_for, e.created_at)::text AS scheduled_for,
+                    e.started_at::text AS started_at,
+                    e.ended_at::text AS ended_at
+             FROM workflows.executions e
+             JOIN workflows.workflow_defs d ON d.id = e.workflow_def_id
+             JOIN core.projects p ON p.id = d.project_id
+             WHERE ($1::uuid IS NULL OR d.project_id = $1)
+             ORDER BY e.created_at DESC
+             LIMIT $2",
+        )
+        .bind(project_id)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| anyhow::anyhow!("list schedule executions: {e:#}"))
     }
 
     pub async fn guardrail_defaults(&self) -> Result<GuardrailDefaults> {
