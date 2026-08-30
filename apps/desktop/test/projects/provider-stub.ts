@@ -69,11 +69,20 @@ export interface ProjectsStub {
   runningCount?: number;
   /** Shell slice: the Inbox pill's pending-for-a-human count. Default 0. */
   inboxPending?: number;
+  /** Slice-5 mutations: command name -> response value. */
+  mutations?: Record<string, unknown>;
   /** Queries never settle: pins the loading state. */
   hang?: boolean;
 }
 
-export function configureProjectsStub(stub: ProjectsStub = {}): void {
+export interface RecordedCall {
+  command: string;
+  args?: Record<string, unknown>;
+}
+
+export function configureProjectsStub(stub: ProjectsStub = {}): {
+  calls: RecordedCall[];
+} {
   // Keys left absent default to the store-shaped seed; an explicit empty array
   // is a deliberate empty-state test. Projects are sorted exactly as the host's
   // `ORDER BY name`, so the default selection matches a live window.
@@ -86,6 +95,7 @@ export function configureProjectsStub(stub: ProjectsStub = {}): void {
   const setup = "setup" in stub ? (stub.setup ?? null) : SEED_SETUP;
   const failing = (command: string) =>
     Array.isArray(stub.fail) ? stub.fail.includes(command) : stub.fail === true;
+  const calls: RecordedCall[] = [];
   const provider: DataProvider = {
     kind: "demo",
     async query<T>(
@@ -93,14 +103,20 @@ export function configureProjectsStub(stub: ProjectsStub = {}): void {
       args?: Record<string, unknown>,
     ): Promise<Envelope<T[]>> {
       if (stub.hang) return new Promise(() => undefined);
+      calls.push({ command, args });
       if (failing(command)) {
         return {
           status: "failed",
           error: { command, message: `IPC failure for ${command}` },
         };
       }
+      if (command in (stub.mutations ?? {})) {
+        return readyOne((stub.mutations ?? {})[command]) as Envelope<T[]>;
+      }
       if (command === "projects_list") {
-        return ready(projects as T[]);
+        // A fresh array on every read: Solid's For keys by reference, and the
+        // real host deserializes new JSON per call — the stub must match that.
+        return ready([...projects] as T[]);
       }
       if (command === "repos_list") {
         const projectId = args?.projectId;
@@ -115,13 +131,28 @@ export function configureProjectsStub(stub: ProjectsStub = {}): void {
         error: { command, message: `unexpected command ${command}` },
       };
     },
-    async queryOne<T>(command: string): Promise<Envelope<T>> {
+    async queryOne<T>(command: string, args?: Record<string, unknown>): Promise<Envelope<T>> {
       if (stub.hang) return new Promise(() => undefined);
+      calls.push({ command, args });
       if (failing(command)) {
         return {
           status: "failed",
           error: { command, message: `IPC failure for ${command}` },
         };
+      }
+      if (command === "project_rename" && typeof args?.name === "string") {
+        // The real rename persists, so a refresh sees the new name. The entry is
+        // REPLACED, not mutated: Solid's For diffs items by reference, and the
+        // real host deserializes fresh objects per call.
+        const index = projects.findIndex(
+          (project) => project.id === args.projectId,
+        );
+        if (index >= 0) {
+          projects[index] = { ...projects[index], name: args.name };
+        }
+      }
+      if (command in (stub.mutations ?? {})) {
+        return readyOne((stub.mutations ?? {})[command]) as Envelope<T>;
       }
       if (command === "project_setup") {
         return readyOne(setup) as Envelope<T>;
@@ -139,4 +170,5 @@ export function configureProjectsStub(stub: ProjectsStub = {}): void {
     },
   };
   configureDataProvider(provider);
+  return { calls };
 }

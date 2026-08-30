@@ -165,6 +165,24 @@ impl Store {
             .clone())
     }
 
+    /// Renames a project. An empty name is rejected here so the CHECK constraint
+    /// never surfaces as a raw database error.
+    pub async fn rename_project(&self, project_id: ProjectId, name: &str) -> Result<()> {
+        if name.trim().is_empty() {
+            bail!("project name must not be empty");
+        }
+        let result = query("UPDATE core.projects SET name = $2, updated_at = now() WHERE id = $1")
+            .bind(project_id)
+            .bind(name)
+            .execute(&self.pool)
+            .await
+            .context("rename project")?;
+        if result.rows_affected() == 0 {
+            bail!("project was not found");
+        }
+        Ok(())
+    }
+
     pub async fn set_project_archived(&self, project_id: ProjectId, archived: bool) -> Result<()> {
         query("UPDATE core.projects SET archived_at = CASE WHEN $2 THEN COALESCE(archived_at, now()) ELSE NULL END, updated_at = now() WHERE id = $1")
             .bind(project_id).bind(archived).execute(self.pool()).await.context("set project archive state")?;

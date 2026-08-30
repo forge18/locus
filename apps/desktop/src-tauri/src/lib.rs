@@ -733,6 +733,129 @@ async fn inbox_pending_count(core: State<'_, Arc<Core>>) -> Result<usize, IpcErr
     inbox_pending_count_inner(store).await
 }
 
+/// Setup's settings mutations (slice 5): base context, archive, rename.
+async fn project_base_context_set_inner(
+    store: &Store,
+    project_id: &str,
+    content: &str,
+    token_budget: Option<u32>,
+) -> Result<ProjectSetupResponse, IpcError> {
+    let project_id = resolve_setup_project(store, project_id).await?;
+    // The domain rule: base context and a nonzero budget rise and fall together.
+    // Empty content therefore clears both; non-empty content requires a budget.
+    let content = content.trim();
+    let (context_value, budget_value) = if content.is_empty() {
+        if token_budget.is_some() {
+            return Err(IpcError::invalid_argument(
+                "clearing the base context also clears its token budget",
+            ));
+        }
+        (serde_json::Value::Null, serde_json::Value::Null)
+    } else {
+        let budget = token_budget.ok_or_else(|| {
+            IpcError::invalid_argument("a base context needs a nonzero token budget")
+        })?;
+        if budget == 0 {
+            return Err(IpcError::invalid_argument(
+                "a base context needs a nonzero token budget",
+            ));
+        }
+        (
+            serde_json::Value::String(content.to_owned()),
+            serde_json::Value::Number(budget.into()),
+        )
+    };
+    let settings = store.project_settings(project_id).await.map_err(IpcError::internal)?;
+    // ProjectSettings keeps its policy fields private; the round trip through the
+    // serialized form updates exactly the two base-context keys.
+    let mut value = serde_json::to_value(&settings).map_err(IpcError::internal)?;
+    value["base_context"] = context_value;
+    value["base_context_token_budget"] = budget_value;
+    let updated: locus_core::services::project::ProjectSettings =
+        serde_json::from_value(value).map_err(IpcError::internal)?;
+    store
+        .set_project_settings(project_id, &updated)
+        .await
+        .map_err(IpcError::internal)?;
+    project_setup_inner(store, project_id.to_string().as_str()).await
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProjectArchiveResponse {
+    archived: bool,
+}
+
+async fn project_archive_set_inner(
+    store: &Store,
+    project_id: &str,
+    archived: bool,
+) -> Result<ProjectArchiveResponse, IpcError> {
+    let pid = resolve_setup_project(store, project_id).await?;
+    store
+        .set_project_archived(pid, archived)
+        .await
+        .map_err(IpcError::internal)?;
+    Ok(ProjectArchiveResponse { archived })
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProjectRenameResponse {
+    id: String,
+    name: String,
+}
+
+async fn project_rename_inner(
+    store: &Store,
+    project_id: &str,
+    name: &str,
+) -> Result<ProjectRenameResponse, IpcError> {
+    let pid = resolve_setup_project(store, project_id).await?;
+    if name.trim().is_empty() {
+        return Err(IpcError::invalid_argument("project name must not be empty"));
+    }
+    store
+        .rename_project(pid, name)
+        .await
+        .map_err(IpcError::internal)?;
+    Ok(ProjectRenameResponse {
+        id: pid.to_string(),
+        name: name.to_owned(),
+    })
+}
+
+#[tauri::command]
+async fn project_base_context_set(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    content: String,
+    token_budget: Option<u32>,
+) -> Result<ProjectSetupResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    project_base_context_set_inner(store, &project_id, &content, token_budget).await
+}
+
+#[tauri::command]
+async fn project_archive_set(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    archived: bool,
+) -> Result<ProjectArchiveResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    project_archive_set_inner(store, &project_id, archived).await
+}
+
+#[tauri::command]
+async fn project_rename(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    name: String,
+) -> Result<ProjectRenameResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    project_rename_inner(store, &project_id, &name).await
+}
+
 #[tauri::command]
 async fn external_work_item_providers(
     core: State<'_, Arc<Core>>,
@@ -2424,6 +2547,9 @@ pub fn run() {
             repos_list,
             local_remotes_list,
             project_setup,
+            project_base_context_set,
+            project_archive_set,
+            project_rename,
             strip_cards,
             running_count,
             inbox_pending_count,
@@ -3123,5 +3249,160 @@ mod shell_scope {
             serde_json::to_value(error).expect("serialize IPC error")["kind"],
             "not_found"
         );
+    }
+}
+
+/// Shell mutations: Setup's base-context save, archive, and rename hit the real
+/// store, and every failure is a typed rejection.
+#[cfg(test)]
+mod shell_mutations {
+    use super::*;
+    use locus_core::services::project::ProjectSettings;
+    use locus_core::testkit::postgres::{
+        start_postgres_named, test_backup_config, NoopMigrationBackup,
+    };
+
+    async fn test_store() -> (Store, locus_core::testkit::postgres::DockerCleanup) {
+        let (container, cleanup) = start_postgres_named("locus-tauri-mutations").await;
+        let store = Store::connect(&container.database_url())
+            .await
+            .expect("connect the mutation test store");
+        store
+            .run_migrations(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations"),
+                &NoopMigrationBackup,
+                &test_backup_config(),
+            )
+            .await
+            .expect("run migrations for the mutation test store");
+        (store, cleanup)
+    }
+
+    const TAPESTRY: &str = "00000000-0000-0000-0000-000000000501";
+
+    async fn seed_tapestry(store: &Store) {
+        sqlx::query("INSERT INTO core.projects (id, name) VALUES ($1::uuid, 'tapestry')")
+            .bind(TAPESTRY)
+            .execute(store.test_pool())
+            .await
+            .expect("seed project");
+    }
+
+    #[tokio::test]
+    async fn base_context_set_persists_content_and_budget() {
+        let (store, _cleanup) = test_store().await;
+        seed_tapestry(&store).await;
+
+        let setup = project_base_context_set_inner(
+            &store,
+            TAPESTRY,
+            "# Working in tapestry\n\nVerify with cargo test.",
+            Some(1200),
+        )
+        .await
+        .expect("save base context");
+        assert_eq!(
+            setup.base_context.as_deref(),
+            Some("# Working in tapestry\n\nVerify with cargo test.")
+        );
+        assert_eq!(setup.base_context_token_budget, Some(1200));
+
+        // It is durable: a fresh read sees it, and unrelated policy survives.
+        let reread = project_setup_inner(&store, TAPESTRY).await.expect("reread");
+        assert_eq!(reread.base_context_token_budget, Some(1200));
+    }
+
+    #[tokio::test]
+    async fn base_context_clears_both_sides_of_the_domain_rule() {
+        let (store, _cleanup) = test_store().await;
+        seed_tapestry(&store).await;
+
+        let cleared = project_base_context_set_inner(&store, TAPESTRY, "", None)
+            .await
+            .expect("clear base context");
+        assert_eq!(cleared.base_context, None);
+        assert_eq!(cleared.base_context_token_budget, None);
+
+        // Content without a budget breaks the together-rule and is refused.
+        let error = project_base_context_set_inner(&store, TAPESTRY, "# kept", None)
+            .await
+            .expect_err("content needs a budget");
+        assert_eq!(
+            serde_json::to_value(error).expect("serialize IPC error")["kind"],
+            "invalid_argument"
+        );
+    }
+
+    #[tokio::test]
+    async fn archive_and_rename_persist() {
+        let (store, _cleanup) = test_store().await;
+        seed_tapestry(&store).await;
+
+        let archived = project_archive_set_inner(&store, TAPESTRY, true)
+            .await
+            .expect("archive project");
+        assert!(archived.archived);
+        assert!(store.project_archived(TAPESTRY.parse().expect("id")).await.expect("read archived"));
+
+        let renamed = project_rename_inner(&store, TAPESTRY, "weaver")
+            .await
+            .expect("rename project");
+        assert_eq!(renamed.name, "weaver");
+        let projects = projects_list_inner(&store).await.expect("list projects");
+        assert_eq!(projects[0].name, "weaver");
+    }
+
+    #[tokio::test]
+    async fn mutations_reject_unknown_projects_and_empty_names() {
+        let (store, _cleanup) = test_store().await;
+        seed_tapestry(&store).await;
+        let missing = "00000000-0000-0000-0000-0000000005ff";
+
+        for error in [
+            project_base_context_set_inner(&store, missing, "x", None)
+                .await
+                .expect_err("unknown project rejected"),
+            project_archive_set_inner(&store, missing, true)
+                .await
+                .expect_err("unknown project rejected"),
+            project_rename_inner(&store, missing, "weaver")
+                .await
+                .expect_err("unknown project rejected"),
+        ] {
+            assert_eq!(
+                serde_json::to_value(error).expect("serialize IPC error")["kind"],
+                "not_found"
+            );
+        }
+
+        let empty = project_rename_inner(&store, TAPESTRY, "   ")
+            .await
+            .expect_err("an empty name is refused");
+        assert_eq!(
+            serde_json::to_value(empty).expect("serialize IPC error")["kind"],
+            "invalid_argument"
+        );
+    }
+
+    #[tokio::test]
+    async fn base_context_set_keeps_other_policy_fields() {
+        let (store, _cleanup) = test_store().await;
+        seed_tapestry(&store).await;
+        let policy: ProjectSettings = serde_json::from_value(serde_json::json!({
+            "version": 1,
+            "harness_allow_list": ["claude"],
+        }))
+        .expect("shape policy");
+        store
+            .set_project_settings(TAPESTRY.parse().expect("id"), &policy)
+            .await
+            .expect("seed policy");
+
+        let setup = project_base_context_set_inner(&store, TAPESTRY, "# kept", Some(900))
+            .await
+            .expect("save base context");
+        // The round trip through the serialized settings preserved the allow list.
+        assert_eq!(setup.harness_allow_list, ["claude"]);
+        assert_eq!(setup.base_context.as_deref(), Some("# kept"));
     }
 }

@@ -13,13 +13,21 @@ import { EditorPane } from "../../editor/EditorPane";
 import { FullWindowEditor } from "../../editor/FullWindowEditor";
 import { plainTextDescriptor } from "../../editor/types";
 import { FixtureNotice } from "../../ui/FixtureNotice";
-import { fetchProjectSetup, fetchProjects, fetchRepos } from "../../data/core";
+import {
+  fetchProjectSetup,
+  fetchProjects,
+  fetchRepos,
+  renameProject,
+  saveBaseContext,
+  setProjectArchived,
+} from "../../data/core";
 import type { Envelope } from "../../data/envelope";
 import type {
   ProjectRepo,
   ProjectSetup,
   ProjectSummary,
 } from "../../types/core";
+import { notify } from "../../ui/Toast";
 import { AnalyticsView } from "../analytics/AnalyticsView";
 
 type ProjectTab = "settings" | "persistence" | "analytics";
@@ -69,6 +77,10 @@ export function ProjectsView(props: ProjectsViewProps = {}) {
   const [enabledExtensions, setEnabledExtensions] = createSignal(
     new Set<string>(extensions.map(([name]) => name)),
   );
+  const [editedContent, setEditedContent] = createSignal<string | null>(null);
+  const [savingBaseContext, setSavingBaseContext] = createSignal(false);
+  const [renaming, setRenaming] = createSignal(false);
+  const [nameDraft, setNameDraft] = createSignal("");
 
   const toggleExtension = (name: string) => {
     const next = new Set(enabledExtensions());
@@ -115,6 +127,66 @@ export function ProjectsView(props: ProjectsViewProps = {}) {
     if (selectedId() !== projectId) return;
     setRepos(reposEnvelope);
     setSetup(setupEnvelope);
+  }
+
+  async function saveContext() {
+    const id = selected()?.id;
+    if (!id) return;
+    const content = editedContent() ?? setupView.data()?.baseContext ?? "";
+    const budget =
+      content.trim() === "" ? undefined : setupView.data()?.baseContextTokenBudget ?? undefined;
+    setSavingBaseContext(true);
+    try {
+      const envelope = await saveBaseContext(id, content, budget);
+      if (envelope.status === "ready") {
+        setSetup({ status: "ready", data: envelope.data });
+        setEditedContent(null);
+        setEditorOpen(false);
+        notify({ title: "Base context saved" });
+      } else if (envelope.status === "failed") {
+        notify({
+          title: "Save failed",
+          description: envelope.error.message,
+          type: "error",
+        });
+      }
+    } finally {
+      setSavingBaseContext(false);
+    }
+  }
+
+  async function archive() {
+    const id = selected()?.id;
+    if (!id) return;
+    const envelope = await setProjectArchived(id, true);
+    if (envelope.status === "ready") {
+      notify({ title: "Project archived" });
+      void refreshProjects();
+    } else if (envelope.status === "failed") {
+      notify({
+        title: "Archive failed",
+        description: envelope.error.message,
+        type: "error",
+      });
+    }
+  }
+
+  async function confirmRename() {
+    const id = selected()?.id;
+    const name = nameDraft().trim();
+    if (!id) return;
+    const envelope = await renameProject(id, name);
+    if (envelope.status === "ready") {
+      setRenaming(false);
+      notify({ title: `Renamed to #${envelope.data.name}` });
+      void refreshProjects();
+    } else if (envelope.status === "failed") {
+      notify({
+        title: "Rename failed",
+        description: envelope.error.message,
+        type: "error",
+      });
+    }
   }
 
   onMount(() => {
@@ -224,8 +296,44 @@ export function ProjectsView(props: ProjectsViewProps = {}) {
             </button>
           </div>
           <div class="project-detail-actions">
-            <button class="btn btn-ghost">Archive</button>
-            <button class="btn btn-secondary">Rename</button>
+            <button class="btn btn-ghost" onClick={() => void archive()}>
+              Archive
+            </button>
+            <Show
+              when={renaming()}
+              fallback={
+                <button
+                  class="btn btn-secondary"
+                  onClick={() => {
+                    setNameDraft(selected()?.name ?? "");
+                    setRenaming(true);
+                  }}
+                >
+                  Rename
+                </button>
+              }
+            >
+              <input
+                class="project-rename-input"
+                data-testid="project-rename-input"
+                value={nameDraft()}
+                onInput={(event) => setNameDraft(event.currentTarget.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") void confirmRename();
+                  if (event.key === "Escape") setRenaming(false);
+                }}
+                aria-label="Project name"
+              />
+              <button class="btn btn-primary" onClick={() => void confirmRename()}>
+                Save name
+              </button>
+              <button
+                class="btn btn-secondary"
+                onClick={() => setRenaming(false)}
+              >
+                Cancel
+              </button>
+            </Show>
           </div>
         </header>
         <Show
@@ -394,7 +502,14 @@ export function ProjectsView(props: ProjectsViewProps = {}) {
                     >
                       {editorOpen() ? "Preview" : "Edit"}
                     </button>
-                    <button class="btn btn-primary">Save</button>
+                    <button
+                      class="btn btn-primary"
+                      data-testid="project-base-context-save"
+                      disabled={savingBaseContext()}
+                      onClick={() => void saveContext()}
+                    >
+                      {savingBaseContext() ? "Saving…" : "Save"}
+                    </button>
                   </header>
                   <Show
                     when={editorOpen()}
@@ -408,6 +523,7 @@ export function ProjectsView(props: ProjectsViewProps = {}) {
                     }
                   >
                     <EditorPane
+                      onChange={setEditedContent}
                       file={baseContextFile()}
                       language={plainTextDescriptor}
                       projectRoot={props.editorProjectRoot}

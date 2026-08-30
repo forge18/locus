@@ -41,3 +41,42 @@ export function fetchProjectSetup(
 ): Promise<Envelope<ProjectSetup>> {
  return dataProvider().queryOne<ProjectSetup>("project_setup", { projectId });
 }
+
+// Mutations (slice 5). Each returns the refreshed read shape so the screen can
+// update its envelope from the response instead of refetching.
+
+/** Replace the project's base context. Empty content clears it and its budget —
+ * the domain rule keeps the two together. */
+export function saveBaseContext(
+  projectId: string,
+  content: string,
+  tokenBudget: number | undefined,
+): Promise<Envelope<ProjectSetup>> {
+  return dataProvider().queryOne<ProjectSetup>("project_base_context_set", {
+    projectId,
+    content,
+    tokenBudget,
+  });
+}
+
+/** Archive or restore a project. */
+export function setProjectArchived(
+  projectId: string,
+  archived: boolean,
+): Promise<Envelope<{ archived: boolean }>> {
+  return dataProvider().queryOne<{ archived: boolean }>("project_archive_set", {
+    projectId,
+    archived,
+  });
+}
+
+/** Rename a project; the response carries the new name. */
+export function renameProject(
+  projectId: string,
+  name: string,
+): Promise<Envelope<{ id: string; name: string }>> {
+  return dataProvider().queryOne<{ id: string; name: string }>(
+    "project_rename",
+    { projectId, name },
+  );
+}

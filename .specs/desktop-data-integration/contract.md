@@ -10,11 +10,12 @@ slice changes it.
 - `apps/desktop/src/data/` holds 23 accessor modules; 2 are fully live (`bots`,
   `work-items`), 21 return fixtures or mix fixtures with live calls.
 - The accessors promise **82 distinct Tauri commands** via `Becomes:` markers.
-- The host registers **49** commands; **11** of the promised 82 exist
+- The host registers **52** commands; **14** of the promised 82 exist
   (`artifacts_list`, `artifact_comments`, `harness_tier_grid`, `materialization_report`,
   `projects_list`, `repos_list`, `local_remotes_list`, `project_setup` — the last four are the
   slice-3 tracer bullet; `strip_cards`, `running_count`, `inbox_pending_count` are slice 4's
-  shell queries). **71 commands are missing.**
+  shell queries; `project_base_context_set`, `project_archive_set`, `project_rename` are slice 5's
+  mutations). **68 commands are missing.**
 
 ## Scope legend
 
@@ -49,6 +50,14 @@ slice changes it.
 | `guardrails.ts` | `settings_guardrails` **missing** | global |
 | `agent-defs.ts` | `agent_defs_list`, `agent_def` **live**; `materialization_report` **live** | global (defs are host-level) |
 | `strip.ts` | `strip_cards`, `running_count` — **missing** | global (cross-project running view) |
+
+## Setup mutations (slice 5)
+
+`project_base_context_set` (content and budget rise and fall together per the
+`ProjectSettings` domain rule), `project_archive_set`, and `project_rename` — the Setup
+screen's Save/Archive/Rename. None were original `Becomes:` markers; the contract owns them.
+The Inbox gate-action mutations move with slice 7, when the Inbox list itself is live —
+resolving fixture rows against the real store would be incoherent.
 
 ## Shell pill queries (slice 4)
 
