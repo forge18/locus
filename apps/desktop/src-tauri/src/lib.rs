@@ -1725,20 +1725,7 @@ async fn session(
 
 #[tauri::command]
 async fn autorun_states(core: State<'_, Arc<Core>>) -> Result<Vec<AutorunStateResponse>, IpcError> {
-    let store = connected_store(&core).await?;
-    store
-        .autorun_states()
-        .await
-        .map(|rows| {
-            rows.into_iter()
-                .map(|row| AutorunStateResponse {
-                    project_id: row.project_id.to_string(),
-                    project: row.project,
-                    state: row.state,
-                })
-                .collect()
-        })
-        .map_err(IpcError::internal)
+    autorun_states_inner(connected_store(&core).await?).await
 }
 
 #[tauri::command]
@@ -1747,22 +1734,12 @@ async fn set_project_autorun_state(
     project_id: String,
     state: String,
 ) -> Result<(), IpcError> {
-    let store = connected_store(&core).await?;
-    let pid = resolve_setup_project(store, &project_id).await?;
-    let state = match state.as_str() {
-        "on" => locus_core::runtime::dispatch::AutorunState::On,
-        "off" => locus_core::runtime::dispatch::AutorunState::Off,
-        "suspended" => locus_core::runtime::dispatch::AutorunState::Suspended,
-        other => {
-            return Err(IpcError::invalid_argument(format!(
-                "unknown autorun state {other}"
-            )))
-        }
-    };
-    store
-        .set_project_autorun_state(pid, state)
-        .await
-        .map_err(IpcError::internal)
+    set_project_autorun_state_inner(
+        connected_store(&core).await?,
+        &project_id,
+        &state,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -4195,19 +4172,20 @@ mod shell_queries {
         (store, cleanup)
     }
 
-    async fn seed_running_run(
-        store: &Store,
-        project_id: &str,
-        project_name: &str,
-        agent_def_id: &str,
-        agent_name: &str,
-        session_id: &str,
-        run_id: &str,
-        status: &str,
-    ) {
+    struct RunningRunSeed<'a> {
+        project_id: &'a str,
+        project_name: &'a str,
+        agent_def_id: &'a str,
+        agent_name: &'a str,
+        session_id: &'a str,
+        run_id: &'a str,
+        status: &'a str,
+    }
+
+    async fn seed_running_run(store: &Store, seed: RunningRunSeed<'_>) {
         sqlx::query("INSERT INTO core.projects (id, name) VALUES ($1::uuid, $2)")
-            .bind(project_id)
-            .bind(project_name)
+            .bind(seed.project_id)
+            .bind(seed.project_name)
             .execute(store.test_pool())
             .await
             .expect("seed project");
@@ -4215,8 +4193,8 @@ mod shell_queries {
             "INSERT INTO agents.agent_defs (id, name, version, frontmatter, body)
              VALUES ($1::uuid, $2, 1, '{}'::jsonb, 'test agent')",
         )
-        .bind(agent_def_id)
-        .bind(agent_name)
+        .bind(seed.agent_def_id)
+        .bind(seed.agent_name)
         .execute(store.test_pool())
         .await
         .expect("seed agent def");
@@ -4224,9 +4202,9 @@ mod shell_queries {
             "INSERT INTO agents.sessions (id, project_id, agent_def_id, name, branch)
              VALUES ($1::uuid, $2::uuid, $3::uuid, 'shell session', 'agent/shell')",
         )
-        .bind(session_id)
-        .bind(project_id)
-        .bind(agent_def_id)
+        .bind(seed.session_id)
+        .bind(seed.project_id)
+        .bind(seed.agent_def_id)
         .execute(store.test_pool())
         .await
         .expect("seed session");
@@ -4234,9 +4212,9 @@ mod shell_queries {
             "INSERT INTO agents.runs (id, session_id, resolved_model_id, status, started_at)
              VALUES ($1::uuid, $2::uuid, 'test-model', $3, now())",
         )
-        .bind(run_id)
-        .bind(session_id)
-        .bind(status)
+        .bind(seed.run_id)
+        .bind(seed.session_id)
+        .bind(seed.status)
         .execute(store.test_pool())
         .await
         .expect("seed run");
@@ -4247,13 +4225,15 @@ mod shell_queries {
         let (store, _cleanup) = test_store().await;
         seed_running_run(
             &store,
-            "00000000-0000-0000-0000-000000000401",
-            "tapestry",
-            "00000000-0000-0000-0000-000000000411",
-            "builder",
-            "00000000-0000-0000-0000-000000000421",
-            "00000000-0000-0000-0000-000000000431",
-            "running",
+            RunningRunSeed {
+                project_id: "00000000-0000-0000-0000-000000000401",
+                project_name: "tapestry",
+                agent_def_id: "00000000-0000-0000-0000-000000000411",
+                agent_name: "builder",
+                session_id: "00000000-0000-0000-0000-000000000421",
+                run_id: "00000000-0000-0000-0000-000000000431",
+                status: "running",
+            },
         )
         .await;
         let count = running_count_inner(&store, None)
@@ -4272,13 +4252,15 @@ mod shell_queries {
         let (store, _cleanup) = test_store().await;
         seed_running_run(
             &store,
-            "00000000-0000-0000-0000-000000000401",
-            "tapestry",
-            "00000000-0000-0000-0000-000000000411",
-            "builder",
-            "00000000-0000-0000-0000-000000000421",
-            "00000000-0000-0000-0000-000000000431",
-            "completed",
+            RunningRunSeed {
+                project_id: "00000000-0000-0000-0000-000000000401",
+                project_name: "tapestry",
+                agent_def_id: "00000000-0000-0000-0000-000000000411",
+                agent_name: "builder",
+                session_id: "00000000-0000-0000-0000-000000000421",
+                run_id: "00000000-0000-0000-0000-000000000431",
+                status: "completed",
+            },
         )
         .await;
         let count = running_count_inner(&store, None)
