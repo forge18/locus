@@ -1,8 +1,8 @@
 import { createMemo, createSignal, For } from "solid-js";
 import { destinationDesktop } from "../nav/desktop-navigation";
 import {
-      Desktop_ALL_ROUTE_KINDS,
       Desktop_APP_ROUTE_KINDS,
+      Desktop_PROJECT_ROUTE_KINDS,
 } from "../nav/desktop-route-kinds";
 
 export const RAIL_EXPANSION_STORAGE_KEY = "locus.rail-expansion";
@@ -16,7 +16,7 @@ const PROJECT_RAIL_LINKS = [
       ["Review", "qa"],
 ] as const;
 const CROSS_PROJECT_LINKS = [["Analytics", "status"]] as const;
-const MEMORY_ROUTES = Desktop_ALL_ROUTE_KINDS.filter(
+const MEMORY_ROUTES = Desktop_PROJECT_ROUTE_KINDS.filter(
       (route) => route.category === "memory",
 );
 const WORKSHOP_ROUTES = Desktop_APP_ROUTE_KINDS.filter(
@@ -324,7 +324,10 @@ export function ProjectRail(props: ProjectRailProps) {
                               aria-expanded={memoryExpanded()}
                               onClick={() => {
                                     props.onNavigate?.(
-                                          destinationDesktop("short"),
+                                          destinationDesktop(
+                                                "short",
+                                                props.selectedProject,
+                                          ),
                                     );
                                     const next = !memoryExpanded();
                                     setMemoryExpanded(next);
@@ -345,6 +348,7 @@ export function ProjectRail(props: ProjectRailProps) {
                                                       props.onNavigate?.(
                                                             destinationDesktop(
                                                                   route.id,
+                                                                  props.selectedProject,
                                                             ),
                                                       )
                                                 }
