@@ -9,15 +9,15 @@ import {
   type JSX,
 } from "solid-js";
 import { isTauri } from "@tauri-apps/api/core";
-import { Button } from "../../ui/Button";
-import { FixtureNotice } from "../../ui/FixtureNotice";
-import { InlineError } from "../../ui/InlineError";
-import { Tag } from "../../ui/Tag";
+import { Button } from "../ui/Button";
+import { FixtureNotice } from "../ui/FixtureNotice";
+import { InlineError } from "../ui/InlineError";
+import { Tag } from "../ui/Tag";
 import {
   ARTIFACT_LOCATOR,
   artifactMediaUrl,
   fetchArtifactsFromCore,
-} from "../../data/artifacts";
+} from "../data/artifacts";
 import {
   COMPACTED_CONTEXT,
   CURATION_COPY,
@@ -30,17 +30,17 @@ import {
   WIKI_GRAPH_COPY,
   WIKI_INGEST_COPY,
   WIKI_KIND_CHIPS,
-} from "../../data/knowledge";
-import { failed, type Envelope } from "../../data/envelope";
-import type { KnowledgeFact } from "../../fixtures/knowledge";
-import { ARTIFACTS } from "../../fixtures/artifacts";
-import { MailView } from "../mail/MailView";
-import type { Artifact } from "../../types/agents";
+} from "../data/knowledge";
+import { failed, type Envelope } from "../data/envelope";
+import type { KnowledgeFact } from "../fixtures/knowledge";
+import { ARTIFACTS } from "../fixtures/artifacts";
+import { MailView } from "../screens/mail/MailView";
+import type { Artifact } from "../types/agents";
 import {
   GraphRenderer,
   type GraphEdgeShape,
   type GraphNodeShape,
-} from "../../workflow-canvas/GraphRenderer";
+} from "../workflow-canvas/GraphRenderer";
 
 const sessions = [
   ["tapestry · builder@4", "r-9f21 · iteration 3 · 41.2k resident"],
@@ -389,7 +389,9 @@ function MemoryLongTermLive(props: { projectId?: string }) {
               />
             </Match>
             <Match when={facts().status === "empty"}>
-              <p class="desktop-memory-note">No durable facts for this project.</p>
+              <p class="desktop-memory-note">
+                No durable facts for this project.
+              </p>
             </Match>
             <Match when={facts().status === "ready"}>
               <FactList facts={factRows()} />
@@ -408,7 +410,9 @@ function MemoryLongTermLive(props: { projectId?: string }) {
         <div class="desktop-memory-scroll">
           <Switch>
             <Match when={facts().status === "loading"}>
-              <p class="desktop-memory-note">Loading the selected project’s facts…</p>
+              <p class="desktop-memory-note">
+                Loading the selected project’s facts…
+              </p>
             </Match>
             <Match when={facts().status === "failed"}>
               <InlineError
@@ -611,7 +615,9 @@ export function MemoryLongTermFixture(props: { projectId?: string } = {}) {
           </p>
           <Button
             variant="primary"
-            onClick={() => setActionNotice("Contradiction adjudicated in the demo provider.")}
+            onClick={() =>
+              setActionNotice("Contradiction adjudicated in the demo provider.")
+            }
           >
             Adjudicate
           </Button>
@@ -667,7 +673,10 @@ function MemoryArtifactsLive(props: { projectId?: string }) {
     setArtifacts({ status: "loading" });
     if (!projectId) {
       setArtifacts(
-        failed("artifacts_list", "an active project is required to read artifacts"),
+        failed(
+          "artifacts_list",
+          "an active project is required to read artifacts",
+        ),
       );
       return;
     }
@@ -676,7 +685,8 @@ function MemoryArtifactsLive(props: { projectId?: string }) {
         if (request === requestId) setArtifacts(result);
       })
       .catch((cause) => {
-        if (request === requestId) setArtifacts(failed("artifacts_list", cause));
+        if (request === requestId)
+          setArtifacts(failed("artifacts_list", cause));
       });
   });
 
@@ -694,7 +704,10 @@ function MemoryArtifactsLive(props: { projectId?: string }) {
           </h1>
           <p>Project-scoped artifacts retained for human review.</p>
         </header>
-        <div data-testid="memory-artifacts-state" data-state={artifacts().status}>
+        <div
+          data-testid="memory-artifacts-state"
+          data-state={artifacts().status}
+        >
           <Switch>
             <Match when={artifacts().status === "loading"}>
               <p class="desktop-memory-note">Loading review artifacts…</p>
@@ -706,7 +719,9 @@ function MemoryArtifactsLive(props: { projectId?: string }) {
               />
             </Match>
             <Match when={artifacts().status === "empty"}>
-              <p class="desktop-memory-note">No review artifacts for this project.</p>
+              <p class="desktop-memory-note">
+                No review artifacts for this project.
+              </p>
             </Match>
             <Match when={artifacts().status === "ready"}>
               <div class="desktop-memory-list">
@@ -743,11 +758,15 @@ function MemoryArtifactsLive(props: { projectId?: string }) {
               />
             </Match>
             <Match when={artifacts().status === "empty"}>
-              <p class="desktop-memory-prose">Nothing has been retained for review yet.</p>
+              <p class="desktop-memory-prose">
+                Nothing has been retained for review yet.
+              </p>
             </Match>
             <Match when={artifacts().status === "ready"}>
               <p class="desktop-memory-prose">
-                {rows()[0]!.body ?? rows()[0]!.derivedText ?? "This artifact has no text preview."}
+                {rows()[0]!.body ??
+                  rows()[0]!.derivedText ??
+                  "This artifact has no text preview."}
               </p>
               <small>Source retained by the project artifact store.</small>
             </Match>
@@ -800,10 +819,7 @@ export function MemoryArtifactsFixture(props: { projectId?: string } = {}) {
         </div>
       </aside>
       <section class="desktop-memory-main">
-        <FixtureNotice
-          surface="Artifacts"
-          command='invoke("artifacts_list")'
-        />
+        <FixtureNotice surface="Artifacts" command='invoke("artifacts_list")' />
         <header class="desktop-memory-title-row">
           <Tag>diff</Tag>
           <h2>store/notify.rs</h2>

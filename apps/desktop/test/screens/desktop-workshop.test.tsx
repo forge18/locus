@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { render, fireEvent } from '@solidjs/testing-library'
-import { WorkshopFixtureView } from '../../src/screens/workshop/WorkshopFixtureView'
+import { WorkshopFixtureView } from '../../src/demo/WorkshopFixtureView'
 
 const EXTENSIONS = [
   'commands',

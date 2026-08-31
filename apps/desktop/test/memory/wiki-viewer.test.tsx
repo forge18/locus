@@ -1,6 +1,6 @@
 import { render } from '@solidjs/testing-library'
 import { describe, expect, it } from 'vitest'
-import { MemoryWikiFixture } from '../../src/screens/memory/MemoryFixtures'
+import { MemoryWikiFixture } from '../../src/demo/MemoryFixtures'
 
 describe('Memory wiki viewer', () => {
   it('identifies outline links provenance and graph', () => {

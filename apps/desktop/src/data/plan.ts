@@ -1,12 +1,3 @@
-import {
-  CONVERSATION,
-  DRAFT_OUTPUTS,
-  LIVE_LINE,
-  PLANS,
-  RECOMMENDATION,
-  SCOPE_DECISION,
-  SELECTED_PLAN_ID,
-} from "../fixtures/plan";
 import { isTauri } from "@tauri-apps/api/core";
 import { streamFromCore } from "../transcript/from-core";
 import { dataProvider } from "./provider";
@@ -18,7 +9,7 @@ import type {
   PlanStep,
   Recommendation,
   ScopeDecision,
-} from "../fixtures/plan";
+} from "./demo/fixtures/plan";
 import type { AgentEvent } from "../types/event";
 
 export {
@@ -29,7 +20,7 @@ export {
   PLAN_STEPS,
   PLAN_TASKS,
   SPEC_REQUIREMENTS,
-} from "../fixtures/plan";
+} from "./demo/fixtures/plan";
 export type {
   DraftOutputs,
   PlanGranularity,
@@ -44,7 +35,7 @@ export type {
   SpecOutput,
   SpecRequirement,
   Speaker,
-} from "../fixtures/plan";
+} from "./demo/fixtures/plan";
 
 /** Live project-scoped plan list. */
 export function fetchPlans(
@@ -102,12 +93,12 @@ export function setPlanRequirements(
 
 /** Becomes: invoke("plans_list", { projectId }) — demo-only hook retained for component tests. */
 export function usePlans(): PlanSummary[] {
-  return PLANS;
+  return dataProvider().read?.<PlanSummary[]>("plans_list") ?? [];
 }
 
 /** Becomes: IPC-backed planning conversation. */
 export function usePlanConversation(): PlanMessage[] {
-  return CONVERSATION;
+  return dataProvider().read?.<PlanMessage[]>("plan_conversation") ?? [];
 }
 
 function planMessageFromEvent(event: AgentEvent): PlanMessage | null {
@@ -145,25 +136,47 @@ export async function subscribePlanConversationFromCore(
 
 /** Becomes: invoke("plan_scope_decision", { planId }) */
 export function usePlanScopeDecision(): ScopeDecision {
-  return SCOPE_DECISION;
+  return (
+    dataProvider().read?.<ScopeDecision>("plan_scope_decision") ?? {
+      question: "Scope decision unavailable",
+      detail: "The planning backend has not provided a scope decision.",
+      widen: "Unavailable",
+      keepOut: "Unavailable",
+    }
+  );
 }
 
 /** Becomes: invoke("plan_outputs", { planId }) */
 export function usePlanOutputs(): DraftOutputs {
-  return DRAFT_OUTPUTS;
+  return (
+    dataProvider().read?.<DraftOutputs>("plan_outputs") ?? {
+      spec: { name: "spec.md", lines: [] },
+      tasks: [],
+      tools: [],
+      newTools: [],
+    }
+  );
 }
 
 /** Becomes: invoke("plan_recommendation", { planId }) */
 export function usePlanRecommendation(): Recommendation {
-  return RECOMMENDATION;
+  return (
+    dataProvider().read?.<Recommendation>("plan_recommendation") ?? {
+      confidence: 0,
+      open: 0,
+      condition: "Recommendation unavailable",
+      ratchet: "The planning backend has not provided a recommendation.",
+      taskCount: 0,
+    }
+  );
 }
 
 /** Becomes: the live line on the ACP stream. */
 export function usePlanLiveLine(): string {
-  return LIVE_LINE;
+  return dataProvider().read?.<string>("plan_live_line") ?? "";
 }
 
 /** Becomes: pane state, once the pane manager owns it. */
 export function useDefaultPlanId(): string {
-  return SELECTED_PLAN_ID;
+  return dataProvider().read?.<string>("plan_default_id") ?? "";
 }

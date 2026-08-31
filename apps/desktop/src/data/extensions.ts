@@ -1,6 +1,6 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
-import { RECENTLY_EDITED, TYPE_CARDS } from "../fixtures/extensions";
-import type { EditedEntry, TypeCard } from "../fixtures/extensions";
+import { dataProvider } from "./provider";
+import type { EditedEntry, TypeCard } from "./demo/fixtures/extensions";
 
 export {
   CACHE_READ_RATE,
@@ -10,8 +10,8 @@ export {
   HEADER_TITLE,
   NEW_LABEL,
   SEARCH_PLACEHOLDER,
-} from "../fixtures/extensions";
-export type { EditedEntry, TypeCard } from "../fixtures/extensions";
+} from "./demo/fixtures/extensions";
+export type { EditedEntry, TypeCard } from "./demo/fixtures/extensions";
 
 export const LINTERS_ROOT = "/locus/config/linters";
 
@@ -24,10 +24,10 @@ export async function fetchLinterCountFromCore(): Promise<number | undefined> {
 
 /** Becomes: invoke("extension_inventory") */
 export function useTypeCards(): TypeCard[] {
-  return TYPE_CARDS;
+  return dataProvider().read?.<TypeCard[]>("extension_inventory") ?? [];
 }
 
 /** Becomes: invoke("recently_edited") */
 export function useRecentlyEdited(): EditedEntry[] {
-  return RECENTLY_EDITED;
+  return dataProvider().read?.<EditedEntry[]>("recently_edited") ?? [];
 }

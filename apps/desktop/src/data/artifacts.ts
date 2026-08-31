@@ -1,13 +1,6 @@
 import { convertFileSrc, isTauri } from "@tauri-apps/api/core";
-import {
- ARTIFACTS,
- ARTIFACT_COMMENTS,
- REFERENCE_KINDS,
- REVIEW_KINDS,
- SELECTED_ARTIFACT_ID,
- UNIFIED_DIFF,
-} from "../fixtures/artifacts";
-import type { UnifiedRow } from "../fixtures/artifacts";
+import { REFERENCE_KINDS, REVIEW_KINDS } from "./demo/fixtures/artifacts";
+import type { UnifiedRow } from "./demo/fixtures/artifacts";
 import type { Artifact, ArtifactComment } from "../types/agents";
 import { dataProvider } from "./provider";
 import type { Envelope } from "./envelope";
@@ -22,8 +15,8 @@ export {
  RESOLVE,
  REVIEW_KINDS,
  SEND_TO_SESSION,
-} from "../fixtures/artifacts";
-export type { UnifiedRow, UnifiedRowKind } from "../fixtures/artifacts";
+} from "./demo/fixtures/artifacts";
+export type { UnifiedRow, UnifiedRowKind } from "./demo/fixtures/artifacts";
 
 /** Becomes: invoke("artifacts_list") */
 export function fetchArtifactsFromCore(
@@ -45,27 +38,31 @@ export function fetchArtifactCommentsFromCore(
 
 /** Fixture fallback until the Tauri runtime connects. */
 export function useArtifacts(): Artifact[] {
- return ARTIFACTS;
+ return dataProvider().read?.<Artifact[]>("artifacts_list") ?? [];
 }
 
 /** Becomes: invoke("artifact", { id }) */
 export function useArtifact(id: string): Artifact | null {
- return ARTIFACTS.find((a) => a.id === id) ?? null;
+ return dataProvider().read?.<Artifact | null>("artifact", { id }) ?? null;
 }
 
 /** Becomes: pane state, once the pane manager owns it. */
 export function useDefaultArtifactId(): string {
- return SELECTED_ARTIFACT_ID;
+ return dataProvider().read?.<string>("artifact_default_id") ?? "";
 }
 
 /** Becomes: invoke("artifact_diff", { id }) */
 export function useUnifiedDiff(): UnifiedRow[] {
- return UNIFIED_DIFF;
+ return dataProvider().read?.<UnifiedRow[]>("artifact_diff") ?? [];
 }
 
 /** Fixture fallback until the Tauri runtime connects. */
 export function useArtifactComments(artifactId: string): ArtifactComment[] {
- return ARTIFACT_COMMENTS.filter((c) => c.artifactId === artifactId);
+ return (
+  dataProvider().read?.<ArtifactComment[]>("artifact_comments", {
+   artifactId,
+  }) ?? []
+ );
 }
 
 /** Resolve a host-owned blob path for the human media viewer. */
@@ -85,5 +82,10 @@ export function useArtifactKinds(): {
  review: typeof REVIEW_KINDS;
  reference: typeof REFERENCE_KINDS;
 } {
- return { review: REVIEW_KINDS, reference: REFERENCE_KINDS };
+ return (
+  dataProvider().read?.<{
+   review: typeof REVIEW_KINDS;
+   reference: typeof REFERENCE_KINDS;
+  }>("artifact_kinds") ?? { review: [], reference: [] }
+ );
 }

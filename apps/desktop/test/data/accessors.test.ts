@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { SRC } from "../css";
 import type { Envelope } from "../../src/data/envelope";
 import { configureDataProvider } from "../../src/data/provider";
+import { configureDemoProvider } from "../../src/data/demo/bootstrap";
 
 const dataDir = resolve(SRC, "data");
 const modules = readdirSync(dataDir)
@@ -91,14 +92,20 @@ describe("data/accessors", () => {
     }
   });
 
-  it("is the only thing that reads a fixture", () => {
+  it("keeps fixture reads behind the explicit demo boundary", () => {
     for (const name of FIXTURE_DATA_SETS) {
       const file = `${name}.ts`;
       const source = readFileSync(resolve(dataDir, file), "utf8");
-      expect(source, `${file} reads no fixture`).toMatch(
-        /from ["']\.\.\/(fixtures|types)\//,
+      expect(source, `${file} imports no fixture directly`).not.toMatch(
+        /from ["']\.\.\/fixtures\//,
       );
     }
+
+    const demo = readFileSync(
+      resolve(dataDir, "demo/demo-provider.ts"),
+      "utf8",
+    );
+    expect(demo).toMatch(/from ["']\.\.\/\.\.\/fixtures\//);
   });
 
   it("keeps the normalized event literal in fixtures, re-exported by data", async () => {
@@ -184,6 +191,7 @@ describe("data/accessors", () => {
   });
 
   it("reports the computed harness summary rather than a written-down number", async () => {
+    configureDemoProvider();
     const { useHarnessSummary } = await import("../../src/data/harnesses");
     expect(useHarnessSummary()).toEqual({
       harnesses: 11,
@@ -215,8 +223,12 @@ describe("data/accessors", () => {
     const { fetchQaFindings } = await import("../../src/data/qa");
     expect((await fetchLongTermFacts("p-tapestry")).status).toBe("ready");
     expect((await fetchArtifactsFromCore("p-tapestry")).status).toBe("ready");
-    expect((await fetchAtAGlanceMetrics("tapestry", "30d")).status).toBe("ready");
-    expect((await fetchTelemetryMetrics("tapestry", "30d")).status).toBe("ready");
+    expect((await fetchAtAGlanceMetrics("tapestry", "30d")).status).toBe(
+      "ready",
+    );
+    expect((await fetchTelemetryMetrics("tapestry", "30d")).status).toBe(
+      "ready",
+    );
     expect((await fetchQaFindings("p-tapestry")).status).toBe("ready");
     expect(calls).toEqual([
       { command: "memory_facts", args: { projectId: "p-tapestry" } },

@@ -1,6 +1,6 @@
 import { render } from '@solidjs/testing-library'
 import { describe, expect, it } from 'vitest'
-import { MemoryArtifactsFixture } from '../../src/screens/memory/MemoryFixtures'
+import { MemoryArtifactsFixture } from '../../src/demo/MemoryFixtures'
 
 describe('Memory artifacts route', () => {
   it('identifies grouped artifact fixture route', () => {

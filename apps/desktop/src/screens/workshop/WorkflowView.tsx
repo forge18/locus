@@ -1,5 +1,5 @@
 import { createSignal, For, Show, onMount } from "solid-js";
-import { isTauri } from "@tauri-apps/api/core";
+import { dataProvider } from "../../data/provider";
 import { InlineError } from "../../ui/InlineError";
 import { FixtureNotice } from "../../ui/FixtureNotice";
 import { Icon } from "../../ui/Icon";
@@ -96,7 +96,8 @@ function LiveWorkflowList(props: { projectId?: string }) {
  * overlay are `workflow-canvas` at M4, gated by Spike 3.
  */
 export function WorkflowView(props: { projectId?: string } = {}) {
-  if (isTauri()) return <LiveWorkflowList projectId={props.projectId} />;
+  if (dataProvider().kind === "live")
+    return <LiveWorkflowList projectId={props.projectId} />;
   const canvas = useCanvas();
   const [expandedPreset, setExpandedPreset] = createSignal<string>();
 

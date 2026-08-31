@@ -1,6 +1,6 @@
 import { render } from '@solidjs/testing-library'
 import { describe, expect, it } from 'vitest'
-import { MemoryShortTermFixture } from '../../src/screens/memory/MemoryFixtures'
+import { MemoryShortTermFixture } from '../../src/demo/MemoryFixtures'
 
 describe('Memory resident context', () => {
   it('labels resident prompt layers and cache state', () => {

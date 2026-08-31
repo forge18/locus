@@ -1,6 +1,6 @@
 import { render } from '@solidjs/testing-library'
 import { describe, expect, it } from 'vitest'
-import { WorkshopFixtureView } from '../../src/screens/workshop/WorkshopFixtureView'
+import { WorkshopFixtureView } from '../../src/demo/WorkshopFixtureView'
 
 describe('visual Workshop', () => {
   it('renders provider surface in the theme-neutral fixture', () => {

@@ -14,13 +14,17 @@ import { GuardrailsView } from "./screens/settings/GuardrailsView";
 import InteractView from "./screens/interact/InteractView";
 import { BotsView } from "./screens";
 import ManageView from "./screens/manage/ManageView";
-import WorkshopFixtureView from "./screens/workshop/WorkshopFixtureView";
+import { AgentDefinitionsView } from "./screens/workshop/AgentDefinitionsView";
+import { HarnessesView } from "./screens/workshop/HarnessesView";
+import { ProvidersView } from "./screens/workshop/ProvidersView";
+import { UnavailableWorkshopView } from "./screens/workshop/UnavailableWorkshopView";
+import { WorkflowView } from "./screens/workshop/WorkflowView";
 import {
-        MemoryArtifactsFixture,
-        MemoryLongTermFixture,
-        MemoryShortTermFixture,
-        MemoryWikiFixture,
-} from "./screens/memory/MemoryFixtures";
+        MemoryArtifactsView,
+        MemoryLongTermView,
+        MemoryShortTermView,
+        MemoryWikiView,
+} from "./screens/memory/MemoryViews";
 import "./styles/app.css";
 
 // The Tauri bootstrap always selects the live provider: a runtime that forgets to
@@ -101,7 +105,7 @@ function App() {
                                                 />
                                         </Match>
                                         <Match when={nav.view() === "artifact"}>
-                                                <MemoryArtifactsFixture
+                                                <MemoryArtifactsView
                                                         projectId={
                                                                 nav.params()
                                                                         .project
@@ -109,10 +113,10 @@ function App() {
                                                 />
                                         </Match>
                                         <Match when={nav.view() === "wiki"}>
-                                                <MemoryWikiFixture />
+                                                <MemoryWikiView />
                                         </Match>
                                         <Match when={nav.view() === "agents"}>
-                                                <WorkshopFixtureView fixture="agents" />
+                                                <AgentDefinitionsView />
                                         </Match>
                                         <Match
                                                 when={
@@ -120,7 +124,7 @@ function App() {
                                                         "harnesses"
                                                 }
                                         >
-                                                <WorkshopFixtureView fixture="harnesses" />
+                                                <HarnessesView />
                                         </Match>
                                         <Match when={nav.view() === "mail"}>
                                                 <MailView />
@@ -161,10 +165,10 @@ function App() {
                                                 />
                                         </Match>
                                         <Match when={nav.view() === "short"}>
-                                                <MemoryShortTermFixture />
+                                                <MemoryShortTermView />
                                         </Match>
                                         <Match when={nav.view() === "memory"}>
-                                                <MemoryLongTermFixture
+                                                <MemoryLongTermView
                                                         projectId={
                                                                 nav.params()
                                                                         .project
@@ -175,19 +179,39 @@ function App() {
                                                 <GuardrailsView />
                                         </Match>
                                         <Match when={nav.view() === "cli"}>
-                                                <WorkshopFixtureView fixture="cli" />
+                                                <UnavailableWorkshopView
+                                                        route="cli"
+                                                        label="CLI tools"
+                                                        command="extension_inventory"
+                                                />
                                         </Match>
                                         <Match when={nav.view() === "commands"}>
-                                                <WorkshopFixtureView fixture="commands" />
+                                                <UnavailableWorkshopView
+                                                        route="commands"
+                                                        label="Commands"
+                                                        command="extension_inventory"
+                                                />
                                         </Match>
                                         <Match when={nav.view() === "hooks"}>
-                                                <WorkshopFixtureView fixture="hooks" />
+                                                <UnavailableWorkshopView
+                                                        route="hooks"
+                                                        label="Hooks"
+                                                        command="extension_inventory"
+                                                />
                                         </Match>
                                         <Match when={nav.view() === "linters"}>
-                                                <WorkshopFixtureView fixture="linters" />
+                                                <UnavailableWorkshopView
+                                                        route="linters"
+                                                        label="Linters"
+                                                        command="extension_inventory"
+                                                />
                                         </Match>
                                         <Match when={nav.view() === "styles"}>
-                                                <WorkshopFixtureView fixture="styles" />
+                                                <UnavailableWorkshopView
+                                                        route="styles"
+                                                        label="Output styles"
+                                                        command="extension_inventory"
+                                                />
                                         </Match>
                                         <Match
                                                 when={
@@ -195,17 +219,24 @@ function App() {
                                                         "providers"
                                                 }
                                         >
-                                                <WorkshopFixtureView fixture="providers" />
+                                                <ProvidersView />
                                         </Match>
                                         <Match when={nav.view() === "rules"}>
-                                                <WorkshopFixtureView fixture="rules" />
+                                                <UnavailableWorkshopView
+                                                        route="rules"
+                                                        label="Rules"
+                                                        command="extension_inventory"
+                                                />
                                         </Match>
                                         <Match when={nav.view() === "skills"}>
-                                                <WorkshopFixtureView fixture="skills" />
+                                                <UnavailableWorkshopView
+                                                        route="skills"
+                                                        label="Skills"
+                                                        command="extension_inventory"
+                                                />
                                         </Match>
                                         <Match when={nav.view() === "canvas"}>
-                                                <WorkshopFixtureView
-                                                        fixture="workflows-visual"
+                                                <WorkflowView
                                                         projectId={
                                                                 nav.params()
                                                                         .project
@@ -218,8 +249,7 @@ function App() {
                                                         "workflows"
                                                 }
                                         >
-                                                <WorkshopFixtureView
-                                                        fixture="workflows-list"
+                                                <WorkflowView
                                                         projectId={
                                                                 nav.params()
                                                                         .project

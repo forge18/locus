@@ -1,17 +1,17 @@
 import {
-  Desktop_FIXTURE_ROUTES,
-  type FixtureScope,
-  type DesktopFixtureRoute,
-} from "../fixtures/desktop-screen-inventory";
+  DESKTOP_ROUTES,
+  type DesktopRouteScope,
+  type DesktopRoute,
+} from "./desktop-screen-inventory";
 
 export interface DesktopRouteKind {
-  id: DesktopFixtureRoute["id"];
-  label: DesktopFixtureRoute["label"];
-  scope: FixtureScope;
-  category: DesktopFixtureRoute["category"];
+  id: DesktopRoute["id"];
+  label: DesktopRoute["label"];
+  scope: DesktopRouteScope;
+  category: DesktopRoute["category"];
 }
 
-function routeKind(route: DesktopFixtureRoute): DesktopRouteKind {
+function routeKind(route: DesktopRoute): DesktopRouteKind {
   return Object.freeze({
     id: route.id,
     label: route.label,
@@ -21,9 +21,7 @@ function routeKind(route: DesktopFixtureRoute): DesktopRouteKind {
 }
 
 /** The one current 30-view route inventory. */
-export const Desktop_ROUTE_KINDS = Object.freeze(
-  Desktop_FIXTURE_ROUTES.map(routeKind),
-);
+export const Desktop_ROUTE_KINDS = Object.freeze(DESKTOP_ROUTES.map(routeKind));
 export const Desktop_ALL_ROUTE_KINDS = Object.freeze(
   Desktop_ROUTE_KINDS.filter((route) => route.scope === "all"),
 );

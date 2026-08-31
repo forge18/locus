@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Desktop_FIXTURE_ROUTES } from "../../src/fixtures/desktop-screen-inventory";
+import { DESKTOP_ROUTES } from "../../src/nav/desktop-screen-inventory";
 import {
   Desktop_ALL_ROUTE_KINDS,
   Desktop_APP_ROUTE_KINDS,
@@ -8,12 +8,12 @@ import {
 } from "../../src/nav/desktop-route-kinds";
 
 describe("nav/desktop-route-kinds", () => {
-  it("registers every fixture route with its declared scope", () => {
+  it("registers every desktop route with its declared scope", () => {
     expect(Desktop_ROUTE_KINDS.map((route) => route.id)).toEqual(
-      Desktop_FIXTURE_ROUTES.map((route) => route.id),
+      DESKTOP_ROUTES.map((route) => route.id),
     );
     expect(Desktop_ROUTE_KINDS.map((route) => route.scope)).toEqual(
-      Desktop_FIXTURE_ROUTES.map((route) => route.scope),
+      DESKTOP_ROUTES.map((route) => route.scope),
     );
     expect(new Set(Desktop_ROUTE_KINDS.map((route) => route.id)).size).toBe(30);
   });

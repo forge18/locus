@@ -1,9 +1,7 @@
-import { Desktop_FIXTURE_ROUTES } from "../fixtures/desktop-screen-inventory";
+import { DESKTOP_ROUTES } from "./desktop-screen-inventory";
 
-export const VIEWS = Object.freeze(
-  Desktop_FIXTURE_ROUTES.map((route) => route.id),
-);
-export type View = (typeof Desktop_FIXTURE_ROUTES)[number]["id"];
+export const VIEWS = Object.freeze(DESKTOP_ROUTES.map((route) => route.id));
+export type View = (typeof DESKTOP_ROUTES)[number]["id"];
 
 export const CATEGORIES = Object.freeze([
   "setup",
@@ -20,7 +18,7 @@ export const CATEGORIES = Object.freeze([
 export type Category = (typeof CATEGORIES)[number] | "pill" | (string & {});
 
 const VIEW_CATEGORY = Object.fromEntries(
-  Desktop_FIXTURE_ROUTES.map((route) => [route.id, route.category]),
+  DESKTOP_ROUTES.map((route) => [route.id, route.category]),
 ) as Record<View, Category>;
 
 export function categoryOf(view: View): Category {

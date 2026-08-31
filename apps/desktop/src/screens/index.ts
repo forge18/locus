@@ -5,15 +5,14 @@ export type { InboxCardProps } from "./inbox/InboxCard";
 export { InboxDetail } from "./inbox/InboxDetail";
 export type { InboxDetailProps } from "./inbox/InboxDetail";
 export { ProjectsView } from "./projects/ProjectsView";
-export { MailView, MailFixture } from "./mail/MailView";
+export { MailView } from "./mail/MailView";
 export type { MailViewProps } from "./mail/MailView";
 export {
-  MemoryArtifactsFixture,
-  MemoryLongTermFixture,
-  MemoryMailFixture,
-  MemoryShortTermFixture,
-  MemoryWikiFixture,
-} from "./memory/MemoryFixtures";
+  MemoryArtifactsView,
+  MemoryLongTermView,
+  MemoryShortTermView,
+  MemoryWikiView,
+} from "./memory/MemoryViews";
 export { QAView } from "./review/QAView";
 export type { QAViewProps } from "./review/QAView";
 export { AnalyticsView } from "./analytics/AnalyticsView";

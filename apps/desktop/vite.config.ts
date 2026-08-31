@@ -2,7 +2,6 @@
 import { defineConfig } from "vite";
 import solid from "vite-plugin-solid";
 
-// @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST;
 
 // https://vite.dev/config/
@@ -35,6 +34,7 @@ export default defineConfig(async () => ({
     environment: "jsdom",
     globals: true,
     include: ["test/**/*.test.{ts,tsx}"],
+    setupFiles: ["test/setup.ts"],
     // vite-plugin-solid needs the browser condition to resolve solid-js/web in jsdom
     server: { deps: { inline: [/solid-js/, /@solidjs/] } },
   },

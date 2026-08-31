@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Desktop_FIXTURE_ROUTES } from "../../src/fixtures/desktop-screen-inventory";
+import { DESKTOP_ROUTES } from "../../src/nav/desktop-screen-inventory";
 import {
   destinationDesktop,
   navigateDesktop,
@@ -9,7 +9,7 @@ import { CATEGORIES, RAIL_ITEMS, VIEWS, categoryOf } from "../../src/nav";
 describe("M0.7 shell navigation inventory", () => {
   it("registers the current 30 views and ten rail categories", () => {
     expect(VIEWS).toHaveLength(30);
-    expect(Desktop_FIXTURE_ROUTES).toHaveLength(30);
+    expect(DESKTOP_ROUTES).toHaveLength(30);
     expect([...CATEGORIES]).toEqual([
       "setup",
       "plan",
@@ -50,11 +50,11 @@ describe("M0.7 shell navigation inventory", () => {
       "Workshop",
     ]);
     expect(
-      Desktop_FIXTURE_ROUTES.some((route) =>
+      DESKTOP_ROUTES.some((route) =>
         ["Develop", "Automate", "Dashboard"].includes(route.label),
       ),
     ).toBe(false);
-    for (const route of Desktop_FIXTURE_ROUTES) {
+    for (const route of DESKTOP_ROUTES) {
       const locator = destinationDesktop(
         route.id,
         route.scope === "project" ? "tapestry" : undefined,

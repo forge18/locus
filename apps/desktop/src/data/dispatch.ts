@@ -7,8 +7,8 @@ export {
   STOP_ALL_RESTORE_MINUTES,
   VERIFY_VOCABULARY,
   autorunMasterState,
-} from "../fixtures/dispatch";
-export type { AutorunState, PermissionPosture } from "../fixtures/dispatch";
+} from "./demo/fixtures/dispatch";
+export type { AutorunState, PermissionPosture } from "./demo/fixtures/dispatch";
 
 /** Wire type: one dispatch schedule from `workflows.schedules`. */
 export interface DispatchSchedule {
@@ -55,7 +55,9 @@ export function setAutorunState(
   });
 }
 
-export function fetchDispatchSchedules(): Promise<Envelope<DispatchSchedule[]>> {
+export function fetchDispatchSchedules(): Promise<
+  Envelope<DispatchSchedule[]>
+> {
   return dataProvider().query<DispatchSchedule>("dispatch_schedules");
 }
 
@@ -82,4 +84,3 @@ export async function stopAllDispatch(writeHandoffs = true) {
     { writeHandoffs },
   ) as Promise<DispatchStopAllResult>;
 }
-

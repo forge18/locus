@@ -1,6 +1,6 @@
 import { render } from "@solidjs/testing-library";
 import { describe, expect, it } from "vitest";
-import { MemoryArtifactsFixture } from "../../src/screens/memory/MemoryFixtures";
+import { MemoryArtifactsFixture } from "../../src/demo/MemoryFixtures";
 
 describe("artifacts/media-viewers", () => {
   it("keeps image and recording viewers in the artifact surface", () => {

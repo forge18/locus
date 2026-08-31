@@ -25,8 +25,8 @@ import {
   type AutorunState,
   type PermissionPosture,
 } from "../../data/dispatch";
-import { DISPATCH_PROJECTS } from "../../fixtures/dispatch";
-import { isTauri } from "@tauri-apps/api/core";
+import { DISPATCH_PROJECTS } from "../../data/dispatch";
+import { dataProvider } from "../../data/provider";
 import type { NavStore } from "../../nav";
 import { fetchRunningCount } from "../../data/strip";
 import type { Envelope } from "../../data/envelope";
@@ -97,7 +97,7 @@ function AutorunView(props: {
   onSwitch?: (tab: DispatchTab) => void;
   nav?: NavStore;
 }) {
-  const liveMode = isTauri();
+  const liveMode = dataProvider().kind === "live";
   const demoStates: AutorunStateRow[] = DISPATCH_PROJECTS.map((project) => ({
     projectId: project.id,
     project: project.name,
