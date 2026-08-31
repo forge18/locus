@@ -1,12 +1,25 @@
 //! Durable planning stage and requirement projections.
 
 use crate::{
+    ids::ProjectId,
     services::planning::{EditableSpec, PlanningStage, Requirement},
     store::Store,
 };
 use anyhow::{bail, Context, Result};
 use sqlx::{query, Row};
 use uuid::Uuid;
+
+#[derive(Debug, sqlx::FromRow)]
+pub struct PlanSummaryRow {
+    pub id: Uuid,
+    pub title: String,
+    pub project: String,
+    pub state: String,
+    pub stage: String,
+    pub confidence: Option<f64>,
+    pub open_count: i32,
+    pub updated_at: String,
+}
 
 fn stage_name(stage: PlanningStage) -> &'static str {
     match stage {
@@ -21,6 +34,29 @@ fn stage_name(stage: PlanningStage) -> &'static str {
 }
 
 impl Store {
+    /// List plans for one project. The project filter is part of the query so a
+    /// caller cannot accidentally receive another project's planning work.
+    pub async fn plans_list(&self, project_id: ProjectId) -> Result<Vec<PlanSummaryRow>> {
+        sqlx::query_as(
+            "SELECT p.id,
+                    p.title,
+                    project.name AS project,
+                    p.state,
+                    p.stage,
+                    p.confidence,
+                    p.open_count,
+                    p.updated_at::text AS updated_at
+             FROM core.plans p
+             JOIN core.projects project ON project.id = p.project_id
+             WHERE p.project_id = $1
+             ORDER BY p.updated_at DESC, p.id",
+        )
+        .bind(project_id)
+        .fetch_all(self.pool())
+        .await
+        .context("list plans")
+    }
+
     pub async fn create_plan(
         &self,
         id: Uuid,

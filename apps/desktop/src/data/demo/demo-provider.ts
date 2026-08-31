@@ -9,6 +9,7 @@
  * fixture reads behind this seam.
  */
 import { LOCAL_REMOTES, PROJECTS, REPOS } from "../../fixtures/core";
+import { PLANS } from "../../fixtures/plan";
 import type { Envelope } from "../envelope";
 import { failed, ready } from "../envelope";
 import type { DataProvider } from "../provider";
@@ -24,6 +25,7 @@ const FIXTURES: Record<string, FixtureQuery> = {
    : REPOS;
  },
  local_remotes_list: () => LOCAL_REMOTES,
+ plans_list: () => PLANS,
 };
 
 function demoEnvelope<T>(

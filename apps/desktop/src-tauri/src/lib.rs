@@ -1048,6 +1048,84 @@ async fn set_project_autorun_state_inner(
         .map_err(IpcError::internal)
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PlanSummaryResponse {
+    id: String,
+    title: String,
+    project: String,
+    state: String,
+    step: String,
+    step_line: String,
+    confidence: Option<f64>,
+    open: Option<i32>,
+    landed: Option<String>,
+    age: String,
+}
+
+fn plan_step_label(stage: &str) -> Result<(&'static str, usize), IpcError> {
+    let result = match stage {
+        "inputs" => ("Inputs", 1),
+        "orient" => ("Orient", 2),
+        "converse" => ("Converse", 3),
+        "synthesis" => ("Synthesis", 4),
+        "recommend" => ("Recommend", 5),
+        "decompose" => ("Decompose", 6),
+        "approved" => ("Approved", 7),
+        other => {
+            return Err(IpcError::internal(format!(
+                "plan has unknown stage `{other}`"
+            )))
+        }
+    };
+    Ok(result)
+}
+
+async fn plans_list_inner(
+    store: &Store,
+    project_id: &str,
+) -> Result<Vec<PlanSummaryResponse>, IpcError> {
+    let project_id = resolve_setup_project(store, project_id).await?;
+    let rows = store
+        .plans_list(project_id)
+        .await
+        .map_err(IpcError::internal)?;
+    rows.into_iter()
+        .map(|row| {
+            let (step, step_number) = plan_step_label(&row.stage)?;
+            Ok(PlanSummaryResponse {
+                id: row.id.to_string(),
+                title: row.title,
+                project: row.project,
+                state: row.state.clone(),
+                step: step.into(),
+                step_line: if row.state == "draft_rejected" {
+                    format!(
+                        "confidence {:.2} · open[{}]",
+                        row.confidence.unwrap_or(0.0),
+                        row.open_count
+                    )
+                } else {
+                    format!("step {step_number} · {step}")
+                },
+                confidence: row.confidence,
+                open: (row.state == "draft_rejected").then_some(row.open_count),
+                landed: None,
+                age: row.updated_at,
+            })
+        })
+        .collect()
+}
+
+#[tauri::command]
+async fn plans_list(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+) -> Result<Vec<PlanSummaryResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    plans_list_inner(store, &project_id).await
+}
+
 #[tauri::command]
 async fn session(
     core: State<'_, Arc<Core>>,
@@ -1075,9 +1153,7 @@ async fn session(
 }
 
 #[tauri::command]
-async fn autorun_states(
-    core: State<'_, Arc<Core>>,
-) -> Result<Vec<AutorunStateResponse>, IpcError> {
+async fn autorun_states(core: State<'_, Arc<Core>>) -> Result<Vec<AutorunStateResponse>, IpcError> {
     let store = connected_store(&core).await?;
     store
         .autorun_states()
@@ -3109,6 +3185,7 @@ pub fn run() {
             dispatch_runs_count,
             sessions_list,
             runs_for_session,
+            plans_list,
             dispatch_schedules,
             dispatch_schedule_executions,
             session,
@@ -4472,7 +4549,6 @@ mod inbox_flow {
     }
 }
 
-
 /// Schedule queries: the dispatch schedules read from the existing
 /// `workflows.schedules` and `workflows.executions` tables.
 #[cfg(test)]
@@ -4604,7 +4680,9 @@ mod autorun_and_session {
         .await
         .expect("seed autorun");
 
-        let states = autorun_states_inner(&store).await.expect("list autorun states");
+        let states = autorun_states_inner(&store)
+            .await
+            .expect("list autorun states");
         assert_eq!(states.len(), 2);
         assert_eq!(states[0].project, "amq");
         assert_eq!(states[0].state, "off");
@@ -4628,9 +4706,10 @@ mod autorun_and_session {
             .expect("read state");
         assert_eq!(state, locus_core::runtime::dispatch::AutorunState::On);
 
-        let error = set_project_autorun_state_inner(&store, "00000000-0000-0000-0000-0000000009ff", "on")
-            .await
-            .expect_err("unknown project rejected");
+        let error =
+            set_project_autorun_state_inner(&store, "00000000-0000-0000-0000-0000000009ff", "on")
+                .await
+                .expect_err("unknown project rejected");
         assert_eq!(
             serde_json::to_value(error).expect("serialize IPC error")["kind"],
             "not_found"
@@ -4672,5 +4751,76 @@ mod autorun_and_session {
             .await
             .expect("read missing session");
         assert!(missing.is_none());
+    }
+}
+
+#[cfg(test)]
+mod configuration_commands {
+    use super::*;
+    use locus_core::testkit::postgres::{
+        start_postgres_named, test_backup_config, NoopMigrationBackup,
+    };
+
+    async fn test_store() -> (Store, locus_core::testkit::postgres::DockerCleanup) {
+        let (container, cleanup) = start_postgres_named("locus-tauri-configuration").await;
+        let store = Store::connect(&container.database_url())
+            .await
+            .expect("connect the configuration test store");
+        store
+            .run_migrations(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations"),
+                &NoopMigrationBackup,
+                &test_backup_config(),
+            )
+            .await
+            .expect("run migrations for the configuration test store");
+        (store, cleanup)
+    }
+
+    #[tokio::test]
+    async fn plans_list_is_project_scoped_and_maps_durable_fields() {
+        let (store, _cleanup) = test_store().await;
+        sqlx::query(
+            "INSERT INTO core.projects (id, name)
+             VALUES ('00000000-0000-0000-0000-000000000a01', 'tapestry'),
+                    ('00000000-0000-0000-0000-000000000a02', 'loom-db')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed projects");
+        sqlx::query(
+            "INSERT INTO core.plans
+                (id, project_id, title, goal, stage, state, confidence, open_count)
+             VALUES
+                ('00000000-0000-0000-0000-000000000a11',
+                 '00000000-0000-0000-0000-000000000a01',
+                 'Tapestry plan', 'Ship the tapestry plan', 'recommend',
+                 'draft_rejected', 0.626, 2),
+                ('00000000-0000-0000-0000-000000000a12',
+                 '00000000-0000-0000-0000-000000000a02',
+                 'Loom plan', 'Ship the loom plan', 'approved',
+                 'approved', NULL, 0)",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed plans");
+
+        let plans = plans_list_inner(&store, "tapestry")
+            .await
+            .expect("list tapestry plans");
+        assert_eq!(plans.len(), 1);
+        assert_eq!(plans[0].id, "00000000-0000-0000-0000-000000000a11");
+        assert_eq!(plans[0].project, "tapestry");
+        assert_eq!(plans[0].step, "Recommend");
+        assert_eq!(plans[0].step_line, "confidence 0.63 · open[2]");
+        assert_eq!(plans[0].confidence, Some(0.626));
+        assert_eq!(plans[0].open, Some(2));
+        assert!(plans[0].landed.is_none());
+        assert!(!plans[0].age.is_empty());
+
+        let unknown = plans_list_inner(&store, "00000000-0000-0000-0000-000000000aff")
+            .await
+            .expect_err("unknown project rejected");
+        assert!(matches!(unknown.kind, IpcErrorKind::NotFound));
     }
 }

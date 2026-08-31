@@ -3,8 +3,10 @@ import {
       Match,
       Show,
       Switch,
+      createEffect,
       createMemo,
       createSignal,
+      on,
       onCleanup,
       onMount,
 } from "solid-js";
@@ -15,13 +17,16 @@ import { Recommendation } from "./Recommendation";
 import { ScopeDecision } from "./ScopeDecision";
 import { PlanSpecView } from "./PlanSpecView";
 import { PlanTasksView } from "./PlanTasksView";
-import { FixtureNotice } from "../../ui/FixtureNotice";
 import { Icon } from "../../ui/Icon";
 import { InlineError } from "../../ui/InlineError";
 import { Tag } from "../../ui/Tag";
 import { Button } from "../../ui/Button";
+import { isTauri } from "@tauri-apps/api/core";
+import type { NavStore } from "../../nav";
+import type { Envelope } from "../../data/envelope";
 import {
       ACP_LABEL,
+      fetchPlans,
       useDefaultPlanId,
       usePlanConversation,
       usePlanLiveLine,
@@ -30,6 +35,7 @@ import {
       usePlanRecommendation,
       usePlanScopeDecision,
       usePlans,
+      type PlanSummary,
 } from "../../data/plan";
 
 export const PLAN_STAGE_LABELS = [
@@ -44,12 +50,29 @@ export const PLAN_STAGE_LABELS = [
 
 type PlanStage = (typeof PLAN_STAGE_LABELS)[number];
 
+function UnavailablePanel(props: { title: string; detail: string }) {
+      return (
+            <section class="plan-stage-panel" data-testid="plan-unavailable">
+                  <h2>{props.title}</h2>
+                  <p>{props.detail}</p>
+            </section>
+      );
+}
+
 function StagePanel(props: {
       stage: PlanStage;
       newPlan: boolean;
+      unavailable: boolean;
       onStart: () => void;
       onNewPlan: () => void;
 }) {
+      if (props.unavailable)
+            return (
+                  <UnavailablePanel
+                        title={`${props.stage} is unavailable`}
+                        detail="This stage has no persisted desktop contract yet. The live plan list is shown without invented stage data."
+                  />
+            );
       if (props.stage === "Inputs") {
             return (
                   <section
@@ -237,21 +260,37 @@ function StagePanel(props: {
  * until one approval at the end, which is why the recommendation has to be legible
  * enough to approve honestly rather than just clickable.
  */
-export function PlanView() {
-      const [selectedId, setSelectedId] = createSignal(useDefaultPlanId());
+export interface PlanViewProps {
+      nav?: NavStore;
+}
+
+export function PlanView(props: PlanViewProps = {}) {
+      const liveMode = isTauri();
+      const fixturePlans = usePlans();
+      const [planEnvelope, setPlanEnvelope] = createSignal<
+            Envelope<PlanSummary[]>
+      >(
+            liveMode
+                  ? { status: "loading" }
+                  : { status: "ready", data: fixturePlans },
+      );
+      const plans = createMemo(() => {
+            const envelope = planEnvelope();
+            return envelope.status === "ready" ? envelope.data : [];
+      });
+      const [selectedId, setSelectedId] = createSignal(
+            liveMode ? "" : useDefaultPlanId(),
+      );
       const [tab, setTab] = createSignal<"conversation" | "spec" | "tasks">(
             "conversation",
       );
       const [plansOpen, setPlansOpen] = createSignal(true);
       const [outputsOpen, setOutputsOpen] = createSignal(true);
       const [newPlan, setNewPlan] = createSignal(false);
-      const plans = usePlans();
-      const selected = createMemo(
-            () => plans.find((p) => p.id === selectedId()) ?? plans[0],
+      const selected = createMemo<PlanSummary | undefined>(
+            () => plans().find((p) => p.id === selectedId()) ?? plans()[0],
       );
-      const [stage, setStage] = createSignal<
-            (typeof PLAN_STAGE_LABELS)[number]
-      >(selected().step);
+      const [stage, setStage] = createSignal<PlanStage>("Inputs");
       const stageIndex = () => PLAN_STAGE_LABELS.indexOf(stage());
       const moveStage = (delta: -1 | 1) => {
             const next = stageIndex() + delta;
@@ -261,7 +300,7 @@ export function PlanView() {
       const selectPlan = (id: string) => {
             setNewPlan(false);
             setSelectedId(id);
-            const next = plans.find((plan) => plan.id === id);
+            const next = plans().find((plan) => plan.id === id);
             if (next) setStage(next.step);
       };
       const startNewPlan = () => {
@@ -275,9 +314,53 @@ export function PlanView() {
             setStage("Orient");
       };
 
-      const [messages, setMessages] = createSignal(usePlanConversation());
+      const [messages, setMessages] = createSignal(
+            liveMode ? [] : usePlanConversation(),
+      );
       const [streamError, setStreamError] = createSignal<string | null>(null);
       const outputs = usePlanOutputs();
+
+      async function refreshPlans() {
+            if (!liveMode) return;
+            const projectId = props.nav?.params().project;
+            if (!projectId) {
+                  setPlanEnvelope({
+                        status: "failed",
+                        error: {
+                              command: "plans_list",
+                              message: "no project is selected",
+                        },
+                  });
+                  return;
+            }
+            const envelope = await fetchPlans(projectId);
+            setPlanEnvelope(envelope);
+            if (envelope.status === "ready") {
+                  const current = selectedId();
+                  setSelectedId(
+                        envelope.data.some((plan) => plan.id === current)
+                              ? current
+                              : envelope.data[0]?.id ?? "",
+                  );
+                  const first = envelope.data[0];
+                  if (first) setStage(first.step);
+            }
+      }
+
+      createEffect(
+            on(
+                  () => props.nav?.params().project,
+                  () => {
+                        void refreshPlans();
+                  },
+                  { defer: true },
+            ),
+      );
+
+      createEffect(() => {
+            const plan = selected();
+            if (plan && !newPlan()) setStage(plan.step);
+      });
 
       onMount(() => {
             let stopped = false;
@@ -310,14 +393,44 @@ export function PlanView() {
                   });
       });
 
+      const planError = createMemo(() => {
+            const envelope = planEnvelope();
+            return envelope.status === "failed" ? envelope.error : null;
+      });
+
       return (
             <div class="plan-workspace" data-testid="plan">
-                  <FixtureNotice surface="Plan" command='invoke("plans_list")' />
+                  <Switch>
+                        <Match when={planEnvelope().status === "loading"}>
+                              <UnavailablePanel
+                                    title="Loading plans…"
+                                    detail="Reading the selected project's plans from the live store."
+                              />
+                        </Match>
+                        <Match when={planEnvelope().status === "empty"}>
+                              <UnavailablePanel
+                                    title="No plans yet"
+                                    detail="This project has no persisted plans. Start planning when the planning mutation contract is available."
+                              />
+                        </Match>
+                        <Match when={planError()}>
+                              <InlineError
+                                    cause={planError()!.message}
+                                    next="The plans list could not be loaded from the live store."
+                              />
+                        </Match>
+                        <Match
+                              when={
+                                    planEnvelope().status === "ready" &&
+                                    plans().length > 0
+                              }
+                        >
+                              <>
                   <Show when={streamError()}>
                         <div data-testid="plan-stream-error">
                               <InlineError
                                     cause={streamError()!}
-                                    next="Live conversation unavailable; fixture shown."
+                                    next="Live conversation updates are unavailable; persisted plan data remains visible."
                               />
                         </div>
                   </Show>
@@ -328,7 +441,7 @@ export function PlanView() {
                               data-testid="toggle-plans"
                               onClick={() => setPlansOpen((open) => !open)}
                         >
-                              All plans <span class="mono">{plans.length}</span>
+                              All plans <span class="mono">{plans().length}</span>
                         </button>
                         <div
                               class="plan-workspace-tabs"
@@ -375,9 +488,9 @@ export function PlanView() {
                   </header>
                   <div class="plan-summary">
                         <span class="plan-convo-title" data-testid="plan-title">
-                              {selected().title}
+                              {selected()!.title}
                         </span>
-                        <span>{selected().project} · started 09:14</span>
+                        <span>{selected()!.project} · started 09:14</span>
                         <Breadcrumb current={stage()} />
                   </div>
                   <div
@@ -433,7 +546,7 @@ export function PlanView() {
                   <div class="plan">
                         <Show when={plansOpen()}>
                               <PlanList
-                                    plans={plans}
+                                    plans={plans()}
                                     selectedId={selectedId()}
                                     onSelect={selectPlan}
                                     onNewPlan={startNewPlan}
@@ -449,6 +562,7 @@ export function PlanView() {
                               <StagePanel
                                     stage={stage()}
                                     newPlan={newPlan()}
+                                    unavailable={liveMode}
                                     onStart={startPlanning}
                                     onNewPlan={startNewPlan}
                               />
@@ -480,7 +594,7 @@ export function PlanView() {
                                                 class="plan-messages"
                                                 data-testid="plan-messages"
                                           >
-                                                <For each={messages()}>
+                                                                        <For each={messages()}>
                                                       {(message, i) => (
                                                             <>
                                                                   <Message
@@ -490,6 +604,7 @@ export function PlanView() {
                                                                   />
                                                                   <Show
                                                                         when={
+                                                                              !liveMode &&
                                                                               i() ===
                                                                               messages()
                                                                                     .length -
@@ -505,6 +620,11 @@ export function PlanView() {
                                                             </>
                                                       )}
                                                 </For>
+                                                <Show when={liveMode && messages().length === 0}>
+                                                      <div data-testid="plan-conversation-unavailable">
+                                                            Live conversation details are not persisted by the current contract.
+                                                      </div>
+                                                </Show>
                                                 <div
                                                       class="plan-live"
                                                       data-testid="plan-live"
@@ -513,7 +633,9 @@ export function PlanView() {
                                                             class="live-dot pulse"
                                                             data-testid="plan-live-dot"
                                                       />
-                                                      {usePlanLiveLine()}
+                                                      {liveMode
+                                                            ? "Waiting for live conversation events…"
+                                                            : usePlanLiveLine()}
                                                 </div>
                                           </div>
                                           <footer
@@ -542,14 +664,42 @@ export function PlanView() {
                                     </section>
                               </Match>
                               <Match when={tab() === "spec"}>
-                                    <PlanSpecView />
+                                    {liveMode ? (
+                                          <UnavailablePanel
+                                                title="Plan spec is unavailable"
+                                                detail="Requirements are not yet exposed through a persisted desktop command."
+                                          />
+                                    ) : (
+                                          <PlanSpecView />
+                                    )}
                               </Match>
                               <Match when={tab() === "tasks"}>
-                                    <PlanTasksView />
+                                    {liveMode ? (
+                                          <UnavailablePanel
+                                                title="Plan tasks are unavailable"
+                                                detail="Decomposition and board-card outputs are not yet exposed through a persisted desktop command."
+                                          />
+                                    ) : (
+                                          <PlanTasksView />
+                                    )}
                               </Match>
                         </Switch>
 
                         <Show when={outputsOpen()}>
+                              <Show
+                                    when={!liveMode}
+                                    fallback={
+                                          <aside
+                                                class="plan-outputs"
+                                                data-testid="plan-outputs"
+                                          >
+                                                <UnavailablePanel
+                                                      title="Draft outputs are unavailable"
+                                                      detail="The current desktop contract persists the plan list only; spec, task, and recommendation outputs are not served as fixtures in a live window."
+                                                />
+                                          </aside>
+                                    }
+                              >
                               <aside
                                     class="plan-outputs"
                                     data-testid="plan-outputs"
@@ -663,8 +813,12 @@ export function PlanView() {
                                           onApprove={() => setTab("tasks")}
                                     />
                               </aside>
+                              </Show>
                         </Show>
                   </div>
+                              </>
+                        </Match>
+                  </Switch>
             </div>
       );
 }

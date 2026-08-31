@@ -135,6 +135,27 @@ describe("data/accessors", () => {
     ]);
   });
 
+  it("pages plans through the live provider with the project scope", async () => {
+    const calls: { command: string; args?: Record<string, unknown> }[] = [];
+    configureDataProvider({
+      kind: "demo",
+      async query<T>(command: string, args?: Record<string, unknown>) {
+        calls.push({ command, args });
+        return { status: "empty" } as Envelope<T[]>;
+      },
+      async queryOne<T>() {
+        return { status: "failed", error: { command: "unexpected", message: "no" } } as Envelope<T>;
+      },
+    });
+
+    const { fetchPlans } = await import("../../src/data/plan");
+    const envelope = await fetchPlans("p-tapestry");
+    expect(envelope.status).toBe("empty");
+    expect(calls).toEqual([
+      { command: "plans_list", args: { projectId: "p-tapestry" } },
+    ]);
+  });
+
   it("scopes a session's runs to that session through the live provider", async () => {
     const calls: { command: string; args?: Record<string, unknown> }[] = [];
     configureDataProvider({

@@ -20,7 +20,7 @@ owning workstream so nothing is tracked twice.
 
 Owner of everything data-backed. [spec](.specs/desktop-data-integration/spec.md) ·
 [tasks](.specs/desktop-data-integration/tasks.md) · [contract](.specs/desktop-data-integration/contract.md)
-(82 commands promised, 60 missing from the host, 22 live, scope per command). The rows below were separate
+(82 commands promised, 56 missing from the host, 26 live, scope per command). The rows below were separate
 audit findings; each is one of the epic's slices, tracked here once:
 
 - [ ] **Run the epic slices in tasks.md order** —
@@ -43,7 +43,11 @@ audit findings; each is one of the epic's slices, tracked here once:
   `core.project_autorun` table; InteractView is superseded by workstream 3 · 
   8. configuration slice: Plan/Manage/Setup mutations/Workshop/agents
   (absorbs: wire Manage's New Task and TaskDetail, wire Settings → Guardrails, expose the 13 core
-  service families as commands, reconcile the TypeScript types with the Rust DTOs) ·
+  service families as commands, reconcile the TypeScript types with the Rust DTOs)
+     - 8.1. ~~Plan project-scoped list~~ done (`plans_list` resolves the active project, reads
+       `core.plans`, maps durable stage/state/confidence fields, and renders live loading,
+       empty, error, and unavailable-output states; cross-project isolation and unknown-project
+       rejection are tested) ·
   9. knowledge/analytics slice: Memory/Wiki/Artifacts/Telemetry/Review/Analytics (absorbs: wire
   Memory actions, build the Wiki kind filter, surface backend errors in Memory) ·
   10. demo/test bootstrap + delete fixture routes (absorbs: retire `WorkshopFixtureView`, retire

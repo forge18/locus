@@ -79,7 +79,7 @@ function App() {
                                                 <ProjectsView />
                                         </Match>
                                         <Match when={nav.view() === "plan"}>
-                                                <PlanView />
+                                                <PlanView nav={nav} />
                                         </Match>
                                         <Match when={nav.view() === "sessions"}>
                                                 <ManageView

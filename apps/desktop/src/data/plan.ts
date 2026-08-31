@@ -9,6 +9,8 @@ import {
 } from "../fixtures/plan";
 import { isTauri } from "@tauri-apps/api/core";
 import { streamFromCore } from "../transcript/from-core";
+import { dataProvider } from "./provider";
+import type { Envelope } from "./envelope";
 import type {
   DraftOutputs,
   PlanMessage,
@@ -43,7 +45,14 @@ export type {
   Speaker,
 } from "../fixtures/plan";
 
-/** Becomes: invoke("plans_list") */
+/** Live project-scoped plan list. */
+export function fetchPlans(
+  projectId: string,
+): Promise<Envelope<PlanSummary[]>> {
+  return dataProvider().query<PlanSummary>("plans_list", { projectId });
+}
+
+/** Becomes: invoke("plans_list", { projectId }) — demo-only hook retained for component tests. */
 export function usePlans(): PlanSummary[] {
   return PLANS;
 }
