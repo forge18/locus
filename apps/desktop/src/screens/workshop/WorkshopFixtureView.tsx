@@ -66,7 +66,8 @@ function LiveAgents() {
     const [definitions, setDefinitions] = createSignal<
         Envelope<AgentDefSummary[]>
     >({ status: "loading" });
-    const [selected, setSelected] = createSignal<Envelope<CoreAgentDefinition>>();
+    const [selected, setSelected] =
+        createSignal<Envelope<CoreAgentDefinition>>();
     const definitionRows = () => {
         const envelope = definitions();
         return envelope.status === "ready" ? envelope.data : [];
@@ -77,7 +78,9 @@ function LiveAgents() {
     };
     const selectedName = () => {
         const envelope = selected();
-        return envelope?.status === "ready" ? envelope.data.name : "Agent definition";
+        return envelope?.status === "ready"
+            ? envelope.data.name
+            : "Agent definition";
     };
     const selectedBody = () => {
         const envelope = selected();
@@ -94,10 +97,16 @@ function LiveAgents() {
     };
 
     return (
-        <div data-testid="workshop-agents" class="ws-fixture agents-screen" data-live-state="ready">
+        <div
+            data-testid="workshop-agents"
+            class="ws-fixture agents-screen"
+            data-live-state="ready"
+        >
             <h2>Agent definitions</h2>
             <Show when={definitions().status === "loading"}>
-                <p data-testid="workshop-agents-loading">Loading agent definitions…</p>
+                <p data-testid="workshop-agents-loading">
+                    Loading agent definitions…
+                </p>
             </Show>
             <Show when={definitions().status === "failed"}>
                 <InlineError
@@ -106,13 +115,18 @@ function LiveAgents() {
                 />
             </Show>
             <Show when={definitions().status === "empty"}>
-                <p data-testid="workshop-agents-empty">No agent definitions are persisted.</p>
+                <p data-testid="workshop-agents-empty">
+                    No agent definitions are persisted.
+                </p>
             </Show>
             <Show when={definitions().status === "ready"}>
                 <div data-testid="workshop-agent-definitions">
                     <For each={definitionRows()}>
                         {(definition) => (
-                            <button type="button" onClick={() => openDefinition(definition.name)}>
+                            <button
+                                type="button"
+                                onClick={() => openDefinition(definition.name)}
+                            >
                                 {definition.name} · v{definition.version}
                             </button>
                         )}
@@ -189,7 +203,9 @@ function ExtensionFixture(props: {
 }
 
 function LiveProviders() {
-    const [providers, setProviders] = createSignal<WorkItemProviderRecord[]>([]);
+    const [providers, setProviders] = createSignal<WorkItemProviderRecord[]>(
+        [],
+    );
     const [loading, setLoading] = createSignal(true);
     const [error, setError] = createSignal<string>();
 
@@ -201,10 +217,16 @@ function LiveProviders() {
     });
 
     return (
-        <div data-testid="workshop-providers" class="ws-fixture" data-live-state="ready">
+        <div
+            data-testid="workshop-providers"
+            class="ws-fixture"
+            data-live-state="ready"
+        >
             <h2>Configured providers</h2>
             <Show when={loading()}>
-                <p data-testid="workshop-providers-loading">Loading providers…</p>
+                <p data-testid="workshop-providers-loading">
+                    Loading providers…
+                </p>
             </Show>
             <Show when={error()}>
                 <InlineError
@@ -213,13 +235,19 @@ function LiveProviders() {
                 />
             </Show>
             <Show when={!loading() && !error() && providers().length === 0}>
-                <p data-testid="workshop-providers-empty">No work-item providers are configured.</p>
+                <p data-testid="workshop-providers-empty">
+                    No work-item providers are configured.
+                </p>
             </Show>
             <For each={providers()}>
                 {(provider) => (
-                    <article data-testid={`workshop-provider-${provider.pluginId}`}>
+                    <article
+                        data-testid={`workshop-provider-${provider.pluginId}`}
+                    >
                         <strong>{provider.label}</strong>
-                        <span>{provider.host}/{provider.project}</span>
+                        <span>
+                            {provider.host}/{provider.project}
+                        </span>
                     </article>
                 )}
             </For>

@@ -10,7 +10,11 @@ import {
 } from "../nav/LocatorPalette";
 import { Sheet } from "../ui/Sheet";
 import { notify, ToastRegion } from "../ui/Toast";
-import { fetchRunningCount, fetchStripCards, type StripCard } from "../data/strip";
+import {
+    fetchRunningCount,
+    fetchStripCards,
+    type StripCard,
+} from "../data/strip";
 import { stopAllDispatch } from "../data/dispatch";
 import { fetchInboxPendingCount } from "../data/inbox";
 import { fetchProjects } from "../data/core";
@@ -90,9 +94,9 @@ export function Shell(props: ShellProps) {
     const [runningEnvelope, setRunningEnvelope] = createSignal<
         Envelope<number>
     >({ status: "loading" });
-    const [inboxEnvelope, setInboxEnvelope] = createSignal<Envelope<number>>(
-        { status: "loading" },
-    );
+    const [inboxEnvelope, setInboxEnvelope] = createSignal<Envelope<number>>({
+        status: "loading",
+    });
     const [projectsEnvelope, setProjectsEnvelope] = createSignal<
         Envelope<{ id: string; name: string }[]>
     >({ status: "loading" });
@@ -122,7 +126,8 @@ export function Shell(props: ShellProps) {
         void loadLiveStatus().catch((cause) => {
             notify({
                 title: "Live status unavailable",
-                description: cause instanceof Error ? cause.message : String(cause),
+                description:
+                    cause instanceof Error ? cause.message : String(cause),
                 type: "error",
             });
         });
@@ -144,7 +149,8 @@ export function Shell(props: ShellProps) {
         }));
     });
     const needsYou = createMemo(
-        () => activeSessions().filter((session) => session.needsAttention).length,
+        () =>
+            activeSessions().filter((session) => session.needsAttention).length,
     );
     const runningCount = createMemo(() => {
         const envelope = runningEnvelope();

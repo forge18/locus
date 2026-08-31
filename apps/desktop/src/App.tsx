@@ -191,7 +191,10 @@ function App() {
                                         <Match when={nav.view() === "canvas"}>
                                                 <WorkshopFixtureView
                                                         fixture="workflows-visual"
-                                                        projectId={nav.params().project}
+                                                        projectId={
+                                                                nav.params()
+                                                                        .project
+                                                        }
                                                 />
                                         </Match>
                                         <Match
@@ -202,7 +205,10 @@ function App() {
                                         >
                                                 <WorkshopFixtureView
                                                         fixture="workflows-list"
-                                                        projectId={nav.params().project}
+                                                        projectId={
+                                                                nav.params()
+                                                                        .project
+                                                        }
                                                 />
                                         </Match>
                                 </Switch>

@@ -59,7 +59,6 @@ const DISPATCH_TABS = [
   { value: "runs", label: "Runs" },
 ];
 
-
 function AutorunSwitch(props: {
   state: AutorunState;
   onToggle: () => void;
@@ -167,8 +166,7 @@ function AutorunView(props: {
     if (!next) return;
     void Promise.resolve()
       .then(() => setAutorunState(id, next.state === "on" ? "off" : "on"))
-      .then(
-        (envelope) => {
+      .then((envelope) => {
         if (envelope.status === "failed") {
           notify({
             title: "Autorun change failed",
@@ -177,8 +175,7 @@ function AutorunView(props: {
           });
           void refreshAutorun();
         }
-        },
-      );
+      });
   };
 
   return (
@@ -384,12 +381,13 @@ function SchedulesView(props: {
   >({ status: "loading" });
 
   onMount(() => {
-    void Promise.all([fetchDispatchSchedules(), fetchScheduleExecutions()]).then(
-      ([s, e]) => {
-        setSchedules(s);
-        setExecutions(e);
-      },
-    );
+    void Promise.all([
+      fetchDispatchSchedules(),
+      fetchScheduleExecutions(),
+    ]).then(([s, e]) => {
+      setSchedules(s);
+      setExecutions(e);
+    });
   });
 
   const scheduleRows = createMemo<DispatchSchedule[]>(() => {
@@ -400,7 +398,6 @@ function SchedulesView(props: {
     const envelope = executions();
     return envelope.status === "ready" ? envelope.data : [];
   });
-
 
   const [permissionPosture, setPermissionPosture] =
     createSignal<PermissionPosture>("bypass");
@@ -708,37 +705,37 @@ function RunsView(props: {
           </thead>
           <tbody>
             <Switch>
-            <Match when={runs().status === "loading"}>
-              <tr>
-                <td colspan={12}>
-                  <p class="project-panel-note">Loading runs…</p>
-                </td>
-              </tr>
-            </Match>
-            <Match when={runs().status === "empty"}>
-              <tr>
-                <td colspan={12}>
-                  <p class="project-panel-note">
-                    No runs yet. Dispatch an agent to start one.
-                  </p>
-                </td>
-              </tr>
-            </Match>
-            <Match when={runsError()}>
-              <tr>
-                <td colspan={12}>
-                  <p class="project-panel-note" role="alert">
-                    {runsError()?.message}
-                  </p>
-                  <button
-                    class="btn btn-secondary"
-                    onClick={() => void refreshRuns()}
-                  >
-                    Retry
-                  </button>
-                </td>
-              </tr>
-            </Match>
+              <Match when={runs().status === "loading"}>
+                <tr>
+                  <td colspan={12}>
+                    <p class="project-panel-note">Loading runs…</p>
+                  </td>
+                </tr>
+              </Match>
+              <Match when={runs().status === "empty"}>
+                <tr>
+                  <td colspan={12}>
+                    <p class="project-panel-note">
+                      No runs yet. Dispatch an agent to start one.
+                    </p>
+                  </td>
+                </tr>
+              </Match>
+              <Match when={runsError()}>
+                <tr>
+                  <td colspan={12}>
+                    <p class="project-panel-note" role="alert">
+                      {runsError()?.message}
+                    </p>
+                    <button
+                      class="btn btn-secondary"
+                      onClick={() => void refreshRuns()}
+                    >
+                      Retry
+                    </button>
+                  </td>
+                </tr>
+              </Match>
             </Switch>
           </tbody>
           <Show when={runsReady()}>

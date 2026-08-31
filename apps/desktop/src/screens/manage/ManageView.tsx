@@ -146,8 +146,9 @@ function TaskDraft(props: {
       <div>
         <Button
           variant="primary"
-          disabled={Boolean(props.onCreate) &&
-            (!summary().trim() || !workflowDefId())}
+          disabled={
+            Boolean(props.onCreate) && (!summary().trim() || !workflowDefId())
+          }
           onClick={() => props.onCreate?.(summary().trim(), workflowDefId())}
         >
           Create draft
@@ -790,17 +791,19 @@ export function ManageView(props: ManageViewProps = {}) {
   };
   const createManualTask = (summary: string, workflowDefId: string) => {
     if (!liveMode || !props.projectId) return;
-    void createTask(props.projectId, summary, workflowDefId).then((envelope) => {
-      if (envelope.status === "ready") {
-        setTaskEnvelope((current) =>
-          current.status === "ready"
-            ? { status: "ready", data: [...current.data, envelope.data] }
-            : { status: "ready", data: [envelope.data] },
-        );
-        setSelectedTaskId(envelope.data.id);
-        setDraftSource(undefined);
-      }
-    });
+    void createTask(props.projectId, summary, workflowDefId).then(
+      (envelope) => {
+        if (envelope.status === "ready") {
+          setTaskEnvelope((current) =>
+            current.status === "ready"
+              ? { status: "ready", data: [...current.data, envelope.data] }
+              : { status: "ready", data: [envelope.data] },
+          );
+          setSelectedTaskId(envelope.data.id);
+          setDraftSource(undefined);
+        }
+      },
+    );
   };
   const openDraft = () => {
     const current = view();
@@ -819,10 +822,14 @@ export function ManageView(props: ManageViewProps = {}) {
         </div>
       </Show>
       <Show when={liveMode && taskEnvelope().status === "loading"}>
-        <p data-testid="manage-task-loading">Loading tasks from the live store…</p>
+        <p data-testid="manage-task-loading">
+          Loading tasks from the live store…
+        </p>
       </Show>
       <Show when={liveMode && taskEnvelope().status === "empty"}>
-        <p data-testid="manage-task-empty">This project has no persisted tasks.</p>
+        <p data-testid="manage-task-empty">
+          This project has no persisted tasks.
+        </p>
       </Show>
       <header class="manage-toolbar">
         <Segmented
@@ -973,7 +980,8 @@ export function ManageView(props: ManageViewProps = {}) {
               when={!liveMode}
               fallback={
                 <p data-testid="manage-dependencies-unavailable">
-                  Dependency edges are not yet exposed by the live board contract.
+                  Dependency edges are not yet exposed by the live board
+                  contract.
                 </p>
               }
             >

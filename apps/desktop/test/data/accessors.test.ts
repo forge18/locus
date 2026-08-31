@@ -144,7 +144,10 @@ describe("data/accessors", () => {
         return { status: "empty" } as Envelope<T[]>;
       },
       async queryOne<T>() {
-        return { status: "failed", error: { command: "unexpected", message: "no" } } as Envelope<T>;
+        return {
+          status: "failed",
+          error: { command: "unexpected", message: "no" },
+        } as Envelope<T>;
       },
     });
 
@@ -165,7 +168,10 @@ describe("data/accessors", () => {
         return { status: "empty" } as Envelope<T[]>;
       },
       async queryOne<T>() {
-        return { status: "failed", error: { command: "unexpected", message: "no" } } as Envelope<T>;
+        return {
+          status: "failed",
+          error: { command: "unexpected", message: "no" },
+        } as Envelope<T>;
       },
     });
 

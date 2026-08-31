@@ -76,7 +76,11 @@ impl Store {
         if dispatch.global_parallelism <= 0 || dispatch.per_project_parallelism <= 0 {
             bail!("parallelism limits must be greater than zero");
         }
-        let mut transaction = self.pool().begin().await.context("begin guardrail update")?;
+        let mut transaction = self
+            .pool()
+            .begin()
+            .await
+            .context("begin guardrail update")?;
         query(
             "UPDATE core.guardrail_defaults
              SET max_iterations = $1, token_budget = $2, stuck_iterations = $3,

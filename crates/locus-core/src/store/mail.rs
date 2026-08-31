@@ -109,7 +109,6 @@ impl Store {
         .context("count pending human deliveries")
     }
 
-
     pub async fn create_mail_thread(
         &self,
         id: Uuid,

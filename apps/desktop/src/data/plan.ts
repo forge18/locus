@@ -93,10 +93,11 @@ export function setPlanRequirements(
   planId: string,
   requirements: PlanRequirementInput[],
 ): Promise<Envelope<PlanMutationReceipt>> {
-  return dataProvider().queryOne<PlanMutationReceipt>(
-    "plan_requirements_set",
-    { projectId, planId, requirements },
-  );
+  return dataProvider().queryOne<PlanMutationReceipt>("plan_requirements_set", {
+    projectId,
+    planId,
+    requirements,
+  });
 }
 
 /** Becomes: invoke("plans_list", { projectId }) — demo-only hook retained for component tests. */

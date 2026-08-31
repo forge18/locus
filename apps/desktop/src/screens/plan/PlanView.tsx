@@ -95,7 +95,9 @@ function StagePanel(props: {
                                     value={props.goal}
                                     placeholder="Describe the outcome this plan should produce"
                                     onInput={(event) =>
-                                          props.onGoal(event.currentTarget.value)
+                                          props.onGoal(
+                                                event.currentTarget.value,
+                                          )
                                     }
                               />
                         </label>
@@ -113,9 +115,15 @@ function StagePanel(props: {
                                           data-testid="plan-project"
                                           value="tapestry"
                                     >
-                                          <option value="tapestry">#tapestry</option>
-                                          <option value="loom-db">#loom-db</option>
-                                          <option value="weaver">#weaver</option>
+                                          <option value="tapestry">
+                                                #tapestry
+                                          </option>
+                                          <option value="loom-db">
+                                                #loom-db
+                                          </option>
+                                          <option value="weaver">
+                                                #weaver
+                                          </option>
                                     </select>
                               </Show>
                         </label>

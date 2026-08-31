@@ -4,7 +4,7 @@
 
 use crate::ids::{ProjectId, RunId};
 use anyhow::{bail, Context, Result};
-use sqlx::{query, query_as, query_scalar, Row};
+use sqlx::{query, query_as, Row};
 use uuid::Uuid;
 
 use crate::{

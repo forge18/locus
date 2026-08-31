@@ -23,7 +23,9 @@ import type { Envelope } from "../../data/envelope";
 import { WorkflowCanvas } from "../../workflow-canvas/WorkflowCanvas";
 
 function LiveWorkflowList(props: { projectId?: string }) {
-  const [definitions, setDefinitions] = createSignal<Envelope<WorkflowDefinitionSummary[]>>({
+  const [definitions, setDefinitions] = createSignal<
+    Envelope<WorkflowDefinitionSummary[]>
+  >({
     status: "loading",
   });
   const rows = () => {
@@ -39,7 +41,10 @@ function LiveWorkflowList(props: { projectId?: string }) {
     if (!props.projectId) {
       setDefinitions({
         status: "failed",
-        error: { command: "workflow_definitions", message: "no project is selected" },
+        error: {
+          command: "workflow_definitions",
+          message: "no project is selected",
+        },
       });
       return;
     }
@@ -62,7 +67,9 @@ function LiveWorkflowList(props: { projectId?: string }) {
         />
       </Show>
       <Show when={definitions().status === "empty"}>
-        <p data-testid="workflow-empty">No workflow definitions are persisted for this project.</p>
+        <p data-testid="workflow-empty">
+          No workflow definitions are persisted for this project.
+        </p>
       </Show>
       <Show when={definitions().status === "ready"}>
         <div data-testid="workflow-definitions">
@@ -76,7 +83,8 @@ function LiveWorkflowList(props: { projectId?: string }) {
           </For>
         </div>
         <p data-testid="workflow-detail-unavailable">
-          Graph, governance, and compile details are not yet exposed by the live desktop contract.
+          Graph, governance, and compile details are not yet exposed by the live
+          desktop contract.
         </p>
       </Show>
     </div>

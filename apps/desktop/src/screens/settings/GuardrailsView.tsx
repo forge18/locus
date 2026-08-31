@@ -74,7 +74,12 @@ function Toggle(props: {
 }
 
 const SELECT_OPTIONS: Record<string, string[]> = {
-  "priority-method": ["plan order", "manual", "unblocks most", "shortest first"],
+  "priority-method": [
+    "plan order",
+    "manual",
+    "unblocks most",
+    "shortest first",
+  ],
   "tie-break": ["longest waiting"],
   "network-tier": ["open", "allowlist", "none"],
 };
@@ -137,95 +142,110 @@ function Control(props: {
 
 /** Guardrail defaults are live in Tauri and fixture-backed only in the demo/test host. */
 export function GuardrailsView() {
-  const liveMode = isTauri()
-  const shipped = useGuardrails()
+  const liveMode = isTauri();
+  const shipped = useGuardrails();
   const [sections, setSections] = createSignal<readonly GuardrailSection[]>(
     liveMode ? [] : shipped,
-  )
-  const [loading, setLoading] = createSignal(liveMode)
-  const [loadError, setLoadError] = createSignal<string>()
-  const [saved, setSaved] = createSignal(false)
+  );
+  const [loading, setLoading] = createSignal(liveMode);
+  const [loadError, setLoadError] = createSignal<string>();
+  const [saved, setSaved] = createSignal(false);
 
   const refresh = async () => {
-    if (!liveMode) return
-    setLoading(true)
-    setLoadError(undefined)
-    const envelope = await fetchGuardrails()
-    if (envelope.status === 'ready') setSections(envelope.data)
-    else if (envelope.status === 'empty') setSections([])
-    else if (envelope.status === 'failed') setLoadError(envelope.error.message)
-    setLoading(false)
-  }
+    if (!liveMode) return;
+    setLoading(true);
+    setLoadError(undefined);
+    const envelope = await fetchGuardrails();
+    if (envelope.status === "ready") setSections(envelope.data);
+    else if (envelope.status === "empty") setSections([]);
+    else if (envelope.status === "failed") setLoadError(envelope.error.message);
+    setLoading(false);
+  };
 
-  onMount(() => { void refresh() })
+  onMount(() => {
+    void refresh();
+  });
 
   const updateControl = (id: string, value: string | boolean) => {
-    setSections((current) => current.map((section) => ({
-      ...section,
-      settings: section.settings.map((setting) => {
-        if (setting.id !== id) return setting
-        const control = setting.control.kind === 'toggle'
-          ? { kind: 'toggle' as const, value: Boolean(value) }
-          : setting.control.kind === 'stepper'
-            ? { kind: 'stepper' as const, value: String(value) }
-            : { kind: 'select' as const, value: String(value) }
-        return { ...setting, control }
-      }),
-    })))
-    setSaved(false)
-  }
+    setSections((current) =>
+      current.map((section) => ({
+        ...section,
+        settings: section.settings.map((setting) => {
+          if (setting.id !== id) return setting;
+          const control =
+            setting.control.kind === "toggle"
+              ? { kind: "toggle" as const, value: Boolean(value) }
+              : setting.control.kind === "stepper"
+                ? { kind: "stepper" as const, value: String(value) }
+                : { kind: "select" as const, value: String(value) };
+          return { ...setting, control };
+        }),
+      })),
+    );
+    setSaved(false);
+  };
 
   const controlValue = (id: string): string | boolean | undefined => {
     for (const section of sections()) {
-      const setting = section.settings.find((candidate) => candidate.id === id)
-      if (setting) return setting.control.value
+      const setting = section.settings.find((candidate) => candidate.id === id);
+      if (setting) return setting.control.value;
     }
-    return undefined
-  }
+    return undefined;
+  };
   const numberValue = (id: string): number | null => {
-    const value = controlValue(id)
-    if (typeof value !== 'string' || value === 'unlimited') return null
-    const match = /^(\\d+)([kKmM]?)$/.exec(value)
-    if (!match) return null
-    const multiplier = match[2].toLowerCase() === 'k'
-      ? 1000
-      : match[2].toLowerCase() === 'm' ? 1_000_000 : 1
-    return Number(match[1]) * multiplier
-  }
-  const booleanValue = (id: string) => controlValue(id) === true
-  const stringValue = (id: string) => String(controlValue(id) ?? '')
+    const value = controlValue(id);
+    if (typeof value !== "string" || value === "unlimited") return null;
+    const match = /^(\\d+)([kKmM]?)$/.exec(value);
+    if (!match) return null;
+    const multiplier =
+      match[2].toLowerCase() === "k"
+        ? 1000
+        : match[2].toLowerCase() === "m"
+          ? 1_000_000
+          : 1;
+    return Number(match[1]) * multiplier;
+  };
+  const booleanValue = (id: string) => controlValue(id) === true;
+  const stringValue = (id: string) => String(controlValue(id) ?? "");
   const settingsPayload = (): GuardrailSettingsPayload => ({
-    maxIterations: numberValue('max-iterations') ?? 1,
-    tokenBudget: numberValue('token-budget'),
-    stuckIterations: numberValue('stuck-detection') ?? 1,
-    killAndReassign: booleanValue('kill-reassign'),
-    globalParallelism: numberValue('max-parallel-agents') ?? 1,
-    perProjectParallelism: numberValue('max-per-project') ?? 1,
-    priorityMethod: stringValue('priority-method'),
-    tieBreak: stringValue('tie-break'),
-    changeLinesCeiling: numberValue('lines-changed'),
-    changeFilesCeiling: numberValue('files-touched'),
-    networkTier: stringValue('network-tier'),
-    blockSystemChanges: booleanValue('block-system-changes'),
-    autopilot: booleanValue('autopilot'),
-  })
+    maxIterations: numberValue("max-iterations") ?? 1,
+    tokenBudget: numberValue("token-budget"),
+    stuckIterations: numberValue("stuck-detection") ?? 1,
+    killAndReassign: booleanValue("kill-reassign"),
+    globalParallelism: numberValue("max-parallel-agents") ?? 1,
+    perProjectParallelism: numberValue("max-per-project") ?? 1,
+    priorityMethod: stringValue("priority-method"),
+    tieBreak: stringValue("tie-break"),
+    changeLinesCeiling: numberValue("lines-changed"),
+    changeFilesCeiling: numberValue("files-touched"),
+    networkTier: stringValue("network-tier"),
+    blockSystemChanges: booleanValue("block-system-changes"),
+    autopilot: booleanValue("autopilot"),
+  });
 
   const saveDefaults = async () => {
-    if (!liveMode) { setSaved(true); return }
-    const envelope = await saveGuardrails(settingsPayload())
-    if (envelope.status === 'ready') {
-      setSections(envelope.data)
-      setSaved(true)
-      notify({ title: 'Guardrail defaults saved' })
-    } else if (envelope.status === 'failed') {
-      notify({ title: 'Guardrail save failed', description: envelope.error.message, type: 'error' })
+    if (!liveMode) {
+      setSaved(true);
+      return;
     }
-  }
+    const envelope = await saveGuardrails(settingsPayload());
+    if (envelope.status === "ready") {
+      setSections(envelope.data);
+      setSaved(true);
+      notify({ title: "Guardrail defaults saved" });
+    } else if (envelope.status === "failed") {
+      notify({
+        title: "Guardrail save failed",
+        description: envelope.error.message,
+        type: "error",
+      });
+    }
+  };
   const resetDefaults = () => {
-    if (liveMode) void refresh()
-    else setSections(shipped)
-    setSaved(false)
-  }
+    if (liveMode) void refresh();
+    else setSections(shipped);
+    setSaved(false);
+  };
 
   return (
     <div class="settings" data-testid="settings">
@@ -269,75 +289,97 @@ export function GuardrailsView() {
           <Show when={loadError()}>
             <p data-testid="guardrails-error">{loadError()}</p>
           </Show>
-          <Show when={liveMode && !loading() && !loadError() && sections().length === 0}>
-            <p data-testid="guardrails-empty">No guardrail settings are available.</p>
+          <Show
+            when={
+              liveMode && !loading() && !loadError() && sections().length === 0
+            }
+          >
+            <p data-testid="guardrails-empty">
+              No guardrail settings are available.
+            </p>
           </Show>
-          <Show when={!liveMode || (!loading() && !loadError() && sections().length > 0)}>
-          <Show when={!liveMode}>
-            <AppearanceSelector />
-            <AvatarStylePicker />
-          </Show>
-          <For each={sections()}>
-            {(section) => (
-              <section
-                class="settings-section"
-                data-testid={
-                  section.id === "parallelism"
-                    ? "parallelism-controls"
-                    : `settings-section-${section.id}`
-                }
-              >
-                <h3>{section.label}</h3>
-                <For each={section.settings}>
-                  {(setting) => (
-                    <div
-                      class="settings-row"
-                      data-testid={`settings-row-${setting.id}`}
-                    >
-                      <div class="settings-copy">
-                        <span>{setting.label}</span>
-                        <p
-                          data-testid={
-                            setting.id === "preempt"
-                              ? "settings-preempt-note"
-                              : undefined
-                          }
-                        >
-                          {setting.description}
-                        </p>
-                        <Show when={setting.id === "priority-method"}>
-                          <div
-                            class="settings-priority-options"
-                            data-testid="settings-priority-method"
+          <Show
+            when={
+              !liveMode || (!loading() && !loadError() && sections().length > 0)
+            }
+          >
+            <Show when={!liveMode}>
+              <AppearanceSelector />
+              <AvatarStylePicker />
+            </Show>
+            <For each={sections()}>
+              {(section) => (
+                <section
+                  class="settings-section"
+                  data-testid={
+                    section.id === "parallelism"
+                      ? "parallelism-controls"
+                      : `settings-section-${section.id}`
+                  }
+                >
+                  <h3>{section.label}</h3>
+                  <For each={section.settings}>
+                    {(setting) => (
+                      <div
+                        class="settings-row"
+                        data-testid={`settings-row-${setting.id}`}
+                      >
+                        <div class="settings-copy">
+                          <span>{setting.label}</span>
+                          <p
+                            data-testid={
+                              setting.id === "preempt"
+                                ? "settings-preempt-note"
+                                : undefined
+                            }
                           >
-                            <For each={PRIORITY_METHODS}>
-                              {([method, note]) => (
-                                <div>
-                                  <span class="mono">{method}</span> — {note}
-                                </div>
-                              )}
-                            </For>
-                          </div>
-                        </Show>
+                            {setting.description}
+                          </p>
+                          <Show when={setting.id === "priority-method"}>
+                            <div
+                              class="settings-priority-options"
+                              data-testid="settings-priority-method"
+                            >
+                              <For each={PRIORITY_METHODS}>
+                                {([method, note]) => (
+                                  <div>
+                                    <span class="mono">{method}</span> — {note}
+                                  </div>
+                                )}
+                              </For>
+                            </div>
+                          </Show>
+                        </div>
+                        <div class="settings-control">
+                          <Control
+                            id={setting.id}
+                            control={setting.control}
+                            onChange={(value) =>
+                              updateControl(setting.id, value)
+                            }
+                          />
+                        </div>
                       </div>
-                      <div class="settings-control">
-                        <Control
-                          id={setting.id}
-                          control={setting.control}
-                          onChange={(value) => updateControl(setting.id, value)}
-                        />
-                      </div>
-                    </div>
-                  )}
-                </For>
-              </section>
-            )}
-          </For>
-          <footer class="settings-guardrails-footer" data-testid="guardrails-save-footer">
-            <Show when={saved()}><span class="settings-saved">Saved — applies to runs started after saving. Nothing in flight is retuned underneath itself.</span></Show>
-            <Button variant="ghost" onClick={resetDefaults}>Reset to shipped values</Button>
-            <Button onClick={() => void saveDefaults()}>Save defaults</Button>
-          </footer>
+                    )}
+                  </For>
+                </section>
+              )}
+            </For>
+            <footer
+              class="settings-guardrails-footer"
+              data-testid="guardrails-save-footer"
+            >
+              <Show when={saved()}>
+                <span class="settings-saved">
+                  Saved — applies to runs started after saving. Nothing in
+                  flight is retuned underneath itself.
+                </span>
+              </Show>
+              <Button variant="ghost" onClick={resetDefaults}>
+                Reset to shipped values
+              </Button>
+              <Button onClick={() => void saveDefaults()}>Save defaults</Button>
+            </footer>
           </Show>
         </div>
       </main>

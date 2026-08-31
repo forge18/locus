@@ -46,31 +46,31 @@ audit findings; each is one of the epic's slices, tracked here once:
   service families as commands, reconcile the TypeScript types with the Rust DTOs; all supported
   configuration reads and writes are live, missing persistence contracts are explicit unavailable
   states, and host fixtures no longer serve artifacts or agent definitions)
-     - 8.1. ~~Plan project-scoped list~~ done (`plans_list` resolves the active project, reads
+  - 8.1. ~~Plan project-scoped list~~ done (`plans_list` resolves the active project, reads
        `core.plans`, maps durable stage/state/confidence fields, and renders live loading,
        empty, error, and unavailable-output states; cross-project isolation and unknown-project
        rejection are tested) ·
-     - 8.2. ~~Manage task list, creation, and detail~~ done (`board_tasks`, `task_detail`,
+  - 8.2. ~~Manage task list, creation, and detail~~ done (`board_tasks`, `task_detail`,
        `task_create` read/write `board.tasks` with project-owned workflow validation; the selected
        workflow is persisted by migration `0030_board_task_workflow`; dependency edges remain an
        explicit unavailable state) ·
-     - 8.3. ~~Guardrails settings~~ done (`settings_guardrails`/`settings_guardrails_set` read and
+  - 8.3. ~~Guardrails settings~~ done (`settings_guardrails`/`settings_guardrails_set` read and
        persist `core.guardrail_defaults` plus `core.dispatch_policy`; controls, reset, save, and
        visible loading/error states are live) ·
-     - 8.4. ~~Workshop configuration routing~~ done (agent definitions, configured providers, and
+  - 8.4. ~~Workshop configuration routing~~ done (agent definitions, configured providers, and
        workflow definitions use live commands; CLI, extension, harness, and unsupported graph
        details render explicit unavailable states in Tauri instead of fixture rows) ·
-     - 8.5. ~~Agent-definition DTO reconciliation~~ done (`agent_defs_list`/`agent_def` read the
+  - 8.5. ~~Agent-definition DTO reconciliation~~ done (`agent_defs_list`/`agent_def` read the
        latest immutable rows from `agents.agent_defs`; project and missing-definition boundaries
        are tested) ·
-  9. knowledge/analytics slice: Memory/Wiki/Artifacts/Telemetry/Review/Analytics (absorbs: wire
+  1. knowledge/analytics slice: Memory/Wiki/Artifacts/Telemetry/Review/Analytics (absorbs: wire
   Memory actions, build the Wiki kind filter, surface backend errors in Memory) ·
-  10. demo/test bootstrap + delete fixture routes (absorbs: retire `WorkshopFixtureView`, retire
+  2. demo/test bootstrap + delete fixture routes (absorbs: retire `WorkshopFixtureView`, retire
   `MemoryFixtures`, use the already-wired accessors, fix the fixture-import guard's remaining
   9 violations) ·
-  11. real Tauri-window acceptance coverage (absorbs: add live desktop integration
+  3. real Tauri-window acceptance coverage (absorbs: add live desktop integration
   coverage) ·
-  12. release gate.
+  4. release gate.
 - [ ] **Decide the registered-but-unused commands** — `telemetry_subscribe`, `lsp_enable_descriptor`,
   `lsp_disable_descriptor`, `detach_pane`, `repo_git_state` have no frontend caller
   (`materialization_report` and `telemetry_events_replay` now do); wire a UI or drop each.

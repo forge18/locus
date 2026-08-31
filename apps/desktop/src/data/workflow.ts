@@ -59,9 +59,12 @@ export interface WorkflowDefinitionSummary {
 export function fetchWorkflowDefinitions(
   projectId: string,
 ): Promise<Envelope<WorkflowDefinitionSummary[]>> {
-  return dataProvider().query<WorkflowDefinitionSummary>("workflow_definitions", {
-    projectId,
-  });
+  return dataProvider().query<WorkflowDefinitionSummary>(
+    "workflow_definitions",
+    {
+      projectId,
+    },
+  );
 }
 
 /** Becomes: invoke("workflow_node_vocabulary") */

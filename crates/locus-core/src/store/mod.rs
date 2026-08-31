@@ -6,8 +6,8 @@
 pub mod agents;
 pub mod artifacts;
 pub mod audits;
-pub mod board;
 pub mod backup;
+pub mod board;
 pub mod bots;
 pub mod bus;
 pub mod dispatch;

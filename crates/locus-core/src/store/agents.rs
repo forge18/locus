@@ -102,10 +102,7 @@ impl Store {
         .context("read latest agent definition")
     }
 
-    pub async fn running_runs(
-        &self,
-        project_id: Option<ProjectId>,
-    ) -> Result<Vec<RunningRunRow>> {
+    pub async fn running_runs(&self, project_id: Option<ProjectId>) -> Result<Vec<RunningRunRow>> {
         query_as(
             "SELECT r.id, p.name AS project, ad.name AS agent, r.status,
                     EXTRACT(EPOCH FROM COALESCE(r.started_at, r.created_at))::bigint AS started_epoch
@@ -240,10 +237,7 @@ impl Store {
     }
 
     /// Agents only — the host shell itself never runs an agent.
-    pub async fn running_run_count(
-        &self,
-        project_id: Option<ProjectId>,
-    ) -> Result<i64> {
+    pub async fn running_run_count(&self, project_id: Option<ProjectId>) -> Result<i64> {
         query_scalar(
             "SELECT COUNT(*)
              FROM agents.runs r

@@ -5,11 +5,31 @@ import { configureProjectsStub } from "../projects/provider-stub";
 
 configureProjectsStub({
   autorunStates: [
-    { projectId: "00000000-0000-0000-0000-000000000a01", project: "tapestry", state: "suspended" },
-    { projectId: "00000000-0000-0000-0000-000000000a02", project: "loom-db", state: "on" },
-    { projectId: "00000000-0000-0000-0000-000000000a03", project: "weaver", state: "off" },
-    { projectId: "00000000-0000-0000-0000-000000000a04", project: "texere", state: "off" },
-    { projectId: "00000000-0000-0000-0000-000000000a05", project: "amq", state: "suspended" },
+    {
+      projectId: "00000000-0000-0000-0000-000000000a01",
+      project: "tapestry",
+      state: "suspended",
+    },
+    {
+      projectId: "00000000-0000-0000-0000-000000000a02",
+      project: "loom-db",
+      state: "on",
+    },
+    {
+      projectId: "00000000-0000-0000-0000-000000000a03",
+      project: "weaver",
+      state: "off",
+    },
+    {
+      projectId: "00000000-0000-0000-0000-000000000a04",
+      project: "texere",
+      state: "off",
+    },
+    {
+      projectId: "00000000-0000-0000-0000-000000000a05",
+      project: "amq",
+      state: "suspended",
+    },
   ],
   runsPage: [
     {
