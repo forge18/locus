@@ -1,5 +1,7 @@
 import { For, Show, createMemo, createSignal } from 'solid-js'
 import { Button } from '../../ui/Button'
+import { FixtureNotice } from '../../ui/FixtureNotice'
+import { InlineError } from '../../ui/InlineError'
 import { Textarea } from '../../ui/Input'
 import {
   MAIL_HANDOFF_COPY,
@@ -15,7 +17,7 @@ import {
   MAIL_WAIT_LIVE_LINE,
   SELECTED_MAIL_THREAD_ID,
 } from '../../data/mail'
-import type { MailStatus } from '../../data/mail'
+import type { MailMessage, MailStatus, MailThreadFixture } from '../../data/mail'
 
 export interface MailViewProps {
   /** Optional selection seam for a locator or an inbox preview. */
@@ -31,16 +33,67 @@ const statusLabel = (status: MailStatus) => status
 export function MailView(props: MailViewProps = {}) {
   const [selectedId, setSelectedId] = createSignal(props.threadId ?? SELECTED_MAIL_THREAD_ID)
   const [tab, setTab] = createSignal<(typeof MAIL_TABS)[number]>('All')
+  // The backend does not exist yet (see the fixture notice), so composer actions
+  // mutate view-local state on top of the fixture instead of a Tauri command.
+  const [draft, setDraft] = createSignal('')
+  const [sentReplies, setSentReplies] = createSignal<MailMessage[]>([])
+  const [statusOverrides, setStatusOverrides] = createSignal<Partial<Record<string, MailStatus>>>({})
+  const [composerError, setComposerError] = createSignal<string | null>(null)
   const selected = createMemo(() => MAIL_THREADS.find((thread) => thread.id === selectedId()) ?? MAIL_THREADS[0])
+  const statusFor = (thread: MailThreadFixture) => statusOverrides()[thread.id] ?? thread.status
+  const selectedStatus = () => statusOverrides()[selectedId()] ?? selected().status
   const visibleThreads = createMemo(() => {
     const currentTab = tab()
-    if (currentTab === 'Waiting') return MAIL_THREADS.filter((thread) => thread.status === 'waiting')
-    if (currentTab === 'To you') return MAIL_THREADS.filter((thread) => thread.status === 'you' || thread.to === 'you')
+    if (currentTab === 'Waiting') return MAIL_THREADS.filter((thread) => statusFor(thread) === 'waiting')
+    if (currentTab === 'To you') return MAIL_THREADS.filter((thread) => statusFor(thread) === 'you' || thread.to === 'you')
     return MAIL_THREADS
   })
-  const messages = createMemo(() => MAIL_MESSAGES.filter((message) => message.threadId === selected().id))
-  const selectedIsWaiting = () => selected().status === 'waiting'
-  const selectedIsDrained = () => selected().status === 'drained'
+  const messages = createMemo(() =>
+    [...MAIL_MESSAGES, ...sentReplies()].filter((message) => message.threadId === selected().id),
+  )
+  const selectedIsWaiting = () => selectedStatus() === 'waiting'
+  const selectedIsDrained = () => selectedStatus() === 'drained'
+
+  const selectThread = (threadId: string) => {
+    setSelectedId(threadId)
+    setDraft('')
+    setComposerError(null)
+  }
+
+  const sendReply = () => {
+    const body = draft().trim()
+    if (!body) {
+      setComposerError('Write a reply before sending it.')
+      return
+    }
+    const thread = selected()
+    setSentReplies((current) => [
+      ...current,
+      {
+        id: `reply-${current.length + 1}`,
+        threadId: thread.id,
+        from: 'you',
+        to: [thread.from],
+        body,
+        artifactIds: [],
+        state: 'delivered',
+        sentAt: new Date().toISOString(),
+        verb: 'reply',
+      },
+    ])
+    setDraft('')
+    setComposerError(null)
+  }
+
+  const drainThread = () => {
+    setStatusOverrides((current) => ({ ...current, [selected().id]: 'drained' }))
+    setComposerError(null)
+  }
+
+  const unblockThread = () => {
+    setStatusOverrides((current) => ({ ...current, [selected().id]: 'open' }))
+    setComposerError(null)
+  }
 
   return (
     <main class="mail" data-testid="mail" data-three-pane="true">
@@ -52,8 +105,8 @@ export function MailView(props: MailViewProps = {}) {
         </nav>
         <div class="mail-thread-list" aria-label="Mail threads">
           <For each={visibleThreads()}>
-            {(thread) => <button type="button" class="mail-thread" data-testid={`mail-thread-${thread.id}`} data-status={thread.status} aria-selected={selectedId() === thread.id} onClick={() => setSelectedId(thread.id)}>
-              <span class="mail-thread-head"><strong>{thread.subject}</strong><span class={`mail-status mail-status-${thread.status}`}>{statusLabel(thread.status)}</span></span>
+            {(thread) => <button type="button" class="mail-thread" data-testid={`mail-thread-${thread.id}`} data-status={statusFor(thread)} aria-selected={selectedId() === thread.id} onClick={() => selectThread(thread.id)}>
+              <span class="mail-thread-head"><strong>{thread.subject}</strong><span class={`mail-status mail-status-${statusFor(thread)}`}>{statusLabel(statusFor(thread))}</span></span>
               <span class="mail-thread-project">#{thread.project} · {thread.from} → {thread.to}</span>
               <small>{thread.blocking ?? `${thread.messageCount} messages`}</small>
             </button>}
@@ -62,6 +115,7 @@ export function MailView(props: MailViewProps = {}) {
       </aside>
 
       <section class="mail-center" data-testid="mail-thread-view">
+        <FixtureNotice surface="Mail" command='invoke("mail_threads")' />
         <header class="mail-center-head"><span>#{selected().project}</span><h1>{selected().subject}</h1><small>{selected().from} → {selected().to}</small></header>
         <Show when={selectedIsWaiting()}>
           <div class="mail-wait-banner" data-testid="mail-wait-banner">
@@ -80,8 +134,20 @@ export function MailView(props: MailViewProps = {}) {
         </div>
         <footer class="mail-composer">
           <span>Reply as yourself</span>
-          <Textarea disabled={selectedIsDrained()} placeholder={selectedIsDrained() ? 'This thread is a handoff and accepts no new mail verbs.' : 'Write a reply…'} />
-          <div><Button variant="primary" disabled={selectedIsDrained()} data-testid="mail-send">Reply</Button><Button disabled={selectedIsDrained()} data-testid="mail-drain">Drain</Button><Show when={selectedIsWaiting()}><Button data-testid="mail-unblock">Unblock</Button></Show></div>
+          <Textarea
+            value={draft()}
+            onInput={(event) => { setDraft(event.currentTarget.value); setComposerError(null) }}
+            disabled={selectedIsDrained()}
+            placeholder={selectedIsDrained() ? 'This thread is a handoff and accepts no new mail verbs.' : 'Write a reply…'}
+          />
+          <Show when={composerError()}>
+            <InlineError cause={composerError()!} next="Type a reply above, then send it as mail reply from you." />
+          </Show>
+          <div>
+            <Button variant="primary" disabled={selectedIsDrained()} data-testid="mail-send" onClick={sendReply}>Reply</Button>
+            <Button disabled={selectedIsDrained()} data-testid="mail-drain" onClick={drainThread}>Drain</Button>
+            <Show when={selectedIsWaiting()}><Button data-testid="mail-unblock" onClick={unblockThread}>Unblock</Button></Show>
+          </div>
         </footer>
       </section>
 

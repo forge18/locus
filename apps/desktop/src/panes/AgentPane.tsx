@@ -9,7 +9,7 @@ import {
 } from "solid-js";
 import { InlineError } from "../ui/InlineError";
 import { coalesce } from "./coalesce";
-import { streamFromCore } from "../transcript/from-core";
+import { replayRunEvents, streamFromCore } from "../transcript/from-core";
 import type { AgentEvent } from "../types/event";
 import type {
   AgentGateMode,
@@ -139,6 +139,18 @@ export function AgentPane(props: AgentPaneProps) {
         setMenuOpen(false);
         if (untrack(() => props.live) === false) return;
 
+        // Replay the persisted events from agents.events (the durable record).
+        void replayRunEvents(runId)
+            .then((replayed) => {
+                if (stopped) return;
+                const snapshot = eventsForRun(replayed, runId);
+                setProvidedEvents((current) =>
+                    mergeEvents(current, snapshot),
+                );
+                setEvents(mergeEvents(providedEvents(), streamEvents()));
+            })
+            .catch(() => undefined);
+
         let stopped = false;
         const frames = coalesce<AgentEvent>((items) => {
           const nextStreamEvents = mergeEvents(streamEvents(), items);
@@ -197,6 +209,61 @@ export function AgentPane(props: AgentPaneProps) {
       },
     ),
   );
+
+  const closeOverflowMenu = (returnFocus: boolean) => {
+    setMenuOpen(false);
+    if (returnFocus)
+      pane
+        ?.querySelector<HTMLButtonElement>(
+          "[data-testid='agent-overflow-toggle']",
+        )
+        ?.focus();
+  };
+  const closeContextView = (returnFocus: boolean) => {
+    setContextOpen(false);
+    if (returnFocus)
+      pane
+        ?.querySelector<HTMLButtonElement>(
+          "[data-testid='agent-context-toggle']",
+        )
+        ?.focus();
+  };
+  // The header popovers are plain <Show> blocks, so Escape and outside
+  // pointer presses are wired here where their open state lives. Escape
+  // returns focus to the control that opened the popover; outside presses
+  // close without moving focus, and presses on the trigger itself are left
+  // for its own toggle handler.
+  createEffect(() => {
+    if (!menuOpen() && !contextOpen()) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (menuOpen()) closeOverflowMenu(true);
+      else if (contextOpen()) closeContextView(true);
+    };
+    const onPointerDown = (event: PointerEvent) => {
+      if (!(event.target instanceof Node) || !pane) return;
+      if (menuOpen()) {
+        const menu = pane.querySelector(".agent-overflow-menu");
+        const toggle = pane.querySelector(
+          "[data-testid='agent-overflow-toggle']",
+        );
+        if (!menu?.contains(event.target) && !toggle?.contains(event.target))
+          closeOverflowMenu(false);
+      }
+      if (contextOpen()) {
+        const view = pane.querySelector(".agent-context-view");
+        const chip = pane.querySelector("[data-testid='agent-context-toggle']");
+        if (!view?.contains(event.target) && !chip?.contains(event.target))
+          closeContextView(false);
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("pointerdown", onPointerDown);
+    onCleanup(() => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("pointerdown", onPointerDown);
+    });
+  });
 
   const session = (): AgentPaneSession => {
     const viewModel = props.viewModel;

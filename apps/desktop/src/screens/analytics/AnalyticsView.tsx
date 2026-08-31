@@ -1,5 +1,6 @@
 import { For, Show, createMemo, createSignal } from "solid-js";
 import { Button } from "../../ui/Button";
+import { FixtureNotice } from "../../ui/FixtureNotice";
 import { Input } from "../../ui/Input";
 import { useTasks } from "../../data/board";
 import { Segmented } from "../../ui/Segmented";
@@ -61,6 +62,39 @@ export function AnalyticsView(props: AnalyticsViewProps) {
                 };
         };
         const breakdown = () => useBreakdown(query(), dimension(), measure());
+        const trendBars = createMemo(() => {
+                const values = breakdown().map((row) => {
+                        const value =
+                                measure() === "spend"
+                                        ? row.spend
+                                        : measure() === "tokens"
+                                          ? row.tokens
+                                          : measure() === "cache"
+                                            ? row.cache
+                                            : row.runs;
+                        const parsed = Number.parseFloat(
+                                String(value).replace(/[^0-9.]/g, ""),
+                        );
+                        return Number.isFinite(parsed) ? parsed : 0;
+                });
+                const source = values.length > 0 ? values : [0];
+                const maximum = Math.max(...source, 1);
+                const buckets =
+                        ANALYTICS_RANGES.find(
+                                (candidate) => candidate.value === range(),
+                        )?.buckets ?? 30;
+                const ceiling = Math.min(100, 50 + buckets * 1.5);
+                return Array.from({ length: 10 }, (_, index) =>
+                        Math.max(
+                                12,
+                                Math.round(
+                                        (source[index % source.length] /
+                                                maximum) *
+                                                ceiling,
+                                ),
+                        ),
+                );
+        });
         const outcomes = () => useTaskOutcomes(query());
         const extensions = () => useExtensionUsage(query(), extensionKind());
         const facets = () => useTelemetryFacets(query(), search());
@@ -79,6 +113,10 @@ export function AnalyticsView(props: AnalyticsViewProps) {
                         data-testid="analytics"
                         data-scope={scope()}
                 >
+                        <FixtureNotice
+                                surface="Analytics"
+                                command='invoke("analytics_aggregates")'
+                        />
                         <header class="analytics-header">
                                 <div>
                                         <h1>Analytics</h1>
@@ -295,15 +333,7 @@ export function AnalyticsView(props: AnalyticsViewProps) {
                                                         </For>
                                                 </div>
                                                 <div class="analytics-bars">
-                                                        <For
-                                                                each={[
-                                                                        34, 50,
-                                                                        42, 68,
-                                                                        55, 76,
-                                                                        61, 82,
-                                                                        73, 91,
-                                                                ]}
-                                                        >
+                                                        <For each={trendBars()}>
                                                                 {(height) => (
                                                                         <i
                                                                                 style={{

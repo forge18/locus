@@ -1,10 +1,10 @@
 import { For, Show, createSignal } from "solid-js";
 import { Button } from "../../ui/Button";
+import { FixtureNotice } from "../../ui/FixtureNotice";
 import { Tag } from "../../ui/Tag";
 import { MergeModal } from "../../shell/MergeModal";
 import { AgentPane, type AgentPaneSession } from "../../panes/AgentPane";
 import type { AgentEvent } from "../../types/event";
-import "./interact.css";
 
 type InteractState = "open" | "promoted" | "discarded";
 interface InteractSession {
@@ -160,16 +160,18 @@ export function InteractView() {
                   <div>
                     <i class="interact-state-dot" />{" "}
                     <strong>{session.name}</strong>
-                    <button
-                      type="button"
-                      aria-label={`Discard ${session.name}`}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        discard(session.id);
-                      }}
-                    >
-                      ×
-                    </button>
+                    <Show when={session.state === "open"}>
+                      <button
+                        type="button"
+                        aria-label={`Discard ${session.name}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          discard(session.id);
+                        }}
+                      >
+                        ×
+                      </button>
+                    </Show>
                   </div>
                   <small>
                     {session.harness} · {session.age}
@@ -198,6 +200,10 @@ export function InteractView() {
         </footer>
       </aside>
       <main class="interact-center">
+        <FixtureNotice
+          surface="Interact sessions"
+          command='invoke("sessions_list")'
+        />
         <header>
           <div>
             <Tag variant="outline">Interact</Tag>

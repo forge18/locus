@@ -131,9 +131,9 @@ impl BrowserContext {
             recording: false,
         }
     }
-    pub fn new_page(&mut self) -> &mut Page {
+    pub fn new_page(&mut self) -> Result<&mut Page> {
         self.pages.push(Page::default());
-        self.pages.last_mut().unwrap()
+        self.current_page_mut()
     }
     pub fn current_page(&self) -> Result<&Page> {
         self.pages.last().context("browse has no open page")
@@ -476,7 +476,10 @@ mod contexts_are_isolated {
         let a = RunId::generate();
         let b = RunId::generate();
         let mut c = d.create_context(a);
-        c.new_page().cookies.insert("sid".into(), "a".into());
+        c.new_page()
+            .unwrap()
+            .cookies
+            .insert("sid".into(), "a".into());
         d.update_context(c);
         assert!(d.context_for_run(b).pages.is_empty());
     }
@@ -524,12 +527,29 @@ mod open {
     }
 }
 #[cfg(test)]
+mod empty_page {
+    use super::*;
+    #[test]
+    fn reports_missing_page_without_panicking() {
+        let mut context = BrowserContext::new(RunId::generate());
+        assert_eq!(
+            context.current_page().unwrap_err().to_string(),
+            "browse has no open page"
+        );
+        assert_eq!(
+            context.current_page_mut().unwrap_err().to_string(),
+            "browse has no open page"
+        );
+        assert!(context.new_page().is_ok());
+    }
+}
+#[cfg(test)]
 mod interactions {
     use super::*;
     #[test]
     fn click_fill_press() {
         let mut c = BrowserContext::new(RunId::generate());
-        c.new_page().set_element(
+        c.new_page().unwrap().set_element(
             "#x",
             Element {
                 text: "".into(),

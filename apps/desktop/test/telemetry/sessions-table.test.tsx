@@ -68,11 +68,23 @@ describe('telemetry/sessions-table', () => {
     expect(running.querySelector('.verify-bad')!.textContent).toBe('18')
   })
 
-  it('loads one page of the 300 and renders only the window of it', () => {
-    const rows = mount().getByTestId('tm-sessions-table-rows')
-    expect(rows.getAttribute('data-total')).toBe(String(useSessionRowCount()))
-    expect(rows.getAttribute('data-loaded')).toBe(String(PAGE_SIZE))
-    expect(rows.querySelectorAll('tbody tr').length).toBeLessThan(PAGE_SIZE)
-    expect(useSessionRowCount()).toBe(SESSION_TOTAL)
+  it('loads one page at a time and renders only the window of it', () => {
+    const view = mount()
+    const rows = view.getByTestId('tm-sessions-table-rows')
+    // The table reports the data layer's total, and has fetched one page of it.
+    const total = Number(rows.getAttribute('data-total'))
+    const loaded = Number(rows.getAttribute('data-loaded'))
+    expect(total).toBe(useSessionRowCount())
+    expect(loaded).toBe(PAGE_SIZE)
+    expect(total).toBeGreaterThan(loaded)
+    // While pages are still owed, the loader names both numbers.
+    expect(view.getByTestId('tm-sessions-table-loading').textContent).toContain(
+      `${PAGE_SIZE} of ${total} loaded`,
+    )
+    // Only the visible window renders — not the page, and not the total.
+    const first = Number(rows.getAttribute('data-first'))
+    const last = Number(rows.getAttribute('data-last'))
+    expect(rows.querySelectorAll('tbody tr').length).toBe(last - first)
+    expect(last - first).toBeLessThan(loaded)
   })
 })

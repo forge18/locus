@@ -23,4 +23,18 @@ describe('M0.7 QA', () => {
     expect(finding).toBeTruthy()
     expect(finding.textContent).toContain('Sent to Inbox')
   })
+
+  it('reports a manual refresh as unsupported instead of claiming success', () => {
+    const { getByTestId, getByText, queryByTestId } = render(() => <QAView projectId="tapestry" />)
+    expect(queryByTestId('qa-refresh-unsupported')).toBeNull()
+    fireEvent.click(getByTestId('qa-refresh'))
+    // The honest empty state names why nothing ran, as a live region.
+    const notice = getByTestId('qa-refresh-unsupported')
+    expect(notice.getAttribute('role')).toBe('status')
+    expect(notice.textContent).toContain('no QA command')
+    // A refresh that cannot run must not report a fresh last-run stamp...
+    expect(getByText(/last run/).textContent).not.toContain('just now')
+    // ...and must not wipe the findings from the last recorded run.
+    expect(getByTestId('qa-finding-qa-test-1')).toBeTruthy()
+  })
 })

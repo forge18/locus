@@ -1,7 +1,21 @@
-import { createSignal, For, Show } from "solid-js";
+import { createSignal, For, Show, onMount } from "solid-js";
+import { isTauri } from "@tauri-apps/api/core";
 import { Button } from "../../ui/Button";
+import { FixtureNotice } from "../../ui/FixtureNotice";
 import { Input } from "../../ui/Input";
+import { InlineError } from "../../ui/InlineError";
 import { Segmented } from "../../ui/Segmented";
+import {
+    fetchAgentDefFromCore,
+    fetchAgentDefsFromCore,
+    type AgentDefSummary,
+    type CoreAgentDefinition,
+} from "../../data/agent-defs";
+import type { Envelope } from "../../data/envelope";
+import {
+    loadConfiguredWorkItemProviders,
+    type WorkItemProviderRecord,
+} from "../../data/work-items";
 import { Tag } from "../../ui/Tag";
 import "./workshop-fixtures.css";
 import { ExtensionEditor, type ExtensionEditorType } from "./ExtensionEditor";
@@ -29,6 +43,104 @@ export type WorkshopFixture = (typeof WORKSHOP_FIXTURES)[number];
 
 export interface WorkshopFixtureViewProps {
     fixture: WorkshopFixture;
+    projectId?: string;
+}
+
+function LiveWorkshopUnavailable(props: { fixture: WorkshopFixture }) {
+    return (
+        <div
+            data-testid={`workshop-${props.fixture}`}
+            class="ws-fixture"
+            data-live-state="unavailable"
+        >
+            <h2>{props.fixture} is unavailable</h2>
+            <p>
+                No persisted desktop contract exists for this Workshop surface
+                yet. The live window will not display fixture rows.
+            </p>
+        </div>
+    );
+}
+
+function LiveAgents() {
+    const [definitions, setDefinitions] = createSignal<
+        Envelope<AgentDefSummary[]>
+    >({ status: "loading" });
+    const [selected, setSelected] =
+        createSignal<Envelope<CoreAgentDefinition>>();
+    const definitionRows = () => {
+        const envelope = definitions();
+        return envelope.status === "ready" ? envelope.data : [];
+    };
+    const definitionError = () => {
+        const envelope = definitions();
+        return envelope.status === "failed" ? envelope.error : undefined;
+    };
+    const selectedName = () => {
+        const envelope = selected();
+        return envelope?.status === "ready"
+            ? envelope.data.name
+            : "Agent definition";
+    };
+    const selectedBody = () => {
+        const envelope = selected();
+        return envelope?.status === "ready" ? envelope.data.body : "Loading…";
+    };
+
+    onMount(() => {
+        void fetchAgentDefsFromCore().then(setDefinitions);
+    });
+
+    const openDefinition = (name: string) => {
+        setSelected({ status: "loading" });
+        void fetchAgentDefFromCore(name).then(setSelected);
+    };
+
+    return (
+        <div
+            data-testid="workshop-agents"
+            class="ws-fixture agents-screen"
+            data-live-state="ready"
+        >
+            <h2>Agent definitions</h2>
+            <Show when={definitions().status === "loading"}>
+                <p data-testid="workshop-agents-loading">
+                    Loading agent definitions…
+                </p>
+            </Show>
+            <Show when={definitions().status === "failed"}>
+                <InlineError
+                    cause={definitionError()!.message}
+                    next="Agent definitions could not be loaded from the store."
+                />
+            </Show>
+            <Show when={definitions().status === "empty"}>
+                <p data-testid="workshop-agents-empty">
+                    No agent definitions are persisted.
+                </p>
+            </Show>
+            <Show when={definitions().status === "ready"}>
+                <div data-testid="workshop-agent-definitions">
+                    <For each={definitionRows()}>
+                        {(definition) => (
+                            <button
+                                type="button"
+                                onClick={() => openDefinition(definition.name)}
+                            >
+                                {definition.name} · v{definition.version}
+                            </button>
+                        )}
+                    </For>
+                </div>
+            </Show>
+            <Show when={selected()}>
+                <article data-testid="workshop-agent-definition-detail">
+                    <h3>{selectedName()}</h3>
+                    <pre>{selectedBody()}</pre>
+                </article>
+            </Show>
+        </div>
+    );
 }
 
 const CLI_GROUPS = [
@@ -81,7 +193,64 @@ function ExtensionFixture(props: {
         props.fixture === "output-styles" ? "styles" : props.fixture;
     return (
         <div data-testid={`workshop-${props.fixture}`} class="ws-fixture">
+            <FixtureNotice
+                surface={`Workshop · ${props.fixture}`}
+                command='invoke("extension_inventory")'
+            />
             <ExtensionEditor type={type} />
+        </div>
+    );
+}
+
+function LiveProviders() {
+    const [providers, setProviders] = createSignal<WorkItemProviderRecord[]>(
+        [],
+    );
+    const [loading, setLoading] = createSignal(true);
+    const [error, setError] = createSignal<string>();
+
+    onMount(() => {
+        void loadConfiguredWorkItemProviders()
+            .then(setProviders)
+            .catch((caught) => setError(String(caught)))
+            .finally(() => setLoading(false));
+    });
+
+    return (
+        <div
+            data-testid="workshop-providers"
+            class="ws-fixture"
+            data-live-state="ready"
+        >
+            <h2>Configured providers</h2>
+            <Show when={loading()}>
+                <p data-testid="workshop-providers-loading">
+                    Loading providers…
+                </p>
+            </Show>
+            <Show when={error()}>
+                <InlineError
+                    cause={error()!}
+                    next="Configured providers could not be loaded from the store."
+                />
+            </Show>
+            <Show when={!loading() && !error() && providers().length === 0}>
+                <p data-testid="workshop-providers-empty">
+                    No work-item providers are configured.
+                </p>
+            </Show>
+            <For each={providers()}>
+                {(provider) => (
+                    <article
+                        data-testid={`workshop-provider-${provider.pluginId}`}
+                    >
+                        <strong>{provider.label}</strong>
+                        <span>
+                            {provider.host}/{provider.project}
+                        </span>
+                    </article>
+                )}
+            </For>
         </div>
     );
 }
@@ -89,6 +258,10 @@ function ExtensionFixture(props: {
 function AgentsFixture() {
     return (
         <div data-testid="workshop-agents" class="ws-fixture agents-screen">
+            <FixtureNotice
+                surface="Workshop · Agents"
+                command='invoke("agent_defs_list")'
+            />
             <ExtensionEditor type="agents" />
             <footer
                 class="agents-handoff-footer"
@@ -138,6 +311,10 @@ function CliFixture() {
     };
     return (
         <div class="ws-fixture ws-cli" data-testid="workshop-cli">
+            <FixtureNotice
+                surface="Workshop · CLI"
+                command='invoke("cli_tools_list")'
+            />
             <header class="ws-fixture-head">
                 <div>
                     <h1>CLI</h1>
@@ -331,6 +508,10 @@ function ProvidersFixture() {
                 </footer>
             </aside>
             <main class="ws-provider-main">
+                <FixtureNotice
+                    surface="Workshop · Providers"
+                    command='invoke("providers_list")'
+                />
                 <header class="ws-fixture-head">
                     <div>
                         <h1>{selected()}</h1>
@@ -470,6 +651,10 @@ function ProvidersFixture() {
 function HarnessesFixture() {
     return (
         <div data-testid="workshop-harnesses" class="ws-fixture">
+            <FixtureNotice
+                surface="Workshop · Harnesses"
+                command='invoke("harness_registry_list")'
+            />
             <ExtensionEditor type="harnesses" />
         </div>
     );
@@ -478,6 +663,10 @@ function HarnessesFixture() {
 function WorkflowsListFixture() {
     return (
         <div class="ws-fixture" data-testid="workshop-workflows-list">
+            <FixtureNotice
+                surface="Workshop · Workflows"
+                command='invoke("workflow_defs_list")'
+            />
             <header class="ws-fixture-head">
                 <div>
                     <h1>Workflows</h1>
@@ -513,6 +702,12 @@ function WorkflowsFixture(props: { governance: boolean }) {
             class="ws-fixture ws-workflows"
             data-testid={`workshop-workflows-${props.governance ? "governance" : "visual"}`}
         >
+            <Show when={props.governance}>
+                <FixtureNotice
+                    surface="Workshop · Workflow governance"
+                    command='invoke("workflow_def")'
+                />
+            </Show>
             <header class="ws-fixture-head">
                 <div>
                     <h1>Release verification</h1>
@@ -577,6 +772,18 @@ function Governance() {
 }
 
 export function WorkshopFixtureView(props: WorkshopFixtureViewProps) {
+    if (isTauri()) {
+        if (props.fixture === "agents") return <LiveAgents />;
+        if (props.fixture === "providers") return <LiveProviders />;
+        if (
+            props.fixture === "workflows-list" ||
+            props.fixture === "workflows-visual" ||
+            props.fixture === "workflows-governance"
+        ) {
+            return <WorkflowView projectId={props.projectId} />;
+        }
+        return <LiveWorkshopUnavailable fixture={props.fixture} />;
+    }
     if (props.fixture === "agents") return <AgentsFixture />;
     if (props.fixture === "cli") return <CliFixture />;
     if (props.fixture === "providers") return <ProvidersFixture />;

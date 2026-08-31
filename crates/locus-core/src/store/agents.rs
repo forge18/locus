@@ -2,7 +2,7 @@
 //!
 //! Moved out of `services/agents.rs` so every query in the crate lives under `store/`.
 
-use crate::ids::RunId;
+use crate::ids::{ProjectId, RunId};
 use anyhow::{bail, Context, Result};
 use serde_json::Value;
 use sqlx::query_as;
@@ -15,7 +15,241 @@ use crate::{
     store::Store,
 };
 
+/// One running run with its project and agent — the shell's dispatch pill and
+/// session popover. A project id scopes the read; `None` is the cross-project
+/// shell view.
+#[derive(Debug, sqlx::FromRow)]
+pub struct RunningRunRow {
+    pub id: Uuid,
+    pub project: String,
+    pub agent: String,
+    pub status: String,
+    pub started_epoch: i64,
+}
+
+/// One row of the Dispatch runs table: every run, newest first. Event and
+/// error counts roll up from `agents.events`.
+#[derive(Debug, sqlx::FromRow)]
+pub struct DispatchRunRow {
+    pub id: Uuid,
+    pub project: String,
+    pub agent: String,
+    pub branch: String,
+    pub status: String,
+    pub harness: Option<String>,
+    pub role: Option<String>,
+    pub model: String,
+    pub events: i64,
+    pub errors: i64,
+    pub started_at: Option<String>,
+}
+
+/// One row of `agents.sessions` with its project and agent names resolved —
+/// the session list's wire shape.
+#[derive(Debug, sqlx::FromRow)]
+pub struct SessionRow {
+    pub id: Uuid,
+    pub project_id: Uuid,
+    pub project: String,
+    pub agent: String,
+    pub name: String,
+    pub branch: String,
+    pub status: String,
+    pub created_at: Option<String>,
+}
+
+/// One session's runs, oldest first — the session detail's run list.
+#[derive(Debug, sqlx::FromRow)]
+pub struct SessionRunRow {
+    pub id: Uuid,
+    pub session_id: Uuid,
+    pub status: String,
+    pub resolved_model: String,
+    pub started_at: Option<String>,
+    pub ended_at: Option<String>,
+    pub exit_code: Option<i32>,
+}
+
 impl Store {
+    /// The latest immutable version of each named agent definition.
+    pub async fn agent_definitions(&self) -> Result<Vec<PersistedAgentDefinition>> {
+        query_as::<_, AgentDefinitionRow>(
+            "SELECT DISTINCT ON (name) id, name, version, frontmatter, body
+             FROM agents.agent_defs
+             ORDER BY name, version DESC",
+        )
+        .fetch_all(self.pool())
+        .await
+        .map(|rows| rows.into_iter().map(Into::into).collect())
+        .context("list agent definitions")
+    }
+
+    pub async fn latest_agent_definition(
+        &self,
+        name: &str,
+    ) -> Result<Option<PersistedAgentDefinition>> {
+        query_as::<_, AgentDefinitionRow>(
+            "SELECT id, name, version, frontmatter, body
+             FROM agents.agent_defs
+             WHERE name = $1
+             ORDER BY version DESC
+             LIMIT 1",
+        )
+        .bind(name)
+        .fetch_optional(self.pool())
+        .await
+        .map(|row| row.map(Into::into))
+        .context("read latest agent definition")
+    }
+
+    pub async fn running_runs(&self, project_id: Option<ProjectId>) -> Result<Vec<RunningRunRow>> {
+        query_as(
+            "SELECT r.id, p.name AS project, ad.name AS agent, r.status,
+                    EXTRACT(EPOCH FROM COALESCE(r.started_at, r.created_at))::bigint AS started_epoch
+             FROM agents.runs r
+             JOIN agents.sessions s ON s.id = r.session_id
+             JOIN core.projects p ON p.id = s.project_id
+             JOIN agents.agent_defs ad ON ad.id = s.agent_def_id
+             WHERE r.status = 'running' AND ($1::uuid IS NULL OR s.project_id = $1)
+             ORDER BY COALESCE(r.started_at, r.created_at) DESC",
+        )
+        .bind(project_id)
+        .fetch_all(&self.pool)
+        .await
+        .context("list running runs")
+    }
+
+    /// Every session across projects, newest first — the run slice's session list.
+    /// One session by id, with its project and agent names resolved.
+    pub async fn session(&self, session_id: Uuid) -> Result<Option<SessionRow>> {
+        query_as(
+            "SELECT s.id, s.project_id, p.name AS project, ad.name AS agent,
+                    s.name, s.branch, s.status, s.created_at::text AS created_at
+             FROM agents.sessions s
+             JOIN core.projects p ON p.id = s.project_id
+             JOIN agents.agent_defs ad ON ad.id = s.agent_def_id
+             WHERE s.id = $1",
+        )
+        .bind(session_id)
+        .fetch_optional(&self.pool)
+        .await
+        .context("read one session")
+    }
+
+    pub async fn sessions_page(
+        &self,
+        project_id: Option<ProjectId>,
+        offset: i64,
+        limit: i64,
+    ) -> Result<Vec<SessionRow>> {
+        query_as(
+            "SELECT s.id, s.project_id, p.name AS project, ad.name AS agent,
+                    s.name, s.branch, s.status, s.created_at::text AS created_at
+             FROM agents.sessions s
+             JOIN core.projects p ON p.id = s.project_id
+             JOIN agents.agent_defs ad ON ad.id = s.agent_def_id
+             WHERE ($1::uuid IS NULL OR s.project_id = $1)
+             ORDER BY s.created_at DESC
+             LIMIT $2 OFFSET $3",
+        )
+        .bind(project_id)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&self.pool)
+        .await
+        .context("page sessions")
+    }
+
+    pub async fn sessions_count(&self, project_id: Option<ProjectId>) -> Result<i64> {
+        query_scalar(
+            "SELECT COUNT(*)
+             FROM agents.sessions s
+             WHERE ($1::uuid IS NULL OR s.project_id = $1)",
+        )
+        .bind(project_id)
+        .fetch_one(&self.pool)
+        .await
+        .context("count sessions")
+    }
+
+    pub async fn runs_for_session(&self, session_id: Uuid) -> Result<Vec<SessionRunRow>> {
+        query_as(
+            "SELECT id, session_id, status, resolved_model_id AS resolved_model,
+                    started_at::text AS started_at, ended_at::text AS ended_at, exit_code
+             FROM agents.runs
+             WHERE session_id = $1
+             ORDER BY COALESCE(started_at, created_at)",
+        )
+        .bind(session_id)
+        .fetch_all(&self.pool)
+        .await
+        .context("list session runs")
+    }
+
+    /// One row of the Dispatch runs table: every run, newest first. Event and
+    /// error counts roll up from `agents.events`.
+    pub async fn dispatch_runs_page(
+        &self,
+        project_id: Option<ProjectId>,
+        offset: i64,
+        limit: i64,
+    ) -> Result<Vec<DispatchRunRow>> {
+        query_as(
+            "SELECT r.id, p.name AS project, ad.name AS agent, s.branch, r.status,
+                    ad.frontmatter ->> 'harness' AS harness,
+                    ad.frontmatter ->> 'role' AS role,
+                    r.resolved_model_id AS model,
+                    COALESCE(ev.events, 0) AS events,
+                    COALESCE(ev.errors, 0) AS errors,
+                    COALESCE(r.started_at, r.created_at)::text AS started_at
+             FROM agents.runs r
+             JOIN agents.sessions s ON s.id = r.session_id
+             JOIN core.projects p ON p.id = s.project_id
+             JOIN agents.agent_defs ad ON ad.id = s.agent_def_id
+             LEFT JOIN (
+                 SELECT run_id, COUNT(*) AS events,
+                        COUNT(*) FILTER (WHERE verb = 'tool_error') AS errors
+                 FROM agents.events GROUP BY run_id
+             ) ev ON ev.run_id = r.id
+             WHERE ($1::uuid IS NULL OR s.project_id = $1)
+             ORDER BY COALESCE(r.started_at, r.created_at) DESC
+             LIMIT $2 OFFSET $3",
+        )
+        .bind(project_id)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&self.pool)
+        .await
+        .context("page dispatch runs")
+    }
+
+    pub async fn dispatch_runs_count(&self, project_id: Option<ProjectId>) -> Result<i64> {
+        query_scalar(
+            "SELECT COUNT(*)
+             FROM agents.runs r
+             JOIN agents.sessions s ON s.id = r.session_id
+             WHERE ($1::uuid IS NULL OR s.project_id = $1)",
+        )
+        .bind(project_id)
+        .fetch_one(&self.pool)
+        .await
+        .context("count dispatch runs")
+    }
+
+    /// Agents only — the host shell itself never runs an agent.
+    pub async fn running_run_count(&self, project_id: Option<ProjectId>) -> Result<i64> {
+        query_scalar(
+            "SELECT COUNT(*)
+             FROM agents.runs r
+             JOIN agents.sessions s ON s.id = r.session_id
+             WHERE r.status = 'running' AND ($1::uuid IS NULL OR s.project_id = $1)",
+        )
+        .bind(project_id)
+        .fetch_one(&self.pool)
+        .await
+        .context("count running runs")
+    }
+
     /// Save a new immutable version after checking its tool allowlist against the
     /// materialized marketplace index. Existing rows are never updated.
     pub async fn save_agent_definition(

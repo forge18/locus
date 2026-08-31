@@ -37,6 +37,8 @@ dev:
 
 # Full CI sequence, mirroring .github/workflows/ci.yml step-for-step (locusd smoke stays CI-only)
 ci: test lint
+    just test-node
+    just typecheck
     pnpm -C apps/desktop build
     just test-named locus-core all_registered_harnesses --ignored
     just test-named locus-core isolates_failure --ignored
@@ -44,3 +46,5 @@ ci: test lint
     bash scripts/check-layering.sh
     bash scripts/check-lint-not-in-hooks.sh
     bash scripts/check-no-silent-skips.sh
+    bash apps/desktop/scripts/check-counts-follow-registry.sh
+    bash apps/desktop/scripts/check-no-literal-counts.sh

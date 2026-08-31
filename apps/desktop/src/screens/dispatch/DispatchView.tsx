@@ -1,17 +1,42 @@
-import { For, Show, createSignal } from "solid-js";
 import {
-  DISPATCH_PROJECTS,
-  SCHEDULE_EXECUTIONS,
-  SCHEDULES,
+  For,
+  Match,
+  Show,
+  Switch,
+  createEffect,
+  createMemo,
+  createSignal,
+  on,
+  onMount,
+} from "solid-js";
+import {
   STOP_ALL_AGENT_COUNT,
   STOP_ALL_RESTORE_MINUTES,
   NEVER_AUTORUN_EXCLUSIONS,
   VERIFY_VOCABULARY,
   autorunMasterState,
-  useDispatchRuns,
+  fetchDispatchSchedules,
+  fetchAutorunStates,
+  setAutorunState,
+  type AutorunStateRow,
+  fetchScheduleExecutions,
+  type DispatchSchedule,
+  type DispatchScheduleExecution,
   type AutorunState,
   type PermissionPosture,
 } from "../../data/dispatch";
+import { DISPATCH_PROJECTS } from "../../fixtures/dispatch";
+import { isTauri } from "@tauri-apps/api/core";
+import type { NavStore } from "../../nav";
+import { fetchRunningCount } from "../../data/strip";
+import type { Envelope } from "../../data/envelope";
+import {
+  PAGE_SIZE,
+  fetchRunsCount,
+  fetchRunsPage,
+  type DispatchRunRow,
+} from "../../data/runs";
+import { notify } from "../../ui/Toast";
 import { Button } from "../../ui/Button";
 import { Segmented } from "../../ui/Segmented";
 
@@ -22,18 +47,16 @@ export type DispatchTab = "autorun" | "schedules" | "runs";
 export interface DispatchViewProps {
   /** The fixture route decides which Dispatch sub-surface is rendered. */
   tab: DispatchTab;
+  /** Switching tabs is navigation: the shell's locator decides the route. */
+  onSwitchTab?: (tab: DispatchTab) => void;
+  /** The nav store: the scoped reads refetch when the project scope changes. */
+  nav?: NavStore;
 }
 
 const DISPATCH_TABS = [
   { value: "autorun", label: "Autorun" },
   { value: "schedules", label: "Schedules" },
   { value: "runs", label: "Runs" },
-];
-
-const RUN_ROWS = useDispatchRuns();
-const RUN_FIXTURE_ROWS = [
-  ...RUN_ROWS.slice(0, 11),
-  RUN_ROWS.find((row) => row.tokens === null)!,
 ];
 
 function AutorunSwitch(props: {
@@ -56,40 +79,111 @@ function AutorunSwitch(props: {
   );
 }
 
-function DispatchTabs(props: { active: DispatchTab }) {
+function DispatchTabs(props: {
+  active: DispatchTab;
+  onSwitch?: (tab: DispatchTab) => void;
+}) {
   return (
     <Segmented
       options={DISPATCH_TABS}
       value={props.active}
-      onChange={() => undefined}
+      onChange={(value) => props.onSwitch?.(value as DispatchTab)}
       label="Dispatch"
     />
   );
 }
 
-function AutorunView() {
-  const [projects, setProjects] = createSignal(DISPATCH_PROJECTS);
+function AutorunView(props: {
+  onSwitch?: (tab: DispatchTab) => void;
+  nav?: NavStore;
+}) {
+  const liveMode = isTauri();
+  const demoStates: AutorunStateRow[] = DISPATCH_PROJECTS.map((project) => ({
+    projectId: project.id,
+    project: project.name,
+    state: project.state === "archived" ? "suspended" : project.state,
+  }));
+  const [states, setStates] = createSignal<Envelope<AutorunStateRow[]>>(
+    liveMode ? { status: "loading" } : { status: "ready", data: demoStates },
+  );
   const [stopOpen, setStopOpen] = createSignal(false);
   const [stopped, setStopped] = createSignal(false);
   const [handoff, setHandoff] = createSignal(true);
+  const [runningCount, setRunningCount] = createSignal(0);
+  const projects = createMemo(() => {
+    const envelope = states();
+    if (envelope.status !== "ready") return [];
+    return envelope.data.map((row) => ({
+      id: row.projectId,
+      name: row.project,
+      state: row.state as AutorunState,
+      repos: "",
+      detail: "",
+      activity: "",
+    }));
+  });
   const master = () => autorunMasterState(projects());
 
+  async function refreshAutorun() {
+    try {
+      const [statesEnvelope, running] = await Promise.all([
+        fetchAutorunStates(),
+        fetchRunningCount(),
+      ]);
+      setStates(statesEnvelope);
+      if (running.status === "ready") setRunningCount(running.data);
+    } catch (cause) {
+      if (liveMode) {
+        setStates({
+          status: "failed",
+          error: {
+            command: "autorun_states",
+            message: cause instanceof Error ? cause.message : String(cause),
+          },
+        });
+      }
+    }
+  }
+
+  onMount(() => {
+    if (liveMode) void refreshAutorun();
+  });
+
   const toggleProject = (id: string) => {
-    setProjects((current) =>
-      current.map((project) =>
-        project.id === id && (project.state === "on" || project.state === "off")
-          ? { ...project, state: project.state === "on" ? "off" : "on" }
-          : project,
-      ),
-    );
+    // Optimistic flip, then the command; a failure rolls back with a toast.
+    setStates((current) => {
+      if (current.status !== "ready") return current;
+      return {
+        status: "ready",
+        data: current.data.map((row) =>
+          row.projectId === id && row.state !== "suspended"
+            ? { ...row, state: row.state === "on" ? "off" : "on" }
+            : row,
+        ),
+      };
+    });
+    const next = projects().find((project) => project.id === id);
+    if (!next) return;
+    void Promise.resolve()
+      .then(() => setAutorunState(id, next.state === "on" ? "off" : "on"))
+      .then((envelope) => {
+        if (envelope.status === "failed") {
+          notify({
+            title: "Autorun change failed",
+            description: envelope.error.message,
+            type: "error",
+          });
+          void refreshAutorun();
+        }
+      });
   };
 
   return (
     <div class="dispatch-view" data-testid="dispatch-autorun">
       <header class="dispatch-header">
-        <DispatchTabs active="autorun" />
+        <DispatchTabs active="autorun" onSwitch={props.onSwitch} />
         <span class="dispatch-header-note">
-          5 projects · 3 running · 1 review slot free
+          {projects().length} projects · {runningCount()} running
         </span>
         <Button variant="secondary">Pause everything</Button>
         <Button variant="secondary" onClick={() => setStopOpen(true)}>
@@ -275,16 +369,46 @@ function AutorunView() {
   );
 }
 
-function SchedulesView() {
+function SchedulesView(props: {
+  onSwitch?: (tab: DispatchTab) => void;
+  nav?: NavStore;
+}) {
+  const [schedules, setSchedules] = createSignal<Envelope<DispatchSchedule[]>>({
+    status: "loading",
+  });
+  const [executions, setExecutions] = createSignal<
+    Envelope<DispatchScheduleExecution[]>
+  >({ status: "loading" });
+
+  onMount(() => {
+    void Promise.all([
+      fetchDispatchSchedules(),
+      fetchScheduleExecutions(),
+    ]).then(([s, e]) => {
+      setSchedules(s);
+      setExecutions(e);
+    });
+  });
+
+  const scheduleRows = createMemo<DispatchSchedule[]>(() => {
+    const envelope = schedules();
+    return envelope.status === "ready" ? envelope.data : [];
+  });
+  const executionRows = createMemo<DispatchScheduleExecution[]>(() => {
+    const envelope = executions();
+    return envelope.status === "ready" ? envelope.data : [];
+  });
+
   const [permissionPosture, setPermissionPosture] =
     createSignal<PermissionPosture>("bypass");
 
   return (
     <div class="dispatch-view" data-testid="dispatch-schedules">
       <header class="dispatch-header">
-        <DispatchTabs active="schedules" />
+        <DispatchTabs active="schedules" onSwitch={props.onSwitch} />
         <span class="dispatch-header-note">
-          6 schedules · 248 fired · 17 skipped
+          {scheduleRows().length} schedules · {executionRows().length} recent
+          executions
         </span>
         <Button>New schedule</Button>
       </header>
@@ -411,7 +535,7 @@ function SchedulesView() {
           </span>
         </aside>
         <section class="schedule-cards" data-testid="schedule-cards">
-          <For each={SCHEDULES}>
+          <For each={scheduleRows()}>
             {(schedule) => (
               <article class="schedule-card" data-schedule={schedule.id}>
                 <header>
@@ -420,16 +544,11 @@ function SchedulesView() {
                   <span>{schedule.enabled ? "live" : "paused"}</span>
                 </header>
                 <code>{schedule.cron}</code>
-                <span>{schedule.cadence}</span>
-                <p>{schedule.workflow}</p>
+                <span>{schedule.cron}</span>
+                <p>{schedule.project}</p>
                 <footer>
-                  <span
-                    class={`schedule-last schedule-last-${schedule.last.split(" ")[0]}`}
-                  >
-                    {schedule.last}
-                  </span>
-                  <span>
-                    Skipped <strong>{schedule.skipped}</strong>
+                  <span class="schedule-last">
+                    {schedule.enabled ? "live" : "paused"}
                   </span>
                 </footer>
               </article>
@@ -455,18 +574,18 @@ function SchedulesView() {
               </tr>
             </thead>
             <tbody>
-              <For each={SCHEDULE_EXECUTIONS}>
+              <For each={executionRows()}>
                 {(execution) => (
                   <tr>
-                    <td>{execution.firedAt}</td>
-                    <td>{execution.schedule}</td>
+                    <td>{execution.scheduledFor ?? "—"}</td>
+                    <td>{execution.scheduleName}</td>
                     <td
-                      class={`verify-${execution.result === "passed" ? "ok" : execution.result === "failed" ? "bad" : "skipped"}`}
+                      class={`verify-${execution.status === "completed" ? "ok" : execution.status === "failed" ? "bad" : "skipped"}`}
                     >
-                      {execution.result}
+                      {execution.status}
                     </td>
-                    <td>{execution.duration}</td>
-                    <td>{execution.evidence}</td>
+                    <td>—</td>
+                    <td>—</td>
                   </tr>
                 )}
               </For>
@@ -478,24 +597,80 @@ function SchedulesView() {
   );
 }
 
-function RunsFixtureView() {
+function RunsView(props: {
+  onSwitch?: (tab: DispatchTab) => void;
+  nav?: NavStore;
+}) {
+  const [runs, setRuns] = createSignal<Envelope<DispatchRunRow[]>>({
+    status: "loading",
+  });
+  const [count, setCount] = createSignal<Envelope<number>>({
+    status: "loading",
+  });
+
+  async function refreshRuns() {
+    const projectId = props.nav?.params().project;
+    const [page, total] = await Promise.all([
+      fetchRunsPage(0, PAGE_SIZE, projectId),
+      fetchRunsCount(projectId),
+    ]);
+    setRuns(page);
+    setCount(total);
+    for (const failed of [page, total]) {
+      if (failed.status === "failed") {
+        notify({
+          title: "Runs unavailable",
+          description: failed.error.message,
+          type: "error",
+        });
+      }
+    }
+  }
+
+  onMount(() => {
+    void refreshRuns();
+  });
+
+  // Scoped invalidation: a project-scope change refetches the page.
+  createEffect(
+    on(
+      () => props.nav?.params().project,
+      () => {
+        void refreshRuns();
+      },
+      { defer: true },
+    ),
+  );
+
+  const runCount = createMemo(() => {
+    const envelope = count();
+    return envelope.status === "ready" ? envelope.data : 0;
+  });
+  const runsError = createMemo(() => {
+    const envelope = runs();
+    return envelope.status === "failed" ? envelope.error : null;
+  });
+  const runsReady = createMemo(() => {
+    const envelope = runs();
+    return envelope.status === "ready" ? envelope.data : null;
+  });
+
   return (
     <div class="dispatch-view" data-testid="dispatch-runs">
       <header class="dispatch-header">
-        <DispatchTabs active="runs" />
+        <DispatchTabs active="runs" onSwitch={props.onSwitch} />
         <span class="dispatch-header-note">
           Every run, scheduled or not · a schedule is just one way a run starts
         </span>
       </header>
       <div class="dispatch-runs-controls" data-testid="dispatch-pause-controls">
-        <span>Search every run — a path, a tool name, an event verb</span>
-        <span>
-          Today · 7d · <strong>30d</strong>
-        </span>
-        <span>612 runs · 300 sessions · 4 projects</span>
+        <span>Every run, scheduled or not</span>
+        <Show when={runCount() > 0}>
+          <span>{runCount()} runs</span>
+        </Show>
       </div>
       <section class="dispatch-runs-table" data-testid="dispatch-runs-table">
-        <h2>Runs (612)</h2>
+        <h2>Runs</h2>
         <div
           class="dispatch-verify-vocabulary"
           data-testid="runs-verify-vocabulary"
@@ -529,37 +704,74 @@ function RunsFixtureView() {
             </tr>
           </thead>
           <tbody>
-            <For each={RUN_FIXTURE_ROWS}>
-              {(run) => (
+            <Switch>
+              <Match when={runs().status === "loading"}>
                 <tr>
-                  <td>{run.at.slice(0, 16).replace("T", " ")}</td>
-                  <td>{run.harness}</td>
-                  <td>{run.project}</td>
-                  <td>core</td>
-                  <td>{run.agent}</td>
-                  <td>{run.role}</td>
-                  <td>{run.model}</td>
-                  <td>{run.events.toLocaleString("en-US")}</td>
-                  <td class={run.errors > 0 ? "verify-bad" : ""}>
-                    {run.errors || "—"}
+                  <td colspan={12}>
+                    <p class="project-panel-note">Loading runs…</p>
                   </td>
-                  <td>
-                    {run.tokens === null ? (
-                      <span class="unknown">unknown</span>
-                    ) : (
-                      `${(run.tokens / 1000).toFixed(1)}k`
-                    )}
-                  </td>
-                  <td
-                    class={`verify-${run.status === "passed" ? "ok" : run.status === "failed" ? "bad" : "skipped"}`}
-                  >
-                    {run.status}
-                  </td>
-                  <td>{run.id}</td>
                 </tr>
-              )}
-            </For>
+              </Match>
+              <Match when={runs().status === "empty"}>
+                <tr>
+                  <td colspan={12}>
+                    <p class="project-panel-note">
+                      No runs yet. Dispatch an agent to start one.
+                    </p>
+                  </td>
+                </tr>
+              </Match>
+              <Match when={runsError()}>
+                <tr>
+                  <td colspan={12}>
+                    <p class="project-panel-note" role="alert">
+                      {runsError()?.message}
+                    </p>
+                    <button
+                      class="btn btn-secondary"
+                      onClick={() => void refreshRuns()}
+                    >
+                      Retry
+                    </button>
+                  </td>
+                </tr>
+              </Match>
+            </Switch>
           </tbody>
+          <Show when={runsReady()}>
+            <tbody>
+              <For each={runsReady() ?? []}>
+                {(run) => (
+                  <tr>
+                    <td>
+                      {run.startedAt
+                        ? run.startedAt.slice(0, 16).replace("T", " ")
+                        : "—"}
+                    </td>
+                    <td>{run.harness ?? "—"}</td>
+                    <td>{run.project}</td>
+                    <td>{run.branch}</td>
+                    <td>{run.agent}</td>
+                    <td>{run.role ?? "—"}</td>
+                    <td>{run.model}</td>
+                    <td>{run.events.toLocaleString("en-US")}</td>
+                    <td class={run.errors > 0 ? "verify-bad" : ""}>
+                      {run.errors || "—"}
+                    </td>
+                    <td>
+                      <span class="unknown">unknown</span>
+                    </td>
+                    <td
+                      class={`verify-${run.status === "passed" ? "ok" : run.status === "failed" ? "bad" : "skipped"}`}
+                    >
+                      {run.status}
+                    </td>
+                    <td>{run.id}</td>
+                  </tr>
+                )}
+              </For>
+            </tbody>
+          </Show>
         </table>
       </section>
     </div>
@@ -568,9 +780,11 @@ function RunsFixtureView() {
 
 /** Dispatch's three durable-queue fixture routes. */
 export function DispatchView(props: DispatchViewProps) {
-  if (props.tab === "schedules") return <SchedulesView />;
-  if (props.tab === "runs") return <RunsFixtureView />;
-  return <AutorunView />;
+  if (props.tab === "schedules")
+    return <SchedulesView onSwitch={props.onSwitchTab} nav={props.nav} />;
+  if (props.tab === "runs")
+    return <RunsView onSwitch={props.onSwitchTab} nav={props.nav} />;
+  return <AutorunView onSwitch={props.onSwitchTab} nav={props.nav} />;
 }
 
 export default DispatchView;

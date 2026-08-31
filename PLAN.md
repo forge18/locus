@@ -2790,7 +2790,7 @@ M0 is complete when:
 for d in .specs/*/; do
   test -f "$d/spec.md" -a -f "$d/tasks.md" || echo "INCOMPLETE: $d"
 done
-awk -F'|' '/^\| *[0-9]+ *\|/ { if ($(NF-1) !~ /`/) print FILENAME": "$0 }' .specs/*/tasks.md
+awk -F'|' '/^\| *[0-9]+ *\|/ && $0 !~ /~~/ { if ($(NF-1) !~ /`/) print FILENAME": "$0 }' .specs/*/tasks.md
 
 # spike 1 answers the auth question in writing
 cat spikes/01-sandboxed-harness/FINDINGS.md
@@ -2803,7 +2803,7 @@ cat spikes/03-workflow-canvas/FINDINGS.md
 ```
 
 Toolchain is present and current: `docker 29.7.1`, `node v24.19.0`, `pnpm 10.26.2`, `cargo 1.97.1`,
-`gh 2.97.0`. `tauri` CLI is **not** installed and M0 must add it.
+`gh 2.97.0`, and the Tauri CLI is declared by `apps/desktop/package.json`.
 
 ## Risks
 

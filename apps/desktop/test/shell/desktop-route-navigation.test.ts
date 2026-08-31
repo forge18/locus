@@ -4,6 +4,9 @@ import { Desktop_ROUTE_KINDS } from "../../src/nav/desktop-route-kinds";
 import { VIEWS } from "../../src/nav/views";
 import { desktopLocatorFor, desktopViewFor } from "../../src/shell/Shell";
 
+import { configureProjectsStub } from "../projects/provider-stub";
+configureProjectsStub();
+
 describe("shell/desktop-route-navigation", () => {
   it("maps every registered desktop locator to an explicit shared surface", () => {
     for (const route of Desktop_ROUTE_KINDS) {

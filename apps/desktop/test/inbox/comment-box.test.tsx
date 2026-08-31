@@ -1,14 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import { render } from '@solidjs/testing-library'
 import { InboxDetail } from '../../src/screens/inbox/InboxDetail'
-import { useInboxItems } from '../../src/data/inbox'
+import { PENDING } from './deliveries'
 import { read, rules } from '../css'
 
-const [gate] = useInboxItems()
+const gate = PENDING[0]
 const mount = (onApprove: (c: string) => void = () => {}) =>
   render(() => (
-    <InboxDetail item={gate} onApprove={onApprove} onSendBack={() => {}} onOpenWork={() => {}} />
+    <InboxDetail item={gate} onApprove={onApprove} onSendBack={() => {}} />
   ))
+
+import { configureProjectsStub } from "../projects/provider-stub";
+configureProjectsStub();
 
 describe('inbox/comment-box', () => {
   it('captions the box with what a comment does', () => {

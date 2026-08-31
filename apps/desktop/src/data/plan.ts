@@ -9,10 +9,13 @@ import {
 } from "../fixtures/plan";
 import { isTauri } from "@tauri-apps/api/core";
 import { streamFromCore } from "../transcript/from-core";
+import { dataProvider } from "./provider";
+import type { Envelope } from "./envelope";
 import type {
   DraftOutputs,
   PlanMessage,
   PlanSummary,
+  PlanStep,
   Recommendation,
   ScopeDecision,
 } from "../fixtures/plan";
@@ -43,7 +46,61 @@ export type {
   Speaker,
 } from "../fixtures/plan";
 
-/** Becomes: invoke("plans_list") */
+/** Live project-scoped plan list. */
+export function fetchPlans(
+  projectId: string,
+): Promise<Envelope<PlanSummary[]>> {
+  return dataProvider().query<PlanSummary>("plans_list", { projectId });
+}
+
+export interface PlanMutationReceipt {
+  updated: boolean;
+}
+
+export interface PlanRequirementInput {
+  id: string;
+  body: string;
+}
+
+export function createPlan(
+  projectId: string,
+  title: string,
+  goal: string,
+): Promise<Envelope<PlanSummary>> {
+  return dataProvider().queryOne<PlanSummary>("plan_create", {
+    projectId,
+    title,
+    goal,
+  });
+}
+
+export function setPlanStage(
+  projectId: string,
+  planId: string,
+  stage: PlanStep,
+  description = "",
+): Promise<Envelope<PlanMutationReceipt>> {
+  return dataProvider().queryOne<PlanMutationReceipt>("plan_stage_set", {
+    projectId,
+    planId,
+    stage: stage.toLowerCase(),
+    description,
+  });
+}
+
+export function setPlanRequirements(
+  projectId: string,
+  planId: string,
+  requirements: PlanRequirementInput[],
+): Promise<Envelope<PlanMutationReceipt>> {
+  return dataProvider().queryOne<PlanMutationReceipt>("plan_requirements_set", {
+    projectId,
+    planId,
+    requirements,
+  });
+}
+
+/** Becomes: invoke("plans_list", { projectId }) — demo-only hook retained for component tests. */
 export function usePlans(): PlanSummary[] {
   return PLANS;
 }

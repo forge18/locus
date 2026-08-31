@@ -1,8 +1,16 @@
 import { fireEvent, render } from "@solidjs/testing-library";
 import { describe, expect, it, vi } from "vitest";
-import { INBOX_ITEMS } from "../../src/fixtures/inbox";
+import { invoke } from "@tauri-apps/api/core";
+import { PENDING } from "../inbox/deliveries";
+import { stopAllDispatch } from "../../src/data/dispatch";
+import { waitFor } from "@solidjs/testing-library";
+import { createNavStore } from "../../src/nav";
+import { Shell } from "../../src/shell/Shell";
+import { configureProjectsStub } from "../projects/provider-stub";
 import { DispatchPill } from "../../src/shell/DispatchPill";
 import { InboxPill } from "../../src/shell/InboxPill";
+
+vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
 const sessions = [
   {
@@ -28,6 +36,16 @@ const sessions = [
 ];
 
 describe("M0.7 title-bar pills", () => {
+  it("issues the supervisor stop command with handoff preservation", async () => {
+    vi.mocked(invoke).mockResolvedValue({ snapshotId: "snapshot-1", stoppedRuns: 2 });
+
+    await expect(stopAllDispatch()).resolves.toEqual({
+      snapshotId: "snapshot-1",
+      stoppedRuns: 2,
+    });
+    expect(invoke).toHaveBeenCalledWith("dispatch_stop_all", { writeHandoffs: true });
+  });
+
   it("filters Dispatch activity and exposes stop-all/open actions", async () => {
     const onStopAll = vi.fn();
     const onOpenDispatch = vi.fn();
@@ -65,17 +83,46 @@ describe("M0.7 title-bar pills", () => {
     const onOpenInbox = vi.fn();
     const { getByTestId, getByRole } = render(() => (
       <InboxPill
-        count={INBOX_ITEMS.length}
-        items={INBOX_ITEMS}
+        count={PENDING.length}
+        items={PENDING}
         onOpenInbox={onOpenInbox}
       />
     ));
 
     await fireEvent.click(getByTestId("inbox-pill"));
     expect(getByTestId("inbox-preview-items").textContent).toContain(
-      INBOX_ITEMS[0].title,
+      PENDING[0].subject,
     );
     await fireEvent.click(getByRole("button", { name: "Open Inbox" }));
     expect(onOpenInbox).toHaveBeenCalledOnce();
+  });
+});
+
+describe("title pills on live store data", () => {
+  it("reflects live running and inbox counts from the provider", async () => {
+    configureProjectsStub({
+      inboxPending: 2,
+      runningCount: 1,
+      stripCards: [
+        {
+          id: "run-1",
+          project: "tapestry",
+          agent: "builder",
+          status: "running",
+          startedEpoch: Math.floor(Date.now() / 1000),
+        },
+      ],
+    });
+    const nav = createNavStore();
+    const { getByTestId } = render(() => (
+      <Shell nav={nav}>
+        <div />
+      </Shell>
+    ));
+
+    await waitFor(() =>
+      expect(getByTestId("inbox-pill").textContent).toContain("2"),
+    );
+    expect(getByTestId("dispatch-pill").textContent).toContain("1");
   });
 });

@@ -1,14 +1,26 @@
-import { createSignal, onCleanup, onMount, Show } from "solid-js";
+import { createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
 import type { JSX } from "solid-js";
 import { AppTitleBar } from "./AppTitleBar";
 import { ProjectRail } from "./ProjectRail";
-import { LocatorPalette } from "../nav/LocatorPalette";
+import {
+    LocatorPalette,
+    type PaletteMode,
+    type PaletteResult,
+    type PaletteSessionState,
+} from "../nav/LocatorPalette";
 import { Sheet } from "../ui/Sheet";
-import { ToastRegion } from "../ui/Toast";
-import { useRunningCount, useStripCards } from "../data/strip";
-import { useInboxItems } from "../data/inbox";
+import { notify, ToastRegion } from "../ui/Toast";
+import {
+    fetchRunningCount,
+    fetchStripCards,
+    type StripCard,
+} from "../data/strip";
+import { stopAllDispatch } from "../data/dispatch";
+import { fetchInboxPendingCount } from "../data/inbox";
+import { fetchProjects } from "../data/core";
+import type { Envelope } from "../data/envelope";
 import type { ActiveSession } from "./RunningPill";
-import type { NavStore, View } from "../nav";
+import { BackLink, type NavStore, type View } from "../nav";
 import { destinationDesktop } from "../nav/desktop-navigation";
 import type { DesktopNavTarget, DesktopRouteId } from "../nav/desktop-locator";
 import {
@@ -18,9 +30,26 @@ import {
 
 const Desktop_ROUTE_IDS = Desktop_ROUTE_KINDS.map((route) => route.id);
 
+function safeLiveRead<T>(
+    command: string,
+    read: () => Promise<Envelope<T>>,
+): Promise<Envelope<T>> {
+    return Promise.resolve()
+        .then(read)
+        .catch((cause) => ({
+            status: "failed" as const,
+            error: {
+                command,
+                message: cause instanceof Error ? cause.message : String(cause),
+            },
+        }));
+}
+
 export interface ShellProps {
     nav: NavStore;
     children: JSX.Element;
+    /** Unified search_all results supplied by the command surface. */
+    searchAll?: (query: string) => PaletteResult[];
 }
 
 const desktopViews: Record<DesktopRouteId, View> = Object.fromEntries(
@@ -57,25 +86,92 @@ export function desktopLocatorFor(
 /** The desktop title bar and project-scoped rail frame every screen. */
 export function Shell(props: ShellProps) {
     const [paletteOpen, setPaletteOpen] = createSignal(false);
+    const [paletteMode, setPaletteMode] = createSignal<PaletteMode>("locator");
     const [dispatchOpen, setDispatchOpen] = createSignal(false);
-    const inboxItems = useInboxItems();
-    const activeSessions: ActiveSession[] = useStripCards()
-        .filter((card) => card.kind === "agent")
-        .map((card) => ({
+    const [stripEnvelope, setStripEnvelope] = createSignal<
+        Envelope<StripCard[]>
+    >({ status: "loading" });
+    const [runningEnvelope, setRunningEnvelope] = createSignal<
+        Envelope<number>
+    >({ status: "loading" });
+    const [inboxEnvelope, setInboxEnvelope] = createSignal<Envelope<number>>({
+        status: "loading",
+    });
+    const [projectsEnvelope, setProjectsEnvelope] = createSignal<
+        Envelope<{ id: string; name: string }[]>
+    >({ status: "loading" });
+
+    const loadLiveStatus = async () => {
+        const [cards, running, inbox, projects] = await Promise.all([
+            safeLiveRead("strip_cards", fetchStripCards),
+            safeLiveRead("running_count", fetchRunningCount),
+            safeLiveRead("inbox_pending_count", fetchInboxPendingCount),
+            safeLiveRead("projects_list", fetchProjects),
+        ]);
+        setStripEnvelope(cards);
+        setRunningEnvelope(running);
+        setInboxEnvelope(inbox);
+        setProjectsEnvelope(projects);
+        for (const failed of [cards, running, inbox, projects]) {
+            if (failed.status === "failed") {
+                notify({
+                    title: "Live status unavailable",
+                    description: failed.error.message,
+                    type: "error",
+                });
+            }
+        }
+    };
+    onMount(() => {
+        void loadLiveStatus().catch((cause) => {
+            notify({
+                title: "Live status unavailable",
+                description:
+                    cause instanceof Error ? cause.message : String(cause),
+                type: "error",
+            });
+        });
+    });
+
+    const activeSessions = createMemo<ActiveSession[]>(() => {
+        const envelope = stripEnvelope();
+        if (envelope.status !== "ready") return [];
+        return envelope.data.map((card) => ({
             id: card.id,
             label: `${card.project} · ${card.agent}`,
             needsAttention:
                 card.status === "waiting" || card.status === "stuck",
             lastActivityAt: card.idleMinutes,
             project: card.project,
-            role: card.role ?? undefined,
             elapsed:
                 card.idleMinutes === 0 ? "now" : `${card.idleMinutes}m ago`,
-            meta: card.status ?? card.tool ?? "running",
+            meta: card.status ?? "running",
         }));
-    const needsYou = activeSessions.filter(
-        (session) => session.needsAttention,
-    ).length;
+    });
+    const needsYou = createMemo(
+        () =>
+            activeSessions().filter((session) => session.needsAttention).length,
+    );
+    const runningCount = createMemo(() => {
+        const envelope = runningEnvelope();
+        return envelope.status === "ready" ? envelope.data : 0;
+    });
+    const inboxCount = createMemo(() => {
+        const envelope = inboxEnvelope();
+        return envelope.status === "ready" ? envelope.data : 0;
+    });
+    const paletteSessions = createMemo<PaletteSessionState[]>(() =>
+        activeSessions().map((session) => ({
+            project: session.project ?? "tapestry",
+            needsAttention: session.needsAttention,
+        })),
+    );
+    const railProjects = createMemo(() => {
+        const envelope = projectsEnvelope();
+        return envelope.status === "ready"
+            ? envelope.data.map((project) => project.name)
+            : undefined;
+    });
     const openDesktopTarget = (target: DesktopNavTarget) => {
         const params =
             target.scope.kind === "project"
@@ -102,6 +198,7 @@ export function Shell(props: ShellProps) {
             (e.metaKey || e.ctrlKey)
         ) {
             e.preventDefault();
+            setPaletteMode(e.key.toLowerCase() === "p" ? "search" : "locator");
             setPaletteOpen(true);
         }
     };
@@ -113,17 +210,32 @@ export function Shell(props: ShellProps) {
             <AppTitleBar
                 categoryLabel={props.nav.categoryLabel()}
                 viewLabel={props.nav.view()}
-                running={useRunningCount()}
-                needsYou={needsYou}
-                sessions={activeSessions}
-                inboxCount={inboxItems.length}
-                inboxItems={inboxItems}
+                running={runningCount()}
+                needsYou={needsYou()}
+                sessions={activeSessions()}
+                inboxCount={inboxCount()}
                 onOpenDispatch={() =>
                     openDesktopLocator(destinationDesktop("autorun"))
                 }
-                onStopAll={() =>
-                    openDesktopLocator(destinationDesktop("autorun"))
-                }
+                onStopAll={() => {
+                    void stopAllDispatch()
+                        .then(({ stoppedRuns }) =>
+                            notify({
+                                title: "Dispatch stopped",
+                                description: `${stoppedRuns} run${stoppedRuns === 1 ? "" : "s"} stopped.`,
+                            }),
+                        )
+                        .catch((error: unknown) =>
+                            notify({
+                                title: "Stop all failed",
+                                description:
+                                    error instanceof Error
+                                        ? error.message
+                                        : String(error),
+                                type: "error",
+                            }),
+                        );
+                }}
                 onOpenInbox={() =>
                     openDesktopLocator(destinationDesktop("inbox"))
                 }
@@ -132,9 +244,14 @@ export function Shell(props: ShellProps) {
             <div class="body">
                 <ProjectRail
                     selectedProject={props.nav.params().project ?? "tapestry"}
+                    projects={railProjects()}
                     onNavigate={openDesktopLocator}
                 />
                 <div class="main">
+                    {/* A drill-down's way out is the view it was entered from,
+                        so the back link rides above the screen, shell-owned. It
+                        renders only when the current view is one. */}
+                    <BackLink nav={props.nav} />
                     <div class="screen" data-testid="screen">
                         {props.children}
                     </div>
@@ -148,6 +265,11 @@ export function Shell(props: ShellProps) {
                 open={paletteOpen()}
                 onOpenChange={setPaletteOpen}
                 current={currentDesktopLocator()}
+                project={props.nav.params().project ?? "tapestry"}
+                history={props.nav.history()}
+                sessions={paletteSessions()}
+                mode={paletteMode()}
+                searchAll={props.searchAll}
                 onResolve={openDesktopTarget}
                 onOpenLocator={openDesktopLocator}
             />

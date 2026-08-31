@@ -1,16 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { render } from "@solidjs/testing-library";
+import { render, waitFor } from "@solidjs/testing-library";
 import { InboxView } from "../../src/screens/inbox/InboxView";
 import { createNavStore } from "../../src/nav";
-import { useInboxItems } from "../../src/data/inbox";
+import { PENDING } from "./deliveries";
+import { configureInboxStub } from "./inbox-stub";
 import { read, rules } from "../css";
 
 const mount = () => render(() => <InboxView nav={createNavStore()} />);
 
+configureInboxStub();
+
 describe("inbox/needs-you-header", () => {
-  it("reads NEEDS YOU", () => {
+  it("reads NEEDS YOU", async () => {
     const { getByTestId } = mount();
-    expect(getByTestId("needs-you-title").textContent).toBe("Needs you");
+    await waitFor(() =>
+      expect(getByTestId("needs-you-title").textContent).toBe("Needs you"),
+    );
     const rule = rules(read("screens/screens.css")).find(
       (r) => r.selector === ".inbox-section-title",
     )!;
@@ -24,27 +29,39 @@ describe("inbox/needs-you-header", () => {
     expect(rule.body).toContain("color: var(--action-attention)");
   });
 
-  it("counts the items that are actually there", () => {
+  it("counts the items that are actually there", async () => {
     const { getByTestId } = mount();
-    expect(getByTestId("needs-you-note").textContent).toContain(
-      `${useInboxItems().length} items`,
+    await waitFor(() =>
+      expect(getByTestId("needs-you-note").textContent).toContain(
+        `${PENDING.length} items`,
+      ),
     );
   });
 
-  it("carries the note that silence is the default", () => {
+  it("carries the note that silence is the default", async () => {
     const { getByTestId } = mount();
-    expect(getByTestId("needs-you-note").textContent).toContain(
-      "silence is the default",
+    await waitFor(() =>
+      expect(getByTestId("needs-you-note").textContent).toContain(
+        "silence is the default",
+      ),
     );
   });
 
-  it('says "item" rather than "items" for one', () => {
+  it('says "item" rather than "items" for one', async () => {
     const { getByTestId } = mount();
-    const [first] = useInboxItems();
-    getByTestId(`inbox-card-${first.id}`).click();
-    for (let index = 1; index < useInboxItems().length; index += 1) {
+    await waitFor(() =>
+      expect(getByTestId("needs-you-note").textContent).toContain(
+        `${PENDING.length} items`,
+      ),
+    );
+    // Resolve all but one — each resolve is async.
+    for (let index = 1; index < PENDING.length; index += 1) {
       getByTestId("inbox-approve").click();
+      await waitFor(() =>
+        expect(getByTestId("needs-you-note").textContent).toContain(
+          `${PENDING.length - 1 - index + 1} item`,
+        ),
+      );
     }
-    expect(getByTestId("needs-you-note").textContent).toContain("1 item ·");
   });
 });

@@ -1,6 +1,9 @@
 import { render } from "@solidjs/testing-library";
 import { describe, expect, it } from "vitest";
 import { ShellState, type ShellStateKind } from "../../src/shell/ShellState";
+import { configureProjectsStub } from "../projects/provider-stub";
+
+configureProjectsStub();
 
 for (const kind of [
   "loading",

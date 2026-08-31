@@ -1,5 +1,4 @@
 .agent-pane {
-  --r-pill: 999px;
   --surface-sunken: var(--surface-ground);
   --shadow-popover: var(--sh-node);
   --status-machine: var(--status-working);

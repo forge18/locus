@@ -9,6 +9,7 @@ PROBE=../../harnesses/zz-probe.toml
 BACKUP=$(mktemp)
 cp "$GENERATED" "$BACKUP"
 
+# shellcheck disable=SC2329 # invoked by EXIT trap
 restore() {
   rm -f "$PROBE"
   cp "$BACKUP" "$GENERATED"

@@ -25,6 +25,9 @@ const cmdK = () =>
     new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }),
   );
 
+import { configureProjectsStub } from "../projects/provider-stub";
+configureProjectsStub();
+
 describe("nav/cmd-k-resolves", () => {
   it("stays shut until ⌘K", () => {
     mount();

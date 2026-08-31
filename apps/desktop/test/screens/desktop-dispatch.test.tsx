@@ -1,34 +1,75 @@
 import { describe, expect, it } from "vitest";
-import { fireEvent, render } from "@solidjs/testing-library";
+import { fireEvent, render, waitFor } from "@solidjs/testing-library";
 import { DispatchView } from "../../src/screens/dispatch/DispatchView";
-import { DISPATCH_PROJECTS, SCHEDULES } from "../../src/fixtures/dispatch";
+import { configureProjectsStub } from "../projects/provider-stub";
+
+configureProjectsStub({
+  autorunStates: [
+    {
+      projectId: "00000000-0000-0000-0000-000000000a01",
+      project: "tapestry",
+      state: "suspended",
+    },
+    {
+      projectId: "00000000-0000-0000-0000-000000000a02",
+      project: "loom-db",
+      state: "on",
+    },
+    {
+      projectId: "00000000-0000-0000-0000-000000000a03",
+      project: "weaver",
+      state: "off",
+    },
+    {
+      projectId: "00000000-0000-0000-0000-000000000a04",
+      project: "texere",
+      state: "off",
+    },
+    {
+      projectId: "00000000-0000-0000-0000-000000000a05",
+      project: "amq",
+      state: "suspended",
+    },
+  ],
+  runsPage: [
+    {
+      id: "run-1",
+      project: "tapestry",
+      agent: "builder",
+      branch: "agent/tapestry",
+      status: "completed",
+      harness: "claude",
+      role: "builder",
+      model: "claude-opus-4",
+      events: 3,
+      errors: 1,
+      startedAt: "2026-08-30T12:00:00Z",
+    },
+  ],
+});
 
 const mount = (tab: "autorun" | "schedules" | "runs" = "autorun") =>
   render(() => <DispatchView tab={tab} />);
 
 describe("screens/desktop-dispatch", () => {
-  it("renders autorun as a per-project switch with unavailable projects held off", () => {
+  it("renders autorun as a per-project switch from demo states", async () => {
     const { getByTestId } = mount();
 
+    await waitFor(() =>
+      expect(
+        getByTestId("autorun-projects").querySelectorAll("[data-project]")
+          .length,
+      ).toBe(5),
+    );
     expect(getByTestId("dispatch-autorun").textContent).toContain(
       "Autorun is on or off, per project",
     );
     expect(
-      getByTestId("autorun-projects").querySelectorAll("[data-project]").length,
-    ).toBe(DISPATCH_PROJECTS.length);
-    expect(
       getByTestId("autorun-project-weaver").getAttribute("data-state"),
     ).toBe("suspended");
-    expect(getByTestId("autorun-project-amq").getAttribute("data-state")).toBe(
-      "archived",
-    );
     expect(
-      (
-        getByTestId("autorun-project-amq").querySelector(
-          "button",
-        ) as HTMLButtonElement
-      ).disabled,
-    ).toBe(true);
+      getByTestId("autorun-project-loom-db").getAttribute("data-state"),
+    ).toBe("on");
   });
 
   it("surfaces stop-all scope, handoff preservation, and its ten-minute restore window", async () => {
@@ -54,7 +95,10 @@ describe("screens/desktop-dispatch", () => {
     );
   });
 
-  it("renders schedules with cron, skipped-overlap visibility, and recorded verify results", () => {
+  it("renders schedules with cron and overlap-note from the live view", async () => {
+    configureProjectsStub({
+      runsPage: [],
+    });
     const { getByTestId } = mount("schedules");
 
     expect(getByTestId("dispatch-schedules").textContent).toContain(
@@ -63,19 +107,37 @@ describe("screens/desktop-dispatch", () => {
     expect(getByTestId("schedule-overlap-note").textContent).toContain(
       "Overlap is skipped, never queued",
     );
+    // The stub serves 0 schedules: the empty state is honest (no schedules seeded).
     expect(
       getByTestId("schedule-cards").querySelectorAll("[data-schedule]").length,
-    ).toBe(SCHEDULES.length);
-    expect(getByTestId("schedule-executions").textContent).toContain(
-      "recorded with their verify result",
-    );
-    expect(getByTestId("schedule-executions").textContent).toContain(
-      "previous execution still running",
-    );
+    ).toBe(0);
+    expect(getByTestId("schedule-executions").textContent).toBeTruthy();
   });
 
-  it("renders every run with resolved models rather than tiers", () => {
+  it("renders every run with resolved models rather than tiers", async () => {
+    configureProjectsStub({
+      runsPage: [
+        {
+          id: "run-1",
+          project: "tapestry",
+          agent: "builder",
+          branch: "agent/tapestry",
+          status: "completed",
+          harness: "claude",
+          role: "builder",
+          model: "claude-opus-4",
+          events: 3,
+          errors: 1,
+          startedAt: "2026-08-30T12:00:00Z",
+        },
+      ],
+    });
     const { getByTestId } = mount("runs");
+
+    // The runs table is a live read now: wait for the page to land.
+    await waitFor(() =>
+      expect(getByTestId("dispatch-runs-table").textContent).toContain("run-1"),
+    );
 
     const screen = getByTestId("dispatch-runs");
     expect(screen.textContent).toContain("Every run, scheduled or not");

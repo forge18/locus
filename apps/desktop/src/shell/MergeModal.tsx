@@ -1,8 +1,38 @@
-import { Show } from 'solid-js'
+import { createSignal, Show } from 'solid-js'
 
-export interface MergeModalProps { open: boolean; branch?: string; onClose?: () => void }
+export interface MergeModalProps {
+  open: boolean
+  branch?: string
+  onClose?: () => void
+  /** Runs the merge; the modal closes only after it resolves successfully. */
+  onMerge?: () => void | Promise<void>
+}
 
 export function MergeModal(props: MergeModalProps) {
+  const [mergeError, setMergeError] = createSignal<string | null>(null)
+  const [merging, setMerging] = createSignal(false)
+
+  const confirmMerge = async () => {
+    if (merging()) return
+
+    setMergeError(null)
+    if (!props.onMerge) {
+      setMergeError('Merge operation is unavailable.')
+      return
+    }
+
+    setMerging(true)
+    try {
+      await props.onMerge()
+      props.onClose?.()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      setMergeError(message || 'Merge failed.')
+    } finally {
+      setMerging(false)
+    }
+  }
+
   return <Show when={props.open}>
     <div class="merge-scrim" role="presentation">
       <section class="merge-modal" role="dialog" aria-labelledby="merge-title" data-testid="merge-modal">
@@ -13,7 +43,10 @@ export function MergeModal(props: MergeModalProps) {
           <section><h3>Size of the change</h3><ul><li>Files, added, removed</li><li>Inside the guardrail</li></ul></section>
         </div>
         <p class="merge-warning">An approval granted without opening the artifact is the measured failure mode, not a hypothetical one.</p>
-        <footer><button type="button" onClick={props.onClose}>Open the two files first</button><button type="button">Merge and close the task</button></footer>
+        <Show when={mergeError()}>
+          <p class="merge-error" role="alert" data-testid="merge-error">{mergeError()}</p>
+        </Show>
+        <footer><button type="button" onClick={props.onClose}>Open the two files first</button><button type="button" data-testid="merge-confirm" disabled={merging()} onClick={() => void confirmMerge()}>Merge and close the task</button></footer>
       </section>
     </div>
   </Show>

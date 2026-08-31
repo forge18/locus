@@ -1,6 +1,12 @@
 /* Chrome only. Every rule here maps a Nocturne class the mockup uses, re-toned to
    Locus's density: the mockup runs 11-12.5px where Nocturne runs 13-14px.
-   Nothing product-shaped lives here — no split panes, no tree, no canvas. */
+   Nothing product-shaped lives here — no split panes, no tree, no canvas.
+   Stacking is one ladder, lowest tier first: dialog scrim 50 (.overlay), sheet
+   51, popups 60 (.tooltip, .menu), toasts 70 (.toast-region), modal windows 80.
+   Toasts out-rank popups so a notice survives an open menu. A screen overlay
+   that owns the whole window (the projects base-context editor, the dispatch
+   stop-everything dialog) takes the modal tier, 80, so no toast or popup can
+   paint over it. Screens take a tier from this ladder, never an ad-hoc number. */
 
 /* ---------------------------------------------------------------- Button --- */
 /* Accent is a line, never a fill. A filled primary would out-shout the live

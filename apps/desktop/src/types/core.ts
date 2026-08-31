@@ -56,3 +56,38 @@ export interface Settings {
  /** Install-wide derived bot style; a missing value resolves to Bottts. */
  "bots.avatar_style"?: string;
 }
+
+// Wire types for the Setup tracer bullet (desktop-data-integration slice 3).
+// They mirror the Rust DTOs in src-tauri/lib.rs exactly — not the older fixture
+// fictions above, which task 8 of the epic reconciles.
+
+/** Wire type: one row of `core.projects` via the `projects_list` command. */
+export interface ProjectSummary {
+  id: string;
+  name: string;
+}
+
+/** Wire type: one row of `core.repos` via the `repos_list` command. */
+export interface ProjectRepo {
+  id: string;
+  projectId: string;
+  name: string;
+  workingCopyPath: string;
+}
+
+/** Wire type: one row of `core.local_remotes` via the `local_remotes_list` command. */
+export interface ProjectLocalRemote {
+  id: string;
+  repoId: string;
+  barePath: string;
+}
+
+/**
+ * Wire type: the `project_setup` response — the project's harness policy and base
+ * context, exactly what the Rust `ProjectSettings` persists for these two concerns.
+ */
+export interface ProjectSetup {
+  harnessAllowList: string[];
+  baseContext: string | null;
+  baseContextTokenBudget: number | null;
+}

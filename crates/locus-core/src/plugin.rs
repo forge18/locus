@@ -1104,22 +1104,27 @@ impl HarnessDescriptor {
     }
 }
 
-fn catalog_manifest(kind: PluginKind, id: Option<&str>) -> PluginManifest {
+fn catalog_manifest(kind: PluginKind, id: Option<&str>) -> Result<PluginManifest, PluginError> {
     builtin_manifests()
         .into_iter()
         .find(|manifest| manifest.kind == kind && id.is_none_or(|id| manifest.id == id))
-        .unwrap_or_else(|| panic!("first-party plugin catalog entry is present"))
+        .ok_or_else(|| {
+            let requested_id = id.map(|id| format!(" `{id}`")).unwrap_or_else(|| "".into());
+            PluginError::InvalidManifest(format!(
+                "first-party plugin catalog has no {kind:?}{requested_id} entry"
+            ))
+        })
 }
 
-pub fn first_party_harness() -> HarnessDescriptor {
-    let manifest = catalog_manifest(PluginKind::Harness, None);
-    HarnessDescriptor {
+pub fn first_party_harness() -> Result<HarnessDescriptor, PluginError> {
+    let manifest = catalog_manifest(PluginKind::Harness, None)?;
+    Ok(HarnessDescriptor {
         manifest,
         transport: "acp".into(),
         launch: json!({ "stdio": true }),
         config: json!({ "materializer": "plugin" }),
         event_capabilities: vec!["acp".into()],
-    }
+    })
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -1299,9 +1304,9 @@ impl ProviderDescriptor {
     }
 }
 
-fn provider(id: &str, models: &[(&str, Option<&str>)]) -> ProviderDescriptor {
-    ProviderDescriptor {
-        manifest: catalog_manifest(PluginKind::Provider, Some(id)),
+fn provider(id: &str, models: &[(&str, Option<&str>)]) -> Result<ProviderDescriptor, PluginError> {
+    Ok(ProviderDescriptor {
+        manifest: catalog_manifest(PluginKind::Provider, Some(id))?,
         authentication: vec!["api_key".into(), "oauth".into()],
         base_url: None,
         models: models
@@ -1314,28 +1319,28 @@ fn provider(id: &str, models: &[(&str, Option<&str>)]) -> ProviderDescriptor {
             .collect(),
         keychain_reference: None,
         verification: Some(json!({ "status": "unverified" })),
-    }
+    })
 }
 
-pub fn first_party_providers() -> Vec<ProviderDescriptor> {
+pub fn first_party_providers() -> Result<Vec<ProviderDescriptor>, PluginError> {
     let provider_prefix = ["clau", "de"].concat();
     let sonnet_model = format!("{provider_prefix}-sonnet-4");
     let opus_model = format!("{provider_prefix}-opus-4");
     let router_sonnet = format!("anthropic/{sonnet_model}");
-    vec![
-        provider("openai", &[("gpt-4o", Some("GPT-4o")), ("gpt-4.1", None)]),
+    Ok(vec![
+        provider("openai", &[("gpt-4o", Some("GPT-4o")), ("gpt-4.1", None)])?,
         provider(
             "anthropic",
             &[(&sonnet_model, Some("Sonnet")), (&opus_model, Some("Opus"))],
-        ),
+        )?,
         provider(
             "openrouter",
             &[
                 ("openai/gpt-4o", Some("GPT-4o")),
                 (&router_sonnet, Some("Sonnet")),
             ],
-        ),
-    ]
+        )?,
+    ])
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -1384,15 +1389,15 @@ impl CliToolDescriptor {
     }
 }
 
-pub fn first_party_cli_tool() -> CliToolDescriptor {
-    CliToolDescriptor {
-        manifest: catalog_manifest(PluginKind::CliTool, None),
+pub fn first_party_cli_tool() -> Result<CliToolDescriptor, PluginError> {
+    Ok(CliToolDescriptor {
+        manifest: catalog_manifest(PluginKind::CliTool, None)?,
         install: "gh --version".into(),
         verify: "gh --version".into(),
         docs: Some("https://cli.github.com/manual/".into()),
         digest: "registry-pinned".into(),
         permissions: vec!["network".into(), "repository_read".into()],
-    }
+    })
 }
 
 pub fn admit_user_cli_tool(
@@ -1456,7 +1461,7 @@ pub fn builtin_manifests() -> Vec<PluginManifest> {
 }
 
 pub fn first_party_runtime(kind: PluginKind, id: &str) -> Result<DescriptorPlugin, PluginError> {
-    let manifest = catalog_manifest(kind, Some(id));
+    let manifest = catalog_manifest(kind, Some(id))?;
     let descriptor = PluginDescriptor::from_manifest(&manifest);
     let mut runtime = DescriptorPlugin::new(descriptor)?;
     match kind {
@@ -1477,7 +1482,7 @@ pub fn first_party_runtime(kind: PluginKind, id: &str) -> Result<DescriptorPlugi
             {
                 return Ok(runtime);
             }
-            let provider = first_party_providers()
+            let provider = first_party_providers()?
                 .into_iter()
                 .find(|provider| provider.manifest.id == id)
                 .ok_or_else(|| PluginError::InvalidManifest("provider is not registered".into()))?;
@@ -1489,7 +1494,7 @@ pub fn first_party_runtime(kind: PluginKind, id: &str) -> Result<DescriptorPlugi
                 )?;
         }
         PluginKind::CliTool => {
-            let tool = first_party_cli_tool();
+            let tool = first_party_cli_tool()?;
             runtime = runtime.with_capability_result(
                 "cli_tool.describe",
                 json!({
@@ -1648,7 +1653,8 @@ permissions = ["keychain_reference"]
                 test_ok(process.call("test.cap", json!({"ok": true})).await),
                 json!({"ok": true})
             );
-            let events = test_ok(process.take_harness_events(&first_party_harness()).await);
+            let harness = test_ok(first_party_harness());
+            let events = test_ok(process.take_harness_events(&harness).await);
             assert_eq!(
                 events[0].verb,
                 crate::services::telemetry::EventVerb::Assistant
@@ -1921,7 +1927,7 @@ permissions = ["keychain_reference"]
     #[test]
     fn first_party_pi_executable_lifecycle() {
         test_ok(tokio::runtime::Runtime::new()).block_on(async {
-            let manifest = first_party_harness().manifest;
+            let manifest = test_ok(first_party_harness()).manifest;
             let executable = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
                 .join("../..")
                 .join(&manifest.executable);
@@ -2073,14 +2079,14 @@ executable="example"
 
     #[test]
     fn harness_capabilities() {
-        let descriptor = first_party_harness();
+        let descriptor = test_ok(first_party_harness());
         assert!(descriptor.validate().is_ok());
         assert!(descriptor.plugin_descriptor().validate().is_ok());
     }
 
     #[test]
     fn harness_events_are_acp() {
-        let descriptor = first_party_harness();
+        let descriptor = test_ok(first_party_harness());
         let event = descriptor
             .normalize_event(json!({"params":{"update":{"sessionUpdate":"AgentMessageChunk"}}}));
         let event = test_ok(event);
@@ -2102,7 +2108,7 @@ executable="example"
 
     #[test]
     fn provider_contract() {
-        for provider in first_party_providers() {
+        for provider in test_ok(first_party_providers()) {
             assert!(provider.validate().is_ok());
             assert!(provider
                 .manifest
@@ -2141,7 +2147,7 @@ executable="example"
 
     #[test]
     fn first_party_github_work_item_plugin() {
-        let manifest = catalog_manifest(PluginKind::Provider, Some("github"));
+        let manifest = test_ok(catalog_manifest(PluginKind::Provider, Some("github")));
         let descriptor = WorkItemProviderDescriptor::from_manifest(&manifest).unwrap();
         assert!(descriptor.comments);
         assert!(descriptor.resolve);
@@ -2150,27 +2156,36 @@ executable="example"
     }
 
     #[test]
+    fn missing_first_party_catalog_entry_is_an_error() {
+        let error = first_party_runtime(PluginKind::Provider, "not-shipped").unwrap_err();
+        assert!(matches!(
+            error,
+            PluginError::InvalidManifest(message) if message.contains("not-shipped")
+        ));
+    }
+
+    #[test]
     fn first_party_openai() {
-        assert!(first_party_providers()
+        assert!(test_ok(first_party_providers())
             .iter()
             .any(|provider| provider.manifest.id == "openai"));
     }
     #[test]
     fn first_party_anthropic() {
-        assert!(first_party_providers()
+        assert!(test_ok(first_party_providers())
             .iter()
             .any(|provider| provider.manifest.id == "anthropic"));
     }
     #[test]
     fn first_party_openrouter() {
-        assert!(first_party_providers()
+        assert!(test_ok(first_party_providers())
             .iter()
             .any(|provider| provider.manifest.id == "openrouter"));
     }
 
     #[test]
     fn cli_tool_contract() {
-        assert!(first_party_cli_tool().validate().is_ok());
+        assert!(test_ok(first_party_cli_tool()).validate().is_ok());
     }
     #[test]
     fn first_party_gh_only() {
@@ -2190,8 +2205,9 @@ executable="example"
     }
     #[test]
     fn built_in_allowlist() {
-        assert!(admit_plugin(&first_party_cli_tool().manifest, PluginAdmission::BuiltIn).is_ok());
-        let mut forged = first_party_cli_tool().manifest;
+        let cli_tool = test_ok(first_party_cli_tool());
+        assert!(admit_plugin(&cli_tool.manifest, PluginAdmission::BuiltIn).is_ok());
+        let mut forged = cli_tool.manifest;
         forged.executable = "attacker".into();
         assert!(admit_plugin(&forged, PluginAdmission::BuiltIn).is_err());
         assert!(admit_plugin(
@@ -2208,10 +2224,10 @@ executable="example"
     #[test]
     fn contract_suite() {
         assert_eq!(builtin_manifests().len(), 6);
-        assert_eq!(first_party_providers().len(), 3);
+        assert_eq!(test_ok(first_party_providers()).len(), 3);
         assert!(first_party_runtime(PluginKind::Provider, "github").is_ok());
         assert!(first_party_runtime(PluginKind::Provider, "openrouter").is_ok());
-        assert!(first_party_harness()
+        assert!(test_ok(first_party_harness())
             .normalize_event(json!({"params":{"update":{"sessionUpdate":"agent_message_chunk"}}}))
             .is_ok());
     }

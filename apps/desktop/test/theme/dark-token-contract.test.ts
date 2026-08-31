@@ -44,10 +44,4 @@ describe("theme/dark-token-contract", () => {
       expect(dark!.body).toContain(token);
     }
   });
-
-  it("boots the document into the Dark value set before preferences load", () => {
-    expect(read("../index.html")).toContain(
-      '<html lang="en" data-theme="dark">',
-    );
-  });
 });

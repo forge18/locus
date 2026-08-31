@@ -1,3 +1,6 @@
+// schema: core.projects + core.settings
+// replaced by: invoke("desktop_route_inventory")
+
 export type FixtureScope = "all" | "app" | "project" | (string & {});
 
 export interface DesktopFixtureRoute {

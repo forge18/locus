@@ -13,7 +13,9 @@ import { Tag } from "../../ui/Tag";
 import {
   COLUMN_LABELS,
   COLUMN_ORDER,
-  MANUAL_TASK_DRAFT,
+  createTask,
+  fetchTaskDetail,
+  fetchTasks,
   taskLocator,
   useDependencies,
   useTasks,
@@ -39,7 +41,8 @@ import {
   type WorkItemProviderRecord,
 } from "../../data/work-items";
 import type { BoardColumn, Task } from "../../types/board";
-import "./manage.css";
+import { isTauri } from "@tauri-apps/api/core";
+import type { Envelope } from "../../data/envelope";
 
 type ManageViewKind = "kanban" | "list" | "graph" | "timeline";
 
@@ -85,7 +88,18 @@ function emptySyncState(): ExternalWorkItemSyncState {
   };
 }
 
-function TaskDraft(props: { source: DraftSource; onClose: () => void }) {
+function TaskDraft(props: {
+  source: DraftSource;
+  onClose: () => void;
+  workflows?: WorkflowDefinitionRecord[];
+  onCreate?: (summary: string, workflowDefId: string) => void;
+}) {
+  const [summary, setSummary] = createSignal("");
+  const [workflowDefId, setWorkflowDefId] = createSignal(
+    props.workflows?.[0]?.id ?? "",
+  );
+  const workflows = () => props.workflows ?? [];
+
   return (
     <section
       class="manage-task-draft"
@@ -100,14 +114,45 @@ function TaskDraft(props: { source: DraftSource; onClose: () => void }) {
         Summary
         <input
           placeholder="What should be done?"
-          value={MANUAL_TASK_DRAFT.title}
+          value={summary()}
+          onInput={(event) => setSummary(event.currentTarget.value)}
         />
       </label>
-      <p>
-        Workflow: <strong>select and confirm before start</strong>
-      </p>
+      <Show
+        when={workflows().length > 0}
+        fallback={
+          <p data-testid="manage-no-workflows">
+            No workflow definition is available for this project.
+          </p>
+        }
+      >
+        <label>
+          Workflow
+          <select
+            data-testid="manage-task-workflow"
+            value={workflowDefId()}
+            onChange={(event) => setWorkflowDefId(event.currentTarget.value)}
+          >
+            <For each={workflows()}>
+              {(workflow) => (
+                <option value={workflow.id}>
+                  {workflow.name} · v{workflow.version}
+                </option>
+              )}
+            </For>
+          </select>
+        </label>
+      </Show>
       <div>
-        <Button variant="primary">Create draft</Button>
+        <Button
+          variant="primary"
+          disabled={
+            Boolean(props.onCreate) && (!summary().trim() || !workflowDefId())
+          }
+          onClick={() => props.onCreate?.(summary().trim(), workflowDefId())}
+        >
+          Create draft
+        </Button>
         <Button variant="ghost" onClick={props.onClose}>
           Cancel
         </Button>
@@ -628,6 +673,11 @@ export interface ManageViewProps {
 }
 
 export function ManageView(props: ManageViewProps = {}) {
+  const liveMode = isTauri();
+  const fixtureTasks = useTasks();
+  const [taskEnvelope, setTaskEnvelope] = createSignal<Envelope<Task[]>>(
+    liveMode ? { status: "loading" } : { status: "ready", data: fixtureTasks },
+  );
   const [view, setView] = createSignal<ManageViewKind>("kanban");
   const [loadedWorkItemProviders, setLoadedWorkItemProviders] = createSignal<
     WorkItemProviderRecord[]
@@ -636,7 +686,26 @@ export function ManageView(props: ManageViewProps = {}) {
     WorkflowDefinitionRecord[]
   >([]);
   const [importedTasks, setImportedTasks] = createSignal<Task[]>([]);
+  const taskError = createMemo(() => {
+    const envelope = taskEnvelope();
+    return envelope.status === "failed" ? envelope.error : null;
+  });
+
+  const refreshTasks = async () => {
+    if (!liveMode) return;
+    if (!props.projectId) {
+      setTaskEnvelope({
+        status: "failed",
+        error: { command: "board_tasks", message: "no project is selected" },
+      });
+      return;
+    }
+    setTaskEnvelope({ status: "loading" });
+    setTaskEnvelope(await fetchTasks(props.projectId));
+  };
+
   onMount(() => {
+    void refreshTasks();
     if (props.workItemProviders === undefined) {
       void loadConfiguredWorkItemProviders()
         .then(setLoadedWorkItemProviders)
@@ -652,6 +721,7 @@ export function ManageView(props: ManageViewProps = {}) {
       if (props.workflowDefinitions === undefined) setLoadedWorkflows([]);
       return;
     }
+    if (liveMode) void refreshTasks();
     let active = true;
     void loadImportedExternalWorkItemTasks(projectId)
       .then((tasks) => {
@@ -677,7 +747,20 @@ export function ManageView(props: ManageViewProps = {}) {
   const [selectedTaskId, setSelectedTaskId] = createSignal<string | null>(null);
   const [draftSource, setDraftSource] = createSignal<DraftSource>();
   const [importSource, setImportSource] = createSignal<DraftSource>();
-  const tasks = createMemo(() => [...useTasks(), ...importedTasks()]);
+  const tasks = createMemo(() => {
+    const envelope = taskEnvelope();
+    const base = liveMode
+      ? envelope.status === "ready"
+        ? envelope.data
+        : []
+      : fixtureTasks;
+    const seen = new Set<string>();
+    return [...base, ...importedTasks()].filter((task) => {
+      if (seen.has(task.id)) return false;
+      seen.add(task.id);
+      return true;
+    });
+  });
   const tasksByColumn = createMemo(() => {
     const grouped = Object.fromEntries(
       COLUMN_ORDER.map((column) => [column, [] as Task[]]),
@@ -689,7 +772,39 @@ export function ManageView(props: ManageViewProps = {}) {
     const taskId = selectedTaskId();
     return taskId ? tasks().find((task) => task.id === taskId) : tasks()[0];
   };
-  const openTask = (task: Task) => setSelectedTaskId(task.id);
+  const openTask = (task: Task) => {
+    setSelectedTaskId(task.id);
+    if (!liveMode || !props.projectId) return;
+    void fetchTaskDetail(props.projectId, task.id).then((envelope) => {
+      if (envelope.status !== "ready") return;
+      setTaskEnvelope((current) =>
+        current.status === "ready"
+          ? {
+              status: "ready",
+              data: current.data.map((candidate) =>
+                candidate.id === envelope.data.id ? envelope.data : candidate,
+              ),
+            }
+          : current,
+      );
+    });
+  };
+  const createManualTask = (summary: string, workflowDefId: string) => {
+    if (!liveMode || !props.projectId) return;
+    void createTask(props.projectId, summary, workflowDefId).then(
+      (envelope) => {
+        if (envelope.status === "ready") {
+          setTaskEnvelope((current) =>
+            current.status === "ready"
+              ? { status: "ready", data: [...current.data, envelope.data] }
+              : { status: "ready", data: [envelope.data] },
+          );
+          setSelectedTaskId(envelope.data.id);
+          setDraftSource(undefined);
+        }
+      },
+    );
+  };
   const openDraft = () => {
     const current = view();
     if (current === "kanban" || current === "list") setDraftSource(current);
@@ -701,6 +816,21 @@ export function ManageView(props: ManageViewProps = {}) {
 
   return (
     <div class="manage-view" data-testid="manage" data-view={view()}>
+      <Show when={taskError()}>
+        <div data-testid="manage-task-error">
+          <span>{taskError()!.message}</span>
+        </div>
+      </Show>
+      <Show when={liveMode && taskEnvelope().status === "loading"}>
+        <p data-testid="manage-task-loading">
+          Loading tasks from the live store…
+        </p>
+      </Show>
+      <Show when={liveMode && taskEnvelope().status === "empty"}>
+        <p data-testid="manage-task-empty">
+          This project has no persisted tasks.
+        </p>
+      </Show>
       <header class="manage-toolbar">
         <Segmented
           options={[
@@ -726,6 +856,8 @@ export function ManageView(props: ManageViewProps = {}) {
         {(source) => (
           <TaskDraft
             source={source()}
+            workflows={props.workflowDefinitions ?? loadedWorkflows()}
+            onCreate={liveMode ? createManualTask : undefined}
             onClose={() => setDraftSource(undefined)}
           />
         )}
@@ -844,13 +976,23 @@ export function ManageView(props: ManageViewProps = {}) {
           <h1>Dependency graph</h1>
           <p>Left to right is dependency depth, not time.</p>
           <div class="manage-graph-edges">
-            <For each={useDependencies()}>
-              {(edge) => (
-                <span class="edge-grey">
-                  {edge.fromTaskId} ───▶ {edge.toTaskId}
-                </span>
-              )}
-            </For>
+            <Show
+              when={!liveMode}
+              fallback={
+                <p data-testid="manage-dependencies-unavailable">
+                  Dependency edges are not yet exposed by the live board
+                  contract.
+                </p>
+              }
+            >
+              <For each={useDependencies()}>
+                {(edge) => (
+                  <span class="edge-grey">
+                    {edge.fromTaskId} ───▶ {edge.toTaskId}
+                  </span>
+                )}
+              </For>
+            </Show>
           </div>
           <aside>
             <h2>Unblocks most</h2>

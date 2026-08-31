@@ -55,14 +55,31 @@ export function findingSummary(findings: readonly QaFinding[]) {
   };
 }
 
+/**
+ * An attempted check run. The fixture `QaCheckRun` only models runs that
+ * actually happened; `unsupported` is the honest extra state for an attempt
+ * that could not even start.
+ */
+export type QaCheckAttempt = Omit<QaCheckRun, "status"> & {
+  status: QaCheckRun["status"] | "unsupported";
+};
+
 /** Manual Refresh and scheduled firings share this entry point. */
-export function runQaCheck(projectId: string, sourceId: string): QaCheckRun {
+/** Becomes: invoke('qa_checks', { projectId, sourceId }). The desktop backend
+ *  registers no QA command yet (nothing in src-tauri's generate_handler!), so
+ *  a check cannot be started here. The attempt reports `unsupported` rather
+ *  than inventing a passed/failed result; `startedAt` stays at the epoch as a
+ *  "never started" sentinel, not a real run time. */
+export function runQaCheck(
+  projectId: string,
+  sourceId: string,
+): QaCheckAttempt {
   return {
     id: `qa-${projectId}-${sourceId}`,
     project: projectId,
     sourceId,
     startedAt: new Date(0).toISOString(),
-    status: "passed",
+    status: "unsupported",
   };
 }
 

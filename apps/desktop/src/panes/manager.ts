@@ -1,4 +1,4 @@
-export type PaneKind = 'shell' | 'agent' | 'editor'
+export type PaneKind = 'agent' | 'editor'
 
 export interface Pane {
   id: string

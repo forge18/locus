@@ -6,6 +6,7 @@ use std::{path::PathBuf, sync::Arc};
 use anyhow::{bail, Context, Result};
 
 use crate::runtime::{
+    acp::{AgentSession, UpdateStream},
     backend::RuntimeBackend,
     container::{
         ContainerLaunch, ContainerRuntime, ImageDisposition, PtyStream, PTY_STREAM_CAPACITY,
@@ -31,6 +32,7 @@ use crate::{
         ports::project_network,
         ports::PortAllocator,
     },
+    services::telemetry::EventCollector,
     services::{
         handoff::HandoffContext,
         project::ProjectSettings,
@@ -272,6 +274,10 @@ pub struct SpawnRequest<'a> {
     /// Optional session context used by the ownership-transfer route.
     pub handoff_context: Option<HandoffContext>,
     pub plugin: Option<&'a PluginHost>,
+    /// The shared telemetry collector this run's events flow through — the same
+    /// one the UI subscribes to — so persisted events and the live stream stay
+    /// the same sequence.
+    pub collector: &'a EventCollector,
 }
 
 /// Secret-free endpoint through which an agent can request host-brokered egress.
@@ -281,6 +287,14 @@ pub struct CredentialProxyConfig {
 }
 
 const CREDENTIAL_PROXY_ENDPOINT: &str = "http://host.docker.internal:44000/";
+
+/// Capacity of the run's streamed `session/update` bus, matching the PTY stream's
+/// buffering so a slow consumer drops at the same order of lag.
+const ACP_UPDATE_CAPACITY: usize = 1024;
+
+/// The workspace clone target inside the agent container; the ACP session's cwd
+/// (see `sandbox::workspace`, which clones into this path).
+const WORKSPACE_CWD: &str = "/workspace";
 
 impl CredentialProxyConfig {
     pub fn new(endpoint: impl Into<String>) -> Result<Self> {
@@ -321,7 +335,7 @@ impl Drop for RegistrationLease {
 struct AgentRunRegistrationGuard(Arc<RegistrationLease>);
 
 /// The started container and the materialized configuration used for its prompt prefix.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct SpawnedRun {
     pub container: ContainerLaunch,
     pub config: MaterializedTree,
@@ -330,6 +344,14 @@ pub struct SpawnedRun {
     pub image_disposition: ImageDisposition,
     pub port: u16,
     pub pty_stream: PtyStream,
+    /// Bus carrying the run's streamed ACP `session/update` notifications. The
+    /// conversation itself is established by `start_acp_session` on the persisted
+    /// spawn path and stored in `acp_session`.
+    pub acp_updates: UpdateStream,
+    pub acp_session: Option<AgentSession>,
+    /// Kept for its `Drop`: the guard removes the agent registration file when the
+    /// spawned run is dropped. It is constructed but never read.
+    #[allow(dead_code)]
     registration: AgentRunRegistrationGuard,
 }
 
@@ -568,6 +590,8 @@ fn spawn_at_port(
         image_disposition,
         port,
         pty_stream,
+        acp_updates: UpdateStream::new(ACP_UPDATE_CAPACITY),
+        acp_session: None,
         registration,
     })
 }
@@ -595,8 +619,40 @@ pub async fn spawn_persisted(
     }
     let run_id = run.id.to_string();
     let proxy = request.credential_proxy_authorizer;
+    let backend = runtime.backend();
+    let agent_command = request.harness.binary.clone();
+    let agent_args: Vec<String> = request.harness.launch.argv.clone();
+    let collector = request.collector.clone();
     match spawn_at_port(run, request, port, runtime) {
-        Ok(spawned) => Ok(spawned),
+        Ok(mut spawned) => {
+            // Subscribe before the handshake so updates streamed during
+            // establishment reach the durable pump.
+            let updates = spawned.acp_updates.subscribe();
+            // The conversation is the run: a container that spawns but hosts no ACP
+            // session is a failed start, handled like a failed PTY attach.
+            if let Err(error) =
+                start_acp_session(&mut spawned, backend, agent_command, agent_args).await
+            {
+                if let Err(stop_error) = runtime.stop_container(&spawned.container.name) {
+                    return Err(error).context(format!(
+                        "establish the run's ACP session; failed to stop the started container: {stop_error}"
+                    ));
+                }
+                proxy.release_run(&run_id);
+                let _ = ForwardProxyPolicy::remove_from(&forwarding.policy_root, &run_id);
+                let _ = runtime.release_egress_proxy(&forwarding, &run_id);
+                store.release_run_port(run.id).await?;
+                return Err(error).context("establish the run's ACP session");
+            }
+            // Detached: the pump ends on its own when the session's bus closes.
+            crate::runtime::normalize::spawn_acp_event_pump(
+                store.clone(),
+                collector,
+                run.id,
+                updates,
+            );
+            Ok(spawned)
+        }
         Err(error) => {
             proxy.release_run(&run_id);
             let _ = ForwardProxyPolicy::remove_from(&forwarding.policy_root, &run_id);
@@ -605,6 +661,34 @@ pub async fn spawn_persisted(
             Err(error)
         }
     }
+}
+
+/// Establish the run's ACP conversation inside its container: exec the harness
+/// binary over the container runtime's stdio transport and answer `session/new`
+/// with the workspace cwd, storing the session on the spawned run. Streamed
+/// `session/update` notifications flow on the run's `acp_updates` bus. The PTY
+/// stays attached; its retirement is a separate TODO row.
+async fn start_acp_session(
+    spawned: &mut SpawnedRun,
+    backend: RuntimeBackend,
+    agent_command: String,
+    agent_args: impl IntoIterator<Item = String>,
+) -> Result<()> {
+    let transport = crate::runtime::acp::container_stdio_transport_for_backend(
+        backend,
+        spawned.container.name.clone(),
+        agent_command,
+        agent_args,
+    );
+    let session = crate::runtime::acp::establish_session(
+        transport,
+        WORKSPACE_CWD,
+        spawned.acp_updates.clone(),
+    )
+    .await
+    .context("open the run's ACP conversation")?;
+    spawned.acp_session = Some(session);
+    Ok(())
 }
 
 /// Cancel the container and release its durable port reservation after it reaches a terminal state.
@@ -1080,6 +1164,7 @@ mod spawns {
         config_root: PathBuf,
         credential_proxy_authorizer: &'a CredentialProxy,
         project_settings: ProjectSettings,
+        collector: &'a EventCollector,
     ) -> SpawnRequest<'a> {
         let egress_policy_root = config_root.with_file_name("locus-forwarding-proxy-policies");
         SpawnRequest {
@@ -1125,6 +1210,7 @@ mod spawns {
             project_settings,
             handoff_context: None,
             plugin: None,
+            collector,
         }
     }
 
@@ -1162,12 +1248,14 @@ mod spawns {
             artifacts: vec![],
         };
         let credential_proxy_authorizer = CredentialProxy::new("test-secret", "api_key");
+        let collector = EventCollector::new(1024);
         let request = spawn_request(
             registry.by_name("claude").expect("claude harness"),
             &extensions,
             config_root.clone(),
             &credential_proxy_authorizer,
             ProjectSettings::default(),
+            &collector,
         );
         let mut runtime = RecordingRuntime::default();
 
@@ -1320,12 +1408,14 @@ mod spawns {
             artifacts: vec![],
         };
         let credential_proxy_authorizer = CredentialProxy::new("test-secret", "api_key");
+        let collector = EventCollector::new(1024);
         let request = spawn_request(
             registry.by_name("claude").expect("claude harness"),
             &extensions,
             config_root.clone(),
             &credential_proxy_authorizer,
             ProjectSettings::default(),
+            &collector,
         );
         let mut runtime = RecordingRuntime {
             fail_attach: true,

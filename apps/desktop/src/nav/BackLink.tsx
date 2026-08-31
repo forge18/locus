@@ -1,7 +1,7 @@
 import { Show } from 'solid-js'
 import { Icon } from '../ui/Icon'
-import { categoryOf } from './views'
-import { drilldownParent, tabsFor } from './tabs'
+import { Desktop_ROUTE_KINDS } from './desktop-route-kinds'
+import { drilldownParent } from './tabs'
 import type { NavStore } from './store'
 
 export interface BackLinkProps {
@@ -15,8 +15,8 @@ export interface BackLinkProps {
  */
 export function BackLink(props: BackLinkProps) {
   const parent = () => drilldownParent(props.nav.view())
-  /** Label it with the tab it goes back to, so the link and the lit tab agree. */
-  const label = () => tabsFor(categoryOf(parent()!)).find((t) => t.view === parent())?.label ?? ''
+  /** Label it with the view it goes back to, so the link and the rail agree. */
+  const label = () => Desktop_ROUTE_KINDS.find((route) => route.id === parent())?.label ?? ''
 
   return (
     <Show when={parent()}>

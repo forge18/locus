@@ -25,7 +25,7 @@ fi
 
 # And the screens must actually read the generated registry.
 for f in src/screens/workshop/ExtensionsView.tsx src/screens/workshop/HarnessesView.tsx; do
-  grep -q "from '../../data/harnesses'" "$f" || {
+  grep -qE "from ['\"]\.\./\.\./data/harnesses['\"]" "$f" || {
     echo "$f does not read the computed registry"
     fail=1
   }

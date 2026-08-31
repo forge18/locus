@@ -4,7 +4,7 @@
 
 use crate::ids::{ProjectId, RunId};
 use anyhow::{bail, Context, Result};
-use sqlx::{query, Row};
+use sqlx::{query, query_as, Row};
 use uuid::Uuid;
 
 use crate::{
@@ -15,6 +15,37 @@ use crate::{
     },
     store::Store,
 };
+
+/// One dispatch schedule: a named cron that fires a workflow run.
+#[derive(Debug, sqlx::FromRow)]
+pub struct ScheduleRow {
+    pub id: Uuid,
+    pub project_id: Uuid,
+    pub project: String,
+    pub name: String,
+    pub cron_expression: String,
+    pub enabled: bool,
+}
+
+/// One schedule-execution row with its workflow name — the history list.
+#[derive(Debug, sqlx::FromRow)]
+pub struct ScheduleExecutionRow {
+    pub id: Uuid,
+    pub schedule_name: String,
+    pub project: String,
+    pub status: String,
+    pub scheduled_for: Option<String>,
+    pub started_at: Option<String>,
+    pub ended_at: Option<String>,
+}
+
+/// One project's tri-state autorun posture with its project name.
+#[derive(Debug, sqlx::FromRow)]
+pub struct AutorunStateRow {
+    pub project_id: Uuid,
+    pub project: String,
+    pub state: String,
+}
 
 impl Store {
     /// Read the durable, machine-wide dispatch policy.
@@ -60,6 +91,47 @@ impl Store {
         Ok(())
     }
 
+    /// One dispatch schedule: a named cron that fires a workflow run.
+    /// Every dispatch schedule with its project and workflow name, newest first.
+    pub async fn schedules_list(&self) -> Result<Vec<ScheduleRow>> {
+        query_as(
+            "SELECT s.id, d.project_id, p.name AS project, d.name,
+                    s.cron_expression AS cron_expression, s.paused_at IS NULL AS enabled,
+                    d.created_at
+             FROM workflows.schedules s
+             JOIN workflows.workflow_defs d ON d.id = s.workflow_def_id
+             JOIN core.projects p ON p.id = d.project_id
+             ORDER BY d.created_at DESC",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .context("list dispatch schedules")
+    }
+
+    pub async fn schedule_executions(
+        &self,
+        project_id: Option<ProjectId>,
+        limit: i64,
+    ) -> Result<Vec<ScheduleExecutionRow>> {
+        query_as(
+            "SELECT e.id, d.name AS schedule_name, e.status, p.name AS project,
+                    COALESCE(e.started_at, e.scheduled_for, e.created_at)::text AS scheduled_for,
+                    e.started_at::text AS started_at,
+                    e.ended_at::text AS ended_at
+             FROM workflows.executions e
+             JOIN workflows.workflow_defs d ON d.id = e.workflow_def_id
+             JOIN core.projects p ON p.id = d.project_id
+             WHERE ($1::uuid IS NULL OR d.project_id = $1)
+             ORDER BY e.created_at DESC
+             LIMIT $2",
+        )
+        .bind(project_id)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| anyhow::anyhow!("list schedule executions: {e:#}"))
+    }
+
     pub async fn guardrail_defaults(&self) -> Result<GuardrailDefaults> {
         let row = query("SELECT max_iterations, token_budget, stuck_iterations, change_lines_ceiling, change_files_ceiling, kill_and_reassign, network_tier, block_system_changes, autopilot FROM core.guardrail_defaults WHERE singleton = TRUE").fetch_one(self.pool()).await.context("read guardrail defaults")?;
         Ok(GuardrailDefaults {
@@ -95,6 +167,21 @@ impl Store {
         query("UPDATE core.guardrail_defaults SET max_iterations = $1, token_budget = $2, stuck_iterations = $3, change_lines_ceiling = $4, change_files_ceiling = $5, kill_and_reassign = $6, network_tier = $7, block_system_changes = $8, autopilot = $9, updated_at = now() WHERE singleton = TRUE")
             .bind(i32::try_from(defaults.max_iterations)?).bind(defaults.token_budget.map(|value| value as i64)).bind(i32::try_from(defaults.stuck_iterations)?).bind(defaults.change_lines.map(|value| value as i32)).bind(defaults.change_files.map(|value| value as i32)).bind(defaults.kill_and_reassign).bind(match defaults.network_tier { NetworkTier::Closed => "closed", NetworkTier::Internal => "internal", NetworkTier::Open => "open" }).bind(defaults.block_system_changes).bind(defaults.autopilot).execute(self.pool()).await.context("persist guardrail defaults")?;
         Ok(())
+    }
+
+    /// Every project's tri-state autorun posture, for the Autorun switchboard.
+    /// A project with no row defaults to Off.
+    pub async fn autorun_states(&self) -> Result<Vec<AutorunStateRow>> {
+        query_as(
+            "SELECT p.id AS project_id, p.name AS project,
+                    COALESCE(a.state, 'off') AS state
+             FROM core.projects p
+             LEFT JOIN core.project_autorun a ON a.project_id = p.id
+             ORDER BY p.name",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .context("list project autorun states")
     }
 
     /// Set whether a project may automatically start dispatchable work.

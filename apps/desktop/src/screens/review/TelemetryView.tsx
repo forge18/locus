@@ -1,4 +1,5 @@
 import { For, Show, createSignal } from "solid-js";
+import { FixtureNotice } from "../../ui/FixtureNotice";
 import { Icon } from "../../ui/Icon";
 import { VirtualTable } from "../../panes/VirtualTable";
 import type { Column } from "../../ui/Table";
@@ -75,6 +76,36 @@ const COLUMNS: Column<SessionRow>[] = [
 ];
 
 /**
+ * Facet counts come from the event corpus, and a session carries only some of
+ * the same dimensions. A group mapped here filters the table; the rest (capture
+ * source, model tier, verify, arbiter class, branch) still toggle and reset —
+ * they just cannot constrain these rows.
+ */
+const SESSION_FACET_FIELD: Record<string, (row: SessionRow) => string> = {
+  harness: (r) => r.harness,
+  project: (r) => r.project,
+  agent_role: (r) => r.agent,
+};
+
+/** What a search query matches: the text fields the table renders. */
+const rowText = (row: SessionRow): string =>
+  [
+    row.when,
+    row.harness,
+    row.project,
+    row.repo,
+    row.agent,
+    row.role,
+    row.models,
+    row.status,
+    row.statusDetail ?? "",
+    row.tokens ?? "",
+    row.id,
+  ]
+    .join(" ")
+    .toLowerCase();
+
+/**
  * Review is now; Analytics is after. Every number here is already a column, so
  * this screen is a query rather than new instrumentation.
  */
@@ -97,6 +128,61 @@ export function TelemetryView() {
   const maxAction = Math.max(...actions.map((a) => a.count));
   const maxTool = Math.max(...tools.map((t) => t.count));
 
+  /** The box starts empty; the fixture query is its placeholder. */
+  const [query, setQuery] = createSignal("");
+
+  /** Seeded with the fixture's active facet; every click takes over from there. */
+  const [activeFacets, setActiveFacets] = createSignal(
+    new Set(
+      useFacetGroups().flatMap((group) =>
+        group.facets
+          .filter((facet) => facet.active)
+          .map((facet) => `${group.key}:${facet.value}`),
+      ),
+    ),
+  );
+
+  /** The facet values picked under one group. */
+  const picked = (groupKey: string): string[] =>
+    [...activeFacets()]
+      .filter((key) => key.startsWith(`${groupKey}:`))
+      .map((key) => key.slice(groupKey.length + 1));
+
+  const toggleFacet = (groupKey: string, value: string) => {
+    const key = `${groupKey}:${value}`;
+    const next = new Set(activeFacets());
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    setActiveFacets(next);
+  };
+
+  const resetFilters = () => {
+    setQuery("");
+    setActiveFacets(new Set<string>());
+  };
+
+  /** A filter is live only while it can constrain these rows. */
+  const filtering = () =>
+    query().trim().length > 0 ||
+    Object.keys(SESSION_FACET_FIELD).some((groupKey) => picked(groupKey).length > 0);
+
+  /** The loaded page, narrowed by the live facet and search filters. */
+  const rows = () => {
+    const q = query().trim().toLowerCase();
+    const facetFilters = Object.entries(SESSION_FACET_FIELD).map(([groupKey, field]) => ({
+      field,
+      chosen: picked(groupKey),
+    }));
+    if (q.length === 0 && facetFilters.every((f) => f.chosen.length === 0)) return loaded();
+    return loaded().filter(
+      (row) =>
+        (q.length === 0 || rowText(row).includes(q)) &&
+        facetFilters.every(
+          ({ field, chosen }) => chosen.length === 0 || chosen.includes(field(row)),
+        ),
+    );
+  };
+
   return (
     <div
       class="telemetry"
@@ -104,16 +190,26 @@ export function TelemetryView() {
       data-desktop-route="review-telemetry"
       data-filter-evidence="available"
     >
+      <FixtureNotice
+        surface="Telemetry"
+        command='invoke("telemetry_aggregates")'
+      />
       <div class="tm-search" data-testid="tm-search">
         <Icon
           name="magnifying-glass"
           size={12}
           style={{ color: "var(--text-muted)" }}
         />
-        <span class="tm-query" data-testid="tm-query">
-          {SEARCH_QUERY}
-        </span>
-        <span class="tm-caret blink" data-testid="tm-caret" />
+        <input
+          class="tm-query"
+          type="search"
+          value={query()}
+          placeholder={SEARCH_QUERY}
+          aria-label="Search telemetry"
+          data-testid="tm-query"
+          style={{ background: "transparent", border: "0", padding: "0" }}
+          onInput={(event) => setQuery(event.currentTarget.value)}
+        />
         <span class="tm-search-note" data-testid="tm-search-note">
           {SEARCH_NOTE}
         </span>
@@ -131,7 +227,12 @@ export function TelemetryView() {
             </span>
           )}
         </For>
-        <button type="button" class="tm-reset" data-testid="tm-reset">
+        <button
+          type="button"
+          class="tm-reset"
+          data-testid="tm-reset"
+          onClick={resetFilters}
+        >
           {RESET_LABEL}
         </button>
       </div>
@@ -189,7 +290,12 @@ export function TelemetryView() {
                           .filter(Boolean)
                           .join(" ")}
                         data-testid={`facet-${group.key}-${facet.value.replace(/\W+/g, "-")}`}
-                        aria-pressed={facet.active ? "true" : "false"}
+                        aria-pressed={
+                          activeFacets().has(`${group.key}:${facet.value}`)
+                            ? "true"
+                            : "false"
+                        }
+                        onClick={() => toggleFacet(group.key, facet.value)}
                       >
                         {facet.value}
                         <span class="facet-count">{facet.count}</span>
@@ -308,12 +414,12 @@ export function TelemetryView() {
         <VirtualTable
           testId="tm-sessions-table"
           columns={COLUMNS}
-          rows={loaded()}
-          total={sessionTotal}
+          rows={rows()}
+          total={filtering() ? rows().length : sessionTotal}
           rowKey={(r) => r.id}
           rowHeight={ROW_HEIGHT}
           height={BODY_HEIGHT}
-          onLoadMore={loadMore}
+          onLoadMore={filtering() ? undefined : loadMore}
         />
       </section>
     </div>

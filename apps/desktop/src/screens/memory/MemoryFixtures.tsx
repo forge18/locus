@@ -1,5 +1,6 @@
 import { For, createSignal, onMount, type JSX } from "solid-js";
 import { Button } from "../../ui/Button";
+import { FixtureNotice } from "../../ui/FixtureNotice";
 import { Tag } from "../../ui/Tag";
 import {
   ARTIFACT_LOCATOR,
@@ -164,6 +165,10 @@ export function MemoryShortTermFixture() {
       </aside>
 
       <section class="desktop-memory-main">
+        <FixtureNotice
+          surface="Short-term memory"
+          command='invoke("knowledge_snapshot")'
+        />
         <header class="desktop-memory-title-row">
           <span class="desktop-memory-project">#tapestry</span>
           <h2>builder@4 · iteration 3</h2>
@@ -273,6 +278,10 @@ export function MemoryLongTermFixture() {
       </aside>
 
       <section class="desktop-memory-main">
+        <FixtureNotice
+          surface="Long-term memory"
+          command='invoke("knowledge_snapshot")'
+        />
         <header class="desktop-memory-title-row desktop-memory-stacked">
           <div>
             <Tag>memory</Tag>
@@ -425,6 +434,10 @@ export function MemoryArtifactsFixture() {
         </div>
       </aside>
       <section class="desktop-memory-main">
+        <FixtureNotice
+          surface="Artifacts"
+          command='invoke("artifacts_list")'
+        />
         <header class="desktop-memory-title-row">
           <Tag>diff</Tag>
           <h2>store/notify.rs</h2>
@@ -543,6 +556,7 @@ export function MemoryWikiFixture() {
         <footer class="desktop-memory-pane-foot">{WIKI_INGEST_COPY}</footer>
       </aside>
       <section class="desktop-memory-main">
+        <FixtureNotice surface="Wiki" command='invoke("wiki_pages")' />
         <header class="desktop-memory-title-row desktop-memory-stacked">
           <div>
             <Tag>decision</Tag>

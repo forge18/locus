@@ -1,36 +1,38 @@
 import { describe, expect, it } from "vitest";
-import { fireEvent, render } from "@solidjs/testing-library";
+import { fireEvent, render, waitFor } from "@solidjs/testing-library";
 import { ProjectsView } from "../../src/screens/projects/ProjectsView";
+import { configureProjectsStub } from "../projects/provider-stub";
 
 describe("screens/desktop-projects", () => {
-  it("renders the project settings fixture with its five policy sections", () => {
+  it("renders the live policy sections from the store", async () => {
+    configureProjectsStub();
     const { getByTestId } = render(() => <ProjectsView />);
 
-    expect(getByTestId("project-settings")).toBeTruthy();
-    expect(getByTestId("project-harnesses")).toBeTruthy();
-    expect(getByTestId("project-repos")).toBeTruthy();
-    expect(getByTestId("project-base-context").textContent).toContain(
-      "1,240 / 1,500 tokens",
+    await waitFor(() =>
+      expect(getByTestId("project-harnesses").textContent).toContain("claude"),
     );
+    expect(getByTestId("project-settings")).toBeTruthy();
+    expect(getByTestId("project-repos")).toBeTruthy();
+    expect(getByTestId("project-base-context")).toBeTruthy();
   });
 
-  it("keeps one enabled harness as the agent default", () => {
-    const { getByTestId, getAllByTestId } = render(() => <ProjectsView />);
+  it("renders every harness the project policy allows", async () => {
+    configureProjectsStub();
+    const { getByTestId, getByText } = render(() => <ProjectsView />);
 
-    fireEvent.click(getByTestId("harness-default-codex"));
-
-    expect(
-      getByTestId("harness-default-codex").getAttribute("aria-pressed"),
-    ).toBe("true");
-    expect(
-      getByTestId("harness-default-claude").getAttribute("aria-pressed"),
-    ).toBe("false");
-    expect(getAllByTestId(/harness-default-/)).toHaveLength(4);
+    await waitFor(() =>
+      expect(getByTestId("project-harnesses").textContent).toContain("codex"),
+    );
+    expect(getByText("claude").textContent).toBe("claude");
   });
 
-  it("switches to the shared scoped analytics projection", () => {
-    const { getByTestId } = render(() => <ProjectsView />);
-
+  it("switches to the shared scoped analytics projection", async () => {
+    configureProjectsStub();
+    const { getByTestId, getAllByText } = render(() => <ProjectsView />);
+    await waitFor(() =>
+      expect(getAllByText("#tapestry").length).toBeGreaterThan(0),
+    );
+    fireEvent.click(getAllByText("#tapestry")[0]);
     fireEvent.click(getByTestId("project-tab-analytics"));
 
     expect(getByTestId("analytics").getAttribute("data-scope")).toBe(

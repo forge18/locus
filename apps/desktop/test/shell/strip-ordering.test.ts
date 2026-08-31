@@ -1,41 +1,60 @@
-import { describe, expect, it } from 'vitest'
-import { useStripCards } from '../../src/data/strip'
-import { STRIP_CARDS } from '../../src/fixtures/strip'
+import { describe, expect, it } from "vitest";
+import { fetchStripCards } from "../../src/data/strip";
+import { configureProjectsStub } from "../projects/provider-stub";
 
-describe('shell/strip-ordering', () => {
-  it('puts the stuck card first even though it is the least recently active', () => {
-    const sorted = useStripCards()
-    expect(sorted[0].status).toBe('stuck')
+const now = Math.floor(Date.now() / 1000);
 
-    // The two orders genuinely disagree, which is what makes this an assertion.
-    const byActivity = [...STRIP_CARDS].sort((a, b) => a.idleMinutes - b.idleMinutes)
-    expect(byActivity[0].status).not.toBe('stuck')
-    expect(byActivity.map((c) => c.id)).not.toEqual(sorted.map((c) => c.id))
-  })
+/** Seed rows whose fixture order deliberately disagrees with the sort order. */
+function seedOutOfOrder() {
+  configureProjectsStub({
+    stripCards: [
+      // newest, running — activity would put it first
+      { id: "run-a", project: "alpha", agent: "builder", status: "running", startedEpoch: now },
+      // stuck — attention puts it first despite being the least recently active
+      { id: "run-b", project: "beta", agent: "builder", status: "stuck", startedEpoch: now - 600 },
+      { id: "run-c", project: "gamma", agent: "reviewer", status: "running", startedEpoch: now - 60 },
+    ],
+  });
+}
 
-  it('orders stuck, then waiting, then idle, then running', () => {
-    const rank = { stuck: 0, waiting: 1, idle: 2 } as Record<string, number>
-    const seen = useStripCards()
-      .filter((c) => c.status && c.status !== 'running')
-      .map((c) => rank[c.status!])
-    expect(seen).toEqual([...seen].sort((a, b) => a - b))
-  })
+describe("shell/strip-ordering", () => {
+  it("puts the stuck card first even though it is the least recently active", async () => {
+    seedOutOfOrder();
+    const envelope = await fetchStripCards();
+    const ids = envelope.status === "ready" ? envelope.data.map((c) => c.id) : [];
+    // Stuck first; the two running cards tie-break by activity, most recent first.
+    expect(ids).toEqual(["run-b", "run-a", "run-c"]);
+  });
 
-  it('breaks ties by activity, most recent first', () => {
-    const running = useStripCards().filter((c) => c.status === 'running')
-    expect(running.map((c) => c.idleMinutes)).toEqual(
-      [...running.map((c) => c.idleMinutes)].sort((a, b) => a - b),
-    )
-  })
+  it("breaks ties by activity, most recent first", async () => {
+    configureProjectsStub({
+      stripCards: [
+        { id: "run-late", project: "alpha", agent: "builder", status: "running", startedEpoch: now - 30 },
+        { id: "run-early", project: "beta", agent: "builder", status: "running", startedEpoch: now - 300 },
+      ],
+    });
+    const envelope = await fetchStripCards();
+    const ids = envelope.status === "ready" ? envelope.data.map((c) => c.id) : [];
+    expect(ids).toEqual(["run-late", "run-early"]);
+  });
 
-  it('never sorts by project or by name', () => {
-    const sorted = useStripCards().map((c) => c.project)
-    expect(sorted).not.toEqual([...sorted].sort())
-  })
+  it("derives elapsed minutes from the run's started epoch", async () => {
+    configureProjectsStub({
+      stripCards: [
+        { id: "run-1", project: "alpha", agent: "builder", status: "running", startedEpoch: now - 180 },
+      ],
+    });
+    const envelope = await fetchStripCards();
+    const card = envelope.status === "ready" ? envelope.data[0] : undefined;
+    expect(card?.idleMinutes).toBe(3);
+  });
 
-  it('leaves the fixture untouched — sorting returns a new list', () => {
-    const before = STRIP_CARDS.map((c) => c.id)
-    useStripCards()
-    expect(STRIP_CARDS.map((c) => c.id)).toEqual(before)
-  })
-})
+  it("passes a failed read through as a typed failure", async () => {
+    configureProjectsStub({ fail: ["strip_cards"] });
+    const envelope = await fetchStripCards();
+    expect(envelope).toEqual({
+      status: "failed",
+      error: { command: "strip_cards", message: "IPC failure for strip_cards" },
+    });
+  });
+});

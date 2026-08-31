@@ -1,5 +1,7 @@
 import { COLUMN_ORDER, DEPENDENCIES, EVIDENCE, TASKS } from "../fixtures/board";
 import type { BoardColumn, DependencyEdge, Task } from "../types/board";
+import { dataProvider } from "./provider";
+import type { Envelope } from "./envelope";
 
 export {
   APPROVAL_NOTE,
@@ -11,6 +13,31 @@ export {
   SECOND_COLUMN_LABEL,
 } from "../fixtures/board";
 export type { BoardColumn, Task } from "../types/board";
+
+export function fetchTasks(projectId: string): Promise<Envelope<Task[]>> {
+  return dataProvider().query<Task>("board_tasks", { projectId });
+}
+
+export function createTask(
+  projectId: string,
+  summary: string,
+  workflowDefId: string,
+  repoId?: string,
+): Promise<Envelope<Task>> {
+  return dataProvider().queryOne<Task>("task_create", {
+    projectId,
+    summary,
+    workflowDefId,
+    repoId,
+  });
+}
+
+export function fetchTaskDetail(
+  projectId: string,
+  taskId: string,
+): Promise<Envelope<Task>> {
+  return dataProvider().queryOne<Task>("task_detail", { projectId, taskId });
+}
 
 export function taskLocator(task: Pick<Task, "projectId" | "id">): string {
   return `locus://${task.projectId}/task/${task.id}`;

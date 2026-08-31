@@ -1,16 +1,20 @@
-import { For, Show, createMemo, createSignal } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, on, onMount } from "solid-js";
 import { InboxCard } from "./InboxCard";
 import { InboxDetail } from "./InboxDetail";
 import { EmptyPane } from "../../ui/EmptyPane";
-import { Icon } from "../../ui/Icon";
 import { ProjectFilter } from "../../shell/ProjectFilter";
 import {
-  useInboxItems,
-  useInboxThroughput,
-  useResolvedToday,
+  fetchInboxList,
+  fetchInboxThroughput,
+  fetchResolvedToday,
+  resolveInboxDelivery,
+  type InboxDelivery,
+  type InboxThroughput,
+  type ResolvedDelivery,
 } from "../../data/inbox";
-import { useProjects } from "../../data/core";
-import type { ResolvedItem } from "../../data/inbox";
+import { fetchProjects } from "../../data/core";
+import type { Envelope } from "../../data/envelope";
+import { notify } from "../../ui/Toast";
 import type { NavStore } from "../../nav";
 
 export interface InboxViewProps {
@@ -19,38 +23,38 @@ export interface InboxViewProps {
 
 type InboxTab = "todo" | "completed";
 
-interface ResolvedDay {
-  day: string;
-  items: ResolvedItem[];
-}
-
-const RESOLVED_ICON = {
-  gate: "seal-check",
-  ask: "question",
-  guardrail: "warning-octagon",
-  reflection: "sparkle",
-} as const;
-const age = (minutes: number) =>
-  minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h`;
 const resolutionTime = (minutes: number) => {
   if (minutes < 60) return `${minutes}m`;
   const hours = Math.floor(minutes / 60);
   const remainder = minutes % 60;
   return remainder === 0 ? `${hours}h` : `${hours}h ${remainder}m`;
 };
+const minutesSince = (at: string | null) =>
+  at == null
+    ? 0
+    : Math.max(0, Math.floor((Date.now() - Date.parse(at)) / 60000));
+
 const dayId = (day: string) => day.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 
-function groupByDay(items: ResolvedItem[]): ResolvedDay[] {
-  const groups = new Map<string, ResolvedItem[]>();
+function groupByDay(items: ResolvedDelivery[]): { day: string; items: ResolvedDelivery[] }[] {
+  const groups = new Map<string, ResolvedDelivery[]>();
   for (const item of items) {
-    const group = groups.get(item.resolvedDay);
+    const day = item.resolvedAt
+      ? new Date(item.resolvedAt).toLocaleDateString()
+      : "Today";
+    const group = groups.get(day);
     if (group) group.push(item);
-    else groups.set(item.resolvedDay, [item]);
+    else groups.set(day, [item]);
   }
   return [...groups.entries()].map(([day, groupedItems]) => ({
     day,
     items: groupedItems,
   }));
+}
+/** What the person decided when they resolved an item — kept so it is auditable. */
+interface InboxDecision {
+  action: "approved" | "sent-back";
+  comment: string;
 }
 
 /**
@@ -58,25 +62,80 @@ function groupByDay(items: ResolvedItem[]): ResolvedDay[] {
  * opens where that work lives, by locator — this screen never grows a second copy
  * of Plan, Interact or Review.
  */
-export function InboxView(props: InboxViewProps) {
+export function InboxView(_props: InboxViewProps) {
   const [tab, setTab] = createSignal<InboxTab>("todo");
-  const [resolved, setResolved] = createSignal<string[]>([]);
-  const [recentlyResolved, setRecentlyResolved] = createSignal<ResolvedItem[]>(
-    [],
-  );
   const [selectedId, setSelectedId] = createSignal<string | null>(null);
   const [selectedProjects, setSelectedProjects] = createSignal<string[]>([]);
+  const [decisions, setDecisions] = createSignal<Record<string, InboxDecision>>(
+    {},
+  );
+  const [resolvedIds, setResolvedIds] = createSignal<Set<string>>(new Set());
 
-  const projects = useProjects().map((project) => ({
-    id: project.id,
-    name: project.name,
-  }));
-  const throughput = useInboxThroughput();
+  // The live inbox (slice 7): pending human deliveries, today's resolved list,
+  // and the real counts. Every read is an envelope; a failure is visible.
+  const [itemsEnvelope, setItemsEnvelope] = createSignal<Envelope<InboxDelivery[]>>({
+    status: "loading",
+  });
+  const [resolvedEnvelope, setResolvedEnvelope] = createSignal<
+    Envelope<ResolvedDelivery[]>
+  >({ status: "loading" });
+  const [throughputEnvelope, setThroughputEnvelope] = createSignal<
+    Envelope<InboxThroughput>
+  >({ status: "loading" });
+  const [projects, setProjects] = createSignal<{ id: string; name: string }[]>(
+    [],
+  );
+
+  async function refreshInbox() {
+    const scope = selectedProjects().length === 1 ? selectedProjects()[0] : undefined;
+    const [list, today, counts] = await Promise.all([
+      fetchInboxList(scope),
+      fetchResolvedToday(scope),
+      fetchInboxThroughput(),
+    ]);
+    setItemsEnvelope(list);
+    setResolvedEnvelope(today);
+    setThroughputEnvelope(counts);
+    for (const failed of [list, today, counts]) {
+      if (failed.status === "failed") {
+        notify({
+          title: "Inbox unavailable",
+          description: failed.error.message,
+          type: "error",
+        });
+      }
+    }
+  }
+
+  onMount(() => {
+    void refreshInbox();
+    void fetchProjects().then((envelope) => {
+      if (envelope.status === "ready") setProjects(envelope.data);
+    });
+  });
+
+  // Scoped invalidation: narrowing to exactly one project re-reads from the
+  // store with that scope; "all projects" reads the cross-project view.
+  createEffect(
+    on(selectedProjects, () => {
+      void refreshInbox();
+    }),
+  );
+
+  const [recentlyResolved, setRecentlyResolved] = createSignal<
+    { delivery: InboxDelivery; comment: string; resolvedAt: string }[]
+  >([]);
+  const throughput = createMemo<InboxThroughput>(() => {
+    const envelope = throughputEnvelope();
+    return envelope.status === "ready"
+      ? envelope.data
+      : { pending: 0, resolvedToday: 0 };
+  });
   const projectNames = createMemo(() => {
     const selected = selectedProjects();
     if (selected.length === 0) return null;
     return new Set(
-      projects
+      projects()
         .filter((project) => selected.includes(project.id))
         .map((project) => project.name),
     );
@@ -85,44 +144,98 @@ export function InboxView(props: InboxViewProps) {
     const names = projectNames();
     return names === null || names.has(project);
   };
-  const items = createMemo(() =>
-    useInboxItems().filter(
-      (item) => !resolved().includes(item.id) && matchesProject(item.project),
-    ),
-  );
-  const completedItems = createMemo(() =>
-    [...recentlyResolved(), ...useResolvedToday()].filter((item) =>
-      matchesProject(item.project),
-    ),
-  );
+  const items = createMemo<InboxDelivery[]>(() => {
+    const envelope = itemsEnvelope();
+    if (envelope.status !== "ready") return [];
+    return envelope.data.filter(
+      (delivery) =>
+        !resolvedIds().has(delivery.id) && matchesProject(delivery.project),
+    );
+  });
+  const completedItems = createMemo<ResolvedDelivery[]>(() => {
+    const envelope = resolvedEnvelope();
+    const rows = envelope.status === "ready" ? envelope.data : [];
+    // Locally resolved rows arrive from the pending list (InboxDelivery), so
+    // normalize them into the resolved shape the completed list renders.
+    const local = recentlyResolved().map(({ delivery, resolvedAt }) => ({
+      id: delivery.id,
+      subject: delivery.subject,
+      body: delivery.body,
+      project: delivery.project,
+      resolvedAt,
+    }));
+    return [...local, ...rows].filter((row) => matchesProject(row.project));
+  });
   const completedGroups = createMemo(() => groupByDay(completedItems()));
-  const selected = createMemo(
-    () =>
-      items().find((item) => item.id === selectedId()) ?? items()[0] ?? null,
-  );
+  const selected = createMemo(() => {
+    const list = items();
+    return list.find((item) => item.id === selectedId()) ?? list[0] ?? null;
+  });
+
+  const approveItem = (id: string, comment: string) => {
+    const item = items().find((candidate) => candidate.id === id);
+    if (!item) return;
+    void resolveInboxDelivery(id, comment.trim()).then((envelope) => {
+      if (envelope.status === "failed") {
+        notify({
+          title: "Resolve failed",
+          description: envelope.error.message,
+          type: "error",
+        });
+        return;
+      }
+      setDecisions((current) => ({
+        ...current,
+        [id]: { action: "approved", comment: comment.trim() },
+      }));
+      setRecentlyResolved((current) => [
+        ...current,
+        { delivery: item, comment: comment.trim(), resolvedAt: new Date().toISOString() },
+      ]);
+      setResolvedIds((current) => new Set(current).add(id));
+      void refreshInbox();
+    });
+  };
 
   /**
-   * Resolving is in place: nothing about where you are changes. Named
-   * `resolveItem` rather than `resolve` because `resolve` is the navigation
-   * resolver, and one word meaning two things here would be a trap.
+   * Send back returns the work to the agent that made it — the comment is the
+   * response, so an empty one is blocked at the detail pane and never resolves.
    */
-  const resolveItem = (id: string) => {
-    const item = useInboxItems().find((candidate) => candidate.id === id);
-    if (!item || resolved().includes(id)) return;
-    setResolved((current) => [...current, id]);
-    setRecentlyResolved((current) => [
+  const sendBackItem = (id: string, comment: string) => {
+    const reason = comment.trim();
+    if (!reason) return;
+    const item = items().find((candidate) => candidate.id === id);
+    setDecisions((current) => ({
       ...current,
-      {
-        id: `resolved-${item.id}`,
-        kind: item.kind,
-        title: item.title,
-        project: item.project,
-        resolutionMinutes: item.ageMinutes,
-        resolvedDay: "Today",
-        ageMinutes: 0,
-      },
-    ]);
+      [id]: { action: "sent-back", comment: reason },
+    }));
+    void resolveInboxDelivery(id, reason).then((envelope) => {
+      if (envelope.status === "failed") {
+        notify({
+          title: "Resolve failed",
+          description: envelope.error.message,
+          type: "error",
+        });
+        return;
+      }
+      setDecisions((current) => ({
+        ...current,
+        [id]: { action: "sent-back", comment: reason },
+      }));
+      setRecentlyResolved((current) => [
+        ...current,
+        { delivery: item!, comment: reason, resolvedAt: new Date().toISOString() },
+      ]);
+      setResolvedIds((current) => new Set(current).add(id));
+      void refreshInbox();
+    });
   };
+
+  /** Locally resolved rows carry the comment recorded at decision time; a
+   * decision recorded this session survives the refresh. */
+  const decisionFor = (row: ResolvedDelivery): string | undefined =>
+    decisions()[row.id]?.comment ??
+    recentlyResolved().find((entry) => entry.delivery.id === row.id)?.comment;
 
   return (
     <div class="inbox" data-testid="inbox" data-desktop-route="inbox">
@@ -169,35 +282,21 @@ export function InboxView(props: InboxViewProps) {
           data-testid="inbox-throughput"
           data-inbox-budget="true"
         >
-          <span
-            class="inbox-throughput-meter"
-            aria-hidden="true"
-            style={{
-              "--inbox-throughput-width": `${Math.min(
-                (throughput.resolvedThisHour / throughput.hourlyBudget) * 100,
-                100,
-              )}%`,
-            }}
-          >
-            <i />
-          </span>
           <span data-testid="inbox-throughput-value">
-            {throughput.resolvedThisHour} / {throughput.hourlyBudget}{" "}
-            {throughput.periodLabel}
+            {throughput().pending} pending · {throughput().resolvedToday}{" "}
+            resolved today
           </span>
           <span
             class="inbox-throughput-status"
             data-testid="inbox-throughput-status"
           >
-            {throughput.resolvedThisHour < throughput.hourlyBudget
-              ? "under budget"
-              : "at budget"}
+            {throughput().pending === 0 ? "clear" : "waiting on you"}
           </span>
         </div>
 
         <div class="inbox-filter" data-testid="inbox-project-filter">
           <ProjectFilter
-            projects={projects}
+            projects={projects()}
             selected={selectedProjects()}
             onChange={setSelectedProjects}
           />
@@ -253,20 +352,40 @@ export function InboxView(props: InboxViewProps) {
                               class="inbox-completed-row inbox-resolved-row"
                               data-testid={`inbox-completed-row-${row.id}`}
                             >
-                              <Icon name={RESOLVED_ICON[row.kind]} size={11} />
-                              <span class="inbox-completed-title">
-                                {row.title}
-                              </span>
+                              <div style={{ flex: 1, "min-width": 0 }}>
+                                <span class="inbox-completed-title">
+                                  {row.subject}
+                                </span>
+                                <Show when={decisionFor(row)}>
+                                  {(comment) => (
+                                    <span
+                                      class="inbox-completed-decision"
+                                      data-testid={`resolved-decision-${row.id}`}
+                                      style={{
+                                        color: "var(--text-muted)",
+                                        "font-size": "var(--t-meta)",
+                                      }}
+                                    >
+                                      {decisions()[row.id]?.action ===
+                                      "sent-back"
+                                        ? `Sent back: ${comment()}`
+                                        : comment()}
+                                    </span>
+                                  )}
+                                </Show>
+                              </div>
                               <span
                                 class="inbox-resolution inbox-resolution-time"
                                 data-testid={`resolved-time-${row.id}`}
-                                data-resolution-minutes={row.resolutionMinutes}
+                                data-resolution-minutes={minutesSince(
+                                  row.resolvedAt,
+                                )}
                                 data-resolution-time={resolutionTime(
-                                  row.resolutionMinutes,
+                                  minutesSince(row.resolvedAt),
                                 )}
                               >
                                 Resolved in{" "}
-                                {resolutionTime(row.resolutionMinutes)}
+                                {resolutionTime(minutesSince(row.resolvedAt))}
                               </span>
                             </div>
                           )}
@@ -339,15 +458,14 @@ export function InboxView(props: InboxViewProps) {
                     class="inbox-resolved-row"
                     data-testid={`resolved-${row.id}`}
                   >
-                    <Icon name={RESOLVED_ICON[row.kind]} size={11} />
-                    <span>{row.title}</span>
+                    <span>{row.subject}</span>
                     <span
                       style={{
                         "margin-left": "auto",
                         color: "var(--text-muted)",
                       }}
                     >
-                      {age(row.ageMinutes)}
+                      {resolutionTime(minutesSince(row.resolvedAt))} ago
                     </span>
                   </div>
                 )}
@@ -359,16 +477,18 @@ export function InboxView(props: InboxViewProps) {
 
       <Show
         when={selected()}
+        keyed
         fallback={
           <EmptyPane reason="Nothing needs you — approve something and it resolves right here." />
         }
       >
-        <InboxDetail
-          item={selected()!}
-          onApprove={() => resolveItem(selected()!.id)}
-          onSendBack={() => resolveItem(selected()!.id)}
-          onOpenWork={(locator) => props.nav.open(locator)}
-        />
+        {(item) => (
+          <InboxDetail
+            item={item}
+            onApprove={(comment) => approveItem(item.id, comment)}
+            onSendBack={(comment) => sendBackItem(item.id, comment)}
+          />
+        )}
       </Show>
     </div>
   );

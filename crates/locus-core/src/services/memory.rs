@@ -375,20 +375,28 @@ impl MemoryEntry {
             invalidated: false,
             reverify_requested: false,
         };
-        if contains_secret(&entry.body) || contains_secret(&entry.provenance.to_string()) {
+        entry.validate()?;
+        Ok(entry)
+    }
+
+    /// The invariants every memory record must keep, shared by construction and by
+    /// callers that receive a record through deserialization (for example the daemon
+    /// promoting a candidate handed over the agent socket).
+    pub fn validate(&self) -> Result<(), MemoryError> {
+        if contains_secret(&self.body) || contains_secret(&self.provenance.to_string()) {
             return Err(MemoryError::SecretRejected);
         }
-        if entry.id.trim().is_empty()
-            || entry.path.trim().is_empty()
-            || entry.subject.trim().is_empty()
-            || entry.body.trim().is_empty()
-            || entry.embedding_model.trim().is_empty()
-            || (entry.scope == MemoryScopeKind::Agent && entry.agent_id.is_none())
-            || (entry.scope == MemoryScopeKind::Project && entry.agent_id.is_some())
+        if self.id.trim().is_empty()
+            || self.path.trim().is_empty()
+            || self.subject.trim().is_empty()
+            || self.body.trim().is_empty()
+            || self.embedding_model.trim().is_empty()
+            || (self.scope == MemoryScopeKind::Agent && self.agent_id.is_none())
+            || (self.scope == MemoryScopeKind::Project && self.agent_id.is_some())
         {
             return Err(MemoryError::InvalidFact);
         }
-        Ok(entry)
+        Ok(())
     }
 
     /// Construct a record with an explicit capture origin and its derived eviction class.
@@ -812,7 +820,7 @@ pub fn materialize_catalog_context_with_tail(
     format!("{head}\n\n{tail}", tail = tail.text)
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct PromotionReceipt {
     pub id: String,
     pub metadata: PromotionMetadata,

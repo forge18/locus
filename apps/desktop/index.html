@@ -1,10 +1,29 @@
 <!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#1d2731" />
     <title>Locus</title>
+    <!-- Resolves the theme before first paint: the stored choice, else the OS
+         preference, else Dark. Must stay in sync with src/styles/theme.ts. -->
+    <script>
+      (() => {
+        let stored = null;
+        try {
+          stored = window.localStorage.getItem("locus.theme");
+        } catch {
+          stored = null;
+        }
+        const prefersDark =
+          typeof window.matchMedia !== "function" ||
+          window.matchMedia("(prefers-color-scheme: dark)").matches;
+        document.documentElement.dataset.theme =
+          stored === "dark" || (stored !== "light" && prefersDark)
+            ? "dark"
+            : "light";
+      })();
+    </script>
   </head>
 
   <body>

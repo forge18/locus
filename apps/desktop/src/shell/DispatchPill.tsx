@@ -1,4 +1,4 @@
-import { For, Show, createSignal } from "solid-js";
+import { For, Show, createEffect, createSignal, onCleanup } from "solid-js";
 import type { ActiveSession } from "./RunningPill";
 
 export interface DispatchPillProps {
@@ -13,6 +13,12 @@ export interface DispatchPillProps {
 export function DispatchPill(props: DispatchPillProps) {
   const [open, setOpen] = createSignal(false);
   const [tab, setTab] = createSignal<"attention" | "all">("attention");
+  let wrap: HTMLDivElement | undefined;
+  let trigger: HTMLButtonElement | undefined;
+  const setOpenAndReport = (next: boolean) => {
+    setOpen(next);
+    props.onOpenChange?.(next);
+  };
   const visibleSessions = () =>
     (props.sessions ?? []).filter(
       (session) => tab() === "all" || session.needsAttention,
@@ -20,18 +26,35 @@ export function DispatchPill(props: DispatchPillProps) {
   const elapsed = (session: ActiveSession) =>
     session.elapsed ??
     (session.lastActivityAt <= 0 ? "now" : `${session.lastActivityAt}m ago`);
+  // Escape closes and hands focus back to the pill; a press outside the
+  // popover closes it without stealing focus from wherever the user pointed.
+  createEffect(() => {
+    if (!open()) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setOpenAndReport(false);
+      trigger?.focus();
+    };
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Node && wrap?.contains(event.target)) return;
+      setOpenAndReport(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("pointerdown", onPointerDown);
+    onCleanup(() => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("pointerdown", onPointerDown);
+    });
+  });
   return (
-    <div class="title-pill-wrap">
+    <div class="title-pill-wrap" ref={wrap}>
       <button
         type="button"
         class="title-pill"
+        ref={trigger}
         data-testid="dispatch-pill"
         aria-expanded={open()}
-        onClick={() => {
-          const next = !open();
-          setOpen(next);
-          props.onOpenChange?.(next);
-        }}
+        onClick={() => setOpenAndReport(!open())}
       >
         <span aria-hidden="true">◉</span>
         <span>{props.running}</span>
@@ -88,7 +111,7 @@ export function DispatchPill(props: DispatchPillProps) {
             <button
               type="button"
               onClick={() => {
-                setOpen(false);
+                setOpenAndReport(false);
                 props.onStopAll?.();
               }}
             >
@@ -97,7 +120,7 @@ export function DispatchPill(props: DispatchPillProps) {
             <button
               type="button"
               onClick={() => {
-                setOpen(false);
+                setOpenAndReport(false);
                 props.onOpenDispatch?.();
               }}
             >

@@ -5,6 +5,7 @@ import { SkeletonRows } from "./ui/SkeletonRows";
 import { mountIconSprite } from "./ui/sprite";
 import { createNavStore } from "./nav";
 import { applyTheme, savedTheme } from "./styles/theme";
+import { configureDataProvider, liveProvider } from "./data/provider";
 import { MailView } from "./screens/mail/MailView";
 import { AnalyticsView } from "./screens/analytics/AnalyticsView";
 import { QAView } from "./screens/review/QAView";
@@ -21,6 +22,11 @@ import {
         MemoryWikiFixture,
 } from "./screens/memory/MemoryFixtures";
 import "./styles/app.css";
+
+// The Tauri bootstrap always selects the live provider: a runtime that forgets to
+// configure one fails loudly at the first accessor, and demo data is reachable only
+// where a host explicitly selects the demo provider (see data/provider.ts).
+configureDataProvider(liveProvider);
 
 const InboxView = lazy(() => import("./screens/inbox/InboxView"));
 const PlanView = lazy(() => import("./screens/plan/PlanView"));
@@ -73,7 +79,7 @@ function App() {
                                                 <ProjectsView />
                                         </Match>
                                         <Match when={nav.view() === "plan"}>
-                                                <PlanView />
+                                                <PlanView nav={nav} />
                                         </Match>
                                         <Match when={nav.view() === "sessions"}>
                                                 <ManageView
@@ -84,7 +90,10 @@ function App() {
                                                 />
                                         </Match>
                                         <Match when={nav.view() === "runs"}>
-                                                <DispatchView tab="runs" />
+                                                <DispatchView
+                                                        tab="runs"
+                                                        nav={nav}
+                                                />
                                         </Match>
                                         <Match when={nav.view() === "artifact"}>
                                                 <MemoryArtifactsFixture />
@@ -130,10 +139,16 @@ function App() {
                                                 />
                                         </Match>
                                         <Match when={nav.view() === "autorun"}>
-                                                <DispatchView tab="autorun" />
+                                                <DispatchView
+                                                        tab="autorun"
+                                                        nav={nav}
+                                                />
                                         </Match>
                                         <Match when={nav.view() === "schedule"}>
-                                                <DispatchView tab="schedules" />
+                                                <DispatchView
+                                                        tab="schedules"
+                                                        nav={nav}
+                                                />
                                         </Match>
                                         <Match when={nav.view() === "short"}>
                                                 <MemoryShortTermFixture />
@@ -174,7 +189,13 @@ function App() {
                                                 <WorkshopFixtureView fixture="skills" />
                                         </Match>
                                         <Match when={nav.view() === "canvas"}>
-                                                <WorkshopFixtureView fixture="workflows-visual" />
+                                                <WorkshopFixtureView
+                                                        fixture="workflows-visual"
+                                                        projectId={
+                                                                nav.params()
+                                                                        .project
+                                                        }
+                                                />
                                         </Match>
                                         <Match
                                                 when={
@@ -182,7 +203,13 @@ function App() {
                                                         "workflows"
                                                 }
                                         >
-                                                <WorkshopFixtureView fixture="workflows-list" />
+                                                <WorkshopFixtureView
+                                                        fixture="workflows-list"
+                                                        projectId={
+                                                                nav.params()
+                                                                        .project
+                                                        }
+                                                />
                                         </Match>
                                 </Switch>
                         </Suspense>

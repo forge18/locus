@@ -1,4 +1,7 @@
-import { createSignal, For, Show } from "solid-js";
+import { createSignal, For, Show, onMount } from "solid-js";
+import { isTauri } from "@tauri-apps/api/core";
+import { InlineError } from "../../ui/InlineError";
+import { FixtureNotice } from "../../ui/FixtureNotice";
 import { Icon } from "../../ui/Icon";
 import {
   BUDGET_NOTE,
@@ -12,15 +15,88 @@ import {
   useGuardrails,
   useOperands,
   usePalette,
+  fetchWorkflowDefinitions,
   usePresets,
+  type WorkflowDefinitionSummary,
 } from "../../data/workflow";
+import type { Envelope } from "../../data/envelope";
 import { WorkflowCanvas } from "../../workflow-canvas/WorkflowCanvas";
+
+function LiveWorkflowList(props: { projectId?: string }) {
+  const [definitions, setDefinitions] = createSignal<
+    Envelope<WorkflowDefinitionSummary[]>
+  >({
+    status: "loading",
+  });
+  const rows = () => {
+    const envelope = definitions();
+    return envelope.status === "ready" ? envelope.data : [];
+  };
+  const error = () => {
+    const envelope = definitions();
+    return envelope.status === "failed" ? envelope.error : undefined;
+  };
+
+  onMount(() => {
+    if (!props.projectId) {
+      setDefinitions({
+        status: "failed",
+        error: {
+          command: "workflow_definitions",
+          message: "no project is selected",
+        },
+      });
+      return;
+    }
+    void fetchWorkflowDefinitions(props.projectId).then(setDefinitions);
+  });
+
+  return (
+    <div class="wf" data-testid="workflow" data-live-state="ready">
+      <header class="ws-head">
+        <span class="ws-title">Workflow definitions</span>
+        <span class="ws-note">Immutable project-owned versions</span>
+      </header>
+      <Show when={definitions().status === "loading"}>
+        <p data-testid="workflow-loading">Loading workflows…</p>
+      </Show>
+      <Show when={error()}>
+        <InlineError
+          cause={error()!.message}
+          next="Workflow definitions could not be loaded from the store."
+        />
+      </Show>
+      <Show when={definitions().status === "empty"}>
+        <p data-testid="workflow-empty">
+          No workflow definitions are persisted for this project.
+        </p>
+      </Show>
+      <Show when={definitions().status === "ready"}>
+        <div data-testid="workflow-definitions">
+          <For each={rows()}>
+            {(definition) => (
+              <article data-testid={`workflow-definition-${definition.id}`}>
+                <strong>{definition.name}</strong>
+                <span>v{definition.version}</span>
+              </article>
+            )}
+          </For>
+        </div>
+        <p data-testid="workflow-detail-unavailable">
+          Graph, governance, and compile details are not yet exposed by the live
+          desktop contract.
+        </p>
+      </Show>
+    </div>
+  );
+}
 
 /**
  * Layout and inspector on fixture data. Real graph editing, compile and the live
  * overlay are `workflow-canvas` at M4, gated by Spike 3.
  */
-export function WorkflowView() {
+export function WorkflowView(props: { projectId?: string } = {}) {
+  if (isTauri()) return <LiveWorkflowList projectId={props.projectId} />;
   const canvas = useCanvas();
   const [expandedPreset, setExpandedPreset] = createSignal<string>();
 
@@ -104,6 +180,10 @@ export function WorkflowView() {
       />
 
       <aside class="wf-inspector" data-testid="wf-inspector">
+        <FixtureNotice
+          surface="Workflow canvas"
+          command='invoke("workflow_graph")'
+        />
         <div class="wf-inspector-body">
           <span class="wf-section" data-testid="wf-inspector-title">
             Condition · verify.passed

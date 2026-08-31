@@ -17,4 +17,29 @@ describe("nav/palette-results", () => {
       section: "Where you were",
     });
   });
+
+  it("moves the current and session destinations into live sections", () => {
+    const destinations = v2PaletteDestinations("locus", {
+      current: "locus://all/view/status",
+      history: ["locus://locus/view/plan"],
+      sessions: [
+        { project: "locus", needsAttention: true },
+      ],
+    });
+    expect(destinations).toContainEqual({
+      label: "Status",
+      locator: "locus://all/view/status",
+      section: "Where you were",
+    });
+    expect(destinations).toContainEqual({
+      label: "Plan",
+      locator: "locus://locus/view/plan",
+      section: "Where you were",
+    });
+    expect(destinations).toContainEqual({
+      label: "Interact",
+      locator: "locus://locus/view/interact",
+      section: "Needs you",
+    });
+  });
 });

@@ -54,7 +54,9 @@
 .base-prose { padding: 12px 14px; color: var(--text-secondary); font: var(--t-body)/1.75 var(--fm); }
 .base-context .locus-editor-pane { height: 260px; }
 .project-editor-fullscreen { margin-top: 10px; }
-.project-editor-overlay { position: fixed; inset: 16px; z-index: 20; display: flex; min-width: 0; min-height: 0; flex-direction: column; overflow: hidden; border: 1px solid var(--border-strong); border-radius: var(--r-lg); background: var(--surface-ground); box-shadow: 0 18px 60px rgb(0 0 0 / 40%); }
+/* The fullscreen editor owns the window: modal tier (80) on the ui.css ladder,
+   above toasts and popups, so a notice or menu cannot paint over the editor. */
+.project-editor-overlay { position: fixed; inset: 16px; z-index: 80; display: flex; min-width: 0; min-height: 0; flex-direction: column; overflow: hidden; border: 1px solid var(--border-strong); border-radius: var(--r-lg); background: var(--surface-ground); box-shadow: 0 18px 60px color-mix(in srgb, var(--scrim) 40%, transparent); }
 .project-editor-overlay > header { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--border-subtle); background: var(--surface-chrome); }
 .project-editor-overlay > .locus-editor-full-window { flex: 1; min-height: 0; }
 .base-prose strong { color: var(--action-attention); }

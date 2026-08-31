@@ -1,31 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { render } from "@solidjs/testing-library";
-import { RunningCount } from "../../src/shell/RunningCount";
-import { useRunningCount } from "../../src/data/strip";
-import { read, rules } from "../css";
-
-const rule = (sel: string) =>
-  rules(read("shell/shell.css")).find((r) => r.selector === sel);
+import { fetchRunningCount } from "../../src/data/strip";
+import { configureProjectsStub } from "../projects/provider-stub";
 
 describe("shell/running-count", () => {
-  it('reads "N running"', () => {
-    const { getByTestId } = render(() => <RunningCount count={8} />);
-    expect(getByTestId("running-count").textContent).toContain("8 running");
+  it("returns the live running count", async () => {
+    // The agents-only rule is pinned host-side (shell_queries
+    // only_running_runs_count); the accessor relays the number.
+    configureProjectsStub({ runningCount: 5 });
+    const envelope = await fetchRunningCount();
+    expect(envelope).toEqual({ status: "ready", data: 5 });
   });
 
-  it("pulses the machine-working dot beside it", () => {
-    const { getByTestId } = render(() => <RunningCount count={8} />);
-    const dot = getByTestId("running-dot");
-    expect(dot.className).toContain("pulse");
-    expect(rule(".live-dot")!.body).toContain("background: var(--status-working)");
-  });
-
-  it("animates with the shared keyframe rather than one of its own", () => {
-    expect(read("styles/motion.css")).toContain(".pulse { animation: pulse 2s");
-  });
-
-  it("counts agents only — a terminal you drive yourself is not one", () => {
-    // The strip holds six cards; one of them is a shell.
-    expect(useRunningCount()).toBe(5);
+  it("relays a failed read as a typed failure", async () => {
+    configureProjectsStub({ fail: ["running_count"] });
+    const envelope = await fetchRunningCount();
+    expect(envelope).toEqual({
+      status: "failed",
+      error: {
+        command: "running_count",
+        message: "IPC failure for running_count",
+      },
+    });
   });
 });

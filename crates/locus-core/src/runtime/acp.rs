@@ -9,9 +9,11 @@ use agent_client_protocol::{
     schema::v1::{
         ContentBlock, NewSessionRequest, PromptRequest, SessionId, SessionNotification, TextContent,
     },
-    AcpAgent, AcpAgentConfig,
+    AcpAgent, AcpAgentConfig, Client, ConnectTo,
 };
+use anyhow::Context as _;
 use tokio::sync::broadcast;
+use tokio::task::AbortHandle;
 
 pub use super::controls::{
     invoke_panel_subagent, replay_panel, ActivePlan, Checkpoint, CheckpointLedger, ContextView,
@@ -25,6 +27,15 @@ pub use super::controls::{
 /// ordinary agent-session code.
 pub struct PlanningAgent {
     agent: AcpAgent,
+}
+
+impl ConnectTo<Client> for PlanningAgent {
+    async fn connect_to(
+        self,
+        client: impl ConnectTo<<Client as agent_client_protocol::Role>::Counterpart>,
+    ) -> Result<(), agent_client_protocol::Error> {
+        ConnectTo::<Client>::connect_to(self.agent, client).await
+    }
 }
 
 impl PlanningAgent {
@@ -98,7 +109,7 @@ pub fn session_prompt(
 }
 
 /// Broadcasts streamed ACP `session/update` notifications to planning consumers.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct UpdateStream(InProcessBus<SessionNotification>);
 
 impl UpdateStream {
@@ -113,6 +124,82 @@ impl UpdateStream {
     pub fn publish(&self, update: SessionNotification) {
         let _ = self.0.publish(update);
     }
+}
+
+/// An established ACP conversation with the run's agent: the wire session id, the
+/// broadcast of streamed `session/update` notifications, and the handle keeping the
+/// connection (and with it the exec'd agent process) alive. Dropping the handle aborts
+/// the connection task, which tears down the transport's process-group guard.
+#[derive(Clone)]
+pub struct AgentSession {
+    pub session_id: SessionId,
+    pub updates: UpdateStream,
+    connection: AbortHandle,
+}
+
+impl std::fmt::Debug for AgentSession {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AgentSession")
+            .field("session_id", &self.session_id)
+            .finish_non_exhaustive()
+    }
+}
+
+impl Drop for AgentSession {
+    fn drop(&mut self) {
+        self.connection.abort();
+    }
+}
+
+/// Opens the run's ACP conversation over `agent`: connects the client side, issues
+/// `session/new` (cwd only — mcpServers stays empty), and streams every
+/// `session/update` notification into `updates`. Resolves once the agent answers
+/// `session/new`; the connection keeps running in the background until the returned
+/// handle is dropped.
+pub async fn establish_session<T>(
+    agent: T,
+    cwd: impl Into<PathBuf>,
+    updates: UpdateStream,
+) -> anyhow::Result<AgentSession>
+where
+    T: ConnectTo<Client> + 'static,
+{
+    let (session_tx, session_rx) = tokio::sync::oneshot::channel();
+    let cwd: PathBuf = cwd.into();
+    let handler_updates = updates.clone();
+    let connection = Client
+        .builder()
+        .on_receive_notification::<SessionNotification, _, _, _>(
+            move |notification: SessionNotification, _cx| {
+                let updates = handler_updates.clone();
+                async move {
+                    updates.publish(notification);
+                    Ok(())
+                }
+            },
+            agent_client_protocol::on_receive_notification!(),
+        )
+        .connect_with(agent, async move |cx| {
+            let response = cx
+                .send_request(session_new(cwd))
+                .block_task()
+                .await
+                .context("agent refused session/new")?;
+            let _ = session_tx.send(response.session_id);
+            // The session lives until the run ends: hold the connection open on
+            // incoming EOF rather than closing it after the handshake.
+            cx.incoming_closed().await;
+            Ok(())
+        });
+    let connection = tokio::spawn(connection);
+    let session_id = session_rx
+        .await
+        .context("agent connection closed before session/new answered")?;
+    Ok(AgentSession {
+        session_id,
+        updates,
+        connection: connection.abort_handle(),
+    })
 }
 
 #[cfg(test)]
@@ -198,6 +285,94 @@ mod session_new {
             serde_json::to_value(request).expect("serialize session request")["mcpServers"],
             serde_json::json!([])
         );
+    }
+}
+
+#[cfg(test)]
+mod session_establishment {
+    use agent_client_protocol::schema::v1::{ContentChunk, NewSessionResponse, SessionUpdate};
+    use agent_client_protocol::{Agent, Channel};
+
+    use super::*;
+
+    /// A stand-in agent: answers `session/new` (asserting the cwd and that
+    /// mcpServers stays empty), then streams one `session/update`.
+    async fn fake_agent(channel: Channel) -> Result<(), agent_client_protocol::Error> {
+        Agent.builder()
+            .on_receive_request::<NewSessionRequest, _, _, _>(
+                |request: NewSessionRequest,
+                 responder: agent_client_protocol::Responder<NewSessionResponse>,
+                 cx: agent_client_protocol::ConnectionTo<agent_client_protocol::Client>| async move {
+                    assert_eq!(request.cwd, PathBuf::from("/workspace"));
+                    assert!(request.mcp_servers.is_empty());
+                    responder.respond(NewSessionResponse::new("agent-session-1"))?;
+                    cx.send_notification(SessionNotification::new(
+                        "agent-session-1",
+                        SessionUpdate::AgentMessageChunk(ContentChunk::new(ContentBlock::Text(
+                            TextContent::new("First step"),
+                        ))),
+                    ))?;
+                    Ok(())
+                },
+                agent_client_protocol::on_receive_request!(),
+            )
+            .connect_to(channel)
+            .await
+    }
+
+    #[tokio::test]
+    async fn establishes_a_session_and_streams_updates() -> anyhow::Result<()> {
+        let (client_channel, agent_channel) = Channel::duplex();
+        let agent = tokio::spawn(fake_agent(agent_channel));
+
+        let updates = UpdateStream::new(8);
+        // Consumers subscribe before the handshake: anything the agent streams
+        // during establishment must reach them.
+        let mut subscription = updates.subscribe();
+        let session = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            establish_session(client_channel, "/workspace", updates.clone()),
+        )
+        .await
+        .expect("establishment finishes")
+        .expect("session establishes");
+        assert_eq!(session.session_id.0.as_ref(), "agent-session-1");
+
+        let notification =
+            tokio::time::timeout(std::time::Duration::from_secs(5), subscription.recv())
+                .await
+                .expect("update arrives")
+                .expect("update received");
+        assert!(matches!(
+            notification.update,
+            SessionUpdate::AgentMessageChunk(_)
+        ));
+
+        // Dropping the session handle tears down the connection task, so the fake
+        // agent side sees its transport close and finishes cleanly.
+        drop(session);
+        tokio::time::timeout(std::time::Duration::from_secs(5), agent)
+            .await
+            .expect("agent finishes")
+            .expect("agent task joins")?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn establishment_fails_when_the_agent_never_answers() {
+        // No agent on the other end: the channel closes, so session/new never
+        // resolves and establishment reports the dead connection.
+        let (client_channel, agent_channel) = Channel::duplex();
+        drop(agent_channel);
+
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            establish_session(client_channel, "/workspace", UpdateStream::new(8)),
+        )
+        .await
+        .expect("establishment finishes");
+
+        assert!(result.is_err(), "a dead agent must not establish a session");
     }
 }
 

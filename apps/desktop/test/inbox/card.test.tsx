@@ -1,16 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { render } from '@solidjs/testing-library'
 import { InboxCard } from '../../src/screens/inbox/InboxCard'
-import { useInboxItems } from '../../src/data/inbox'
+import { PENDING } from './deliveries'
 
-const ITEM = useInboxItems()[0]
+const ITEM = PENDING[0]
 const mount = (item = ITEM, selected = false) =>
   render(() => <InboxCard item={item} selected={selected} onSelect={() => {}} />)
 
 describe('inbox/card', () => {
-  it('shows the title', () => {
+  it('shows the subject', () => {
     const { getByTestId } = mount()
-    expect(getByTestId(`inbox-card-${ITEM.id}`).textContent).toContain(ITEM.title)
+    expect(getByTestId(`inbox-card-${ITEM.id}`).textContent).toContain(ITEM.subject)
   })
 
   it('right-aligns the age', () => {
@@ -20,21 +20,15 @@ describe('inbox/card', () => {
   })
 
   it('rolls the age over to hours rather than showing three digits of minutes', () => {
-    const { getByTestId } = mount({ ...ITEM, ageMinutes: 141 })
+    const { getByTestId } = mount(PENDING[1])
     expect(getByTestId('inbox-card-age').textContent).toBe('2h')
   })
 
-  it('carries the project · agent · branch subline, with the branch in mono', () => {
+  it('carries the project · sender subline, with the sender in mono', () => {
     const { getByTestId } = mount()
     const sub = getByTestId('inbox-card-sub')
     expect(sub.textContent).toContain('tapestry')
-    expect(sub.textContent).toContain('planner@3')
-    expect(sub.querySelector('.mono')!.textContent).toBe('agent/8f21-notify')
-  })
-
-  it('reports its kind to the DOM', () => {
-    const { getByTestId } = mount()
-    expect(getByTestId(`inbox-card-${ITEM.id}`).getAttribute('data-kind')).toBe('gate')
+    expect(sub.querySelector('.mono')!.textContent).toBe('agent')
   })
 
   it('selects when it is clicked', () => {

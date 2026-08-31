@@ -16,8 +16,7 @@ use locus_core::{
     plugin::{builtin_manifests, PluginKind, PluginProcess, WorkItemProviderDescriptor},
     repo::GitState,
     services::{
-        agents::{seeded_definitions, AgentDefinition},
-        artifact::{ArtifactComment, ArtifactContent, ArtifactKind, ArtifactRow, ArtifactStore},
+        artifact::{ArtifactComment, ArtifactContent, ArtifactKind, ArtifactRow},
         board::{BoardActor, BoardCommentOrigin, BoardEvidenceLink},
         bots::{
             Bot, BotContainerState, BotRoutine, RoutineAttribution, RoutineExecution,
@@ -47,6 +46,7 @@ use tauri::{
 const MODEL_TIERS: [&str; 4] = ["low", "medium", "high", "xhigh"];
 const HARNESS_REGISTRY: &str = "../../../harnesses";
 const COMMAND_PALETTE_ACCELERATOR: &str = "CmdOrCtrl+K";
+const GLOBAL_SEARCH_ACCELERATOR: &str = "CmdOrCtrl+P";
 
 #[derive(Default)]
 struct LspDiagnosticsSubscriptions {
@@ -460,12 +460,1576 @@ async fn connected_store(core: &Core) -> Result<&Store, IpcError> {
         .map_err(IpcError::internal)
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DispatchStopAllResponse {
+    snapshot_id: String,
+    stopped_runs: usize,
+}
+
+#[tauri::command]
+async fn dispatch_stop_all(
+    core: State<'_, Arc<Core>>,
+    write_handoffs: Option<bool>,
+) -> Result<DispatchStopAllResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    let snapshot = store
+        .stop_all_with_handoffs(write_handoffs.unwrap_or(true))
+        .await
+        .map_err(IpcError::internal)?;
+    Ok(DispatchStopAllResponse {
+        snapshot_id: snapshot.id.to_string(),
+        stopped_runs: snapshot.run_ids.len(),
+    })
+}
+
 async fn resolve_project_id(store: &Store, identifier: &str) -> Result<ProjectId, IpcError> {
     store
         .resolve_project_id(identifier)
         .await
         .map_err(IpcError::internal)?
         .ok_or_else(|| IpcError::invalid_argument("active project was not found"))
+}
+
+/// The Setup screen's live read path: projects, their repos and local remotes, and
+/// the per-project harness policy and base context. The `*_inner` fns are the test
+/// surface — a Tauri `State` cannot be constructed outside the runtime.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProjectSummaryResponse {
+    id: String,
+    name: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RepoResponse {
+    id: String,
+    project_id: String,
+    name: String,
+    working_copy_path: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LocalRemoteResponse {
+    id: String,
+    repo_id: String,
+    bare_path: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProjectSetupResponse {
+    harness_allow_list: Vec<String>,
+    base_context: Option<String>,
+    base_context_token_budget: Option<u32>,
+}
+
+async fn projects_list_inner(store: &Store) -> Result<Vec<ProjectSummaryResponse>, IpcError> {
+    store
+        .projects_list()
+        .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(|row| ProjectSummaryResponse {
+                    id: row.id.to_string(),
+                    name: row.name,
+                })
+                .collect()
+        })
+        .map_err(IpcError::internal)
+}
+
+/// A Setup read is scoped to a project that exists: an unknown id is a typed
+/// not-found, never an empty success pretending the project has nothing.
+async fn resolve_setup_project(store: &Store, identifier: &str) -> Result<ProjectId, IpcError> {
+    store
+        .resolve_project_id(identifier)
+        .await
+        .map_err(IpcError::internal)?
+        .ok_or_else(|| IpcError::not_found("project was not found"))
+}
+
+async fn repos_list_inner(store: &Store, project_id: &str) -> Result<Vec<RepoResponse>, IpcError> {
+    let project_id = resolve_setup_project(store, project_id).await?;
+    store
+        .repos_list(project_id)
+        .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(|row| RepoResponse {
+                    id: row.id.to_string(),
+                    project_id: row.project_id.to_string(),
+                    name: row.name,
+                    working_copy_path: row.working_copy_path,
+                })
+                .collect()
+        })
+        .map_err(IpcError::internal)
+}
+
+async fn local_remotes_list_inner(
+    store: &Store,
+    project_id: &str,
+) -> Result<Vec<LocalRemoteResponse>, IpcError> {
+    let project_id = resolve_setup_project(store, project_id).await?;
+    store
+        .local_remotes_list(project_id)
+        .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(|row| LocalRemoteResponse {
+                    id: row.id.to_string(),
+                    repo_id: row.repo_id.to_string(),
+                    bare_path: row.bare_path,
+                })
+                .collect()
+        })
+        .map_err(IpcError::internal)
+}
+
+async fn project_setup_inner(
+    store: &Store,
+    project_id: &str,
+) -> Result<ProjectSetupResponse, IpcError> {
+    let project_id = resolve_setup_project(store, project_id).await?;
+    store
+        .project_settings(project_id)
+        .await
+        .map(|settings| ProjectSetupResponse {
+            harness_allow_list: settings.harness_allow_list().to_vec(),
+            base_context: settings.base_context().map(str::to_owned),
+            base_context_token_budget: settings.base_context_token_budget(),
+        })
+        .map_err(IpcError::internal)
+}
+
+#[tauri::command]
+async fn projects_list(
+    core: State<'_, Arc<Core>>,
+) -> Result<Vec<ProjectSummaryResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    projects_list_inner(store).await
+}
+
+#[tauri::command]
+async fn repos_list(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+) -> Result<Vec<RepoResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    repos_list_inner(store, &project_id).await
+}
+
+#[tauri::command]
+async fn local_remotes_list(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+) -> Result<Vec<LocalRemoteResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    local_remotes_list_inner(store, &project_id).await
+}
+
+#[tauri::command]
+async fn project_setup(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+) -> Result<ProjectSetupResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    project_setup_inner(store, &project_id).await
+}
+
+/// The shell's live pill data (slice 4): dispatch running counts and sessions,
+/// and the Inbox pill's pending-for-a-human count.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct StripCardResponse {
+    id: String,
+    project: String,
+    agent: String,
+    status: String,
+    /// Seconds since the run started, so the UI derives elapsed time locally.
+    started_epoch: i64,
+}
+
+async fn scope_project(
+    store: &Store,
+    project_id: Option<&str>,
+) -> Result<Option<ProjectId>, IpcError> {
+    match project_id {
+        None => Ok(None),
+        Some(identifier) => Ok(Some(
+            store
+                .resolve_project_id(identifier)
+                .await
+                .map_err(IpcError::internal)?
+                .ok_or_else(|| IpcError::not_found("project was not found"))?,
+        )),
+    }
+}
+
+async fn strip_cards_inner(
+    store: &Store,
+    project_id: Option<&str>,
+) -> Result<Vec<StripCardResponse>, IpcError> {
+    let project_id = scope_project(store, project_id).await?;
+    store
+        .running_runs(project_id)
+        .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(|row| StripCardResponse {
+                    id: row.id.to_string(),
+                    project: row.project,
+                    agent: row.agent,
+                    status: row.status,
+                    started_epoch: row.started_epoch,
+                })
+                .collect()
+        })
+        .map_err(IpcError::internal)
+}
+
+async fn running_count_inner(store: &Store, project_id: Option<&str>) -> Result<usize, IpcError> {
+    let project_id = scope_project(store, project_id).await?;
+    let count = store
+        .running_run_count(project_id)
+        .await
+        .map_err(IpcError::internal)?;
+    usize::try_from(count).map_err(|_| IpcError::internal("run count exceeds usize"))
+}
+
+async fn inbox_pending_count_inner(store: &Store) -> Result<usize, IpcError> {
+    let count = store
+        .pending_human_delivery_count()
+        .await
+        .map_err(IpcError::internal)?;
+    usize::try_from(count).map_err(|_| IpcError::internal("inbox count exceeds usize"))
+}
+
+#[tauri::command]
+async fn strip_cards(
+    core: State<'_, Arc<Core>>,
+    project_id: Option<String>,
+) -> Result<Vec<StripCardResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    strip_cards_inner(store, project_id.as_deref()).await
+}
+
+#[tauri::command]
+async fn running_count(
+    core: State<'_, Arc<Core>>,
+    project_id: Option<String>,
+) -> Result<usize, IpcError> {
+    let store = connected_store(&core).await?;
+    running_count_inner(store, project_id.as_deref()).await
+}
+
+#[tauri::command]
+async fn inbox_pending_count(core: State<'_, Arc<Core>>) -> Result<usize, IpcError> {
+    let store = connected_store(&core).await?;
+    inbox_pending_count_inner(store).await
+}
+
+/// The Dispatch runs table (slice 7): every run across projects, newest first,
+/// with event and error rollups.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DispatchRunResponse {
+    id: String,
+    project: String,
+    agent: String,
+    branch: String,
+    status: String,
+    harness: Option<String>,
+    role: Option<String>,
+    model: String,
+    events: i64,
+    errors: i64,
+    started_at: Option<String>,
+}
+
+async fn dispatch_runs_page_inner(
+    store: &Store,
+    project_id: Option<&str>,
+    offset: i64,
+    limit: i64,
+) -> Result<Vec<DispatchRunResponse>, IpcError> {
+    let scoped = scope_project(store, project_id).await?;
+    let offset = i64::try_from(offset.max(0) as u64).unwrap_or(0);
+    let limit = i64::try_from(limit.clamp(0, 500) as u64).unwrap_or(100);
+    store
+        .dispatch_runs_page(scoped, offset, limit)
+        .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(|row| DispatchRunResponse {
+                    id: row.id.to_string(),
+                    project: row.project,
+                    agent: row.agent,
+                    branch: row.branch,
+                    status: row.status,
+                    harness: row.harness,
+                    role: row.role,
+                    model: row.model,
+                    events: row.events,
+                    errors: row.errors,
+                    started_at: row.started_at,
+                })
+                .collect()
+        })
+        .map_err(IpcError::internal)
+}
+
+async fn dispatch_runs_count_inner(
+    store: &Store,
+    project_id: Option<&str>,
+) -> Result<usize, IpcError> {
+    let scoped = scope_project(store, project_id).await?;
+    let count = store
+        .dispatch_runs_count(scoped)
+        .await
+        .map_err(IpcError::internal)?;
+    usize::try_from(count).map_err(|_| IpcError::internal("run count exceeds usize"))
+}
+
+#[tauri::command]
+async fn dispatch_runs_page(
+    core: State<'_, Arc<Core>>,
+    project_id: Option<String>,
+    offset: Option<i64>,
+    limit: Option<i64>,
+) -> Result<Vec<DispatchRunResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    dispatch_runs_page_inner(
+        store,
+        project_id.as_deref(),
+        offset.unwrap_or(0),
+        limit.unwrap_or(100),
+    )
+    .await
+}
+
+#[tauri::command]
+async fn dispatch_runs_count(
+    core: State<'_, Arc<Core>>,
+    project_id: Option<String>,
+) -> Result<usize, IpcError> {
+    let store = connected_store(&core).await?;
+    dispatch_runs_count_inner(store, project_id.as_deref()).await
+}
+
+/// The sessions family (slice 7): the session list and one session's runs.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SessionResponse {
+    id: String,
+    project_id: String,
+    project: String,
+    agent: String,
+    name: String,
+    branch: String,
+    status: String,
+    created_at: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SessionRunResponse {
+    id: String,
+    session_id: String,
+    status: String,
+    resolved_model: String,
+    started_at: Option<String>,
+    ended_at: Option<String>,
+    exit_code: Option<i32>,
+}
+
+async fn sessions_list_inner(
+    store: &Store,
+    project_id: Option<&str>,
+    offset: i64,
+    limit: i64,
+) -> Result<Vec<SessionResponse>, IpcError> {
+    let scoped = scope_project(store, project_id).await?;
+    store
+        .sessions_page(scoped, offset.max(0), limit.clamp(0, 500))
+        .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(|row| SessionResponse {
+                    id: row.id.to_string(),
+                    project_id: row.project_id.to_string(),
+                    project: row.project,
+                    agent: row.agent,
+                    name: row.name,
+                    branch: row.branch,
+                    status: row.status,
+                    created_at: row.created_at,
+                })
+                .collect()
+        })
+        .map_err(IpcError::internal)
+}
+
+async fn runs_for_session_inner(
+    store: &Store,
+    session_id: &str,
+) -> Result<Vec<SessionRunResponse>, IpcError> {
+    let session_id: uuid::Uuid = session_id
+        .parse()
+        .map_err(|_| IpcError::invalid_argument("session id must be a UUID"))?;
+    store
+        .runs_for_session(session_id)
+        .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(|row| SessionRunResponse {
+                    id: row.id.to_string(),
+                    session_id: row.session_id.to_string(),
+                    status: row.status,
+                    resolved_model: row.resolved_model,
+                    started_at: row.started_at,
+                    ended_at: row.ended_at,
+                    exit_code: row.exit_code,
+                })
+                .collect()
+        })
+        .map_err(IpcError::internal)
+}
+
+#[tauri::command]
+async fn sessions_list(
+    core: State<'_, Arc<Core>>,
+    project_id: Option<String>,
+    offset: Option<i64>,
+    limit: Option<i64>,
+) -> Result<Vec<SessionResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    sessions_list_inner(
+        store,
+        project_id.as_deref(),
+        offset.unwrap_or(0),
+        limit.unwrap_or(100),
+    )
+    .await
+}
+
+#[tauri::command]
+async fn runs_for_session(
+    core: State<'_, Arc<Core>>,
+    session_id: String,
+) -> Result<Vec<SessionRunResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    runs_for_session_inner(store, &session_id).await
+}
+
+/// Dispatch schedules and their execution history (slice 7).
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ScheduleResponse {
+    id: String,
+    project_id: String,
+    project: String,
+    name: String,
+    cron: String,
+    enabled: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ScheduleExecutionResponse {
+    id: String,
+    schedule_name: String,
+    project: String,
+    status: String,
+    scheduled_for: Option<String>,
+    started_at: Option<String>,
+    ended_at: Option<String>,
+}
+
+async fn schedules_list_inner(store: &Store) -> Result<Vec<ScheduleResponse>, IpcError> {
+    store
+        .schedules_list()
+        .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(|row| ScheduleResponse {
+                    id: row.id.to_string(),
+                    project_id: row.project_id.to_string(),
+                    project: row.project,
+                    name: row.name,
+                    cron: row.cron_expression,
+                    enabled: row.enabled,
+                })
+                .collect()
+        })
+        .map_err(IpcError::internal)
+}
+
+async fn schedule_executions_inner(
+    store: &Store,
+    project_id: Option<&str>,
+    limit: i64,
+) -> Result<Vec<ScheduleExecutionResponse>, IpcError> {
+    let scoped = scope_project(store, project_id).await?;
+    let limit = i64::try_from(limit.clamp(0, 500) as u64).unwrap_or(50);
+    store
+        .schedule_executions(scoped, limit)
+        .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(|row| ScheduleExecutionResponse {
+                    id: row.id.to_string(),
+                    schedule_name: row.schedule_name,
+                    project: row.project,
+                    status: row.status,
+                    scheduled_for: row.scheduled_for,
+                    started_at: row.started_at,
+                    ended_at: row.ended_at,
+                })
+                .collect()
+        })
+        .map_err(IpcError::internal)
+}
+
+#[tauri::command]
+async fn dispatch_schedules(core: State<'_, Arc<Core>>) -> Result<Vec<ScheduleResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    schedules_list_inner(store).await
+}
+
+/// One session by id (the detail read) and the autorun switchboard.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AutorunStateResponse {
+    project_id: String,
+    project: String,
+    state: String,
+}
+
+async fn autorun_states_inner(store: &Store) -> Result<Vec<AutorunStateResponse>, IpcError> {
+    store
+        .autorun_states()
+        .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(|row| AutorunStateResponse {
+                    project_id: row.project_id.to_string(),
+                    project: row.project,
+                    state: row.state,
+                })
+                .collect()
+        })
+        .map_err(IpcError::internal)
+}
+
+async fn set_project_autorun_state_inner(
+    store: &Store,
+    project_id: &str,
+    state: &str,
+) -> Result<(), IpcError> {
+    let pid = resolve_setup_project(store, project_id).await?;
+    let state = match state {
+        "on" => locus_core::runtime::dispatch::AutorunState::On,
+        "off" => locus_core::runtime::dispatch::AutorunState::Off,
+        "suspended" => locus_core::runtime::dispatch::AutorunState::Suspended,
+        other => {
+            return Err(IpcError::invalid_argument(format!(
+                "unknown autorun state {other}"
+            )))
+        }
+    };
+    store
+        .set_project_autorun_state(pid, state)
+        .await
+        .map_err(IpcError::internal)
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GuardrailControlResponse {
+    kind: String,
+    value: serde_json::Value,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GuardrailSettingResponse {
+    id: String,
+    label: String,
+    description: String,
+    control: GuardrailControlResponse,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GuardrailSectionResponse {
+    id: String,
+    label: String,
+    settings: Vec<GuardrailSettingResponse>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GuardrailSettingsRequest {
+    max_iterations: i32,
+    token_budget: Option<i64>,
+    stuck_iterations: i32,
+    kill_and_reassign: bool,
+    global_parallelism: i32,
+    per_project_parallelism: i32,
+    priority_method: String,
+    tie_break: String,
+    change_lines_ceiling: Option<i32>,
+    change_files_ceiling: Option<i32>,
+    network_tier: String,
+    block_system_changes: bool,
+    autopilot: bool,
+}
+
+fn guardrail_stepper(id: &str, label: &str, value: impl Into<String>) -> GuardrailSettingResponse {
+    GuardrailSettingResponse {
+        id: id.into(),
+        label: label.into(),
+        description: "Installation default; applies to runs started after saving.".into(),
+        control: GuardrailControlResponse {
+            kind: "stepper".into(),
+            value: serde_json::Value::String(value.into()),
+        },
+    }
+}
+
+fn guardrail_toggle(id: &str, label: &str, value: bool) -> GuardrailSettingResponse {
+    GuardrailSettingResponse {
+        id: id.into(),
+        label: label.into(),
+        description: "Installation default; applies to runs started after saving.".into(),
+        control: GuardrailControlResponse {
+            kind: "toggle".into(),
+            value: serde_json::Value::Bool(value),
+        },
+    }
+}
+
+fn guardrail_select(id: &str, label: &str, value: &str) -> GuardrailSettingResponse {
+    GuardrailSettingResponse {
+        id: id.into(),
+        label: label.into(),
+        description: "Installation default; applies to runs started after saving.".into(),
+        control: GuardrailControlResponse {
+            kind: "select".into(),
+            value: serde_json::Value::String(value.into()),
+        },
+    }
+}
+
+fn guardrail_settings_response(
+    settings: &locus_core::store::guardrails::GuardrailSettings,
+) -> Vec<GuardrailSectionResponse> {
+    let defaults = &settings.defaults;
+    let dispatch = &settings.dispatch;
+    vec![
+        GuardrailSectionResponse {
+            id: "stopping".into(),
+            label: "Stopping conditions".into(),
+            settings: vec![
+                guardrail_stepper(
+                    "max-iterations",
+                    "Max iterations",
+                    defaults.max_iterations.to_string(),
+                ),
+                guardrail_stepper(
+                    "token-budget",
+                    "Token budget per run",
+                    defaults.token_budget.map_or_else(
+                        || "unlimited".into(),
+                        |budget| format!("{}k", budget / 1000),
+                    ),
+                ),
+                guardrail_stepper(
+                    "stuck-detection",
+                    "Stuck detection",
+                    defaults.stuck_iterations.to_string(),
+                ),
+                guardrail_toggle(
+                    "kill-reassign",
+                    "Kill & reassign on stuck",
+                    defaults.kill_and_reassign,
+                ),
+            ],
+        },
+        GuardrailSectionResponse {
+            id: "parallelism".into(),
+            label: "Parallelism".into(),
+            settings: vec![
+                guardrail_stepper(
+                    "max-parallel-agents",
+                    "Max parallel agents",
+                    dispatch.global_parallelism.to_string(),
+                ),
+                guardrail_stepper(
+                    "max-per-project",
+                    "Max per project",
+                    dispatch.per_project_parallelism.to_string(),
+                ),
+                guardrail_select(
+                    "priority-method",
+                    "Priority method",
+                    &dispatch.priority_method.replace('_', " "),
+                ),
+                guardrail_select(
+                    "tie-break",
+                    "Tie-break",
+                    &dispatch.tie_break.replace('_', " "),
+                ),
+            ],
+        },
+        GuardrailSectionResponse {
+            id: "change-size".into(),
+            label: "Change size".into(),
+            settings: vec![
+                guardrail_stepper(
+                    "lines-changed",
+                    "Lines changed ceiling",
+                    defaults
+                        .change_lines_ceiling
+                        .map_or_else(|| "unlimited".into(), |value| value.to_string()),
+                ),
+                guardrail_stepper(
+                    "files-touched",
+                    "Files touched ceiling",
+                    defaults
+                        .change_files_ceiling
+                        .map_or_else(|| "unlimited".into(), |value| value.to_string()),
+                ),
+            ],
+        },
+        GuardrailSectionResponse {
+            id: "permissions".into(),
+            label: "Permissions".into(),
+            settings: vec![
+                guardrail_select(
+                    "network-tier",
+                    "Network tier for new agents",
+                    &defaults.network_tier,
+                ),
+                guardrail_toggle(
+                    "block-system-changes",
+                    "Block unapproved system changes",
+                    defaults.block_system_changes,
+                ),
+                guardrail_toggle("autopilot", "Autopilot", defaults.autopilot),
+            ],
+        },
+    ]
+}
+
+async fn guardrail_settings_inner(
+    store: &Store,
+) -> Result<Vec<GuardrailSectionResponse>, IpcError> {
+    store
+        .guardrail_settings()
+        .await
+        .map(|settings| guardrail_settings_response(&settings))
+        .map_err(IpcError::internal)
+}
+
+async fn set_guardrail_settings_inner(
+    store: &Store,
+    request: GuardrailSettingsRequest,
+) -> Result<Vec<GuardrailSectionResponse>, IpcError> {
+    let settings = store
+        .set_guardrail_settings(
+            &locus_core::store::guardrails::GuardrailDefaultsRow {
+                max_iterations: request.max_iterations,
+                token_budget: request.token_budget,
+                stuck_iterations: request.stuck_iterations,
+                kill_and_reassign: request.kill_and_reassign,
+                change_lines_ceiling: request.change_lines_ceiling,
+                change_files_ceiling: request.change_files_ceiling,
+                network_tier: request.network_tier,
+                block_system_changes: request.block_system_changes,
+                autopilot: request.autopilot,
+            },
+            &locus_core::store::guardrails::DispatchPolicyRow {
+                global_parallelism: request.global_parallelism,
+                per_project_parallelism: request.per_project_parallelism,
+                priority_method: request.priority_method.replace(' ', "_"),
+                tie_break: request.tie_break.replace(' ', "_"),
+            },
+        )
+        .await
+        .map_err(IpcError::internal)?;
+    Ok(guardrail_settings_response(&settings))
+}
+
+#[tauri::command]
+async fn settings_guardrails(
+    core: State<'_, Arc<Core>>,
+) -> Result<Vec<GuardrailSectionResponse>, IpcError> {
+    guardrail_settings_inner(connected_store(&core).await?).await
+}
+
+#[tauri::command]
+async fn settings_guardrails_set(
+    core: State<'_, Arc<Core>>,
+    request: GuardrailSettingsRequest,
+) -> Result<Vec<GuardrailSectionResponse>, IpcError> {
+    set_guardrail_settings_inner(connected_store(&core).await?, request).await
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PlanSummaryResponse {
+    id: String,
+    title: String,
+    project: String,
+    state: String,
+    step: String,
+    step_line: String,
+    confidence: Option<f64>,
+    open: Option<i32>,
+    landed: Option<String>,
+    age: String,
+}
+
+fn plan_step_label(stage: &str) -> Result<(&'static str, usize), IpcError> {
+    let result = match stage {
+        "inputs" => ("Inputs", 1),
+        "orient" => ("Orient", 2),
+        "converse" => ("Converse", 3),
+        "synthesis" => ("Synthesis", 4),
+        "recommend" => ("Recommend", 5),
+        "decompose" => ("Decompose", 6),
+        "approved" => ("Approved", 7),
+        other => {
+            return Err(IpcError::internal(format!(
+                "plan has unknown stage `{other}`"
+            )))
+        }
+    };
+    Ok(result)
+}
+
+fn parse_plan_stage(
+    stage: &str,
+) -> Result<locus_core::services::planning::PlanningStage, IpcError> {
+    match stage {
+        "inputs" => Ok(locus_core::services::planning::PlanningStage::Inputs),
+        "orient" => Ok(locus_core::services::planning::PlanningStage::Orient),
+        "converse" => Ok(locus_core::services::planning::PlanningStage::Converse),
+        "synthesis" => Ok(locus_core::services::planning::PlanningStage::Synthesis),
+        "recommend" => Ok(locus_core::services::planning::PlanningStage::Recommend),
+        "decompose" => Ok(locus_core::services::planning::PlanningStage::Decompose),
+        "approved" => Ok(locus_core::services::planning::PlanningStage::Approved),
+        other => Err(IpcError::invalid_argument(format!(
+            "unknown plan stage `{other}`"
+        ))),
+    }
+}
+
+async fn plans_list_inner(
+    store: &Store,
+    project_id: &str,
+) -> Result<Vec<PlanSummaryResponse>, IpcError> {
+    let project_id = resolve_setup_project(store, project_id).await?;
+    let rows = store
+        .plans_list(project_id)
+        .await
+        .map_err(IpcError::internal)?;
+    rows.into_iter()
+        .map(|row| {
+            let (step, step_number) = plan_step_label(&row.stage)?;
+            Ok(PlanSummaryResponse {
+                id: row.id.to_string(),
+                title: row.title,
+                project: row.project,
+                state: row.state.clone(),
+                step: step.into(),
+                step_line: if row.state == "draft_rejected" {
+                    format!(
+                        "confidence {:.2} · open[{}]",
+                        row.confidence.unwrap_or(0.0),
+                        row.open_count
+                    )
+                } else {
+                    format!("step {step_number} · {step}")
+                },
+                confidence: row.confidence,
+                open: (row.state == "draft_rejected").then_some(row.open_count),
+                landed: None,
+                age: row.updated_at,
+            })
+        })
+        .collect()
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PlanMutationResponse {
+    updated: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PlanRequirementRequest {
+    id: String,
+    body: String,
+}
+
+async fn plan_create_inner(
+    store: &Store,
+    project_id: &str,
+    title: &str,
+    goal: &str,
+) -> Result<PlanSummaryResponse, IpcError> {
+    let project_id = resolve_setup_project(store, project_id).await?;
+    let id = uuid::Uuid::new_v4();
+    store
+        .create_plan(id, project_id.into(), title, goal)
+        .await
+        .map_err(IpcError::internal)?;
+    plans_list_inner(store, &project_id.to_string())
+        .await?
+        .into_iter()
+        .find(|plan| plan.id == id.to_string())
+        .ok_or_else(|| IpcError::internal("created plan disappeared"))
+}
+
+async fn plan_stage_set_inner(
+    store: &Store,
+    project_id: &str,
+    plan_id: &str,
+    stage: &str,
+    description: &str,
+    duration_seconds: Option<i64>,
+) -> Result<(), IpcError> {
+    let project_id = resolve_setup_project(store, project_id).await?;
+    let plan_id = plan_id
+        .parse()
+        .map_err(|_| IpcError::invalid_argument("plan id must be a UUID"))?;
+    if !store
+        .plan_belongs_to_project(plan_id, project_id)
+        .await
+        .map_err(IpcError::internal)?
+    {
+        return Err(IpcError::not_found(
+            "plan was not found in the active project",
+        ));
+    }
+    store
+        .set_plan_stage(
+            plan_id,
+            parse_plan_stage(stage)?,
+            description,
+            duration_seconds,
+        )
+        .await
+        .map_err(IpcError::internal)
+}
+
+async fn plan_requirements_set_inner(
+    store: &Store,
+    project_id: &str,
+    plan_id: &str,
+    requirements: Vec<PlanRequirementRequest>,
+) -> Result<(), IpcError> {
+    let project_id = resolve_setup_project(store, project_id).await?;
+    let plan_id = plan_id
+        .parse()
+        .map_err(|_| IpcError::invalid_argument("plan id must be a UUID"))?;
+    if !store
+        .plan_belongs_to_project(plan_id, project_id)
+        .await
+        .map_err(IpcError::internal)?
+    {
+        return Err(IpcError::not_found(
+            "plan was not found in the active project",
+        ));
+    }
+    let requirements = requirements
+        .into_iter()
+        .map(|requirement| {
+            locus_core::services::planning::Requirement::new(requirement.id, requirement.body)
+                .map_err(|error| IpcError::invalid_argument(error.to_string()))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let spec = locus_core::services::planning::EditableSpec::new(requirements)
+        .map_err(|error| IpcError::invalid_argument(error.to_string()))?;
+    store
+        .save_plan_requirements(plan_id, &spec)
+        .await
+        .map_err(IpcError::internal)
+}
+
+#[tauri::command]
+async fn plans_list(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+) -> Result<Vec<PlanSummaryResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    plans_list_inner(store, &project_id).await
+}
+
+#[tauri::command]
+async fn plan_create(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    title: String,
+    goal: String,
+) -> Result<PlanSummaryResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    plan_create_inner(store, &project_id, &title, &goal).await
+}
+
+#[tauri::command]
+async fn plan_stage_set(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    plan_id: String,
+    stage: String,
+    description: String,
+    duration_seconds: Option<i64>,
+) -> Result<PlanMutationResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    plan_stage_set_inner(
+        store,
+        &project_id,
+        &plan_id,
+        &stage,
+        &description,
+        duration_seconds,
+    )
+    .await?;
+    Ok(PlanMutationResponse { updated: true })
+}
+
+#[tauri::command]
+async fn plan_requirements_set(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    plan_id: String,
+    requirements: Vec<PlanRequirementRequest>,
+) -> Result<PlanMutationResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    plan_requirements_set_inner(store, &project_id, &plan_id, requirements).await?;
+    Ok(PlanMutationResponse { updated: true })
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct BoardTaskResponse {
+    id: String,
+    project_id: String,
+    repo_id: String,
+    title: String,
+    column: String,
+    status: String,
+    verify_command: String,
+    assignee: Option<String>,
+    gate: String,
+    stuck_iterations: Option<u32>,
+    max_iterations: u32,
+    tools: String,
+    tokens: Option<String>,
+    workflow_id: Option<String>,
+    root_session_id: Option<String>,
+    child_run_ids: Vec<String>,
+    evidence_ids: Vec<String>,
+    external_link: Option<String>,
+}
+
+fn board_column_name(column: &str) -> Result<&'static str, IpcError> {
+    match column {
+        "ready" => Ok("ready"),
+        "in_progress" => Ok("in_progress"),
+        "testing" => Ok("testing"),
+        "reviewing" => Ok("reviewing"),
+        "waiting_for_approval" => Ok("waiting_for_approval"),
+        "done" => Ok("done"),
+        other => Err(IpcError::internal(format!(
+            "board task has unknown column `{other}`"
+        ))),
+    }
+}
+
+fn board_task_response(
+    row: locus_core::store::board::BoardTaskRow,
+) -> Result<BoardTaskResponse, IpcError> {
+    let column = board_column_name(&row.column_name)?;
+    Ok(BoardTaskResponse {
+        id: row.id.to_string(),
+        project_id: row.project_id.to_string(),
+        repo_id: row.repo_id.map_or_else(String::new, |id| id.to_string()),
+        title: row.summary,
+        column: column.into(),
+        status: if row.blocked {
+            "blocked".into()
+        } else {
+            "ok".into()
+        },
+        verify_command: row.verify_command.unwrap_or_default(),
+        assignee: row.assigned_agent,
+        gate: "unavailable".into(),
+        stuck_iterations: None,
+        max_iterations: 0,
+        tools: "unavailable".into(),
+        tokens: None,
+        workflow_id: row.workflow_id.map(|id| id.to_string()),
+        root_session_id: row.session_id.map(|id| id.to_string()),
+        child_run_ids: row
+            .child_run_ids
+            .into_iter()
+            .map(|id| id.to_string())
+            .collect(),
+        evidence_ids: row
+            .evidence_ids
+            .into_iter()
+            .map(|id| id.to_string())
+            .collect(),
+        external_link: row.external_link,
+    })
+}
+
+async fn board_tasks_inner(
+    store: &Store,
+    project_id: &str,
+) -> Result<Vec<BoardTaskResponse>, IpcError> {
+    let project_id = resolve_setup_project(store, project_id).await?;
+    store
+        .board_tasks(project_id)
+        .await
+        .map_err(IpcError::internal)?
+        .into_iter()
+        .map(board_task_response)
+        .collect()
+}
+
+async fn task_detail_inner(
+    store: &Store,
+    project_id: &str,
+    task_id: &str,
+) -> Result<BoardTaskResponse, IpcError> {
+    let project_id = resolve_setup_project(store, project_id).await?;
+    let task_id = task_id
+        .parse()
+        .map_err(|_| IpcError::invalid_argument("task id must be a UUID"))?;
+    store
+        .board_task(project_id, task_id)
+        .await
+        .map_err(IpcError::internal)?
+        .ok_or_else(|| IpcError::not_found("task was not found in the active project"))
+        .and_then(board_task_response)
+}
+
+#[tauri::command]
+async fn board_tasks(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+) -> Result<Vec<BoardTaskResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    board_tasks_inner(store, &project_id).await
+}
+
+#[tauri::command]
+async fn task_detail(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    task_id: String,
+) -> Result<BoardTaskResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    task_detail_inner(store, &project_id, &task_id).await
+}
+
+async fn task_create_inner(
+    store: &Store,
+    project_id: &str,
+    repo_id: Option<&str>,
+    summary: &str,
+    workflow_def_id: &str,
+) -> Result<BoardTaskResponse, IpcError> {
+    let project_id = resolve_setup_project(store, project_id).await?;
+    let repo_id = repo_id
+        .filter(|value| !value.trim().is_empty())
+        .map(|value| {
+            value
+                .parse()
+                .map_err(|_| IpcError::invalid_argument("repo id must be a UUID"))
+        })
+        .transpose()?;
+    let workflow_def_id = workflow_def_id
+        .parse()
+        .map_err(|_| IpcError::invalid_argument("workflow definition id must be a UUID"))?;
+    if !store
+        .workflow_definition_belongs_to_project(workflow_def_id, project_id)
+        .await
+        .map_err(IpcError::internal)?
+    {
+        return Err(IpcError::not_found(
+            "workflow definition was not found in the active project",
+        ));
+    }
+    store
+        .create_board_task(project_id, repo_id, summary, workflow_def_id)
+        .await
+        .map(board_task_response)
+        .map_err(IpcError::internal)?
+}
+
+#[tauri::command]
+async fn task_create(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    repo_id: Option<String>,
+    summary: String,
+    workflow_def_id: String,
+) -> Result<BoardTaskResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    task_create_inner(
+        store,
+        &project_id,
+        repo_id.as_deref(),
+        &summary,
+        &workflow_def_id,
+    )
+    .await
+}
+
+#[tauri::command]
+async fn session(
+    core: State<'_, Arc<Core>>,
+    session_id: String,
+) -> Result<SessionResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    let session_id: uuid::Uuid = session_id
+        .parse()
+        .map_err(|_| IpcError::invalid_argument("session id must be a UUID"))?;
+    store
+        .session(session_id)
+        .await
+        .map_err(IpcError::internal)?
+        .map(|row| SessionResponse {
+            id: row.id.to_string(),
+            project_id: row.project_id.to_string(),
+            project: row.project,
+            agent: row.agent,
+            name: row.name,
+            branch: row.branch,
+            status: row.status,
+            created_at: row.created_at,
+        })
+        .ok_or_else(|| IpcError::not_found("session was not found"))
+}
+
+#[tauri::command]
+async fn autorun_states(core: State<'_, Arc<Core>>) -> Result<Vec<AutorunStateResponse>, IpcError> {
+    autorun_states_inner(connected_store(&core).await?).await
+}
+
+#[tauri::command]
+async fn set_project_autorun_state(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    state: String,
+) -> Result<(), IpcError> {
+    set_project_autorun_state_inner(
+        connected_store(&core).await?,
+        &project_id,
+        &state,
+    )
+    .await
+}
+
+#[tauri::command]
+async fn dispatch_schedule_executions(
+    core: State<'_, Arc<Core>>,
+    project_id: Option<String>,
+    limit: Option<i64>,
+) -> Result<Vec<ScheduleExecutionResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    schedule_executions_inner(store, project_id.as_deref(), limit.unwrap_or(50)).await
+}
+
+/// The Inbox (slice 7): pending human deliveries are the items; resolving one
+/// drains the delivery and records the decision as a human reply on the thread.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct InboxDeliveryResponse {
+    id: String,
+    thread_id: String,
+    subject: String,
+    body: String,
+    sender_kind: String,
+    project: String,
+    created_at: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ResolvedDeliveryResponse {
+    id: String,
+    subject: String,
+    body: String,
+    project: String,
+    resolved_at: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct InboxThroughputResponse {
+    pending: usize,
+    resolved_today: usize,
+}
+
+async fn inbox_list_inner(
+    store: &Store,
+    project_id: Option<&str>,
+) -> Result<Vec<InboxDeliveryResponse>, IpcError> {
+    let scoped = scope_project(store, project_id).await?;
+    store
+        .pending_human_inbox(scoped)
+        .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(|row| InboxDeliveryResponse {
+                    id: row.id.to_string(),
+                    thread_id: row.thread_id.to_string(),
+                    subject: row.subject,
+                    body: row.body,
+                    sender_kind: row.sender_kind,
+                    project: row.project,
+                    created_at: row.created_at,
+                })
+                .collect()
+        })
+        .map_err(IpcError::internal)
+}
+
+async fn inbox_resolved_today_inner(
+    store: &Store,
+    project_id: Option<&str>,
+) -> Result<Vec<ResolvedDeliveryResponse>, IpcError> {
+    let scoped = scope_project(store, project_id).await?;
+    store
+        .resolved_today(scoped)
+        .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(|row| ResolvedDeliveryResponse {
+                    id: row.id.to_string(),
+                    subject: row.subject,
+                    body: row.body,
+                    project: row.project,
+                    resolved_at: row.resolved_at,
+                })
+                .collect()
+        })
+        .map_err(IpcError::internal)
+}
+
+async fn inbox_throughput_inner(store: &Store) -> Result<InboxThroughputResponse, IpcError> {
+    let pending = inbox_pending_count_inner(store).await?;
+    let drained = store
+        .resolved_today_count()
+        .await
+        .map_err(IpcError::internal)?;
+    Ok(InboxThroughputResponse {
+        pending,
+        resolved_today: usize::try_from(drained)
+            .map_err(|_| IpcError::internal("inbox count exceeds usize"))?,
+    })
+}
+
+async fn inbox_resolve_inner(
+    store: &Store,
+    delivery_id: &str,
+    comment: &str,
+) -> Result<(), IpcError> {
+    let delivery: uuid::Uuid = delivery_id
+        .parse()
+        .map_err(|_| IpcError::invalid_argument("delivery id must be a UUID"))?;
+    // An unknown delivery is a typed not-found, checked before anything moves.
+    let thread_id = store
+        .mail_thread_of_delivery(delivery)
+        .await
+        .map_err(IpcError::internal)?
+        .ok_or_else(|| IpcError::not_found("delivery was not found"))?;
+    // The decision is auditable: the human's comment lands on the thread as a
+    // reply, and the delivery drains so it leaves every pending view.
+    if !comment.trim().is_empty() {
+        let message_id = uuid::Uuid::new_v4();
+        store
+            .append_mail_message(message_id, thread_id, "human", None, comment)
+            .await
+            .map_err(IpcError::internal)?;
+    }
+    store
+        .set_mail_delivery_status(delivery, "drained")
+        .await
+        .map_err(IpcError::internal)?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn inbox_list(
+    core: State<'_, Arc<Core>>,
+    project_id: Option<String>,
+) -> Result<Vec<InboxDeliveryResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    inbox_list_inner(store, project_id.as_deref()).await
+}
+
+#[tauri::command]
+async fn inbox_resolved_today(
+    core: State<'_, Arc<Core>>,
+    project_id: Option<String>,
+) -> Result<Vec<ResolvedDeliveryResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    inbox_resolved_today_inner(store, project_id.as_deref()).await
+}
+
+#[tauri::command]
+async fn inbox_throughput(core: State<'_, Arc<Core>>) -> Result<InboxThroughputResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    inbox_throughput_inner(store).await
+}
+
+#[tauri::command]
+async fn inbox_resolve(
+    core: State<'_, Arc<Core>>,
+    delivery_id: String,
+    comment: String,
+) -> Result<(), IpcError> {
+    let store = connected_store(&core).await?;
+    inbox_resolve_inner(store, &delivery_id, &comment).await
+}
+
+/// Setup's settings mutations (slice 5): base context, archive, rename.
+async fn project_base_context_set_inner(
+    store: &Store,
+    project_id: &str,
+    content: &str,
+    token_budget: Option<u32>,
+) -> Result<ProjectSetupResponse, IpcError> {
+    let project_id = resolve_setup_project(store, project_id).await?;
+    // The domain rule: base context and a nonzero budget rise and fall together.
+    // Empty content therefore clears both; non-empty content requires a budget.
+    let content = content.trim();
+    let (context_value, budget_value) = if content.is_empty() {
+        if token_budget.is_some() {
+            return Err(IpcError::invalid_argument(
+                "clearing the base context also clears its token budget",
+            ));
+        }
+        (serde_json::Value::Null, serde_json::Value::Null)
+    } else {
+        let budget = token_budget.ok_or_else(|| {
+            IpcError::invalid_argument("a base context needs a nonzero token budget")
+        })?;
+        if budget == 0 {
+            return Err(IpcError::invalid_argument(
+                "a base context needs a nonzero token budget",
+            ));
+        }
+        (
+            serde_json::Value::String(content.to_owned()),
+            serde_json::Value::Number(budget.into()),
+        )
+    };
+    let settings = store
+        .project_settings(project_id)
+        .await
+        .map_err(IpcError::internal)?;
+    // ProjectSettings keeps its policy fields private; the round trip through the
+    // serialized form updates exactly the two base-context keys.
+    let mut value = serde_json::to_value(&settings).map_err(IpcError::internal)?;
+    value["base_context"] = context_value;
+    value["base_context_token_budget"] = budget_value;
+    let updated: locus_core::services::project::ProjectSettings =
+        serde_json::from_value(value).map_err(IpcError::internal)?;
+    store
+        .set_project_settings(project_id, &updated)
+        .await
+        .map_err(IpcError::internal)?;
+    project_setup_inner(store, project_id.to_string().as_str()).await
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProjectArchiveResponse {
+    archived: bool,
+}
+
+async fn project_archive_set_inner(
+    store: &Store,
+    project_id: &str,
+    archived: bool,
+) -> Result<ProjectArchiveResponse, IpcError> {
+    let pid = resolve_setup_project(store, project_id).await?;
+    store
+        .set_project_archived(pid, archived)
+        .await
+        .map_err(IpcError::internal)?;
+    Ok(ProjectArchiveResponse { archived })
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProjectRenameResponse {
+    id: String,
+    name: String,
+}
+
+async fn project_rename_inner(
+    store: &Store,
+    project_id: &str,
+    name: &str,
+) -> Result<ProjectRenameResponse, IpcError> {
+    let pid = resolve_setup_project(store, project_id).await?;
+    if name.trim().is_empty() {
+        return Err(IpcError::invalid_argument("project name must not be empty"));
+    }
+    store
+        .rename_project(pid, name)
+        .await
+        .map_err(IpcError::internal)?;
+    Ok(ProjectRenameResponse {
+        id: pid.to_string(),
+        name: name.to_owned(),
+    })
+}
+
+#[tauri::command]
+async fn project_base_context_set(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    content: String,
+    token_budget: Option<u32>,
+) -> Result<ProjectSetupResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    project_base_context_set_inner(store, &project_id, &content, token_budget).await
+}
+
+#[tauri::command]
+async fn project_archive_set(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    archived: bool,
+) -> Result<ProjectArchiveResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    project_archive_set_inner(store, &project_id, archived).await
+}
+
+#[tauri::command]
+async fn project_rename(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    name: String,
+) -> Result<ProjectRenameResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    project_rename_inner(store, &project_id, &name).await
 }
 
 #[tauri::command]
@@ -495,13 +2059,11 @@ struct ExternalWorkItemWorkflowResponse {
     version: i32,
 }
 
-#[tauri::command]
-async fn external_work_item_workflows(
-    core: State<'_, Arc<Core>>,
-    project_id: String,
+async fn workflow_definitions_inner(
+    store: &Store,
+    project_id: &str,
 ) -> Result<Vec<ExternalWorkItemWorkflowResponse>, IpcError> {
-    let store = connected_store(&core).await?;
-    let project_id = resolve_project_id(store, &project_id).await?;
+    let project_id = resolve_project_id(store, project_id).await?;
     store
         .workflow_definition_summaries(project_id)
         .await
@@ -516,6 +2078,22 @@ async fn external_work_item_workflows(
                 .collect()
         })
         .map_err(IpcError::internal)
+}
+
+#[tauri::command]
+async fn workflow_definitions(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+) -> Result<Vec<ExternalWorkItemWorkflowResponse>, IpcError> {
+    workflow_definitions_inner(connected_store(&core).await?, &project_id).await
+}
+
+#[tauri::command]
+async fn external_work_item_workflows(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+) -> Result<Vec<ExternalWorkItemWorkflowResponse>, IpcError> {
+    workflow_definitions_inner(connected_store(&core).await?, &project_id).await
 }
 
 #[tauri::command]
@@ -1499,54 +3077,37 @@ fn artifact_comment_response(comment: &ArtifactComment) -> ArtifactCommentRespon
     }
 }
 
-fn seeded_artifact_store() -> ArtifactStore {
-    let project_id = ProjectId::generate();
-    let run_id = RunId::generate();
-    let mut store = ArtifactStore::default();
-    let diff = ArtifactRow::text(
-        project_id,
-        run_id,
-        ArtifactKind::Diff,
-        "diff --git a/src/lib.rs b/src/lib.rs\n+real artifact data reaches Review",
-    );
-    let diff_id = diff.id;
-    store.put(diff);
-    store.put(ArtifactRow::text(
-        project_id,
-        run_id,
-        ArtifactKind::Plan,
-        "Wire the Review Artifacts screen to the core artifact store.",
-    ));
-    store
-        .comment(
-            diff_id,
-            None,
-            "Review this artifact from the live core store.",
-        )
-        .expect("seeded artifact exists");
-    store
+#[tauri::command]
+async fn artifacts_list(
+    core: State<'_, Arc<Core>>,
+    project_id: Option<String>,
+) -> Result<Vec<ArtifactResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = match project_id.as_deref() {
+        Some(identifier) => Some(resolve_setup_project(store, identifier).await?),
+        None => None,
+    };
+    let artifacts = store
+        .review_artifacts(project_id)
+        .await
+        .map_err(IpcError::internal)?;
+    Ok(artifacts.iter().map(artifact_response).collect())
 }
 
 #[tauri::command]
-fn artifacts_list(artifacts: State<'_, ArtifactStore>) -> Vec<ArtifactResponse> {
-    artifacts
-        .review_inbox()
-        .into_iter()
-        .map(artifact_response)
-        .collect()
-}
-
-#[tauri::command]
-fn artifact_comments(
-    artifacts: State<'_, ArtifactStore>,
+async fn artifact_comments(
+    core: State<'_, Arc<Core>>,
     artifact_id: String,
 ) -> Result<Vec<ArtifactCommentResponse>, IpcError> {
-    let artifact_id: ArtifactId = artifact_id.parse().map_err(IpcError::internal)?;
-    Ok(artifacts
-        .comments(artifact_id)
-        .into_iter()
-        .map(artifact_comment_response)
-        .collect())
+    let store = connected_store(&core).await?;
+    let artifact_id: ArtifactId = artifact_id
+        .parse()
+        .map_err(|_| IpcError::invalid_argument("artifact id must be a UUID"))?;
+    let comments = store
+        .artifact_comments(artifact_id)
+        .await
+        .map_err(IpcError::internal)?;
+    Ok(comments.iter().map(artifact_comment_response).collect())
 }
 
 #[derive(Debug, Serialize)]
@@ -1747,40 +3308,46 @@ async fn bot_routine_delete(
         .map_err(IpcError::internal)
 }
 
-fn seeded_agent_definitions() -> Vec<(u32, AgentDefinition)> {
-    // M1 has no editable Workshop form yet. The screen reads the same core-owned
-    // seed definitions that later migrate into agents.agent_defs, never fixtures.
-    seeded_definitions()
-        .into_iter()
-        .map(|definition| (1, definition))
-        .collect()
-}
-
-#[tauri::command]
-fn agent_defs_list() -> Vec<AgentDefSummary> {
-    seeded_agent_definitions()
-        .into_iter()
-        .map(|(version, definition)| AgentDefSummary {
-            name: definition.frontmatter.name,
-            version,
+async fn agent_defs_list_inner(store: &Store) -> Result<Vec<AgentDefSummary>, IpcError> {
+    store
+        .agent_definitions()
+        .await
+        .map(|definitions| {
+            definitions
+                .into_iter()
+                .map(|definition| AgentDefSummary {
+                    name: definition.name,
+                    version: u32::try_from(definition.version).unwrap_or_default(),
+                })
+                .collect()
         })
-        .collect()
+        .map_err(IpcError::internal)
+}
+
+async fn agent_def_inner(store: &Store, name: &str) -> Result<AgentDefResponse, IpcError> {
+    let definition = store
+        .latest_agent_definition(name)
+        .await
+        .map_err(IpcError::internal)?
+        .ok_or_else(|| IpcError::not_found(format!("agent definition `{name}` was not found")))?;
+    Ok(AgentDefResponse {
+        name: definition.name,
+        version: u32::try_from(definition.version)
+            .map_err(|_| IpcError::internal("agent definition version is invalid"))?,
+        frontmatter: definition.frontmatter,
+        body: definition.body,
+        warnings: Vec::new(),
+    })
 }
 
 #[tauri::command]
-fn agent_def(name: String) -> Result<AgentDefResponse, IpcError> {
-    let (version, definition) = seeded_agent_definitions()
-        .into_iter()
-        .find(|(_, definition)| definition.frontmatter.name == name)
-        .ok_or_else(|| IpcError::not_found(format!("agent definition `{name}` was not found")))?;
-    let frontmatter = serde_json::to_value(&definition.frontmatter).map_err(IpcError::internal)?;
-    Ok(AgentDefResponse {
-        name: definition.frontmatter.name,
-        version,
-        frontmatter,
-        body: definition.body,
-        warnings: definition.warnings,
-    })
+async fn agent_defs_list(core: State<'_, Arc<Core>>) -> Result<Vec<AgentDefSummary>, IpcError> {
+    agent_defs_list_inner(connected_store(&core).await?).await
+}
+
+#[tauri::command]
+async fn agent_def(core: State<'_, Arc<Core>>, name: String) -> Result<AgentDefResponse, IpcError> {
+    agent_def_inner(connected_store(&core).await?, &name).await
 }
 
 #[derive(Debug, Serialize)]
@@ -2025,6 +3592,24 @@ fn telemetry_subscribe(core: State<'_, Arc<Core>>, channel: Channel<Event>) {
     });
 }
 
+/// Replays a run's durable telemetry events from `agents.events` in capture order.
+/// The live subscription only carries events since connect; this is how Telemetry
+/// and Analytics rebuild a run's history after a restart.
+#[tauri::command]
+async fn telemetry_events_replay(
+    core: State<'_, Arc<Core>>,
+    run_id: String,
+) -> Result<Vec<Event>, IpcError> {
+    let run_id: RunId = run_id
+        .parse()
+        .map_err(|_| IpcError::internal("run id must be a UUID"))?;
+    let store = connected_store(&core).await?;
+    store
+        .events_for_run(run_id)
+        .await
+        .map_err(IpcError::internal)
+}
+
 #[tauri::command]
 fn linter_count(root: String) -> Result<usize, IpcError> {
     discover_linters(root)
@@ -2113,7 +3698,6 @@ pub fn run() {
     tauri::Builder::default()
         .manage(core)
         .manage(Arc::new(LspDiagnosticsSubscriptions::default()))
-        .manage(seeded_artifact_store())
         .setup(|app| {
             let command_palette = MenuItem::with_id(
                 app,
@@ -2122,7 +3706,14 @@ pub fn run() {
                 true,
                 Some(COMMAND_PALETTE_ACCELERATOR),
             )?;
-            app.set_menu(Menu::with_items(app, &[&command_palette])?)?;
+            let global_search = MenuItem::with_id(
+                app,
+                "global-search",
+                "Search Everything",
+                true,
+                Some(GLOBAL_SEARCH_ACCELERATOR),
+            )?;
+            app.set_menu(Menu::with_items(app, &[&command_palette, &global_search])?)?;
             debug_assert_eq!(webviews_per_window(), 1);
             Ok(())
         })
@@ -2130,9 +3721,43 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             agent_def,
             agent_defs_list,
+            projects_list,
+            repos_list,
+            local_remotes_list,
+            project_setup,
+            project_base_context_set,
+            project_archive_set,
+            project_rename,
+            strip_cards,
+            running_count,
+            inbox_pending_count,
+            dispatch_runs_page,
+            dispatch_runs_count,
+            sessions_list,
+            runs_for_session,
+            plans_list,
+            plan_create,
+            plan_stage_set,
+            plan_requirements_set,
+            board_tasks,
+            task_detail,
+            task_create,
+            settings_guardrails,
+            settings_guardrails_set,
+            workflow_definitions,
+            dispatch_schedules,
+            dispatch_schedule_executions,
+            session,
+            autorun_states,
+            set_project_autorun_state,
+            inbox_list,
+            inbox_resolved_today,
+            inbox_throughput,
+            inbox_resolve,
             harness_tier_grid,
             pty_subscribe,
             telemetry_subscribe,
+            telemetry_events_replay,
             lsp_attach,
             lsp_enable_descriptor,
             lsp_disable_descriptor,
@@ -2153,6 +3778,7 @@ pub fn run() {
             bot_routine_set_enabled,
             bot_routine_update,
             bot_routine_delete,
+            dispatch_stop_all,
             external_work_item_providers,
             external_work_item_workflows,
             external_work_item_tasks,
@@ -2235,24 +3861,6 @@ mod tests {
     }
 
     #[test]
-    fn agent_definitions_are_served_by_core() {
-        let definitions = agent_defs_list();
-        assert_eq!(definitions.len(), 6);
-        let builder = agent_def("builder".into()).expect("builder seed definition");
-        assert_eq!(builder.name, "builder");
-        assert_eq!(builder.frontmatter["task_class"], "code");
-    }
-
-    #[test]
-    fn ipc_errors_expose_a_machine_readable_kind() {
-        let error = agent_def("missing".into()).expect_err("missing definition is refused");
-        assert_eq!(
-            serde_json::to_value(error).expect("serialize IPC error")["kind"],
-            "not_found"
-        );
-    }
-
-    #[test]
     fn linters_count_is_served_by_core() {
         let root = std::env::temp_dir().join(format!(
             "locus-linter-count-{}",
@@ -2307,5 +3915,1721 @@ mod tests {
             Some("opus")
         );
         assert_eq!(response.harnesses[0].tiers[3].model, None);
+    }
+}
+
+/// The tracer bullet: Setup reads projects, repos, local remotes, harness policy,
+/// and base context from a real store. Two projects are seeded so every read is
+/// also proven project-scoped.
+#[cfg(test)]
+mod setup_live_data {
+    use super::*;
+    use locus_core::services::project::ProjectSettings;
+    use locus_core::testkit::postgres::{
+        start_postgres_named, test_backup_config, NoopMigrationBackup,
+    };
+
+    fn expect_not_found<T: std::fmt::Debug>(read: Result<T, IpcError>) {
+        let error = read.expect_err("an unknown project is a typed not-found");
+        assert_eq!(
+            serde_json::to_value(error).expect("serialize IPC error")["kind"],
+            "not_found"
+        );
+    }
+
+    async fn test_store() -> (Store, locus_core::testkit::postgres::DockerCleanup) {
+        let (container, cleanup) = start_postgres_named("locus-tauri-setup-test").await;
+        let store = Store::connect(&container.database_url())
+            .await
+            .expect("connect the setup test store");
+        store
+            .run_migrations(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations"),
+                &NoopMigrationBackup,
+                &test_backup_config(),
+            )
+            .await
+            .expect("run migrations for the setup test store");
+        (store, cleanup)
+    }
+
+    async fn seed_project(store: &Store, id: &str, name: &str) {
+        sqlx::query("INSERT INTO core.projects (id, name) VALUES ($1::uuid, $2)")
+            .bind(id)
+            .bind(name)
+            .execute(store.test_pool())
+            .await
+            .expect("seed project");
+    }
+
+    async fn seed_repo(store: &Store, id: &str, project_id: &str, name: &str, path: &str) {
+        sqlx::query(
+            "INSERT INTO core.repos (id, project_id, name, working_copy_path)
+             VALUES ($1::uuid, $2::uuid, $3, $4)",
+        )
+        .bind(id)
+        .bind(project_id)
+        .bind(name)
+        .bind(path)
+        .execute(store.test_pool())
+        .await
+        .expect("seed repo");
+    }
+
+    #[tokio::test]
+    async fn lists_projects_alphabetically() {
+        let (store, _cleanup) = test_store().await;
+        seed_project(&store, "00000000-0000-0000-0000-000000000302", "weaver").await;
+        seed_project(&store, "00000000-0000-0000-0000-000000000301", "amq").await;
+
+        let projects = projects_list_inner(&store).await.expect("list projects");
+        let names: Vec<&str> = projects
+            .iter()
+            .map(|project| project.name.as_str())
+            .collect();
+        assert_eq!(names, ["amq", "weaver"]);
+        assert_eq!(projects[0].id, "00000000-0000-0000-0000-000000000301");
+    }
+
+    #[tokio::test]
+    async fn repos_never_cross_the_project_boundary() {
+        let (store, _cleanup) = test_store().await;
+        let tapestry = "00000000-0000-0000-0000-000000000301";
+        let loom = "00000000-0000-0000-0000-000000000302";
+        seed_project(&store, tapestry, "tapestry").await;
+        seed_project(&store, loom, "loom-db").await;
+        seed_repo(
+            &store,
+            "00000000-0000-0000-0000-000000000311",
+            tapestry,
+            "core",
+            "/checkouts/tapestry-core",
+        )
+        .await;
+        seed_repo(
+            &store,
+            "00000000-0000-0000-0000-000000000312",
+            tapestry,
+            "desktop",
+            "/checkouts/tapestry-desktop",
+        )
+        .await;
+        seed_repo(
+            &store,
+            "00000000-0000-0000-0000-000000000321",
+            loom,
+            "loom",
+            "/checkouts/loom",
+        )
+        .await;
+
+        let tapestry_repos = repos_list_inner(&store, tapestry)
+            .await
+            .expect("list tapestry repos");
+        assert_eq!(tapestry_repos.len(), 2);
+        assert!(tapestry_repos
+            .iter()
+            .all(|repo| repo.project_id == tapestry));
+
+        let loom_repos = repos_list_inner(&store, loom)
+            .await
+            .expect("list loom repos");
+        assert_eq!(loom_repos.len(), 1);
+        assert_eq!(loom_repos[0].name, "loom");
+        assert_eq!(loom_repos[0].working_copy_path, "/checkouts/loom");
+    }
+
+    #[tokio::test]
+    async fn unknown_project_is_rejected_not_emptied() {
+        let (store, _cleanup) = test_store().await;
+        seed_project(&store, "00000000-0000-0000-0000-000000000301", "tapestry").await;
+        seed_repo(
+            &store,
+            "00000000-0000-0000-0000-000000000311",
+            "00000000-0000-0000-0000-000000000301",
+            "core",
+            "/checkouts/core",
+        )
+        .await;
+
+        expect_not_found(repos_list_inner(&store, "00000000-0000-0000-0000-0000000003ff").await);
+        expect_not_found(
+            local_remotes_list_inner(&store, "00000000-0000-0000-0000-0000000003ff").await,
+        );
+        expect_not_found(project_setup_inner(&store, "00000000-0000-0000-0000-0000000003ff").await);
+    }
+
+    #[tokio::test]
+    async fn setup_reads_harness_policy_and_base_context() {
+        let (store, _cleanup) = test_store().await;
+        let tapestry = "00000000-0000-0000-0000-000000000301";
+        seed_project(&store, tapestry, "tapestry").await;
+        let settings: ProjectSettings = serde_json::from_value(serde_json::json!({
+            "version": 1,
+            "harness_allow_list": ["claude", "codex"],
+            "base_context": "# Working in tapestry\n\nYour branch is never main.",
+            "base_context_token_budget": 1500,
+        }))
+        .expect("shape seeded settings");
+        store
+            .set_project_settings(tapestry.parse().expect("seed project id"), &settings)
+            .await
+            .expect("seed settings");
+
+        let setup = project_setup_inner(&store, tapestry)
+            .await
+            .expect("read project setup");
+        assert_eq!(setup.harness_allow_list, ["claude", "codex"]);
+        assert_eq!(
+            setup.base_context.as_deref(),
+            Some("# Working in tapestry\n\nYour branch is never main.")
+        );
+        assert_eq!(setup.base_context_token_budget, Some(1500));
+    }
+
+    #[tokio::test]
+    async fn setup_defaults_when_no_policy_is_stored() {
+        let (store, _cleanup) = test_store().await;
+        seed_project(&store, "00000000-0000-0000-0000-000000000301", "tapestry").await;
+
+        let setup = project_setup_inner(&store, "00000000-0000-0000-0000-000000000301")
+            .await
+            .expect("read default setup");
+        assert!(setup.harness_allow_list.is_empty());
+        assert_eq!(setup.base_context, None);
+        assert_eq!(setup.base_context_token_budget, None);
+    }
+
+    #[tokio::test]
+    async fn local_remotes_scope_through_their_repo() {
+        let (store, _cleanup) = test_store().await;
+        let tapestry = "00000000-0000-0000-0000-000000000301";
+        let loom = "00000000-0000-0000-0000-000000000302";
+        seed_project(&store, tapestry, "tapestry").await;
+        seed_project(&store, loom, "loom-db").await;
+        seed_repo(
+            &store,
+            "00000000-0000-0000-0000-000000000311",
+            tapestry,
+            "core",
+            "/checkouts/tapestry-core",
+        )
+        .await;
+        seed_repo(
+            &store,
+            "00000000-0000-0000-0000-000000000321",
+            loom,
+            "loom",
+            "/checkouts/loom",
+        )
+        .await;
+        sqlx::query(
+            "INSERT INTO core.local_remotes (id, repo_id, bare_path)
+             VALUES ('00000000-0000-0000-0000-000000000331', '00000000-0000-0000-0000-000000000311', '/var/lib/locus/repos/tapestry-core.git'),
+                    ('00000000-0000-0000-0000-000000000332', '00000000-0000-0000-0000-000000000321', '/var/lib/locus/repos/loom.git')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed local remotes");
+
+        let tapestry_remotes = local_remotes_list_inner(&store, tapestry)
+            .await
+            .expect("list tapestry remotes");
+        assert_eq!(tapestry_remotes.len(), 1);
+        assert_eq!(
+            tapestry_remotes[0].bare_path,
+            "/var/lib/locus/repos/tapestry-core.git"
+        );
+        assert_eq!(
+            tapestry_remotes[0].repo_id,
+            "00000000-0000-0000-0000-000000000311"
+        );
+    }
+}
+
+/// Shell pill queries: the dispatch pill counts and lists running runs; the Inbox
+/// pill counts human-pending deliveries.
+#[cfg(test)]
+mod shell_queries {
+    use super::*;
+    use locus_core::testkit::postgres::{
+        start_postgres_named, test_backup_config, NoopMigrationBackup,
+    };
+
+    async fn test_store() -> (Store, locus_core::testkit::postgres::DockerCleanup) {
+        let (container, cleanup) = start_postgres_named("locus-tauri-shell-test").await;
+        let store = Store::connect(&container.database_url())
+            .await
+            .expect("connect the shell test store");
+        store
+            .run_migrations(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations"),
+                &NoopMigrationBackup,
+                &test_backup_config(),
+            )
+            .await
+            .expect("run migrations for the shell test store");
+        (store, cleanup)
+    }
+
+    struct RunningRunSeed<'a> {
+        project_id: &'a str,
+        project_name: &'a str,
+        agent_def_id: &'a str,
+        agent_name: &'a str,
+        session_id: &'a str,
+        run_id: &'a str,
+        status: &'a str,
+    }
+
+    async fn seed_running_run(store: &Store, seed: RunningRunSeed<'_>) {
+        sqlx::query("INSERT INTO core.projects (id, name) VALUES ($1::uuid, $2)")
+            .bind(seed.project_id)
+            .bind(seed.project_name)
+            .execute(store.test_pool())
+            .await
+            .expect("seed project");
+        sqlx::query(
+            "INSERT INTO agents.agent_defs (id, name, version, frontmatter, body)
+             VALUES ($1::uuid, $2, 1, '{}'::jsonb, 'test agent')",
+        )
+        .bind(seed.agent_def_id)
+        .bind(seed.agent_name)
+        .execute(store.test_pool())
+        .await
+        .expect("seed agent def");
+        sqlx::query(
+            "INSERT INTO agents.sessions (id, project_id, agent_def_id, name, branch)
+             VALUES ($1::uuid, $2::uuid, $3::uuid, 'shell session', 'agent/shell')",
+        )
+        .bind(seed.session_id)
+        .bind(seed.project_id)
+        .bind(seed.agent_def_id)
+        .execute(store.test_pool())
+        .await
+        .expect("seed session");
+        sqlx::query(
+            "INSERT INTO agents.runs (id, session_id, resolved_model_id, status, started_at)
+             VALUES ($1::uuid, $2::uuid, 'test-model', $3, now())",
+        )
+        .bind(seed.run_id)
+        .bind(seed.session_id)
+        .bind(seed.status)
+        .execute(store.test_pool())
+        .await
+        .expect("seed run");
+    }
+
+    #[tokio::test]
+    async fn running_count_and_cards_agree() {
+        let (store, _cleanup) = test_store().await;
+        seed_running_run(
+            &store,
+            RunningRunSeed {
+                project_id: "00000000-0000-0000-0000-000000000401",
+                project_name: "tapestry",
+                agent_def_id: "00000000-0000-0000-0000-000000000411",
+                agent_name: "builder",
+                session_id: "00000000-0000-0000-0000-000000000421",
+                run_id: "00000000-0000-0000-0000-000000000431",
+                status: "running",
+            },
+        )
+        .await;
+        let count = running_count_inner(&store, None)
+            .await
+            .expect("running count");
+        assert_eq!(count, 1);
+        let cards = strip_cards_inner(&store, None).await.expect("strip cards");
+        assert_eq!(cards.len(), 1);
+        assert_eq!(cards[0].project, "tapestry");
+        assert_eq!(cards[0].agent, "builder");
+        assert_eq!(cards[0].status, "running");
+    }
+
+    #[tokio::test]
+    async fn only_running_runs_count() {
+        let (store, _cleanup) = test_store().await;
+        seed_running_run(
+            &store,
+            RunningRunSeed {
+                project_id: "00000000-0000-0000-0000-000000000401",
+                project_name: "tapestry",
+                agent_def_id: "00000000-0000-0000-0000-000000000411",
+                agent_name: "builder",
+                session_id: "00000000-0000-0000-0000-000000000421",
+                run_id: "00000000-0000-0000-0000-000000000431",
+                status: "completed",
+            },
+        )
+        .await;
+        let count = running_count_inner(&store, None)
+            .await
+            .expect("running count");
+        assert_eq!(count, 0);
+        assert!(strip_cards_inner(&store, None)
+            .await
+            .expect("strip cards")
+            .is_empty());
+    }
+
+    #[tokio::test]
+    async fn the_inbox_pill_counts_only_human_pending_deliveries() {
+        let (store, _cleanup) = test_store().await;
+        // Seed the chain a human delivery hangs off: thread → message → delivery.
+        sqlx::query("INSERT INTO core.projects (id, name) VALUES ('00000000-0000-0000-0000-000000000401', 'tapestry')")
+            .execute(store.test_pool())
+            .await
+            .expect("seed project");
+        sqlx::query(
+            "INSERT INTO agents.agent_defs (id, name, version, frontmatter, body)
+             VALUES ('00000000-0000-0000-0000-000000000411', 'builder', 1, '{}'::jsonb, 'test agent')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed agent def");
+        sqlx::query(
+            "INSERT INTO agents.sessions (id, project_id, agent_def_id, name, branch)
+             VALUES ('00000000-0000-0000-0000-000000000421', '00000000-0000-0000-0000-000000000401', '00000000-0000-0000-0000-000000000411', 'shell session', 'agent/shell')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed session");
+        sqlx::query(
+            "INSERT INTO mail.threads (id, project_id, subject)
+             VALUES ('00000000-0000-0000-0000-000000000441', '00000000-0000-0000-0000-000000000401', 'gate')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed thread");
+        sqlx::query(
+            "INSERT INTO mail.messages (id, thread_id, sender_kind, body)
+             VALUES ('00000000-0000-0000-0000-000000000451', '00000000-0000-0000-0000-000000000441', 'agent', 'needs a human')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed message");
+        sqlx::query(
+            "INSERT INTO mail.deliveries (id, message_id, recipient_kind, recipient_session_id, status)
+             VALUES ('00000000-0000-0000-0000-000000000461', '00000000-0000-0000-0000-000000000451', 'human', NULL, 'pending'),
+                    ('00000000-0000-0000-0000-000000000462', '00000000-0000-0000-0000-000000000451', 'agent', '00000000-0000-0000-0000-000000000421', 'pending')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed deliveries");
+
+        let count = inbox_pending_count_inner(&store)
+            .await
+            .expect("inbox pending count");
+        // The agent-addressed pending delivery is not the Inbox's business.
+        assert_eq!(count, 1);
+    }
+}
+
+/// Shell scope: the same queries accept a project filter and never leak another
+/// project's rows into it.
+#[cfg(test)]
+mod shell_scope {
+    use super::*;
+    use locus_core::testkit::postgres::{
+        start_postgres_named, test_backup_config, NoopMigrationBackup,
+    };
+
+    async fn test_store() -> (Store, locus_core::testkit::postgres::DockerCleanup) {
+        let (container, cleanup) = start_postgres_named("locus-tauri-shell-scope").await;
+        let store = Store::connect(&container.database_url())
+            .await
+            .expect("connect the shell scope test store");
+        store
+            .run_migrations(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations"),
+                &NoopMigrationBackup,
+                &test_backup_config(),
+            )
+            .await
+            .expect("run migrations for the shell scope test store");
+        (store, cleanup)
+    }
+
+    async fn seed_run(
+        store: &Store,
+        project_id: &str,
+        project_name: &str,
+        agent_def_id: &str,
+        session_id: &str,
+        run_id: &str,
+    ) {
+        sqlx::query("INSERT INTO core.projects (id, name) VALUES ($1::uuid, $2)")
+            .bind(project_id)
+            .bind(project_name)
+            .execute(store.test_pool())
+            .await
+            .expect("seed project");
+        sqlx::query(
+            "INSERT INTO agents.agent_defs (id, name, version, frontmatter, body)
+             VALUES ($1::uuid, $2, 1, '{}'::jsonb, 'test agent')",
+        )
+        .bind(agent_def_id)
+        .bind(project_name)
+        .execute(store.test_pool())
+        .await
+        .expect("seed agent def");
+        sqlx::query(
+            "INSERT INTO agents.sessions (id, project_id, agent_def_id, name, branch)
+             VALUES ($1::uuid, $2::uuid, $3::uuid, 'shell session', 'agent/shell')",
+        )
+        .bind(session_id)
+        .bind(project_id)
+        .bind(agent_def_id)
+        .execute(store.test_pool())
+        .await
+        .expect("seed session");
+        sqlx::query(
+            "INSERT INTO agents.runs (id, session_id, resolved_model_id, status, started_at)
+             VALUES ($1::uuid, $2::uuid, 'test-model', 'running', now())",
+        )
+        .bind(run_id)
+        .bind(session_id)
+        .execute(store.test_pool())
+        .await
+        .expect("seed run");
+    }
+
+    #[tokio::test]
+    async fn a_scoped_read_excludes_other_projects() {
+        let (store, _cleanup) = test_store().await;
+        let tapestry = "00000000-0000-0000-0000-000000000401";
+        let loom = "00000000-0000-0000-0000-000000000402";
+        seed_run(
+            &store,
+            tapestry,
+            "tapestry",
+            "00000000-0000-0000-0000-000000000411",
+            "00000000-0000-0000-0000-000000000421",
+            "00000000-0000-0000-0000-000000000431",
+        )
+        .await;
+        seed_run(
+            &store,
+            loom,
+            "loom-db",
+            "00000000-0000-0000-0000-000000000412",
+            "00000000-0000-0000-0000-000000000422",
+            "00000000-0000-0000-0000-000000000432",
+        )
+        .await;
+
+        let tapestry_cards = strip_cards_inner(&store, Some(tapestry))
+            .await
+            .expect("scoped strip cards");
+        assert_eq!(tapestry_cards.len(), 1);
+        assert_eq!(tapestry_cards[0].project, "tapestry");
+
+        let tapestry_count = running_count_inner(&store, Some(tapestry))
+            .await
+            .expect("scoped running count");
+        assert_eq!(tapestry_count, 1);
+
+        // The unscoped shell view still sees both.
+        assert_eq!(running_count_inner(&store, None).await.expect("count"), 2);
+    }
+
+    #[tokio::test]
+    async fn an_unknown_scope_is_rejected_not_emptied() {
+        let (store, _cleanup) = test_store().await;
+        let error = strip_cards_inner(&store, Some("00000000-0000-0000-0000-0000000004ff"))
+            .await
+            .expect_err("an unknown scope is a typed not-found");
+        assert_eq!(
+            serde_json::to_value(error).expect("serialize IPC error")["kind"],
+            "not_found"
+        );
+    }
+}
+
+/// Shell mutations: Setup's base-context save, archive, and rename hit the real
+/// store, and every failure is a typed rejection.
+#[cfg(test)]
+mod shell_mutations {
+    use super::*;
+    use locus_core::services::project::ProjectSettings;
+    use locus_core::testkit::postgres::{
+        start_postgres_named, test_backup_config, NoopMigrationBackup,
+    };
+
+    async fn test_store() -> (Store, locus_core::testkit::postgres::DockerCleanup) {
+        let (container, cleanup) = start_postgres_named("locus-tauri-mutations").await;
+        let store = Store::connect(&container.database_url())
+            .await
+            .expect("connect the mutation test store");
+        store
+            .run_migrations(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations"),
+                &NoopMigrationBackup,
+                &test_backup_config(),
+            )
+            .await
+            .expect("run migrations for the mutation test store");
+        (store, cleanup)
+    }
+
+    const TAPESTRY: &str = "00000000-0000-0000-0000-000000000501";
+
+    async fn seed_tapestry(store: &Store) {
+        sqlx::query("INSERT INTO core.projects (id, name) VALUES ($1::uuid, 'tapestry')")
+            .bind(TAPESTRY)
+            .execute(store.test_pool())
+            .await
+            .expect("seed project");
+    }
+
+    #[tokio::test]
+    async fn base_context_set_persists_content_and_budget() {
+        let (store, _cleanup) = test_store().await;
+        seed_tapestry(&store).await;
+
+        let setup = project_base_context_set_inner(
+            &store,
+            TAPESTRY,
+            "# Working in tapestry\n\nVerify with cargo test.",
+            Some(1200),
+        )
+        .await
+        .expect("save base context");
+        assert_eq!(
+            setup.base_context.as_deref(),
+            Some("# Working in tapestry\n\nVerify with cargo test.")
+        );
+        assert_eq!(setup.base_context_token_budget, Some(1200));
+
+        // It is durable: a fresh read sees it, and unrelated policy survives.
+        let reread = project_setup_inner(&store, TAPESTRY).await.expect("reread");
+        assert_eq!(reread.base_context_token_budget, Some(1200));
+    }
+
+    #[tokio::test]
+    async fn base_context_clears_both_sides_of_the_domain_rule() {
+        let (store, _cleanup) = test_store().await;
+        seed_tapestry(&store).await;
+
+        let cleared = project_base_context_set_inner(&store, TAPESTRY, "", None)
+            .await
+            .expect("clear base context");
+        assert_eq!(cleared.base_context, None);
+        assert_eq!(cleared.base_context_token_budget, None);
+
+        // Content without a budget breaks the together-rule and is refused.
+        let error = project_base_context_set_inner(&store, TAPESTRY, "# kept", None)
+            .await
+            .expect_err("content needs a budget");
+        assert_eq!(
+            serde_json::to_value(error).expect("serialize IPC error")["kind"],
+            "invalid_argument"
+        );
+    }
+
+    #[tokio::test]
+    async fn archive_and_rename_persist() {
+        let (store, _cleanup) = test_store().await;
+        seed_tapestry(&store).await;
+
+        let archived = project_archive_set_inner(&store, TAPESTRY, true)
+            .await
+            .expect("archive project");
+        assert!(archived.archived);
+        assert!(store
+            .project_archived(TAPESTRY.parse().expect("id"))
+            .await
+            .expect("read archived"));
+
+        let renamed = project_rename_inner(&store, TAPESTRY, "weaver")
+            .await
+            .expect("rename project");
+        assert_eq!(renamed.name, "weaver");
+        let projects = projects_list_inner(&store).await.expect("list projects");
+        assert_eq!(projects[0].name, "weaver");
+    }
+
+    #[tokio::test]
+    async fn mutations_reject_unknown_projects_and_empty_names() {
+        let (store, _cleanup) = test_store().await;
+        seed_tapestry(&store).await;
+        let missing = "00000000-0000-0000-0000-0000000005ff";
+
+        for error in [
+            project_base_context_set_inner(&store, missing, "x", None)
+                .await
+                .expect_err("unknown project rejected"),
+            project_archive_set_inner(&store, missing, true)
+                .await
+                .expect_err("unknown project rejected"),
+            project_rename_inner(&store, missing, "weaver")
+                .await
+                .expect_err("unknown project rejected"),
+        ] {
+            assert_eq!(
+                serde_json::to_value(error).expect("serialize IPC error")["kind"],
+                "not_found"
+            );
+        }
+
+        let empty = project_rename_inner(&store, TAPESTRY, "   ")
+            .await
+            .expect_err("an empty name is refused");
+        assert_eq!(
+            serde_json::to_value(empty).expect("serialize IPC error")["kind"],
+            "invalid_argument"
+        );
+    }
+
+    #[tokio::test]
+    async fn base_context_set_keeps_other_policy_fields() {
+        let (store, _cleanup) = test_store().await;
+        seed_tapestry(&store).await;
+        let policy: ProjectSettings = serde_json::from_value(serde_json::json!({
+            "version": 1,
+            "harness_allow_list": ["claude"],
+        }))
+        .expect("shape policy");
+        store
+            .set_project_settings(TAPESTRY.parse().expect("id"), &policy)
+            .await
+            .expect("seed policy");
+
+        let setup = project_base_context_set_inner(&store, TAPESTRY, "# kept", Some(900))
+            .await
+            .expect("save base context");
+        // The round trip through the serialized settings preserved the allow list.
+        assert_eq!(setup.harness_allow_list, ["claude"]);
+        assert_eq!(setup.base_context.as_deref(), Some("# kept"));
+    }
+}
+
+/// Run queries: the Dispatch runs table reads every run with its event rollups,
+/// scoped by project, ordered newest first.
+#[cfg(test)]
+mod run_queries {
+    use super::*;
+    use locus_core::testkit::postgres::{
+        start_postgres_named, test_backup_config, NoopMigrationBackup,
+    };
+
+    async fn test_store() -> (Store, locus_core::testkit::postgres::DockerCleanup) {
+        let (container, cleanup) = start_postgres_named("locus-tauri-run-queries").await;
+        let store = Store::connect(&container.database_url())
+            .await
+            .expect("connect the run query test store");
+        store
+            .run_migrations(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations"),
+                &NoopMigrationBackup,
+                &test_backup_config(),
+            )
+            .await
+            .expect("run migrations for the run query test store");
+        (store, cleanup)
+    }
+
+    #[tokio::test]
+    async fn pages_runs_newest_first_with_event_rollups() {
+        let (store, _cleanup) = test_store().await;
+        sqlx::query("INSERT INTO core.projects (id, name) VALUES ('00000000-0000-0000-0000-000000000601', 'tapestry')")
+            .execute(store.test_pool())
+            .await
+            .expect("seed project");
+        sqlx::query(
+            "INSERT INTO agents.agent_defs (id, name, version, frontmatter, body)
+             VALUES ('00000000-0000-0000-0000-000000000611', 'builder', 1, '{\"harness\": \"claude\", \"role\": \"builder\"}'::jsonb, 'test agent')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed agent def");
+        sqlx::query(
+            "INSERT INTO agents.sessions (id, project_id, agent_def_id, name, branch)
+             VALUES ('00000000-0000-0000-0000-000000000621', '00000000-0000-0000-0000-000000000601', '00000000-0000-0000-0000-000000000611', 'run query session', 'agent/run-queries')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed session");
+        // Two runs, an hour apart: the newer one must page first.
+        sqlx::query(
+            "INSERT INTO agents.runs (id, session_id, resolved_model_id, status, started_at)
+             VALUES ('00000000-0000-0000-0000-000000000631', '00000000-0000-0000-0000-000000000621', 'claude-opus-4', 'completed', now() - interval '1 hour'),
+                    ('00000000-0000-0000-0000-000000000632', '00000000-0000-0000-0000-000000000621', 'claude-opus-4', 'running', now())",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed runs");
+        sqlx::query(
+            "INSERT INTO agents.events (id, run_id, seq, ts, verb, raw)
+             VALUES ('00000000-0000-0000-0000-000000000641', '00000000-0000-0000-0000-000000000632', 0, now(), 'assistant', '{}'::jsonb),
+                    ('00000000-0000-0000-0000-000000000642', '00000000-0000-0000-0000-000000000632', 1, now(), 'tool_call', '{}'::jsonb),
+                    ('00000000-0000-0000-0000-000000000643', '00000000-0000-0000-0000-000000000632', 2, now(), 'tool_error', '{}'::jsonb)",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed events");
+
+        let page = dispatch_runs_page_inner(&store, None, 0, 100)
+            .await
+            .expect("page runs");
+        assert_eq!(page.len(), 2);
+        assert_eq!(page[0].id, "00000000-0000-0000-0000-000000000632");
+        assert_eq!(page[0].project, "tapestry");
+        assert_eq!(page[0].harness.as_deref(), Some("claude"));
+        assert_eq!(page[0].role.as_deref(), Some("builder"));
+        assert_eq!(page[0].events, 3);
+        assert_eq!(page[0].errors, 1);
+        // The older run has no events: unknown would be a lie here — zero is the
+        // truth the rollup knows.
+        assert_eq!(page[1].events, 0);
+
+        let count = dispatch_runs_count_inner(&store, None)
+            .await
+            .expect("count runs");
+        assert_eq!(count, 2);
+    }
+
+    #[tokio::test]
+    async fn a_project_scope_excludes_other_projects_and_unknown_rejects() {
+        let (store, _cleanup) = test_store().await;
+        sqlx::query("INSERT INTO core.projects (id, name) VALUES ('00000000-0000-0000-0000-000000000601', 'tapestry'), ('00000000-0000-0000-0000-000000000602', 'loom-db')")
+            .execute(store.test_pool())
+            .await
+            .expect("seed projects");
+        sqlx::query(
+            "INSERT INTO agents.agent_defs (id, name, version, frontmatter, body)
+             VALUES ('00000000-0000-0000-0000-000000000611', 'builder', 1, '{}'::jsonb, 'test agent')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed agent def");
+        sqlx::query(
+            "INSERT INTO agents.sessions (id, project_id, agent_def_id, name, branch)
+             VALUES ('00000000-0000-0000-0000-000000000621', '00000000-0000-0000-0000-000000000601', '00000000-0000-0000-0000-000000000611', 'a', 'agent/a'),
+                    ('00000000-0000-0000-0000-000000000622', '00000000-0000-0000-0000-000000000602', '00000000-0000-0000-0000-000000000611', 'b', 'agent/b')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed sessions");
+        sqlx::query(
+            "INSERT INTO agents.runs (id, session_id, resolved_model_id, status, started_at)
+             VALUES ('00000000-0000-0000-0000-000000000631', '00000000-0000-0000-0000-000000000621', 'm', 'running', now()),
+                    ('00000000-0000-0000-0000-000000000632', '00000000-0000-0000-0000-000000000622', 'm', 'running', now())",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed runs");
+
+        let scoped =
+            dispatch_runs_page_inner(&store, Some("00000000-0000-0000-0000-000000000601"), 0, 100)
+                .await
+                .expect("scoped page");
+        assert_eq!(scoped.len(), 1);
+        assert_eq!(scoped[0].project, "tapestry");
+
+        let error =
+            dispatch_runs_page_inner(&store, Some("00000000-0000-0000-0000-0000000006ff"), 0, 100)
+                .await
+                .expect_err("unknown scope rejected");
+        assert_eq!(
+            serde_json::to_value(error).expect("serialize IPC error")["kind"],
+            "not_found"
+        );
+    }
+}
+
+/// Session queries: the session list reads every session with its project and
+/// agent, scoped by project, and a session's runs read oldest first.
+#[cfg(test)]
+mod session_queries {
+    use super::*;
+    use locus_core::testkit::postgres::{
+        start_postgres_named, test_backup_config, NoopMigrationBackup,
+    };
+    async fn test_store() -> (Store, locus_core::testkit::postgres::DockerCleanup) {
+        let (container, cleanup) = start_postgres_named("locus-tauri-sessions").await;
+        let store = Store::connect(&container.database_url())
+            .await
+            .expect("connect the session test store");
+        store
+            .run_migrations(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations"),
+                &NoopMigrationBackup,
+                &test_backup_config(),
+            )
+            .await
+            .expect("run migrations for the session test store");
+        (store, cleanup)
+    }
+
+    async fn seed_session(
+        store: &Store,
+        project_id: &str,
+        project_name: &str,
+        agent_def_id: &str,
+        agent_name: &str,
+        session_id: &str,
+        branch: &str,
+    ) {
+        sqlx::query("INSERT INTO core.projects (id, name) VALUES ($1::uuid, $2)")
+            .bind(project_id)
+            .bind(project_name)
+            .execute(store.test_pool())
+            .await
+            .expect("seed project");
+        sqlx::query(
+            "INSERT INTO agents.agent_defs (id, name, version, frontmatter, body)
+             VALUES ($1::uuid, $2, 1, '{}'::jsonb, 'test agent')",
+        )
+        .bind(agent_def_id)
+        .bind(agent_name)
+        .execute(store.test_pool())
+        .await
+        .expect("seed agent def");
+        sqlx::query(
+            "INSERT INTO agents.sessions (id, project_id, agent_def_id, name, branch)
+             VALUES ($1::uuid, $2::uuid, $3::uuid, 'session body', $4)",
+        )
+        .bind(session_id)
+        .bind(project_id)
+        .bind(agent_def_id)
+        .bind(branch)
+        .execute(store.test_pool())
+        .await
+        .expect("seed session");
+    }
+
+    #[tokio::test]
+    async fn lists_sessions_with_project_and_agent_resolved() {
+        let (store, _cleanup) = test_store().await;
+        seed_session(
+            &store,
+            "00000000-0000-0000-0000-000000000701",
+            "tapestry",
+            "00000000-0000-0000-0000-000000000711",
+            "builder",
+            "00000000-0000-0000-0000-000000000721",
+            "agent/tapestry",
+        )
+        .await;
+
+        let sessions = sessions_list_inner(&store, None, 0, 100)
+            .await
+            .expect("list sessions");
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].project, "tapestry");
+        assert_eq!(sessions[0].agent, "builder");
+        assert_eq!(sessions[0].branch, "agent/tapestry");
+        assert_eq!(sessions[0].status, "active");
+    }
+
+    #[tokio::test]
+    async fn a_project_scope_excludes_other_projects() {
+        let (store, _cleanup) = test_store().await;
+        seed_session(
+            &store,
+            "00000000-0000-0000-0000-000000000701",
+            "tapestry",
+            "00000000-0000-0000-0000-000000000711",
+            "builder",
+            "00000000-0000-0000-0000-000000000721",
+            "agent/tapestry",
+        )
+        .await;
+        seed_session(
+            &store,
+            "00000000-0000-0000-0000-000000000702",
+            "loom-db",
+            "00000000-0000-0000-0000-000000000712",
+            "reviewer",
+            "00000000-0000-0000-0000-000000000722",
+            "agent/loom",
+        )
+        .await;
+
+        let scoped =
+            sessions_list_inner(&store, Some("00000000-0000-0000-0000-000000000701"), 0, 100)
+                .await
+                .expect("scoped sessions");
+        assert_eq!(scoped.len(), 1);
+        assert_eq!(scoped[0].project, "tapestry");
+
+        let error =
+            sessions_list_inner(&store, Some("00000000-0000-0000-0000-0000000007ff"), 0, 100)
+                .await
+                .expect_err("unknown scope rejected");
+        assert_eq!(
+            serde_json::to_value(error).expect("serialize IPC error")["kind"],
+            "not_found"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_sessions_runs_read_oldest_first_and_rejects_bad_ids() {
+        let (store, _cleanup) = test_store().await;
+        seed_session(
+            &store,
+            "00000000-0000-0000-0000-000000000701",
+            "tapestry",
+            "00000000-0000-0000-0000-000000000711",
+            "builder",
+            "00000000-0000-0000-0000-000000000721",
+            "agent/tapestry",
+        )
+        .await;
+        sqlx::query(
+            "INSERT INTO agents.runs (id, session_id, resolved_model_id, status, started_at)
+             VALUES ('00000000-0000-0000-0000-000000000731', '00000000-0000-0000-0000-000000000721', 'claude-opus-4', 'completed', now() - interval '2 hours'),
+                    ('00000000-0000-0000-0000-000000000732', '00000000-0000-0000-0000-000000000721', 'claude-opus-4', 'running', now())",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed runs");
+
+        let runs = runs_for_session_inner(&store, "00000000-0000-0000-0000-000000000721")
+            .await
+            .expect("session runs");
+        assert_eq!(runs.len(), 2);
+        assert_eq!(runs[0].status, "completed");
+        assert_eq!(runs[1].status, "running");
+
+        let error = runs_for_session_inner(&store, "not-a-uuid")
+            .await
+            .expect_err("a malformed id is a typed rejection");
+        assert_eq!(
+            serde_json::to_value(error).expect("serialize IPC error")["kind"],
+            "invalid_argument"
+        );
+    }
+}
+/// Inbox queries and mutations: pending human deliveries, today's resolved list,
+/// the pill's counts, and the drain-on-resolve decision with its audit reply.
+#[cfg(test)]
+mod inbox_flow {
+    use super::*;
+    use locus_core::testkit::postgres::{
+        start_postgres_named, test_backup_config, NoopMigrationBackup,
+    };
+
+    async fn test_store() -> (Store, locus_core::testkit::postgres::DockerCleanup) {
+        let (container, cleanup) = start_postgres_named("locus-tauri-inbox").await;
+        let store = Store::connect(&container.database_url())
+            .await
+            .expect("connect the inbox test store");
+        store
+            .run_migrations(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations"),
+                &NoopMigrationBackup,
+                &test_backup_config(),
+            )
+            .await
+            .expect("run migrations for the inbox test store");
+        (store, cleanup)
+    }
+
+    /// One thread with one agent message and two deliveries: a human-pending one
+    /// (the Inbox item) and an agent-pending one (never the Inbox's business).
+    async fn seed_pending_delivery(store: &Store) {
+        sqlx::query("INSERT INTO core.projects (id, name) VALUES ('00000000-0000-0000-0000-000000000801', 'tapestry')")
+            .execute(store.test_pool())
+            .await
+            .expect("seed project");
+        sqlx::query(
+            "INSERT INTO agents.agent_defs (id, name, version, frontmatter, body)
+             VALUES ('00000000-0000-0000-0000-000000000841', 'builder', 1, '{}'::jsonb, 'test agent')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed agent def");
+        sqlx::query(
+            "INSERT INTO agents.sessions (id, project_id, agent_def_id, name, branch)
+             VALUES ('00000000-0000-0000-0000-000000000851', '00000000-0000-0000-0000-000000000801', '00000000-0000-0000-0000-000000000841', 'inbox session', 'agent/inbox')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed session");
+        sqlx::query(
+            "INSERT INTO mail.threads (id, project_id, subject)
+             VALUES ('00000000-0000-0000-0000-000000000811', '00000000-0000-0000-0000-000000000801', 'merge gate')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed thread");
+        sqlx::query(
+            "INSERT INTO mail.messages (id, thread_id, sender_kind, body)
+             VALUES ('00000000-0000-0000-0000-000000000821', '00000000-0000-0000-0000-000000000811', 'agent', 'approve the merge'),
+                    ('00000000-0000-0000-0000-000000000822', '00000000-0000-0000-0000-000000000811', 'agent', 'background note')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed messages");
+        sqlx::query(
+            "INSERT INTO mail.deliveries (id, message_id, recipient_kind, recipient_session_id, status)
+             VALUES ('00000000-0000-0000-0000-000000000831', '00000000-0000-0000-0000-000000000821', 'human', NULL, 'pending'),
+                    ('00000000-0000-0000-0000-000000000832', '00000000-0000-0000-0000-000000000822', 'agent', '00000000-0000-0000-0000-000000000851', 'pending')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed deliveries");
+    }
+
+    #[tokio::test]
+    async fn the_inbox_lists_only_human_pending_deliveries() {
+        let (store, _cleanup) = test_store().await;
+        seed_pending_delivery(&store).await;
+
+        let items = inbox_list_inner(&store, None).await.expect("list inbox");
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].subject, "merge gate");
+        assert_eq!(items[0].body, "approve the merge");
+        assert_eq!(items[0].project, "tapestry");
+
+        let throughput = inbox_throughput_inner(&store).await.expect("throughput");
+        assert_eq!(throughput.pending, 1);
+        assert_eq!(throughput.resolved_today, 0);
+    }
+
+    #[tokio::test]
+    async fn resolving_drains_the_delivery_and_records_the_comment() {
+        let (store, _cleanup) = test_store().await;
+        seed_pending_delivery(&store).await;
+        let delivery = "00000000-0000-0000-0000-000000000831";
+
+        inbox_resolve_inner(&store, delivery, "approved — tests pass")
+            .await
+            .expect("resolve delivery");
+
+        // The delivery drained, so the list and the pill both drop it.
+        assert!(inbox_list_inner(&store, None)
+            .await
+            .expect("list")
+            .is_empty());
+        let throughput = inbox_throughput_inner(&store).await.expect("throughput");
+        assert_eq!(throughput.pending, 0);
+        assert_eq!(throughput.resolved_today, 1);
+
+        // The decision is auditable on the thread as a human reply.
+        let replies: Vec<String> = sqlx::query_scalar(
+            "SELECT body FROM mail.messages WHERE sender_kind = 'human' ORDER BY created_at",
+        )
+        .fetch_all(store.test_pool())
+        .await
+        .expect("read replies");
+        assert_eq!(replies, ["approved — tests pass"]);
+    }
+
+    #[tokio::test]
+    async fn resolving_without_a_comment_still_drains() {
+        let (store, _cleanup) = test_store().await;
+        seed_pending_delivery(&store).await;
+
+        inbox_resolve_inner(&store, "00000000-0000-0000-0000-000000000831", "")
+            .await
+            .expect("resolve without comment");
+        assert!(inbox_list_inner(&store, None)
+            .await
+            .expect("list")
+            .is_empty());
+    }
+
+    #[tokio::test]
+    async fn an_unknown_delivery_is_rejected_not_emptied() {
+        let (store, _cleanup) = test_store().await;
+        seed_pending_delivery(&store).await;
+
+        let error = inbox_resolve_inner(&store, "00000000-0000-0000-0000-0000000008ff", "x")
+            .await
+            .expect_err("unknown delivery rejected");
+        assert_eq!(
+            serde_json::to_value(error).expect("serialize IPC error")["kind"],
+            "not_found"
+        );
+
+        let malformed = inbox_resolve_inner(&store, "not-a-uuid", "x")
+            .await
+            .expect_err("malformed id rejected");
+        assert_eq!(
+            serde_json::to_value(malformed).expect("serialize IPC error")["kind"],
+            "invalid_argument"
+        );
+    }
+
+    #[tokio::test]
+    async fn the_resolved_today_list_scopes_by_project() {
+        let (store, _cleanup) = test_store().await;
+        seed_pending_delivery(&store).await;
+        inbox_resolve_inner(&store, "00000000-0000-0000-0000-000000000831", "done")
+            .await
+            .expect("resolve");
+
+        let today = inbox_resolved_today_inner(&store, None)
+            .await
+            .expect("resolved today");
+        assert_eq!(today.len(), 1);
+        assert_eq!(today[0].subject, "merge gate");
+
+        // An existing second project has nothing resolved: the scope excludes
+        // another project's rows rather than failing.
+        sqlx::query("INSERT INTO core.projects (id, name) VALUES ('00000000-0000-0000-0000-000000000802', 'loom-db')")
+            .execute(store.test_pool())
+            .await
+            .expect("seed second project");
+        let scoped =
+            inbox_resolved_today_inner(&store, Some("00000000-0000-0000-0000-000000000802"))
+                .await
+                .expect("scoped resolved today");
+        assert!(scoped.is_empty());
+
+        // An unknown scope is still a typed rejection, not an empty list.
+        let error =
+            inbox_resolved_today_inner(&store, Some("00000000-0000-0000-0000-0000000008ff"))
+                .await
+                .expect_err("unknown scope rejected");
+        assert_eq!(
+            serde_json::to_value(error).expect("serialize IPC error")["kind"],
+            "not_found"
+        );
+    }
+}
+
+/// Schedule queries: the dispatch schedules read from the existing
+/// `workflows.schedules` and `workflows.executions` tables.
+#[cfg(test)]
+mod schedule_queries {
+    use super::*;
+    use locus_core::testkit::postgres::{
+        start_postgres_named, test_backup_config, NoopMigrationBackup,
+    };
+
+    async fn test_store() -> (Store, locus_core::testkit::postgres::DockerCleanup) {
+        let (container, cleanup) = start_postgres_named("locus-tauri-schedules").await;
+        let store = Store::connect(&container.database_url())
+            .await
+            .expect("connect the schedule test store");
+        store
+            .run_migrations(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations"),
+                &NoopMigrationBackup,
+                &test_backup_config(),
+            )
+            .await
+            .expect("run migrations for the schedule test store");
+        (store, cleanup)
+    }
+
+    #[tokio::test]
+    async fn schedules_read_with_their_project_and_workflow_name() {
+        let (store, _cleanup) = test_store().await;
+        sqlx::query("INSERT INTO core.projects (id, name) VALUES ('00000000-0000-0000-0000-000000000901', 'tapestry')")
+            .execute(store.test_pool())
+            .await
+            .expect("seed project");
+        sqlx::query(
+            "INSERT INTO workflows.workflow_defs (id, project_id, name, version, graph, spec, verify_command)
+             VALUES ('00000000-0000-0000-0000-000000000911', '00000000-0000-0000-0000-000000000901', 'nightly reconcile', 1, '{}'::jsonb, '{}'::jsonb, 'cargo test')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed workflow def");
+        sqlx::query(
+            "INSERT INTO workflows.schedules (id, workflow_def_id, cron_expression)
+             VALUES ('00000000-0000-0000-0000-000000000921', '00000000-0000-0000-0000-000000000911', '0 2 * * *')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed schedule");
+
+        let schedules = schedules_list_inner(&store).await.expect("list schedules");
+        assert_eq!(schedules.len(), 1);
+        assert_eq!(schedules[0].project, "tapestry");
+        assert_eq!(schedules[0].name, "nightly reconcile");
+        assert_eq!(schedules[0].cron, "0 2 * * *");
+        assert!(schedules[0].enabled);
+    }
+
+    #[tokio::test]
+    async fn schedule_executions_read_with_their_schedule_name() {
+        let (store, _cleanup) = test_store().await;
+        sqlx::query("INSERT INTO core.projects (id, name) VALUES ('00000000-0000-0000-0000-000000000901', 'tapestry')")
+            .execute(store.test_pool())
+            .await
+            .expect("seed project");
+        sqlx::query(
+            "INSERT INTO workflows.workflow_defs (id, project_id, name, version, graph, spec, verify_command)
+             VALUES ('00000000-0000-0000-0000-000000000911', '00000000-0000-0000-0000-000000000901', 'nightly reconcile', 1, '{}'::jsonb, '{}'::jsonb, 'cargo test')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed workflow def");
+        sqlx::query(
+            "INSERT INTO workflows.schedules (id, workflow_def_id, cron_expression)
+             VALUES ('00000000-0000-0000-0000-000000000921', '00000000-0000-0000-0000-000000000911', '0 2 * * *')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed schedule");
+        sqlx::query(
+            "INSERT INTO workflows.executions (id, workflow_def_id, schedule_id, status, started_at)
+             VALUES ('00000000-0000-0000-0000-000000000931', '00000000-0000-0000-0000-000000000911', '00000000-0000-0000-0000-000000000921', 'completed', now() - interval '4 minutes')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed execution");
+
+        let executions = schedule_executions_inner(&store, None, 50)
+            .await
+            .expect("list schedule executions");
+        assert_eq!(executions.len(), 1);
+        assert_eq!(executions[0].schedule_name, "nightly reconcile");
+        assert_eq!(executions[0].status, "completed");
+    }
+}
+/// The autorun switchboard and session detail: the last slice-7 gaps.
+#[cfg(test)]
+mod autorun_and_session {
+    use super::*;
+    use locus_core::testkit::postgres::{
+        start_postgres_named, test_backup_config, NoopMigrationBackup,
+    };
+
+    async fn test_store() -> (Store, locus_core::testkit::postgres::DockerCleanup) {
+        let (container, cleanup) = start_postgres_named("locus-tauri-autorun").await;
+        let store = Store::connect(&container.database_url())
+            .await
+            .expect("connect the autorun test store");
+        store
+            .run_migrations(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations"),
+                &NoopMigrationBackup,
+                &test_backup_config(),
+            )
+            .await
+            .expect("run migrations for the autorun test store");
+        (store, cleanup)
+    }
+
+    #[tokio::test]
+    async fn autorun_states_list_every_project_defaulting_to_off() {
+        let (store, _cleanup) = test_store().await;
+        sqlx::query("INSERT INTO core.projects (id, name) VALUES ('00000000-0000-0000-0000-000000000901', 'tapestry'), ('00000000-0000-0000-0000-000000000902', 'amq')")
+            .execute(store.test_pool())
+            .await
+            .expect("seed projects");
+        sqlx::query(
+            "INSERT INTO core.project_autorun (project_id, enabled, state)
+             VALUES ('00000000-0000-0000-0000-000000000901', TRUE, 'on')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed autorun");
+
+        let states = autorun_states_inner(&store)
+            .await
+            .expect("list autorun states");
+        assert_eq!(states.len(), 2);
+        assert_eq!(states[0].project, "amq");
+        assert_eq!(states[0].state, "off");
+        assert_eq!(states[1].state, "on");
+    }
+
+    #[tokio::test]
+    async fn set_project_autorun_state_persists_and_refuses_archived() {
+        let (store, _cleanup) = test_store().await;
+        sqlx::query("INSERT INTO core.projects (id, name) VALUES ('00000000-0000-0000-0000-000000000901', 'tapestry')")
+            .execute(store.test_pool())
+            .await
+            .expect("seed project");
+
+        set_project_autorun_state_inner(&store, "00000000-0000-0000-0000-000000000901", "on")
+            .await
+            .expect("turn autorun on");
+        let state = store
+            .project_autorun_state("00000000-0000-0000-0000-000000000901".parse().expect("id"))
+            .await
+            .expect("read state");
+        assert_eq!(state, locus_core::runtime::dispatch::AutorunState::On);
+
+        let error =
+            set_project_autorun_state_inner(&store, "00000000-0000-0000-0000-0000000009ff", "on")
+                .await
+                .expect_err("unknown project rejected");
+        assert_eq!(
+            serde_json::to_value(error).expect("serialize IPC error")["kind"],
+            "not_found"
+        );
+    }
+
+    #[tokio::test]
+    async fn session_reads_one_session_and_rejects_unknown() {
+        let (store, _cleanup) = test_store().await;
+        sqlx::query("INSERT INTO core.projects (id, name) VALUES ('00000000-0000-0000-0000-000000000901', 'tapestry')")
+            .execute(store.test_pool())
+            .await
+            .expect("seed project");
+        sqlx::query(
+            "INSERT INTO agents.agent_defs (id, name, version, frontmatter, body)
+             VALUES ('00000000-0000-0000-0000-000000000911', 'builder', 1, '{}'::jsonb, 'test agent')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed agent def");
+        sqlx::query(
+            "INSERT INTO agents.sessions (id, project_id, agent_def_id, name, branch)
+             VALUES ('00000000-0000-0000-0000-000000000921', '00000000-0000-0000-0000-000000000901', '00000000-0000-0000-0000-000000000911', 'session detail', 'agent/detail')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed session");
+
+        let session = store
+            .session("00000000-0000-0000-0000-000000000921".parse().expect("id"))
+            .await
+            .expect("read session")
+            .expect("session found");
+        assert_eq!(session.project, "tapestry");
+        assert_eq!(session.name, "session detail");
+
+        let missing = store
+            .session("00000000-0000-0000-0000-0000000009ff".parse().expect("id"))
+            .await
+            .expect("read missing session");
+        assert!(missing.is_none());
+    }
+}
+
+#[cfg(test)]
+mod configuration_commands {
+    use super::*;
+    use locus_core::testkit::postgres::{
+        start_postgres_named, test_backup_config, NoopMigrationBackup,
+    };
+
+    async fn test_store() -> (Store, locus_core::testkit::postgres::DockerCleanup) {
+        let (container, cleanup) = start_postgres_named("locus-tauri-configuration").await;
+        let store = Store::connect(&container.database_url())
+            .await
+            .expect("connect the configuration test store");
+        store
+            .run_migrations(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations"),
+                &NoopMigrationBackup,
+                &test_backup_config(),
+            )
+            .await
+            .expect("run migrations for the configuration test store");
+        (store, cleanup)
+    }
+
+    #[tokio::test]
+    async fn plans_list_is_project_scoped_and_maps_durable_fields() {
+        let (store, _cleanup) = test_store().await;
+        sqlx::query(
+            "INSERT INTO core.projects (id, name)
+             VALUES ('00000000-0000-0000-0000-000000000a01', 'tapestry'),
+                    ('00000000-0000-0000-0000-000000000a02', 'loom-db')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed projects");
+        sqlx::query(
+            "INSERT INTO core.plans
+                (id, project_id, title, goal, stage, state, confidence, open_count)
+             VALUES
+                ('00000000-0000-0000-0000-000000000a11',
+                 '00000000-0000-0000-0000-000000000a01',
+                 'Tapestry plan', 'Ship the tapestry plan', 'recommend',
+                 'draft_rejected', 0.626, 2),
+                ('00000000-0000-0000-0000-000000000a12',
+                 '00000000-0000-0000-0000-000000000a02',
+                 'Loom plan', 'Ship the loom plan', 'approved',
+                 'approved', NULL, 0)",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed plans");
+
+        let plans = plans_list_inner(&store, "tapestry")
+            .await
+            .expect("list tapestry plans");
+        assert_eq!(plans.len(), 1);
+        assert_eq!(plans[0].id, "00000000-0000-0000-0000-000000000a11");
+        assert_eq!(plans[0].project, "tapestry");
+        assert_eq!(plans[0].step, "Recommend");
+        assert_eq!(plans[0].step_line, "confidence 0.63 · open[2]");
+        assert_eq!(plans[0].confidence, Some(0.626));
+        assert_eq!(plans[0].open, Some(2));
+        assert!(plans[0].landed.is_none());
+        assert!(!plans[0].age.is_empty());
+
+        let unknown = plans_list_inner(&store, "00000000-0000-0000-0000-000000000aff")
+            .await
+            .expect_err("unknown project rejected");
+        assert!(matches!(unknown.kind, IpcErrorKind::NotFound));
+    }
+
+    #[tokio::test]
+    async fn workflow_definitions_are_project_scoped() {
+        let (store, _cleanup) = test_store().await;
+        sqlx::query(
+            "INSERT INTO core.projects (id, name)
+             VALUES ('00000000-0000-0000-0000-000000000aa1', 'tapestry'),
+                    ('00000000-0000-0000-0000-000000000aa2', 'loom-db')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed projects");
+        sqlx::query(
+            "INSERT INTO workflows.workflow_defs
+                (id, project_id, name, version, graph, spec, verify_command)
+             VALUES ('00000000-0000-0000-0000-000000000ab1',
+                     '00000000-0000-0000-0000-000000000aa1', 'build', 1,
+                     '{}'::jsonb, '{}'::jsonb, 'cargo test'),
+                    ('00000000-0000-0000-0000-000000000ab2',
+                     '00000000-0000-0000-0000-000000000aa2', 'review', 1,
+                     '{}'::jsonb, '{}'::jsonb, 'cargo test')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed workflow definitions");
+
+        let definitions = workflow_definitions_inner(&store, "tapestry")
+            .await
+            .expect("list tapestry workflows");
+        assert_eq!(definitions.len(), 1);
+        assert_eq!(definitions[0].name, "build");
+        let missing = workflow_definitions_inner(&store, "missing-project")
+            .await
+            .expect_err("unknown workflow project rejected");
+        assert!(matches!(missing.kind, IpcErrorKind::InvalidArgument));
+    }
+
+    #[tokio::test]
+    async fn agent_definitions_read_latest_versions_from_store() {
+        let (store, _cleanup) = test_store().await;
+        sqlx::query(
+            "INSERT INTO agents.agent_defs (id, name, version, frontmatter, body)
+             VALUES ('00000000-0000-0000-0000-000000000a71', 'builder', 1, '{\"task_class\":\"code\"}', 'v1'),
+                    ('00000000-0000-0000-0000-000000000a72', 'builder', 2, '{\"task_class\":\"research\"}', 'v2'),
+                    ('00000000-0000-0000-0000-000000000a73', 'reviewer', 1, '{}', 'review')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed agent definitions");
+
+        let definitions = agent_defs_list_inner(&store)
+            .await
+            .expect("list latest definitions");
+        assert_eq!(definitions.len(), 2);
+        assert_eq!(definitions[0].name, "builder");
+        assert_eq!(definitions[0].version, 2);
+        let builder = agent_def_inner(&store, "builder")
+            .await
+            .expect("read builder definition");
+        assert_eq!(builder.version, 2);
+        assert_eq!(builder.frontmatter["task_class"], "research");
+        let missing = agent_def_inner(&store, "missing")
+            .await
+            .expect_err("unknown definition rejected");
+        assert!(matches!(missing.kind, IpcErrorKind::NotFound));
+    }
+
+    #[tokio::test]
+    async fn guardrails_read_and_save_durable_defaults() {
+        let (store, _cleanup) = test_store().await;
+        let defaults = guardrail_settings_inner(&store)
+            .await
+            .expect("read guardrail settings");
+        let max_iterations = defaults[0].settings[0].control.value.clone();
+        assert_eq!(max_iterations, serde_json::json!("8"));
+        assert_eq!(
+            defaults[1].settings[0].control.value,
+            serde_json::json!("6")
+        );
+
+        let updated = set_guardrail_settings_inner(
+            &store,
+            GuardrailSettingsRequest {
+                max_iterations: 10,
+                token_budget: Some(120_000),
+                stuck_iterations: 4,
+                kill_and_reassign: false,
+                global_parallelism: 7,
+                per_project_parallelism: 2,
+                priority_method: "manual".into(),
+                tie_break: "longest_waiting".into(),
+                change_lines_ceiling: Some(500),
+                change_files_ceiling: Some(15),
+                network_tier: "allowlist".into(),
+                block_system_changes: true,
+                autopilot: true,
+            },
+        )
+        .await
+        .expect("save guardrail settings");
+        assert_eq!(
+            updated[0].settings[0].control.value,
+            serde_json::json!("10")
+        );
+        assert_eq!(
+            updated[1].settings[2].control.value,
+            serde_json::json!("manual")
+        );
+        assert_eq!(
+            updated[3].settings[2].control.value,
+            serde_json::json!(true)
+        );
+    }
+
+    #[tokio::test]
+    async fn board_tasks_and_detail_are_project_scoped() {
+        let (store, _cleanup) = test_store().await;
+        sqlx::query(
+            "INSERT INTO core.projects (id, name)
+             VALUES ('00000000-0000-0000-0000-000000000a31', 'tapestry'),
+                    ('00000000-0000-0000-0000-000000000a32', 'loom-db')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed projects");
+        sqlx::query(
+            "INSERT INTO board.tasks (id, project_id, summary, verify_command)
+             VALUES ('00000000-0000-0000-0000-000000000a41',
+                     '00000000-0000-0000-0000-000000000a31',
+                     'Tapestry task', 'cargo test')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed board task");
+
+        let tasks = board_tasks_inner(&store, "tapestry")
+            .await
+            .expect("list tapestry tasks");
+        assert_eq!(tasks.len(), 1);
+        assert_eq!(tasks[0].title, "Tapestry task");
+        assert_eq!(tasks[0].column, "ready");
+        assert_eq!(tasks[0].status, "ok");
+        assert_eq!(tasks[0].verify_command, "cargo test");
+
+        let detail = task_detail_inner(&store, "tapestry", "00000000-0000-0000-0000-000000000a41")
+            .await
+            .expect("read tapestry task detail");
+        assert_eq!(detail.id, tasks[0].id);
+        let foreign = task_detail_inner(&store, "loom-db", "00000000-0000-0000-0000-000000000a41")
+            .await
+            .expect_err("cross-project task detail rejected");
+        assert!(matches!(foreign.kind, IpcErrorKind::NotFound));
+    }
+
+    #[tokio::test]
+    async fn task_create_requires_owned_workflow_and_persists_ready_task() {
+        let (store, _cleanup) = test_store().await;
+        sqlx::query(
+            "INSERT INTO core.projects (id, name)
+             VALUES ('00000000-0000-0000-0000-000000000a51', 'tapestry'),
+                    ('00000000-0000-0000-0000-000000000a52', 'loom-db')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed projects");
+        sqlx::query(
+            "INSERT INTO workflows.workflow_defs
+                (id, project_id, name, version, graph, spec, verify_command)
+             VALUES ('00000000-0000-0000-0000-000000000a61',
+                     '00000000-0000-0000-0000-000000000a51', 'build', 1,
+                     '{}'::jsonb, '{}'::jsonb, 'cargo test')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed workflow");
+
+        let task = task_create_inner(
+            &store,
+            "tapestry",
+            None,
+            "Created task",
+            "00000000-0000-0000-0000-000000000a61",
+        )
+        .await
+        .expect("create task");
+        assert_eq!(task.title, "Created task");
+        assert_eq!(task.column, "ready");
+
+        let foreign = task_create_inner(
+            &store,
+            "loom-db",
+            None,
+            "Foreign task",
+            "00000000-0000-0000-0000-000000000a61",
+        )
+        .await
+        .expect_err("cross-project workflow rejected");
+        assert!(matches!(foreign.kind, IpcErrorKind::NotFound));
+    }
+
+    #[tokio::test]
+    async fn plan_mutations_require_project_ownership_and_persist() {
+        let (store, _cleanup) = test_store().await;
+        sqlx::query(
+            "INSERT INTO core.projects (id, name)
+             VALUES ('00000000-0000-0000-0000-000000000a21', 'tapestry'),
+                    ('00000000-0000-0000-0000-000000000a22', 'loom-db')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed projects");
+
+        let created = plan_create_inner(&store, "tapestry", "New plan", "Do the thing")
+            .await
+            .expect("create plan");
+        assert_eq!(created.project, "tapestry");
+        assert_eq!(created.step, "Inputs");
+
+        let foreign = plan_stage_set_inner(
+            &store,
+            "loom-db",
+            &created.id,
+            "orient",
+            "orient the project",
+            None,
+        )
+        .await
+        .expect_err("cross-project stage update rejected");
+        assert!(matches!(foreign.kind, IpcErrorKind::NotFound));
+
+        plan_stage_set_inner(
+            &store,
+            "tapestry",
+            &created.id,
+            "converse",
+            "ask the open questions",
+            None,
+        )
+        .await
+        .expect("set owned plan stage");
+        plan_requirements_set_inner(
+            &store,
+            "tapestry",
+            &created.id,
+            vec![
+                PlanRequirementRequest {
+                    id: "R-01".into(),
+                    body: "The plan must persist its goal.".into(),
+                },
+                PlanRequirementRequest {
+                    id: "R-02".into(),
+                    body: "The plan must preserve stable ids.".into(),
+                },
+            ],
+        )
+        .await
+        .expect("save owned plan requirements");
+        let requirements = store
+            .plan_requirements(created.id.parse().expect("plan id"))
+            .await
+            .expect("read plan requirements");
+        assert_eq!(requirements.len(), 2);
+        assert_eq!(requirements[0].requirement_id, "R-01");
+        assert!(requirements.iter().all(|row| row.changed));
     }
 }

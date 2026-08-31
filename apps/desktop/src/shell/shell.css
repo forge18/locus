@@ -34,10 +34,19 @@
  align-items: center;
  gap: 8px;
 }
-.traffic span {
+/* The traffic lights are real window controls — the custom title bar owns the
+   chrome now that native decorations are off. A UA button reset, then the dot. */
+.traffic button {
+ appearance: none;
  width: 11px;
  height: 11px;
+ padding: 0;
+ border: 0;
  border-radius: 50%;
+ cursor: default;
+}
+.traffic button:hover {
+ box-shadow: 0 0 0 3px var(--surface-selected);
 }
 .traffic-close {
  background: var(--tl-close);
@@ -144,7 +153,7 @@
  border: 1px solid var(--border-strong);
  border-radius: var(--r-md);
  background: var(--surface-selected);
- box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+ box-shadow: 0 8px 24px color-mix(in srgb, var(--scrim) 25%, transparent);
 }
 .title-pill-wrap {
  position: relative;
@@ -236,7 +245,7 @@
  z-index: 10;
  display: grid;
  place-items: center;
- background: rgba(0, 0, 0, 0.52);
+ background: color-mix(in srgb, var(--scrim) 52%, transparent);
 }
 .merge-modal {
  width: min(680px, calc(100vw - 32px));
@@ -279,9 +288,24 @@
  border-right: 1px solid var(--border-subtle);
 }
 .project-rail button {
+ appearance: none;
+ background: transparent;
+ border: 0;
+ border-radius: var(--r-card);
+ color: var(--text-secondary);
+ font-family: var(--fm);
  display: block;
  width: 100%;
+ padding: var(--g-2) var(--g-3);
  text-align: left;
+ cursor: default;
+}
+.project-rail button:hover {
+ background: var(--surface-raised);
+}
+.project-rail button[aria-current="true"] {
+ background: var(--surface-selected);
+ color: var(--action-attention);
 }
 .project-rail section {
  padding: var(--g-3);

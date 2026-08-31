@@ -1,3 +1,6 @@
+// schema: core.settings + workflows.guardrails
+// replaced by: invoke("guardrail_settings")
+
 export type GuardrailControl =
   | { kind: 'stepper'; value: string }
   | { kind: 'toggle'; value: boolean }

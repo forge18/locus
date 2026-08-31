@@ -1,3 +1,6 @@
+// schema: workflows.verify_results + core.settings
+// replaced by: invoke("qa_checks")
+
 export type QaSchedule = 'manual' | 'push' | 'hourly' | 'daily'
 export type FindingSeverity = 'fail' | 'warn'
 

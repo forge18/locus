@@ -1,6 +1,9 @@
 import { render } from '@solidjs/testing-library'
 import { describe, expect, it } from 'vitest'
 import { DispatchView } from '../../src/screens/dispatch/DispatchView'
+import { configureProjectsStub } from '../projects/provider-stub'
+
+configureProjectsStub();
 
 describe('dispatch schedules', () => {
   it('renders schedule overlap and skipped outcome', () => {

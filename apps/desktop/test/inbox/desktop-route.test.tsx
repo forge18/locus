@@ -3,6 +3,9 @@ import { describe, expect, it } from "vitest";
 import { InboxView } from "../../src/screens/inbox/InboxView";
 import { createNavStore } from "../../src/nav";
 
+import { configureProjectsStub } from "../projects/provider-stub";
+configureProjectsStub();
+
 describe("Inbox desktop route", () => {
   it("identifies the global inbox fixture route", () => {
     const { getByTestId } = render(() => (

@@ -21,6 +21,7 @@ describe("telemetry/layout", () => {
         c.getAttribute("data-testid"),
       ),
     ).toEqual([
+      "fixture-notice",
       "tm-search",
       "tm-chips",
       "tm-metrics",

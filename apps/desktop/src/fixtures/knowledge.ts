@@ -1,3 +1,6 @@
+// schema: memory.facts + memory.events + wiki.pages
+// replaced by: invoke("knowledge_snapshot")
+
 // M0.7 knowledge fixtures. These are intentionally UI-shaped until Tauri
 // commands replace them; identifiers remain stable so views can share handles.
 

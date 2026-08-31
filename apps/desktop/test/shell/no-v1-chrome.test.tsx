@@ -3,6 +3,9 @@ import { describe, expect, it } from "vitest";
 import { createNavStore } from "../../src/nav";
 import { Shell } from "../../src/shell/Shell";
 
+import { configureProjectsStub } from "../projects/provider-stub";
+configureProjectsStub();
+
 describe("shell/no-v1-chrome", () => {
   it("does not render the v1 filter, tab bar, or activity strip", () => {
     const { container } = render(() => (
