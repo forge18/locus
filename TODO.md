@@ -34,13 +34,13 @@ audit findings; each is one of the epic's slices, tracked here once:
   6. ~~window-chrome ownership + rail rendering~~ done (`decorations: false` — the custom title bar
   owns the chrome, its traffic lights call the real window API, the surface is a drag region, and
   the rail buttons carry the shared control reset) · 
-  7. ~~live run slice: Sessions/Runs/Dispatch/Inbox/Agent Pane read the same run/event
-  source~~ done (`dispatch_runs_page`/`dispatch_runs_count`, `sessions_list`/`session`/
-  `runs_for_session`, `inbox_list`/`inbox_resolve`/`inbox_throughput`, `dispatch_schedules`/
-  `dispatch_schedule_executions`, `autorun_states`/`set_project_autorun_state` all live with
-  scoped invalidation on project-scope change; the AgentPane replays persisted events and
-  subscribes to the live Channel; the AutorunView renders live tri-state switches from the
-  real `core.project_autorun` table; InteractView is superseded by workstream 3) · 
+  7. ~~live run slice~~ done — `dispatch_runs_page`/`dispatch_runs_count`,
+  `sessions_list`/`session`/`runs_for_session`, `inbox_list`/`inbox_resolve`/
+  `inbox_throughput`, `dispatch_schedules`/`dispatch_schedule_executions`,
+  `autorun_states`/`set_project_autorun_state` all live with scoped invalidation on
+  project-scope change; the AgentPane replays persisted events and subscribes to the
+  live Channel; the AutorunView renders live tri-state switches from the real
+  `core.project_autorun` table; InteractView is superseded by workstream 3 · 
   8. configuration slice: Plan/Manage/Setup mutations/Workshop/agents
   (absorbs: wire Manage's New Task and TaskDetail, wire Settings → Guardrails, expose the 13 core
   service families as commands, reconcile the TypeScript types with the Rust DTOs) ·
