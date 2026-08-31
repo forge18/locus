@@ -25,7 +25,7 @@ use locus_core::{
         lint::discover as discover_linters,
         manage::TaskColumn,
         task::TaskDetailSummary,
-        telemetry::{now_timestamp, Event},
+        telemetry::{now_timestamp, CapturedEvent, Event, EventVerb},
     },
     store::{
         agents::ActivityCountsRow, qa::QaFindingRow, work_items::PersistedExternalCompletionStatus,
@@ -3869,6 +3869,37 @@ fn telemetry_subscribe(core: State<'_, Arc<Core>>, channel: Channel<Event>) {
     });
 }
 
+/// Emits one source-neutral event for the real-window integration harness only.
+/// Release builds expose the command name but reject it before touching the collector.
+#[tauri::command]
+fn desktop_integration_emit_event(
+    core: State<'_, Arc<Core>>,
+    run_id: String,
+    text: String,
+) -> Result<(), IpcError> {
+    if !cfg!(all(debug_assertions, feature = "webdriver")) {
+        return Err(IpcError::not_found(
+            "desktop integration event emission is unavailable",
+        ));
+    }
+    let run_id = run_id
+        .parse()
+        .map_err(|_| IpcError::invalid_argument("integration run id must be a UUID"))?;
+    core.collector().capture(
+        run_id,
+        CapturedEvent {
+            verb: EventVerb::Assistant,
+            ts: now_timestamp(),
+            text: Some(text),
+            tool: None,
+            args: None,
+            usage: None,
+            raw: serde_json::json!({"integration": true}),
+        },
+    );
+    Ok(())
+}
+
 /// Replays a run's durable telemetry events from `agents.events` in capture order.
 /// The live subscription only carries events since connect; this is how Telemetry
 /// and Analytics rebuild a run's history after a restart.
@@ -3972,7 +4003,11 @@ pub fn run() {
     let core = Core::load(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(HARNESS_REGISTRY))
         .expect("load the harness registry at start");
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    #[cfg(feature = "webdriver")]
+    let builder = builder.plugin(tauri_plugin_wdio_webdriver::init());
+
+    builder
         .manage(core)
         .manage(Arc::new(LspDiagnosticsSubscriptions::default()))
         .setup(|app| {
@@ -4034,6 +4069,7 @@ pub fn run() {
             harness_tier_grid,
             pty_subscribe,
             telemetry_subscribe,
+            desktop_integration_emit_event,
             telemetry_events_replay,
             lsp_attach,
             lsp_enable_descriptor,

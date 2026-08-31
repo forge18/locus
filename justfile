@@ -23,6 +23,10 @@ test-node:
 test-named *args:
     bash scripts/run-named-test.sh "$@"
 
+# Run the real Tauri window against a disposable Postgres store
+test-desktop-integration:
+    bash apps/desktop/scripts/test-desktop-integration.sh
+
 # Lint the Rust workspace; a warning is a failure
 lint:
     cargo clippy --all-targets -- -D warnings
