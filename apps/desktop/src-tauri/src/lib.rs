@@ -1135,26 +1135,55 @@ fn guardrail_settings_response(
             id: "stopping".into(),
             label: "Stopping conditions".into(),
             settings: vec![
-                guardrail_stepper("max-iterations", "Max iterations", defaults.max_iterations.to_string()),
+                guardrail_stepper(
+                    "max-iterations",
+                    "Max iterations",
+                    defaults.max_iterations.to_string(),
+                ),
                 guardrail_stepper(
                     "token-budget",
                     "Token budget per run",
-                    defaults
-                        .token_budget
-                        .map_or_else(|| "unlimited".into(), |budget| format!("{}k", budget / 1000)),
+                    defaults.token_budget.map_or_else(
+                        || "unlimited".into(),
+                        |budget| format!("{}k", budget / 1000),
+                    ),
                 ),
-                guardrail_stepper("stuck-detection", "Stuck detection", defaults.stuck_iterations.to_string()),
-                guardrail_toggle("kill-reassign", "Kill & reassign on stuck", defaults.kill_and_reassign),
+                guardrail_stepper(
+                    "stuck-detection",
+                    "Stuck detection",
+                    defaults.stuck_iterations.to_string(),
+                ),
+                guardrail_toggle(
+                    "kill-reassign",
+                    "Kill & reassign on stuck",
+                    defaults.kill_and_reassign,
+                ),
             ],
         },
         GuardrailSectionResponse {
             id: "parallelism".into(),
             label: "Parallelism".into(),
             settings: vec![
-                guardrail_stepper("max-parallel-agents", "Max parallel agents", dispatch.global_parallelism.to_string()),
-                guardrail_stepper("max-per-project", "Max per project", dispatch.per_project_parallelism.to_string()),
-                guardrail_select("priority-method", "Priority method", &dispatch.priority_method.replace('_', " ")),
-                guardrail_select("tie-break", "Tie-break", &dispatch.tie_break.replace('_', " ")),
+                guardrail_stepper(
+                    "max-parallel-agents",
+                    "Max parallel agents",
+                    dispatch.global_parallelism.to_string(),
+                ),
+                guardrail_stepper(
+                    "max-per-project",
+                    "Max per project",
+                    dispatch.per_project_parallelism.to_string(),
+                ),
+                guardrail_select(
+                    "priority-method",
+                    "Priority method",
+                    &dispatch.priority_method.replace('_', " "),
+                ),
+                guardrail_select(
+                    "tie-break",
+                    "Tie-break",
+                    &dispatch.tie_break.replace('_', " "),
+                ),
             ],
         },
         GuardrailSectionResponse {
@@ -1164,12 +1193,16 @@ fn guardrail_settings_response(
                 guardrail_stepper(
                     "lines-changed",
                     "Lines changed ceiling",
-                    defaults.change_lines_ceiling.map_or_else(|| "unlimited".into(), |value| value.to_string()),
+                    defaults
+                        .change_lines_ceiling
+                        .map_or_else(|| "unlimited".into(), |value| value.to_string()),
                 ),
                 guardrail_stepper(
                     "files-touched",
                     "Files touched ceiling",
-                    defaults.change_files_ceiling.map_or_else(|| "unlimited".into(), |value| value.to_string()),
+                    defaults
+                        .change_files_ceiling
+                        .map_or_else(|| "unlimited".into(), |value| value.to_string()),
                 ),
             ],
         },
@@ -1177,8 +1210,16 @@ fn guardrail_settings_response(
             id: "permissions".into(),
             label: "Permissions".into(),
             settings: vec![
-                guardrail_select("network-tier", "Network tier for new agents", &defaults.network_tier),
-                guardrail_toggle("block-system-changes", "Block unapproved system changes", defaults.block_system_changes),
+                guardrail_select(
+                    "network-tier",
+                    "Network tier for new agents",
+                    &defaults.network_tier,
+                ),
+                guardrail_toggle(
+                    "block-system-changes",
+                    "Block unapproved system changes",
+                    defaults.block_system_changes,
+                ),
                 guardrail_toggle("autopilot", "Autopilot", defaults.autopilot),
             ],
         },
@@ -1272,7 +1313,9 @@ fn plan_step_label(stage: &str) -> Result<(&'static str, usize), IpcError> {
     Ok(result)
 }
 
-fn parse_plan_stage(stage: &str) -> Result<locus_core::services::planning::PlanningStage, IpcError> {
+fn parse_plan_stage(
+    stage: &str,
+) -> Result<locus_core::services::planning::PlanningStage, IpcError> {
     match stage {
         "inputs" => Ok(locus_core::services::planning::PlanningStage::Inputs),
         "orient" => Ok(locus_core::services::planning::PlanningStage::Orient),
@@ -1372,7 +1415,9 @@ async fn plan_stage_set_inner(
         .await
         .map_err(IpcError::internal)?
     {
-        return Err(IpcError::not_found("plan was not found in the active project"));
+        return Err(IpcError::not_found(
+            "plan was not found in the active project",
+        ));
     }
     store
         .set_plan_stage(
@@ -1400,7 +1445,9 @@ async fn plan_requirements_set_inner(
         .await
         .map_err(IpcError::internal)?
     {
-        return Err(IpcError::not_found("plan was not found in the active project"));
+        return Err(IpcError::not_found(
+            "plan was not found in the active project",
+        ));
     }
     let requirements = requirements
         .into_iter()
@@ -1508,7 +1555,9 @@ fn board_column_name(column: &str) -> Result<&'static str, IpcError> {
     }
 }
 
-fn board_task_response(row: locus_core::store::board::BoardTaskRow) -> Result<BoardTaskResponse, IpcError> {
+fn board_task_response(
+    row: locus_core::store::board::BoardTaskRow,
+) -> Result<BoardTaskResponse, IpcError> {
     let column = board_column_name(&row.column_name)?;
     Ok(BoardTaskResponse {
         id: row.id.to_string(),
@@ -1516,7 +1565,11 @@ fn board_task_response(row: locus_core::store::board::BoardTaskRow) -> Result<Bo
         repo_id: row.repo_id.map_or_else(String::new, |id| id.to_string()),
         title: row.summary,
         column: column.into(),
-        status: if row.blocked { "blocked".into() } else { "ok".into() },
+        status: if row.blocked {
+            "blocked".into()
+        } else {
+            "ok".into()
+        },
         verify_command: row.verify_command.unwrap_or_default(),
         assignee: row.assigned_agent,
         gate: "unavailable".into(),
@@ -1526,8 +1579,16 @@ fn board_task_response(row: locus_core::store::board::BoardTaskRow) -> Result<Bo
         tokens: None,
         workflow_id: row.workflow_id.map(|id| id.to_string()),
         root_session_id: row.session_id.map(|id| id.to_string()),
-        child_run_ids: row.child_run_ids.into_iter().map(|id| id.to_string()).collect(),
-        evidence_ids: row.evidence_ids.into_iter().map(|id| id.to_string()).collect(),
+        child_run_ids: row
+            .child_run_ids
+            .into_iter()
+            .map(|id| id.to_string())
+            .collect(),
+        evidence_ids: row
+            .evidence_ids
+            .into_iter()
+            .map(|id| id.to_string())
+            .collect(),
         external_link: row.external_link,
     })
 }
@@ -3303,17 +3364,12 @@ async fn agent_def_inner(store: &Store, name: &str) -> Result<AgentDefResponse, 
 }
 
 #[tauri::command]
-async fn agent_defs_list(
-    core: State<'_, Arc<Core>>,
-) -> Result<Vec<AgentDefSummary>, IpcError> {
+async fn agent_defs_list(core: State<'_, Arc<Core>>) -> Result<Vec<AgentDefSummary>, IpcError> {
     agent_defs_list_inner(connected_store(&core).await?).await
 }
 
 #[tauri::command]
-async fn agent_def(
-    core: State<'_, Arc<Core>>,
-    name: String,
-) -> Result<AgentDefResponse, IpcError> {
+async fn agent_def(core: State<'_, Arc<Core>>, name: String) -> Result<AgentDefResponse, IpcError> {
     agent_def_inner(connected_store(&core).await?, &name).await
 }
 
@@ -5404,7 +5460,10 @@ mod configuration_commands {
             .expect("read guardrail settings");
         let max_iterations = defaults[0].settings[0].control.value.clone();
         assert_eq!(max_iterations, serde_json::json!("8"));
-        assert_eq!(defaults[1].settings[0].control.value, serde_json::json!("6"));
+        assert_eq!(
+            defaults[1].settings[0].control.value,
+            serde_json::json!("6")
+        );
 
         let updated = set_guardrail_settings_inner(
             &store,
@@ -5426,9 +5485,18 @@ mod configuration_commands {
         )
         .await
         .expect("save guardrail settings");
-        assert_eq!(updated[0].settings[0].control.value, serde_json::json!("10"));
-        assert_eq!(updated[1].settings[2].control.value, serde_json::json!("manual"));
-        assert_eq!(updated[3].settings[2].control.value, serde_json::json!(true));
+        assert_eq!(
+            updated[0].settings[0].control.value,
+            serde_json::json!("10")
+        );
+        assert_eq!(
+            updated[1].settings[2].control.value,
+            serde_json::json!("manual")
+        );
+        assert_eq!(
+            updated[3].settings[2].control.value,
+            serde_json::json!(true)
+        );
     }
 
     #[tokio::test]
@@ -5461,21 +5529,13 @@ mod configuration_commands {
         assert_eq!(tasks[0].status, "ok");
         assert_eq!(tasks[0].verify_command, "cargo test");
 
-        let detail = task_detail_inner(
-            &store,
-            "tapestry",
-            "00000000-0000-0000-0000-000000000a41",
-        )
-        .await
-        .expect("read tapestry task detail");
+        let detail = task_detail_inner(&store, "tapestry", "00000000-0000-0000-0000-000000000a41")
+            .await
+            .expect("read tapestry task detail");
         assert_eq!(detail.id, tasks[0].id);
-        let foreign = task_detail_inner(
-            &store,
-            "loom-db",
-            "00000000-0000-0000-0000-000000000a41",
-        )
-        .await
-        .expect_err("cross-project task detail rejected");
+        let foreign = task_detail_inner(&store, "loom-db", "00000000-0000-0000-0000-000000000a41")
+            .await
+            .expect_err("cross-project task detail rejected");
         assert!(matches!(foreign.kind, IpcErrorKind::NotFound));
     }
 
