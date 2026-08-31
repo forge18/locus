@@ -1,6 +1,6 @@
 import { render } from '@solidjs/testing-library'
 import { describe, expect, it } from 'vitest'
-import { MemoryLongTermFixture } from '../../src/screens/memory/MemoryFixtures'
+import { MemoryLongTermFixture } from '../../src/demo/MemoryFixtures'
 
 describe('Memory fact provenance', () => {
   it('identifies provenance, confidence, decay, and contradiction state', () => {

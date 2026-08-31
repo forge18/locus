@@ -3,6 +3,7 @@ import {
   type DataProvider,
 } from "../../src/data/provider";
 import { ready, readyOne, type Envelope } from "../../src/data/envelope";
+import { demoProvider } from "../../src/data/demo/demo-provider";
 import type { StripCardRow } from "../../src/data/strip";
 import type {
   InboxDelivery,
@@ -111,6 +112,9 @@ export function configureProjectsStub(stub: ProjectsStub = {}): {
   const calls: RecordedCall[] = [];
   const provider: DataProvider = {
     kind: "demo",
+    read<T>(command: string, args?: Record<string, unknown>) {
+      return demoProvider.read?.<T>(command, args);
+    },
     async query<T>(
       command: string,
       args?: Record<string, unknown>,

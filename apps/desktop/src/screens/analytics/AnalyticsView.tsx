@@ -7,7 +7,7 @@ import {
         createMemo,
         createSignal,
 } from "solid-js";
-import { isTauri } from "@tauri-apps/api/core";
+import { dataProvider } from "../../data/provider";
 import { Button } from "../../ui/Button";
 import { InlineError } from "../../ui/InlineError";
 import { FixtureNotice } from "../../ui/FixtureNotice";
@@ -49,9 +49,11 @@ export interface AnalyticsViewProps {
 }
 
 function AnalyticsLive(props: { scope: AnalyticsScope }) {
-        const [metrics, setMetrics] = createSignal<Envelope<AtAGlanceMetric[]>>({
-                status: "loading",
-        });
+        const [metrics, setMetrics] = createSignal<Envelope<AtAGlanceMetric[]>>(
+                {
+                        status: "loading",
+                },
+        );
         const rows = createMemo(() => {
                 const state = metrics();
                 return state.status === "ready" ? state.data : [];
@@ -74,7 +76,12 @@ function AnalyticsLive(props: { scope: AnalyticsScope }) {
                         })
                         .catch((cause) => {
                                 if (request === requestId)
-                                        setMetrics(failed("analytics_at_a_glance", cause));
+                                        setMetrics(
+                                                failed(
+                                                        "analytics_at_a_glance",
+                                                        cause,
+                                                ),
+                                        );
                         });
         });
 
@@ -96,19 +103,42 @@ function AnalyticsLive(props: { scope: AnalyticsScope }) {
                                 data-state={metrics().status}
                         >
                                 <Switch>
-                                        <Match when={metrics().status === "loading"}>
+                                        <Match
+                                                when={
+                                                        metrics().status ===
+                                                        "loading"
+                                                }
+                                        >
                                                 <p>Loading analytics…</p>
                                         </Match>
-                                        <Match when={metrics().status === "failed"}>
+                                        <Match
+                                                when={
+                                                        metrics().status ===
+                                                        "failed"
+                                                }
+                                        >
                                                 <InlineError
                                                         cause={errorMessage()}
                                                         next="Check the project connection and retry Analytics."
                                                 />
                                         </Match>
-                                        <Match when={metrics().status === "empty"}>
-                                                <p>No activity in this scope.</p>
+                                        <Match
+                                                when={
+                                                        metrics().status ===
+                                                        "empty"
+                                                }
+                                        >
+                                                <p>
+                                                        No activity in this
+                                                        scope.
+                                                </p>
                                         </Match>
-                                        <Match when={metrics().status === "ready"}>
+                                        <Match
+                                                when={
+                                                        metrics().status ===
+                                                        "ready"
+                                                }
+                                        >
                                                 <section
                                                         class="analytics-stat-grid"
                                                         data-testid="analytics-live-metrics"
@@ -116,9 +146,21 @@ function AnalyticsLive(props: { scope: AnalyticsScope }) {
                                                         <For each={rows()}>
                                                                 {(metric) => (
                                                                         <div class="analytics-stat">
-                                                                                <span>{metric.label}</span>
-                                                                                <strong>{metric.value}</strong>
-                                                                                <small>{metric.note}</small>
+                                                                                <span>
+                                                                                        {
+                                                                                                metric.label
+                                                                                        }
+                                                                                </span>
+                                                                                <strong>
+                                                                                        {
+                                                                                                metric.value
+                                                                                        }
+                                                                                </strong>
+                                                                                <small>
+                                                                                        {
+                                                                                                metric.note
+                                                                                        }
+                                                                                </small>
                                                                         </div>
                                                                 )}
                                                         </For>
@@ -131,7 +173,8 @@ function AnalyticsLive(props: { scope: AnalyticsScope }) {
 }
 
 export function AnalyticsView(props: AnalyticsViewProps) {
-        if (isTauri()) return <AnalyticsLive scope={props.scope ?? "all"} />;
+        if (dataProvider().kind === "live")
+                return <AnalyticsLive scope={props.scope ?? "all"} />;
 
         const scope = () => props.scope ?? "all";
         const [tab, setTab] = createSignal(props.initialTab ?? "overview");

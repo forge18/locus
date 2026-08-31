@@ -10,6 +10,7 @@ import {
   configureDataProvider,
   dataProvider,
   liveProvider,
+  resetDataProvider,
 } from "../../src/data/provider";
 
 const read = (path: string) =>
@@ -18,6 +19,7 @@ const read = (path: string) =>
 describe("data/production-boundary", () => {
   beforeEach(() => {
     mocks.invoke.mockReset();
+    resetDataProvider();
   });
 
   it("refuses to serve before an explicit provider is configured", () => {
@@ -33,7 +35,8 @@ describe("data/production-boundary", () => {
     const imports = [
       ...read("provider.ts").matchAll(/from\s+["']([^"']+)['"]/g),
     ].map((entry) => entry[1]);
-    expect(imports).toContain("@tauri-apps/api/core");
+    const source = read("provider.ts");
+    expect(source).toContain('import("@tauri-apps/api/core")');
     for (const specifier of imports) {
       expect(specifier).not.toMatch(/demo/);
       expect(specifier).not.toMatch(/fixtures/);
@@ -88,12 +91,15 @@ describe("data/production-boundary", () => {
     });
     expect(scoped.status).toBe("ready");
 
-    const missing = await demoProvider.query("analytics_stats");
+    const analytics = await demoProvider.query("analytics_stats");
+    expect(analytics.status).toBe("ready");
+
+    const missing = await demoProvider.query("not_registered");
     expect(missing).toEqual({
       status: "failed",
       error: {
-        command: "analytics_stats",
-        message: "demo provider has no fixture for analytics_stats",
+        command: "not_registered",
+        message: "demo provider has no fixture for not_registered",
       },
     });
 

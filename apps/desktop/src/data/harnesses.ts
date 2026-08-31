@@ -1,32 +1,25 @@
-import {
- DOWNGRADE_COUNT,
- EXTENSION_TYPES,
- ENTRY_COUNT,
- EXTENSION_COUNTS,
- HARNESSES,
- HARNESS_COUNT,
-} from "../fixtures/generated/harnesses";
+import { dataProvider } from "./provider";
 import type {
- ExtensionTypeCount,
- ExtensionType,
- HarnessEntry,
-} from "../fixtures/generated/harnesses";
+  ExtensionTypeCount,
+  ExtensionType,
+  HarnessEntry,
+} from "./demo/fixtures/generated-harnesses";
 
 export {
- EXTENSION_LABELS,
- EXTENSION_TYPES,
-} from "../fixtures/generated/harnesses";
+  EXTENSION_LABELS,
+  EXTENSION_TYPES,
+} from "./demo/fixtures/generated-harnesses";
 export type {
- ExtensionType,
- ExtensionTypeCount,
- HarnessEntry,
- HarnessExtension,
- MechanismBadge,
-} from "../fixtures/generated/harnesses";
+  ExtensionType,
+  ExtensionTypeCount,
+  HarnessEntry,
+  HarnessExtension,
+  MechanismBadge,
+} from "./demo/fixtures/generated-harnesses";
 
 /** Becomes: invoke("harness_registry_list") */
 export function useHarnesses(): readonly HarnessEntry[] {
- return HARNESSES;
+  return dataProvider().read?.<HarnessEntry[]>("harness_registry_list") ?? [];
 }
 
 /**
@@ -36,23 +29,29 @@ export function useHarnesses(): readonly HarnessEntry[] {
  * way the design copy's "27 of 88" did.
  */
 export function useHarnessSummary(): {
- harnesses: number;
- entries: number;
- downgrades: number;
+  harnesses: number;
+  entries: number;
+  downgrades: number;
 } {
- return {
-  harnesses: HARNESS_COUNT,
-  entries: ENTRY_COUNT,
-  downgrades: DOWNGRADE_COUNT,
- };
+  return (
+    dataProvider().read?.<{
+      harnesses: number;
+      entries: number;
+      downgrades: number;
+    }>("harness_registry_summary") ?? {
+      harnesses: 0,
+      entries: 0,
+      downgrades: 0,
+    }
+  );
 }
 
 /** Becomes: invoke("extension_types") */
 export function useExtensionTypes(): readonly ExtensionType[] {
- return EXTENSION_TYPES;
+  return dataProvider().read?.<ExtensionType[]>("extension_types") ?? [];
 }
 
 /** Becomes: invoke("extension_inventory") */
 export function useExtensionCounts(): readonly ExtensionTypeCount[] {
- return EXTENSION_COUNTS;
+  return dataProvider().read?.<ExtensionTypeCount[]>("extension_counts") ?? [];
 }

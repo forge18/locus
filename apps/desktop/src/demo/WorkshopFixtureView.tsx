@@ -1,25 +1,28 @@
 import { createSignal, For, Show, onMount } from "solid-js";
 import { isTauri } from "@tauri-apps/api/core";
-import { Button } from "../../ui/Button";
-import { FixtureNotice } from "../../ui/FixtureNotice";
-import { Input } from "../../ui/Input";
-import { InlineError } from "../../ui/InlineError";
-import { Segmented } from "../../ui/Segmented";
+import { Button } from "../ui/Button";
+import { FixtureNotice } from "../ui/FixtureNotice";
+import { Input } from "../ui/Input";
+import { InlineError } from "../ui/InlineError";
+import { Segmented } from "../ui/Segmented";
 import {
     fetchAgentDefFromCore,
     fetchAgentDefsFromCore,
     type AgentDefSummary,
     type CoreAgentDefinition,
-} from "../../data/agent-defs";
-import type { Envelope } from "../../data/envelope";
+} from "../data/agent-defs";
+import type { Envelope } from "../data/envelope";
 import {
     loadConfiguredWorkItemProviders,
     type WorkItemProviderRecord,
-} from "../../data/work-items";
-import { Tag } from "../../ui/Tag";
-import "./workshop-fixtures.css";
-import { ExtensionEditor, type ExtensionEditorType } from "./ExtensionEditor";
-import { WorkflowView } from "./WorkflowView";
+} from "../data/work-items";
+import { Tag } from "../ui/Tag";
+import "../screens/workshop/workshop-fixtures.css";
+import {
+    ExtensionEditor,
+    type ExtensionEditorType,
+} from "../screens/workshop/ExtensionEditor";
+import { WorkflowView } from "../screens/workshop/WorkflowView";
 
 export const WORKSHOP_FIXTURES = [
     "agents",

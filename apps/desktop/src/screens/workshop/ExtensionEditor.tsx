@@ -7,7 +7,7 @@ import {
     useHarnesses,
     useHarnessSummary,
 } from "../../data/harnesses";
-import type { ExtensionType } from "../../fixtures/generated/harnesses";
+import type { ExtensionType } from "../../data/harnesses";
 import "./workshop-fixtures.css";
 import "./ExtensionEditor.css";
 

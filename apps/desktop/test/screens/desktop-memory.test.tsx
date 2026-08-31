@@ -5,7 +5,7 @@ import {
   MemoryLongTermFixture,
   MemoryShortTermFixture,
   MemoryWikiFixture,
-} from '../../src/screens/memory/MemoryFixtures'
+} from '../../src/demo/MemoryFixtures'
 import { read, rules } from '../css'
 
 describe('screens/desktop-memory', () => {

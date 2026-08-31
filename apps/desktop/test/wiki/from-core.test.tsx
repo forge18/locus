@@ -1,7 +1,7 @@
 import { fireEvent, render } from "@solidjs/testing-library";
 import { describe, expect, it } from "vitest";
 import { WIKI_KIND_CHIPS } from "../../src/data/knowledge";
-import { MemoryWikiFixture } from "../../src/screens/memory/MemoryFixtures";
+import { MemoryWikiFixture } from "../../src/demo/MemoryFixtures";
 
 describe("wiki/from-core", () => {
   it("renders the typed page, visible kinds, provenance, and ingest entry point", () => {

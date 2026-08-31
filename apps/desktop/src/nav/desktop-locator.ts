@@ -1,8 +1,8 @@
 import { Desktop_ROUTE_KINDS } from "./desktop-route-kinds";
-import type { FixtureScope } from "../fixtures/desktop-screen-inventory";
+import type { DesktopRouteScope } from "./desktop-screen-inventory";
 
 export type DesktopRouteId = (typeof Desktop_ROUTE_KINDS)[number]["id"];
-export type DesktopLocatorScope = FixtureScope;
+export type DesktopLocatorScope = DesktopRouteScope;
 
 export interface DesktopNavTarget {
   route: DesktopRouteId;
@@ -19,7 +19,9 @@ const SEGMENT = /^[A-Za-z0-9._@-]+$/;
 export class DesktopLocatorError extends Error {}
 
 function routeFor(id: string): (typeof Desktop_ROUTE_KINDS)[number] {
-  const route = Desktop_ROUTE_KINDS.find((candidate) => candidate.id === id);
+  const route = Desktop_ROUTE_KINDS.find(
+    (candidate: (typeof Desktop_ROUTE_KINDS)[number]) => candidate.id === id,
+  );
   if (!route)
     throw new DesktopLocatorError(
       `route: "${id}" is not a registered desktop route`,

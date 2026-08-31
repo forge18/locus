@@ -41,7 +41,7 @@ import {
   type WorkItemProviderRecord,
 } from "../../data/work-items";
 import type { BoardColumn, Task } from "../../types/board";
-import { isTauri } from "@tauri-apps/api/core";
+import { dataProvider } from "../../data/provider";
 import type { Envelope } from "../../data/envelope";
 
 type ManageViewKind = "kanban" | "list" | "graph" | "timeline";
@@ -673,7 +673,7 @@ export interface ManageViewProps {
 }
 
 export function ManageView(props: ManageViewProps = {}) {
-  const liveMode = isTauri();
+  const liveMode = dataProvider().kind === "live";
   const fixtureTasks = useTasks();
   const [taskEnvelope, setTaskEnvelope] = createSignal<Envelope<Task[]>>(
     liveMode ? { status: "loading" } : { status: "ready", data: fixtureTasks },

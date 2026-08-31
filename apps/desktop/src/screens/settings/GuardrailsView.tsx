@@ -1,5 +1,5 @@
 import { For, Show, createSignal, onMount } from "solid-js";
-import { isTauri } from "@tauri-apps/api/core";
+import { dataProvider } from "../../data/provider";
 import {
   fetchGuardrails,
   PRIORITY_METHODS,
@@ -8,10 +8,7 @@ import {
   type GuardrailSettingsPayload,
   useGuardrails,
 } from "../../data/guardrails";
-import type {
-  GuardrailControl,
-  GuardrailSection,
-} from "../../fixtures/settings-guardrails";
+import type { GuardrailControl, GuardrailSection } from "../../data/guardrails";
 import { AppearanceSelector } from "./AppearanceSelector";
 import { Button } from "../../ui/Button";
 import { AvatarStylePicker } from "./AvatarStylePicker";
@@ -142,7 +139,7 @@ function Control(props: {
 
 /** Guardrail defaults are live in Tauri and fixture-backed only in the demo/test host. */
 export function GuardrailsView() {
-  const liveMode = isTauri();
+  const liveMode = dataProvider().kind === "live";
   const shipped = useGuardrails();
   const [sections, setSections] = createSignal<readonly GuardrailSection[]>(
     liveMode ? [] : shipped,

@@ -21,7 +21,7 @@ import { Icon } from "../../ui/Icon";
 import { InlineError } from "../../ui/InlineError";
 import { Tag } from "../../ui/Tag";
 import { Button } from "../../ui/Button";
-import { isTauri } from "@tauri-apps/api/core";
+import { dataProvider } from "../../data/provider";
 import type { NavStore } from "../../nav";
 import type { Envelope } from "../../data/envelope";
 import {
@@ -294,7 +294,7 @@ export interface PlanViewProps {
 }
 
 export function PlanView(props: PlanViewProps = {}) {
-      const liveMode = isTauri();
+      const liveMode = dataProvider().kind === "live";
       const fixturePlans = usePlans();
       const [planEnvelope, setPlanEnvelope] = createSignal<
             Envelope<PlanSummary[]>

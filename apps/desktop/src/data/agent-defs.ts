@@ -1,16 +1,9 @@
 import type { Envelope } from "./envelope";
 import { dataProvider } from "./provider";
-import {
- AGENT_DEFS,
- FRONTMATTER,
- PROSE,
- SELECTED_DEF,
-} from "../fixtures/agent-defs";
-import type { AgentDefSummary, FrontmatterLine } from "../fixtures/agent-defs";
-import {
- EXTENSION_COUNTS,
- HARNESS_COUNT,
-} from "../fixtures/generated/harnesses";
+import type {
+ AgentDefSummary,
+ FrontmatterLine,
+} from "./demo/fixtures/agent-defs";
 
 export {
  DIFF_LABEL,
@@ -19,8 +12,11 @@ export {
  PROVENANCE,
  SAVE_LABEL,
  SIDEBAR_NOTE,
-} from "../fixtures/agent-defs";
-export type { AgentDefSummary, FrontmatterLine } from "../fixtures/agent-defs";
+} from "./demo/fixtures/agent-defs";
+export type {
+ AgentDefSummary,
+ FrontmatterLine,
+} from "./demo/fixtures/agent-defs";
 
 export interface CoreAgentDefinition {
  name: string;
@@ -43,22 +39,22 @@ export function fetchAgentDefFromCore(
 
 /** Becomes: fetchAgentDefsFromCore() after the Tauri runtime connects. */
 export function useAgentDefs(): AgentDefSummary[] {
- return AGENT_DEFS;
+ return dataProvider().read?.<AgentDefSummary[]>("agent_defs_list") ?? [];
 }
 
 /** Becomes: pane state, once the pane manager owns it. */
 export function useDefaultAgentDef(): string {
- return SELECTED_DEF;
+ return dataProvider().read?.<string>("agent_default_id") ?? "";
 }
 
 /** Becomes: fetchAgentDefFromCore(name) after the Tauri runtime connects. */
 export function useFrontmatter(): FrontmatterLine[] {
- return FRONTMATTER;
+ return dataProvider().read?.<FrontmatterLine[]>("agent_frontmatter") ?? [];
 }
 
 /** Becomes: fetchAgentDefFromCore(name) after the Tauri runtime connects. */
 export function useProse(): string[] {
- return PROSE;
+ return dataProvider().read?.<string[]>("agent_prose") ?? [];
 }
 
 /**
@@ -71,9 +67,9 @@ export function useAgentMaterialization(): {
  harnesses: number;
  downgraded: number;
 } {
- const agents = EXTENSION_COUNTS.find((c) => c.type === "agents") ?? {
-  native: 0,
-  downgraded: 0,
- };
- return { harnesses: HARNESS_COUNT, downgraded: agents.downgraded };
+ return (
+  dataProvider().read?.<{ harnesses: number; downgraded: number }>(
+   "agent_materialization",
+  ) ?? { harnesses: 0, downgraded: 0 }
+ );
 }

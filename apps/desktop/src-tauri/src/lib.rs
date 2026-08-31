@@ -1737,12 +1737,7 @@ async fn set_project_autorun_state(
     project_id: String,
     state: String,
 ) -> Result<(), IpcError> {
-    set_project_autorun_state_inner(
-        connected_store(&core).await?,
-        &project_id,
-        &state,
-    )
-    .await
+    set_project_autorun_state_inner(connected_store(&core).await?, &project_id, &state).await
 }
 
 #[tauri::command]

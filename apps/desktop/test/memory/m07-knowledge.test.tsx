@@ -1,6 +1,6 @@
 import { fireEvent, render } from '@solidjs/testing-library'
 import { describe, expect, it } from 'vitest'
-import { MemoryLongTermFixture, MemoryShortTermFixture, MemoryWikiFixture } from '../../src/screens/memory/MemoryFixtures'
+import { MemoryLongTermFixture, MemoryShortTermFixture, MemoryWikiFixture } from '../../src/demo/MemoryFixtures'
 import { MailView } from '../../src/screens/mail/MailView'
 import { COMPACTED_CONTEXT, RESIDENT_LAYERS, WIKI_KIND_CHIPS } from '../../src/data/knowledge'
 import { MAIL_STATUSES, MAIL_VERBS } from '../../src/fixtures/mail'

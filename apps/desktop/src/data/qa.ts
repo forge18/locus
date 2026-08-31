@@ -1,11 +1,10 @@
 import {
   QA_CHECK_SOURCES,
-  QA_FINDINGS,
   QA_FOOTER,
   QA_LAST_RUN,
   QA_SCHEDULE_OPTIONS,
-} from "../fixtures/qa";
-import type { QaCheckRun, QaFinding, QaSchedule } from "../fixtures/qa";
+} from "./demo/fixtures/qa";
+import type { QaCheckRun, QaFinding, QaSchedule } from "./demo/fixtures/qa";
 import { dataProvider } from "./provider";
 import type { Envelope } from "./envelope";
 
@@ -23,19 +22,23 @@ export type {
   QaCheckRun,
   QaFinding,
   QaSchedule,
-} from "../fixtures/qa";
+} from "./demo/fixtures/qa";
 
 /** Becomes: invoke('qa_snapshot', { projectId }). Findings are source-scoped rows. */
 export function useQaFindings(projectId = "tapestry"): QaFinding[] {
-  return QA_FINDINGS.filter((finding) => finding.project === projectId).map(
-    (finding) => ({ ...finding }),
-  );
+  return (
+    dataProvider().read?.<QaFinding[]>("qa_snapshot", { projectId }) ?? []
+  ).map((finding) => ({ ...finding }));
 }
 
 /** Becomes: invoke('qa_sources', { projectId }) */
 /** The four adapters are descriptors; adding a source does not add a name branch here. */
 export function useQaSources() {
-  return QA_CHECK_SOURCES;
+  return (
+    dataProvider().read?.<typeof QA_CHECK_SOURCES>("qa_sources", {
+      projectId: "active",
+    }) ?? []
+  );
 }
 
 export function sourceFindings(

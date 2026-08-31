@@ -7,7 +7,7 @@ import {
   createMemo,
   createSignal,
 } from "solid-js";
-import { isTauri } from "@tauri-apps/api/core";
+import { dataProvider } from "../../data/provider";
 import { InlineError } from "../../ui/InlineError";
 import { FixtureNotice } from "../../ui/FixtureNotice";
 import { Icon } from "../../ui/Icon";
@@ -150,7 +150,8 @@ function TelemetryLive(props: { projectId?: string }) {
         if (request === requestId) setMetrics(result);
       })
       .catch((cause) => {
-        if (request === requestId) setMetrics(failed("telemetry_metrics", cause));
+        if (request === requestId)
+          setMetrics(failed("telemetry_metrics", cause));
       });
   });
 
@@ -180,10 +181,7 @@ function TelemetryLive(props: { projectId?: string }) {
               <For each={rows()}>
                 {(metric) => (
                   <div
-                    class={[
-                      "metric-card",
-                      metric.bad ? "tm-metric-bad" : "",
-                    ]
+                    class={["metric-card", metric.bad ? "tm-metric-bad" : ""]
                       .filter(Boolean)
                       .join(" ")}
                     data-bad={metric.bad ? "true" : undefined}
@@ -211,7 +209,8 @@ export interface TelemetryViewProps {
 }
 
 export function TelemetryView(props: TelemetryViewProps = {}) {
-  if (isTauri()) return <TelemetryLive projectId={props.projectId} />;
+  if (dataProvider().kind === "live")
+    return <TelemetryLive projectId={props.projectId} />;
 
   const sessionTotal = useSessionRowCount();
   const [loaded, setLoaded] = createSignal(useSessionRowsPage(0));
@@ -263,21 +262,27 @@ export function TelemetryView(props: TelemetryViewProps = {}) {
   /** A filter is live only while it can constrain these rows. */
   const filtering = () =>
     query().trim().length > 0 ||
-    Object.keys(SESSION_FACET_FIELD).some((groupKey) => picked(groupKey).length > 0);
+    Object.keys(SESSION_FACET_FIELD).some(
+      (groupKey) => picked(groupKey).length > 0,
+    );
 
   /** The loaded page, narrowed by the live facet and search filters. */
   const rows = () => {
     const q = query().trim().toLowerCase();
-    const facetFilters = Object.entries(SESSION_FACET_FIELD).map(([groupKey, field]) => ({
-      field,
-      chosen: picked(groupKey),
-    }));
-    if (q.length === 0 && facetFilters.every((f) => f.chosen.length === 0)) return loaded();
+    const facetFilters = Object.entries(SESSION_FACET_FIELD).map(
+      ([groupKey, field]) => ({
+        field,
+        chosen: picked(groupKey),
+      }),
+    );
+    if (q.length === 0 && facetFilters.every((f) => f.chosen.length === 0))
+      return loaded();
     return loaded().filter(
       (row) =>
         (q.length === 0 || rowText(row).includes(q)) &&
         facetFilters.every(
-          ({ field, chosen }) => chosen.length === 0 || chosen.includes(field(row)),
+          ({ field, chosen }) =>
+            chosen.length === 0 || chosen.includes(field(row)),
         ),
     );
   };

@@ -7,7 +7,6 @@
  * can never silently serve demo data through it. The demo provider lives in
  * `src/data/demo/` and is reachable only where a host explicitly selects it.
  */
-import { invoke } from "@tauri-apps/api/core";
 import { failed, ready, readyOne, type Envelope } from "./envelope";
 
 export interface DataProvider {
@@ -23,6 +22,8 @@ export interface DataProvider {
   command: string,
   args?: Record<string, unknown>,
  ): Promise<Envelope<T>>;
+ /** Synchronous demo/test data read for legacy component fixtures. */
+ read?<T>(command: string, args?: Record<string, unknown>): T | undefined;
 }
 
 /** The provider a Tauri runtime bootstraps: every call crosses the real IPC boundary. */
@@ -30,6 +31,7 @@ export const liveProvider: DataProvider = {
  kind: "live",
  async query<T>(command: string, args?: Record<string, unknown>) {
   try {
+   const { invoke } = await import("@tauri-apps/api/core");
    return ready((await invoke<T[]>(command, args)) ?? []);
   } catch (cause) {
    return failed(command, cause);
@@ -37,6 +39,7 @@ export const liveProvider: DataProvider = {
  },
  async queryOne<T>(command: string, args?: Record<string, unknown>) {
   try {
+   const { invoke } = await import("@tauri-apps/api/core");
    return readyOne(await invoke<T | null>(command, args));
   } catch (cause) {
    return failed(command, cause);
@@ -58,6 +61,10 @@ export function configureDataProvider(provider: DataProvider): void {
  * Every accessor resolves its provider here. Unset is a bootstrap bug: fail loudly
  * rather than silently serving fixtures.
  */
+export function resetDataProvider(): void {
+ active = undefined;
+}
+
 export function dataProvider(): DataProvider {
  if (!active) {
   throw new Error(

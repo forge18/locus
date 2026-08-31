@@ -1,6 +1,6 @@
 import { render } from "@solidjs/testing-library";
 import { describe, expect, it } from "vitest";
-import { MemoryWikiFixture } from "../../src/screens/memory/MemoryFixtures";
+import { MemoryWikiFixture } from "../../src/demo/MemoryFixtures";
 
 describe("wiki/graph-shares-renderer", () => {
   it("uses the shared GraphRenderer for Wiki links", () => {

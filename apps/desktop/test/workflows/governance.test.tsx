@@ -1,6 +1,6 @@
 import { render } from '@solidjs/testing-library'
 import { describe, expect, it } from 'vitest'
-import { WorkshopFixtureView } from '../../src/screens/workshop/WorkshopFixtureView'
+import { WorkshopFixtureView } from '../../src/demo/WorkshopFixtureView'
 
 describe('workflow governance', () => {
   it('renders goal, guardrails, and success criteria', () => {

@@ -1,7 +1,7 @@
 // Canonical locator grammar shared by view links and object deep links.
 // Views use locus://<project|all|app>/view/<id>; objects use
 // locus://<project>/<kind>/<id>[/<sub-kind>/<id>].
-import { Desktop_FIXTURE_ROUTES } from "../fixtures/desktop-screen-inventory";
+import { DESKTOP_ROUTES } from "./desktop-screen-inventory";
 import type { View } from "./views";
 
 export const LOCATOR_SCHEME = "locus://";
@@ -20,16 +20,14 @@ export type ViewParams = {
   [key: string]: string | undefined;
 };
 
-const VIEW_IDS = Desktop_FIXTURE_ROUTES.map(
-  (route) => route.id,
-) as readonly string[];
+const VIEW_IDS = DESKTOP_ROUTES.map((route) => route.id) as readonly string[];
 const PROJECT_VIEWS = new Set(
-  Desktop_FIXTURE_ROUTES.filter((route) => route.scope === "project").map(
+  DESKTOP_ROUTES.filter((route) => route.scope === "project").map(
     (route) => route.id,
   ),
 );
 const APP_VIEWS = new Set(
-  Desktop_FIXTURE_ROUTES.filter((route) => route.scope === "app").map(
+  DESKTOP_ROUTES.filter((route) => route.scope === "app").map(
     (route) => route.id,
   ),
 );

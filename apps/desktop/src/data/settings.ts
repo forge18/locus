@@ -1,10 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
+import { dataProvider } from "./provider";
 import {
  MODEL_TIERS,
- TIER_FALLBACK,
  DISCOVERED_MODEL_IDS,
  TIERS,
-} from "../fixtures/settings";
+} from "./demo/fixtures/settings";
 import { useHarnesses } from "./harnesses";
 import type { ModelTier, ModelTierSetting } from "../types/core";
 
@@ -14,7 +14,7 @@ export {
  CORE_SETTINGS_DEFAULTS,
 } from "../avatars/setting";
 
-export { TIERS, TIER_FALLBACK } from "../fixtures/settings";
+export { TIERS, TIER_FALLBACK } from "./demo/fixtures/settings";
 
 export interface HarnessTierGridHarness {
  name: string;
@@ -41,6 +41,9 @@ export interface HarnessTierGridResponse {
  * replacing it with `readHarnessTierGrid` does not change the screen.
  */
 export function useHarnessTierGrid(): HarnessTierGridHarness[] {
+ const live =
+  dataProvider().read?.<HarnessTierGridHarness[]>("harness_tier_grid");
+ if (live) return live;
  return useHarnesses().map((harness) => ({
   name: harness.name,
   models: harness.canEnumerateModels
@@ -70,9 +73,9 @@ export function readHarnessTierGrid(
 
 /** Becomes: invoke("settings_model_tiers") */
 export function useModelTiers(harness?: string): ModelTierSetting[] {
- return harness
-  ? MODEL_TIERS.filter((m) => m.harness === harness)
-  : MODEL_TIERS;
+ const tiers =
+  dataProvider().read?.<ModelTierSetting[]>("settings_model_tiers") ?? [];
+ return harness ? tiers.filter((m) => m.harness === harness) : tiers;
 }
 
 /**
@@ -92,12 +95,12 @@ export function resolveTier(
  tier: ModelTier,
 ): { model: string | null; fellBackTo: ModelTier | null } {
  const mapped = (t: ModelTier) =>
-  MODEL_TIERS.find((m) => m.harness === harness && m.tier === t)?.model ?? null;
+  useModelTiers(harness).find((m) => m.tier === t)?.model ?? null;
 
  const own = mapped(tier);
  if (own) return { model: own, fellBackTo: null };
 
- const configured = TIER_FALLBACK[harness];
+ const configured = fallbackTierFor(harness);
  if (!configured || configured === tier)
   return { model: null, fellBackTo: null };
 
@@ -113,7 +116,10 @@ export function resolveTier(
  * The tier this harness's settings nominate, or null where none is configured.
  */
 export function fallbackTierFor(harness: string): ModelTier | null {
- return TIER_FALLBACK[harness] ?? null;
+ const fallbacks =
+  dataProvider().read?.<Record<string, ModelTier>>("settings_tier_fallback") ??
+  {};
+ return fallbacks[harness] ?? null;
 }
 
 /**

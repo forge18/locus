@@ -1,13 +1,14 @@
-import {
-  GUARDRAIL_SECTIONS,
+export {
   PRIORITY_METHODS,
   SETTINGS_NAVIGATION,
-} from "../fixtures/settings-guardrails";
-import type { GuardrailSection } from "../fixtures/settings-guardrails";
+} from "./demo/fixtures/guardrails";
+export type {
+  GuardrailControl,
+  GuardrailSection,
+} from "./demo/fixtures/guardrails";
+import type { GuardrailSection } from "./demo/fixtures/guardrails";
 import { dataProvider } from "./provider";
 import type { Envelope } from "./envelope";
-
-export { PRIORITY_METHODS, SETTINGS_NAVIGATION };
 
 export function fetchGuardrails(): Promise<Envelope<GuardrailSection[]>> {
   return dataProvider().query<GuardrailSection>("settings_guardrails");
@@ -42,7 +43,7 @@ export function saveGuardrails(
 
 /** Becomes: invoke("settings_guardrails") — demo-only hook retained for tests. */
 export function useGuardrails(): readonly GuardrailSection[] {
-  return GUARDRAIL_SECTIONS;
+  return dataProvider().read?.<GuardrailSection[]>("settings_guardrails") ?? [];
 }
 
 /** Guardrail defaults are installation policy; updates apply only to future runs. */
