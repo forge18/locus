@@ -9,12 +9,19 @@
  * fixture reads behind this seam.
  */
 import { LOCAL_REMOTES, PROJECTS, REPOS } from "../../fixtures/core";
+import { ARTIFACTS, ARTIFACT_COMMENTS } from "../../fixtures/artifacts";
+import {
+ AT_A_GLANCE_METRICS,
+} from "../../fixtures/analytics";
+import { METRICS } from "../../fixtures/telemetry";
+import { QA_FINDINGS } from "../../fixtures/qa";
 import { PLANS } from "../../fixtures/plan";
+import { LONG_TERM_FACTS } from "../../fixtures/knowledge";
 import type { Envelope } from "../envelope";
 import { failed, ready } from "../envelope";
 import type { DataProvider } from "../provider";
 
-type FixtureQuery = (args?: Record<string, unknown>) => unknown[];
+type FixtureQuery = (args?: Record<string, unknown>) => readonly unknown[];
 
 const FIXTURES: Record<string, FixtureQuery> = {
  projects_list: () => PROJECTS,
@@ -26,6 +33,14 @@ const FIXTURES: Record<string, FixtureQuery> = {
  },
  local_remotes_list: () => LOCAL_REMOTES,
  plans_list: () => PLANS,
+ memory_facts: () => LONG_TERM_FACTS,
+ analytics_at_a_glance: () => AT_A_GLANCE_METRICS,
+ telemetry_metrics: () => METRICS,
+ qa_snapshot: (args) =>
+  QA_FINDINGS.filter((finding) => finding.project === args?.projectId),
+ artifacts_list: () => ARTIFACTS,
+ artifact_comments: (args) =>
+  ARTIFACT_COMMENTS.filter((comment) => comment.artifactId === args?.artifactId),
 };
 
 function demoEnvelope<T>(

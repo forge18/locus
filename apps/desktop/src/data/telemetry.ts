@@ -22,6 +22,18 @@ import type {
   ToolRow,
   VerbCount,
 } from '../fixtures/telemetry'
+import type { AnalyticsRange, AnalyticsScope } from '../fixtures/analytics'
+import { dataProvider } from './provider'
+import type { Envelope } from './envelope'
+
+export function fetchTelemetryMetrics(
+  scope: AnalyticsScope = 'all',
+  range: AnalyticsRange = '30d',
+): Promise<Envelope<TelemetryMetric[]>> {
+  return dataProvider().query<TelemetryMetric>('telemetry_metrics', {
+    query: { scope, range },
+  })
+}
 
 export {
   ACTION_NOTE,

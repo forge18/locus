@@ -1,4 +1,4 @@
-import { render } from '@solidjs/testing-library'
+import { fireEvent, render } from '@solidjs/testing-library'
 import { describe, expect, it } from 'vitest'
 import { MemoryLongTermFixture, MemoryShortTermFixture, MemoryWikiFixture } from '../../src/screens/memory/MemoryFixtures'
 import { MailView } from '../../src/screens/mail/MailView'
@@ -23,6 +23,16 @@ describe('M0.7 knowledge revision fixtures', () => {
     expect(getByTestId('memory-curation').textContent).toContain('revision 1')
     expect(getByTestId('memory-curation').textContent).toContain('revision 2')
     expect(getByText('— contradicted · no score')).toBeTruthy()
+  })
+
+  it('wires recalled-fact curation and contradiction actions', () => {
+    const { getByTestId, getByText } = render(() => <MemoryLongTermFixture />)
+    fireEvent.click(getByTestId('edit-recalled-fact'))
+    expect(getByTestId('memory-recalled-fact-editor')).toBeTruthy()
+    fireEvent.click(getByTestId('memory-save-revision'))
+    expect(getByTestId('memory-action-status').textContent).toContain('Revision 2 staged')
+    fireEvent.click(getByText('Adjudicate'))
+    expect(getByTestId('memory-action-status').textContent).toContain('Contradiction adjudicated')
   })
 
   it('uses All plus exactly the five visible wiki kinds, never Overview', () => {

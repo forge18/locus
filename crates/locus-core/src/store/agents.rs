@@ -70,6 +70,15 @@ pub struct SessionRunRow {
     pub exit_code: Option<i32>,
 }
 
+/// Counts used by the first live Analytics and Telemetry projections.
+#[derive(Debug, sqlx::FromRow)]
+pub struct ActivityCountsRow {
+    pub sessions: i64,
+    pub runs: i64,
+    pub events: i64,
+    pub errors: i64,
+}
+
 impl Store {
     /// The latest immutable version of each named agent definition.
     pub async fn agent_definitions(&self) -> Result<Vec<PersistedAgentDefinition>> {
@@ -170,6 +179,39 @@ impl Store {
         .fetch_one(&self.pool)
         .await
         .context("count sessions")
+    }
+
+    pub async fn activity_counts(
+        &self,
+        project_id: Option<ProjectId>,
+        since_epoch: Option<i64>,
+    ) -> Result<ActivityCountsRow> {
+        query_as(
+            "SELECT COUNT(DISTINCT s.id) FILTER (
+                        WHERE $2::bigint IS NULL
+                           OR COALESCE(r.started_at, r.created_at) >= to_timestamp($2)
+                    ) AS sessions,
+                    COUNT(DISTINCT r.id) FILTER (
+                        WHERE $2::bigint IS NULL
+                           OR COALESCE(r.started_at, r.created_at) >= to_timestamp($2)
+                    ) AS runs,
+                    COUNT(e.id) FILTER (
+                        WHERE $2::bigint IS NULL OR e.ts >= to_timestamp($2)
+                    ) AS events,
+                    COUNT(e.id) FILTER (
+                        WHERE e.verb = 'tool_error'
+                          AND ($2::bigint IS NULL OR e.ts >= to_timestamp($2))
+                    ) AS errors
+             FROM agents.sessions s
+             LEFT JOIN agents.runs r ON r.session_id = s.id
+             LEFT JOIN agents.events e ON e.run_id = r.id
+             WHERE ($1::uuid IS NULL OR s.project_id = $1)",
+        )
+        .bind(project_id)
+        .bind(since_epoch)
+        .fetch_one(self.pool())
+        .await
+        .context("count project activity")
     }
 
     pub async fn runs_for_session(&self, session_id: Uuid) -> Result<Vec<SessionRunRow>> {

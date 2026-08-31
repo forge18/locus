@@ -191,4 +191,45 @@ describe("data/accessors", () => {
       downgrades: 29,
     });
   });
+
+  it("routes knowledge, analytics, and telemetry reads through the configured provider", async () => {
+    const calls: { command: string; args?: Record<string, unknown> }[] = [];
+    configureDataProvider({
+      kind: "demo",
+      async query<T>(command: string, args?: Record<string, unknown>) {
+        calls.push({ command, args });
+        return {
+          status: "ready",
+          data: [] as T[],
+        };
+      },
+      async queryOne<T>() {
+        return { status: "empty" } as Envelope<T>;
+      },
+    });
+
+    const { fetchLongTermFacts } = await import("../../src/data/knowledge");
+    const { fetchArtifactsFromCore } = await import("../../src/data/artifacts");
+    const { fetchAtAGlanceMetrics } = await import("../../src/data/analytics");
+    const { fetchTelemetryMetrics } = await import("../../src/data/telemetry");
+    const { fetchQaFindings } = await import("../../src/data/qa");
+    expect((await fetchLongTermFacts("p-tapestry")).status).toBe("ready");
+    expect((await fetchArtifactsFromCore("p-tapestry")).status).toBe("ready");
+    expect((await fetchAtAGlanceMetrics("tapestry", "30d")).status).toBe("ready");
+    expect((await fetchTelemetryMetrics("tapestry", "30d")).status).toBe("ready");
+    expect((await fetchQaFindings("p-tapestry")).status).toBe("ready");
+    expect(calls).toEqual([
+      { command: "memory_facts", args: { projectId: "p-tapestry" } },
+      { command: "artifacts_list", args: { projectId: "p-tapestry" } },
+      {
+        command: "analytics_at_a_glance",
+        args: { query: { scope: "tapestry", range: "30d" } },
+      },
+      {
+        command: "telemetry_metrics",
+        args: { query: { scope: "tapestry", range: "30d" } },
+      },
+      { command: "qa_snapshot", args: { projectId: "p-tapestry" } },
+    ]);
+  });
 });

@@ -27,7 +27,10 @@ use locus_core::{
         task::TaskDetailSummary,
         telemetry::{now_timestamp, Event},
     },
-    store::{work_items::PersistedExternalCompletionStatus, Store},
+    store::{
+        agents::ActivityCountsRow, qa::QaFindingRow, work_items::PersistedExternalCompletionStatus,
+        Store,
+    },
     work_item::{
         pull_from_plugin, push_note_to_plugin, push_status_to_plugin, snapshot_from_plugin,
         sync_capability_from_plugin, CompletionDelivery, ExternalWorkItemProvider,
@@ -3080,13 +3083,10 @@ fn artifact_comment_response(comment: &ArtifactComment) -> ArtifactCommentRespon
 #[tauri::command]
 async fn artifacts_list(
     core: State<'_, Arc<Core>>,
-    project_id: Option<String>,
+    project_id: String,
 ) -> Result<Vec<ArtifactResponse>, IpcError> {
     let store = connected_store(&core).await?;
-    let project_id = match project_id.as_deref() {
-        Some(identifier) => Some(resolve_setup_project(store, identifier).await?),
-        None => None,
-    };
+    let project_id = Some(resolve_setup_project(store, &project_id).await?);
     let artifacts = store
         .review_artifacts(project_id)
         .await
@@ -3097,17 +3097,299 @@ async fn artifacts_list(
 #[tauri::command]
 async fn artifact_comments(
     core: State<'_, Arc<Core>>,
+    project_id: String,
     artifact_id: String,
 ) -> Result<Vec<ArtifactCommentResponse>, IpcError> {
     let store = connected_store(&core).await?;
+    let project_id = resolve_setup_project(store, &project_id).await?;
     let artifact_id: ArtifactId = artifact_id
         .parse()
         .map_err(|_| IpcError::invalid_argument("artifact id must be a UUID"))?;
     let comments = store
-        .artifact_comments(artifact_id)
+        .artifact_comments(project_id, artifact_id)
         .await
         .map_err(IpcError::internal)?;
     Ok(comments.iter().map(artifact_comment_response).collect())
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AnalyticsQueryRequest {
+    scope: String,
+    range: String,
+}
+
+fn analytics_since_epoch(range: &str) -> Result<Option<i64>, IpcError> {
+    let seconds = match range {
+        "24h" => Some(24 * 60 * 60),
+        "7d" => Some(7 * 24 * 60 * 60),
+        "30d" => Some(30 * 24 * 60 * 60),
+        "90d" => Some(90 * 24 * 60 * 60),
+        "all" => None,
+        _ => return Err(IpcError::invalid_argument("analytics range is invalid")),
+    };
+    Ok(seconds.map(|value| locus_core::services::analytics::current_unix_seconds() - value))
+}
+
+async fn activity_counts_inner(
+    store: &Store,
+    scope: &str,
+    range: &str,
+) -> Result<ActivityCountsRow, IpcError> {
+    let project_id = match scope {
+        "all" => None,
+        identifier => Some(resolve_setup_project(store, identifier).await?),
+    };
+    let since_epoch = analytics_since_epoch(range)?;
+    store
+        .activity_counts(project_id, since_epoch)
+        .await
+        .map_err(IpcError::internal)
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AnalyticsMetricResponse {
+    id: String,
+    label: String,
+    value: String,
+    note: String,
+}
+
+async fn analytics_at_a_glance_inner(
+    store: &Store,
+    query: AnalyticsQueryRequest,
+) -> Result<Vec<AnalyticsMetricResponse>, IpcError> {
+    let counts = activity_counts_inner(store, &query.scope, &query.range).await?;
+    let note = format!("scope {} · {}", query.scope, query.range);
+    Ok(vec![
+        AnalyticsMetricResponse {
+            id: "sessions".into(),
+            label: "Sessions".into(),
+            value: counts.sessions.to_string(),
+            note: note.clone(),
+        },
+        AnalyticsMetricResponse {
+            id: "runs".into(),
+            label: "Runs".into(),
+            value: counts.runs.to_string(),
+            note: note.clone(),
+        },
+        AnalyticsMetricResponse {
+            id: "events".into(),
+            label: "Events".into(),
+            value: counts.events.to_string(),
+            note: note.clone(),
+        },
+        AnalyticsMetricResponse {
+            id: "tool-errors".into(),
+            label: "Tool errors".into(),
+            value: counts.errors.to_string(),
+            note,
+        },
+    ])
+}
+
+#[tauri::command]
+async fn analytics_at_a_glance(
+    core: State<'_, Arc<Core>>,
+    query: AnalyticsQueryRequest,
+) -> Result<Vec<AnalyticsMetricResponse>, IpcError> {
+    analytics_at_a_glance_inner(connected_store(&core).await?, query).await
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TelemetryMetricResponse {
+    label: String,
+    value: String,
+    unit: Option<String>,
+    bad: bool,
+}
+
+#[tauri::command]
+async fn telemetry_metrics(
+    core: State<'_, Arc<Core>>,
+    query: AnalyticsQueryRequest,
+) -> Result<Vec<TelemetryMetricResponse>, IpcError> {
+    let counts =
+        activity_counts_inner(connected_store(&core).await?, &query.scope, &query.range).await?;
+    Ok(vec![
+        TelemetryMetricResponse {
+            label: "Sessions".into(),
+            value: counts.sessions.to_string(),
+            unit: None,
+            bad: false,
+        },
+        TelemetryMetricResponse {
+            label: "Runs".into(),
+            value: counts.runs.to_string(),
+            unit: None,
+            bad: false,
+        },
+        TelemetryMetricResponse {
+            label: "Events".into(),
+            value: counts.events.to_string(),
+            unit: None,
+            bad: false,
+        },
+        TelemetryMetricResponse {
+            label: "Tool errors".into(),
+            value: counts.errors.to_string(),
+            unit: None,
+            bad: counts.errors > 0,
+        },
+    ])
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct QaFindingResponse {
+    id: String,
+    source_id: String,
+    severity: String,
+    title: String,
+    project: String,
+    location: String,
+    explanation: String,
+    sent_to_inbox: bool,
+}
+
+fn qa_finding_response(row: QaFindingRow) -> QaFindingResponse {
+    QaFindingResponse {
+        id: row.id.to_string(),
+        source_id: row.source_id,
+        severity: row.severity,
+        title: row.title,
+        project: row.project,
+        location: row.location,
+        explanation: row.explanation,
+        sent_to_inbox: row.sent_to_inbox,
+    }
+}
+
+async fn qa_snapshot_inner(
+    store: &Store,
+    project_id: &str,
+) -> Result<Vec<QaFindingResponse>, IpcError> {
+    let project_id = resolve_setup_project(store, project_id).await?;
+    store
+        .qa_findings(project_id)
+        .await
+        .map(|rows| rows.into_iter().map(qa_finding_response).collect())
+        .map_err(IpcError::internal)
+}
+
+#[tauri::command]
+async fn qa_snapshot(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+) -> Result<Vec<QaFindingResponse>, IpcError> {
+    qa_snapshot_inner(connected_store(&core).await?, &project_id).await
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MemoryFactResponse {
+    id: String,
+    title: String,
+    score: Option<f64>,
+    confidence: String,
+    recall: String,
+}
+
+async fn memory_facts_inner(
+    store: &Store,
+    project_id: &str,
+) -> Result<Vec<MemoryFactResponse>, IpcError> {
+    let project_id = resolve_setup_project(store, project_id).await?;
+    store
+        .memory_facts(project_id)
+        .await
+        .map(|rows| {
+            rows.into_iter()
+                .map(|row| MemoryFactResponse {
+                    id: row.id.to_string(),
+                    title: row.subject,
+                    score: row.score,
+                    confidence: row.confidence_state,
+                    recall: if row.recall_count == 0 {
+                        "not recalled".into()
+                    } else {
+                        format!("recalled {}×", row.recall_count)
+                    },
+                })
+                .collect()
+        })
+        .map_err(IpcError::internal)
+}
+
+#[tauri::command]
+async fn memory_facts(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+) -> Result<Vec<MemoryFactResponse>, IpcError> {
+    memory_facts_inner(connected_store(&core).await?, &project_id).await
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MemoryConfidenceRequest {
+    project_id: String,
+    fact_id: String,
+    confidence: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MemoryMutationResponse {
+    updated: bool,
+}
+
+async fn memory_confidence_set_inner(
+    store: &Store,
+    request: MemoryConfidenceRequest,
+) -> Result<MemoryMutationResponse, IpcError> {
+    let project_id = resolve_setup_project(store, &request.project_id).await?;
+    let fact_id = request
+        .fact_id
+        .parse()
+        .map_err(|_| IpcError::invalid_argument("memory fact id must be a UUID"))?;
+    let confidence = match request.confidence.as_str() {
+        "verified" => locus_core::services::memory::ConfidenceState::Verified,
+        "asserted" => locus_core::services::memory::ConfidenceState::Asserted,
+        "decaying" => locus_core::services::memory::ConfidenceState::Decaying,
+        "contradicted" => locus_core::services::memory::ConfidenceState::Contradicted,
+        _ => return Err(IpcError::invalid_argument("memory confidence is invalid")),
+    };
+    let updated = store
+        .set_memory_confidence_for_project(project_id, fact_id, confidence)
+        .await
+        .map_err(IpcError::internal)?;
+    if !updated {
+        return Err(IpcError::not_found(
+            "memory fact was not found in this project",
+        ));
+    }
+    Ok(MemoryMutationResponse { updated })
+}
+
+#[tauri::command]
+async fn memory_confidence_set(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    fact_id: String,
+    confidence: String,
+) -> Result<MemoryMutationResponse, IpcError> {
+    memory_confidence_set_inner(
+        connected_store(&core).await?,
+        MemoryConfidenceRequest {
+            project_id,
+            fact_id,
+            confidence,
+        },
+    )
+    .await
 }
 
 #[derive(Debug, Serialize)]
@@ -3771,6 +4053,11 @@ pub fn run() {
             linter_count,
             artifacts_list,
             artifact_comments,
+            memory_facts,
+            memory_confidence_set,
+            analytics_at_a_glance,
+            telemetry_metrics,
+            qa_snapshot,
             bots_list,
             bot_create,
             bot_routines,
@@ -5631,5 +5918,258 @@ mod configuration_commands {
         assert_eq!(requirements.len(), 2);
         assert_eq!(requirements[0].requirement_id, "R-01");
         assert!(requirements.iter().all(|row| row.changed));
+    }
+}
+
+#[cfg(test)]
+mod analytics_memory_queries {
+    use super::*;
+    use locus_core::testkit::postgres::{
+        start_postgres_named, test_backup_config, NoopMigrationBackup,
+    };
+
+    async fn test_store() -> (Store, locus_core::testkit::postgres::DockerCleanup) {
+        let (container, cleanup) = start_postgres_named("locus-tauri-memory").await;
+        let store = Store::connect(&container.database_url())
+            .await
+            .expect("connect the memory test store");
+        store
+            .run_migrations(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../migrations"),
+                &NoopMigrationBackup,
+                &test_backup_config(),
+            )
+            .await
+            .expect("run migrations for the memory test store");
+        (store, cleanup)
+    }
+
+    #[tokio::test]
+    async fn memory_facts_are_project_scoped_and_map_confidence() {
+        let (store, _cleanup) = test_store().await;
+        sqlx::query(
+            "INSERT INTO core.projects (id, name)
+             VALUES ('00000000-0000-0000-0000-000000000b01', 'tapestry'),
+                    ('00000000-0000-0000-0000-000000000b02', 'loom-db')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed projects");
+        sqlx::query(
+            "INSERT INTO memory.store
+                (id, project_id, scope, path, subject, category, body, provenance,
+                 embedding, embedding_model, confidence, importance, strength,
+                 confidence_state, recall_count)
+             VALUES
+                ('00000000-0000-0000-0000-000000000b11',
+                 '00000000-0000-0000-0000-000000000b01', 'project', 'store.rs',
+                 'Tapestry fact', 'fact', 'The project fact.', '{}'::jsonb,
+                 '[1.0]'::vector, 'test', 0.94, 1.0, 1.0, 'verified', 31),
+                ('00000000-0000-0000-0000-000000000b12',
+                 '00000000-0000-0000-0000-000000000b02', 'project', 'store.rs',
+                 'Loom fact', 'fact', 'The foreign fact.', '{}'::jsonb,
+                 '[1.0]'::vector, 'test', 0.22, 1.0, 1.0, 'contradicted', 0)",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed memory facts");
+
+        let facts = memory_facts_inner(&store, "tapestry")
+            .await
+            .expect("list project memory facts");
+        assert_eq!(facts.len(), 1);
+        assert_eq!(facts[0].title, "Tapestry fact");
+        assert_eq!(facts[0].confidence, "verified");
+        assert_eq!(facts[0].score, Some(0.94));
+        assert_eq!(facts[0].recall, "recalled 31×");
+
+        let foreign = memory_facts_inner(&store, "loom-db")
+            .await
+            .expect("list the other project memory facts");
+        assert_eq!(foreign.len(), 1);
+        assert_eq!(foreign[0].score, None);
+        assert_eq!(foreign[0].recall, "not recalled");
+
+        let updated = memory_confidence_set_inner(
+            &store,
+            MemoryConfidenceRequest {
+                project_id: "tapestry".into(),
+                fact_id: "00000000-0000-0000-0000-000000000b11".into(),
+                confidence: "asserted".into(),
+            },
+        )
+        .await
+        .expect("adjudicate the owned fact");
+        assert!(updated.updated);
+        let foreign_update = memory_confidence_set_inner(
+            &store,
+            MemoryConfidenceRequest {
+                project_id: "loom-db".into(),
+                fact_id: "00000000-0000-0000-0000-000000000b11".into(),
+                confidence: "verified".into(),
+            },
+        )
+        .await
+        .expect_err("cross-project adjudication rejected");
+        assert!(matches!(foreign_update.kind, IpcErrorKind::NotFound));
+
+        let unknown = memory_facts_inner(&store, "missing")
+            .await
+            .expect_err("unknown project rejected");
+        assert!(matches!(unknown.kind, IpcErrorKind::NotFound));
+    }
+
+    #[tokio::test]
+    async fn analytics_counts_are_scoped_to_the_requested_project() {
+        let (store, _cleanup) = test_store().await;
+        sqlx::query(
+            "INSERT INTO core.projects (id, name)
+             VALUES ('00000000-0000-0000-0000-000000000c01', 'tapestry'),
+                    ('00000000-0000-0000-0000-000000000c02', 'loom-db')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed projects");
+        sqlx::query(
+            "INSERT INTO agents.agent_defs (id, name, version, frontmatter, body)
+             VALUES ('00000000-0000-0000-0000-000000000c11', 'builder', 1, '{}', 'builder'),
+                    ('00000000-0000-0000-0000-000000000c12', 'auditor', 1, '{}', 'auditor')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed agent definitions");
+        sqlx::query(
+            "INSERT INTO agents.sessions (id, project_id, agent_def_id, name, branch)
+             VALUES ('00000000-0000-0000-0000-000000000c21',
+                     '00000000-0000-0000-0000-000000000c01',
+                     '00000000-0000-0000-0000-000000000c11', 'builder', 'feat/tapestry'),
+                    ('00000000-0000-0000-0000-000000000c22',
+                     '00000000-0000-0000-0000-000000000c02',
+                     '00000000-0000-0000-0000-000000000c12', 'auditor', 'feat/loom-db')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed sessions");
+        sqlx::query(
+            "INSERT INTO agents.runs
+                (id, session_id, resolved_model_id, status, started_at)
+             VALUES ('00000000-0000-0000-0000-000000000c31',
+                     '00000000-0000-0000-0000-000000000c21', 'test-model', 'completed', now()),
+                    ('00000000-0000-0000-0000-000000000c32',
+                     '00000000-0000-0000-0000-000000000c22', 'test-model', 'completed', now())",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed runs");
+        sqlx::query(
+            "INSERT INTO agents.events (id, run_id, seq, ts, verb, payload, raw)
+             VALUES ('00000000-0000-0000-0000-000000000c41',
+                     '00000000-0000-0000-0000-000000000c31', 0, now(), 'tool_error', '{}', '{}')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed telemetry event");
+
+        let metrics = analytics_at_a_glance_inner(
+            &store,
+            AnalyticsQueryRequest {
+                scope: "tapestry".into(),
+                range: "all".into(),
+            },
+        )
+        .await
+        .expect("project analytics");
+        assert_eq!(metrics[0].value, "1");
+        assert_eq!(metrics[1].value, "1");
+        assert_eq!(metrics[2].value, "1");
+        assert_eq!(metrics[3].value, "1");
+
+        sqlx::query(
+            "INSERT INTO agents.runs
+                (id, session_id, resolved_model_id, status, started_at)
+             VALUES ('00000000-0000-0000-0000-000000000c33',
+                     '00000000-0000-0000-0000-000000000c21', 'test-model',
+                     'completed', now() - interval '2 days')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed old run");
+        sqlx::query(
+            "INSERT INTO agents.events (id, run_id, seq, ts, verb, payload, raw)
+             VALUES ('00000000-0000-0000-0000-000000000c42',
+                     '00000000-0000-0000-0000-000000000c33', 0, now(), 'assistant', '{}', '{}')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed recent event on old run");
+        let recent = activity_counts_inner(&store, "tapestry", "24h")
+            .await
+            .expect("count recent activity");
+        assert_eq!(recent.sessions, 1);
+        assert_eq!(recent.runs, 1);
+        assert_eq!(recent.events, 2);
+        assert_eq!(recent.errors, 1);
+
+        let all_metrics = analytics_at_a_glance_inner(
+            &store,
+            AnalyticsQueryRequest {
+                scope: "all".into(),
+                range: "all".into(),
+            },
+        )
+        .await
+        .expect("global analytics");
+        assert_eq!(all_metrics[0].value, "2");
+        assert_eq!(all_metrics[1].value, "3");
+        assert_eq!(all_metrics[2].value, "2");
+        assert_eq!(all_metrics[3].value, "1");
+    }
+
+    #[tokio::test]
+    async fn qa_snapshot_is_project_scoped() {
+        let (store, _cleanup) = test_store().await;
+        sqlx::query(
+            "INSERT INTO core.projects (id, name)
+             VALUES ('00000000-0000-0000-0000-000000000d01', 'tapestry'),
+                    ('00000000-0000-0000-0000-000000000d02', 'loom-db')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed projects");
+        sqlx::query(
+            "INSERT INTO core.qa_check_runs
+                (id, project_id, check_source_id, trigger, started_at, finished_at)
+             VALUES ('00000000-0000-0000-0000-000000000d11',
+                     '00000000-0000-0000-0000-000000000d01', 'unit-tests', 'manual', now(), now()),
+                    ('00000000-0000-0000-0000-000000000d12',
+                     '00000000-0000-0000-0000-000000000d02', 'unit-tests', 'manual', now(), now())",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed QA check runs");
+        sqlx::query(
+            "INSERT INTO core.qa_findings
+                (id, check_run_id, project_id, check_source_id, severity, title, location, explanation)
+             VALUES ('00000000-0000-0000-0000-000000000d21',
+                     '00000000-0000-0000-0000-000000000d11',
+                     '00000000-0000-0000-0000-000000000d01', 'unit-tests', 'fail',
+                     'Tapestry failure', 'src/lib.rs:1', 'The test failed.')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed QA finding");
+
+        let findings = qa_snapshot_inner(&store, "tapestry")
+            .await
+            .expect("list project QA findings");
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].title, "Tapestry failure");
+        assert_eq!(findings[0].project, "tapestry");
+        assert!(!findings[0].sent_to_inbox);
+
+        let foreign = qa_snapshot_inner(&store, "loom-db")
+            .await
+            .expect("list foreign QA findings");
+        assert!(foreign.is_empty());
     }
 }

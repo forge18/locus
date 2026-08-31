@@ -8,8 +8,20 @@ use crate::{
     store::Store,
 };
 use anyhow::{Context, Result};
-use sqlx::{query, Row};
+use sqlx::{query, query_as, Row};
 use uuid::Uuid;
+
+#[derive(Debug, sqlx::FromRow)]
+pub struct QaFindingRow {
+    pub id: Uuid,
+    pub source_id: String,
+    pub severity: String,
+    pub title: String,
+    pub project: String,
+    pub location: String,
+    pub explanation: String,
+    pub sent_to_inbox: bool,
+}
 
 impl Store {
     pub async fn start_qa_check(
@@ -100,6 +112,21 @@ impl Store {
 
     pub async fn qa_finding_count(&self, project_id: ProjectId, source: &str) -> Result<i64> {
         query("SELECT COUNT(*) AS count FROM core.qa_findings WHERE project_id = $1 AND check_source_id = $2").bind(project_id).bind(source).fetch_one(self.pool()).await.context("count QA findings").and_then(|row| row.try_get("count").context("decode QA finding count"))
+    }
+
+    pub async fn qa_findings(&self, project_id: ProjectId) -> Result<Vec<QaFindingRow>> {
+        query_as(
+            "SELECT f.id, f.check_source_id AS source_id, f.severity, f.title,
+                    p.name AS project, f.location, f.explanation, f.sent_to_inbox
+             FROM core.qa_findings f
+             JOIN core.projects p ON p.id = f.project_id
+             WHERE f.project_id = $1
+             ORDER BY f.created_at, f.id",
+        )
+        .bind(project_id)
+        .fetch_all(self.pool())
+        .await
+        .context("list project QA findings")
     }
 }
 

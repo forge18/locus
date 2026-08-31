@@ -29,13 +29,28 @@ export function readyOne<T>(data: T | null | undefined): Envelope<T> {
  return data == null ? { status: "empty" } : { status: "ready", data };
 }
 
+/** Preserve structured Tauri errors instead of rendering them as `[object Object]`. */
+function failureMessage(cause: unknown): string {
+ if (cause instanceof Error) return cause.message;
+ if (typeof cause === "object" && cause !== null) {
+  const message = (cause as Record<string, unknown>).message;
+  if (typeof message === "string") return message;
+  try {
+   return JSON.stringify(cause);
+  } catch {
+   return String(cause);
+  }
+ }
+ return String(cause);
+}
+
 /** Wrap a rejected invoke with the command that failed and any thrown value. */
 export function failed(command: string, cause: unknown): Envelope<never> {
  return {
   status: "failed",
   error: {
    command,
-   message: cause instanceof Error ? cause.message : String(cause),
+   message: failureMessage(cause),
   },
  };
 }

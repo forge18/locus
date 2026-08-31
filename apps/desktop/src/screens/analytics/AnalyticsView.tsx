@@ -1,5 +1,15 @@
-import { For, Show, createMemo, createSignal } from "solid-js";
+import {
+        For,
+        Match,
+        Show,
+        Switch,
+        createEffect,
+        createMemo,
+        createSignal,
+} from "solid-js";
+import { isTauri } from "@tauri-apps/api/core";
 import { Button } from "../../ui/Button";
+import { InlineError } from "../../ui/InlineError";
 import { FixtureNotice } from "../../ui/FixtureNotice";
 import { Input } from "../../ui/Input";
 import { useTasks } from "../../data/board";
@@ -7,6 +17,7 @@ import { Segmented } from "../../ui/Segmented";
 import {
         ANALYTICS_MEASURES,
         ANALYTICS_RANGES,
+        fetchAtAGlanceMetrics,
         useAnalyticsStats,
         useAtAGlanceMetrics,
         useBreakdown,
@@ -26,7 +37,9 @@ import type {
         AnalyticsScope,
         BreakdownDimension,
         ExtensionKind,
+        AtAGlanceMetric,
 } from "../../data/analytics";
+import { failed, type Envelope } from "../../data/envelope";
 
 import "./analytics.css";
 
@@ -35,7 +48,91 @@ export interface AnalyticsViewProps {
         initialTab?: "overview" | "telemetry";
 }
 
+function AnalyticsLive(props: { scope: AnalyticsScope }) {
+        const [metrics, setMetrics] = createSignal<Envelope<AtAGlanceMetric[]>>({
+                status: "loading",
+        });
+        const rows = createMemo(() => {
+                const state = metrics();
+                return state.status === "ready" ? state.data : [];
+        });
+        const errorMessage = createMemo(() => {
+                const state = metrics();
+                return state.status === "failed"
+                        ? `${state.error.command}: ${state.error.message}`
+                        : "";
+        });
+
+        let requestId = 0;
+        createEffect(() => {
+                const scope = props.scope;
+                const request = ++requestId;
+                setMetrics({ status: "loading" });
+                void fetchAtAGlanceMetrics(scope, "30d")
+                        .then((result) => {
+                                if (request === requestId) setMetrics(result);
+                        })
+                        .catch((cause) => {
+                                if (request === requestId)
+                                        setMetrics(failed("analytics_at_a_glance", cause));
+                        });
+        });
+
+        return (
+                <div
+                        class="analytics-view"
+                        data-testid="analytics"
+                        data-scope={props.scope}
+                >
+                        <header class="analytics-header">
+                                <div>
+                                        <h1>Analytics</h1>
+                                        <p>Live activity for {props.scope}.</p>
+                                </div>
+                        </header>
+                        <main
+                                class="analytics-overview"
+                                data-testid="analytics-live-state"
+                                data-state={metrics().status}
+                        >
+                                <Switch>
+                                        <Match when={metrics().status === "loading"}>
+                                                <p>Loading analytics…</p>
+                                        </Match>
+                                        <Match when={metrics().status === "failed"}>
+                                                <InlineError
+                                                        cause={errorMessage()}
+                                                        next="Check the project connection and retry Analytics."
+                                                />
+                                        </Match>
+                                        <Match when={metrics().status === "empty"}>
+                                                <p>No activity in this scope.</p>
+                                        </Match>
+                                        <Match when={metrics().status === "ready"}>
+                                                <section
+                                                        class="analytics-stat-grid"
+                                                        data-testid="analytics-live-metrics"
+                                                >
+                                                        <For each={rows()}>
+                                                                {(metric) => (
+                                                                        <div class="analytics-stat">
+                                                                                <span>{metric.label}</span>
+                                                                                <strong>{metric.value}</strong>
+                                                                                <small>{metric.note}</small>
+                                                                        </div>
+                                                                )}
+                                                        </For>
+                                                </section>
+                                        </Match>
+                                </Switch>
+                        </main>
+                </div>
+        );
+}
+
 export function AnalyticsView(props: AnalyticsViewProps) {
+        if (isTauri()) return <AnalyticsLive scope={props.scope ?? "all"} />;
+
         const scope = () => props.scope ?? "all";
         const [tab, setTab] = createSignal(props.initialTab ?? "overview");
         const [range, setRange] = createSignal<AnalyticsRange>("30d");
@@ -64,14 +161,20 @@ export function AnalyticsView(props: AnalyticsViewProps) {
         const breakdown = () => useBreakdown(query(), dimension(), measure());
         const trendBars = createMemo(() => {
                 const values = breakdown().map((row) => {
-                        const value =
-                                measure() === "spend"
-                                        ? row.spend
-                                        : measure() === "tokens"
-                                          ? row.tokens
-                                          : measure() === "cache"
-                                            ? row.cache
-                                            : row.runs;
+                        let value: string | number;
+                        switch (measure()) {
+                                case "spend":
+                                        value = row.spend;
+                                        break;
+                                case "tokens":
+                                        value = row.tokens;
+                                        break;
+                                case "cache":
+                                        value = row.cache;
+                                        break;
+                                default:
+                                        value = row.runs;
+                        }
                         const parsed = Number.parseFloat(
                                 String(value).replace(/[^0-9.]/g, ""),
                         );

@@ -176,14 +176,22 @@ impl Store {
         .map_err(Into::into)
     }
 
-    pub async fn artifact_comments(&self, artifact_id: ArtifactId) -> Result<Vec<ArtifactComment>> {
+    pub async fn artifact_comments(
+        &self,
+        project_id: ProjectId,
+        artifact_id: ArtifactId,
+    ) -> Result<Vec<ArtifactComment>> {
         query_as::<_, PersistedArtifactComment>(
-            "SELECT id, artifact_id, parent_comment_id, body
-             FROM agents.artifact_comments
-             WHERE artifact_id = $1
-             ORDER BY created_at, id",
+            "SELECT c.id, c.artifact_id, c.parent_comment_id, c.body
+             FROM agents.artifact_comments c
+             JOIN agents.artifacts a ON a.id = c.artifact_id
+             JOIN agents.runs r ON r.id = a.run_id
+             JOIN agents.sessions s ON s.id = r.session_id
+             WHERE c.artifact_id = $1 AND s.project_id = $2
+             ORDER BY c.created_at, c.id",
         )
         .bind(artifact_id)
+        .bind(project_id)
         .fetch_all(self.pool())
         .await
         .map(|rows| rows.into_iter().map(Into::into).collect())

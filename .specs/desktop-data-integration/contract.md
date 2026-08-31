@@ -10,7 +10,7 @@ slice changes it.
 - `apps/desktop/src/data/` holds 23 accessor modules; 2 are fully live (`bots`,
   `work-items`), 21 return fixtures or mix fixtures with live calls.
 - The accessors promise **82 distinct Tauri commands** via `Becomes:` markers.
-- The host registers **75** commands; the original 82 accessor promises and the supporting
+- The host registers **80** commands; the original 82 accessor promises and the supporting
   configuration commands are tracked by status below (plus `telemetry_events_replay`, the
   run-event replay accessor from the telemetry persistence work)
   (`artifacts_list`, `artifact_comments`, `harness_tier_grid`, `materialization_report`,
@@ -25,7 +25,9 @@ slice changes it.
   `set_project_autorun_state` are slice 7's session-detail and autorun-switchboard reads;
   `plans_list`, `plan_create`, `plan_stage_set`, `plan_requirements_set`, `board_tasks`,
   `task_detail`, `task_create`, `settings_guardrails`, `settings_guardrails_set`,
-  `workflow_definitions` are slice 8's configuration commands).
+  `workflow_definitions` are slice 8's configuration commands; `memory_facts`,
+  `memory_confidence_set`, `analytics_at_a_glance`, `telemetry_metrics`, and `qa_snapshot`
+  are slice 9's project-scoped knowledge and review commands).
 
 The agent-pane event channel is fully wired: `replayRunEvents` replays persisted
 events from `agents.events` and `streamFromCore` subscribes to the live Channel. The
@@ -47,13 +49,13 @@ run agents (workstream 2), not a data-integration change.
 | `core.ts` | `projects_list`, `repos_list`, `local_remotes_list` — **live** (slice 3) | `projects_list` global; `repos_list`/`local_remotes_list` project |
 | `sessions.ts` | `sessions_list`, `session`, `runs_for_session` — **missing** | project |
 | `runs.ts` | `runs_list`, `runs_page`, `runs_count`, `run_stats` — **missing** | project |
-| `telemetry.ts` | `telemetry_metrics`, `telemetry_spend`, `telemetry_facets`, `telemetry_filters`, `telemetry_actions`, `telemetry_tools`, `telemetry_verb_counts`, `telemetry_sessions`, `telemetry_sessions_page`, `telemetry_sessions_count`, `sessions_over_time` — **missing** | project |
-| `analytics.ts` | `analytics_at_a_glance`, `analytics_stats`, `analytics_breakdown`, `analytics_breakdown_dimensions`, `analytics_task_outcomes`, `analytics_workflow_timings`, `analytics_retrieval_tiers`, `analytics_extension_usage`, `analytics_extension_kinds`, `analytics_telemetry_facets`, `analytics_telemetry_actions`, `analytics_telemetry_sessions`, `analytics_telemetry_verbs` — **missing** | project |
+| `telemetry.ts` | `telemetry_metrics` — **live** (slice 9); `telemetry_spend`, `telemetry_facets`, `telemetry_filters`, `telemetry_actions`, `telemetry_tools`, `telemetry_verb_counts`, `telemetry_sessions`, `telemetry_sessions_page`, `telemetry_sessions_count`, `sessions_over_time` — **missing** | project |
+| `analytics.ts` | `analytics_at_a_glance` — **live** (slice 9); `analytics_stats`, `analytics_breakdown`, `analytics_breakdown_dimensions`, `analytics_task_outcomes`, `analytics_workflow_timings`, `analytics_retrieval_tiers`, `analytics_extension_usage`, `analytics_extension_kinds`, `analytics_telemetry_facets`, `analytics_telemetry_actions`, `analytics_telemetry_sessions`, `analytics_telemetry_verbs` — **missing** | project |
 | `plan.ts` | `plans_list`, `plan_create`, `plan_stage_set`, `plan_requirements_set` — **live** (slice 8); `plan_outputs`, `plan_recommendation`, `plan_scope_decision` — **unavailable** until their persistence contract exists | project |
-| `knowledge.ts` | `memory_facts`, `memory_short_term`, `memory_compacted_artifacts` — **missing** | project |
+| `knowledge.ts` | `memory_facts`, `memory_confidence_set` — **live** (slice 9); `memory_short_term`, `memory_compacted_artifacts` — **unavailable** until their persisted projections exist | project |
 | `mail.ts` | `mail_threads`, `mail_messages`, `mail_participants` — **missing** | project |
 | `board.ts` | `board_tasks`, `task_detail`, `task_create` — **live** (slice 8); `board_dependencies`, `task_evidence` — **unavailable** until their live projections exist | project |
-| `qa.ts` | `qa_sources`, `qa_snapshot`, `qa_checks` — **missing** | project |
+| `qa.ts` | `qa_snapshot` — **live** (slice 9); `qa_sources`, `qa_checks` — **missing** | project |
 | `inbox.ts` | `inbox_list`, `inbox_resolved_today`, `inbox_throughput` — **missing** | project |
 | `dispatch.ts` | `dispatch_autorun`, `dispatch_runs`, `dispatch_schedules`, `dispatch_schedule_executions` — **missing** (mutation `dispatch_stop_all` **live**) | project |
 | `workflow.ts` | `workflow_definitions` — **live** (slice 8); `workflow_presets`, `workflow_def`, `workflow_graph`, `workflow_guardrails`, `workflow_node_vocabulary`, `condition_operands`, `condition_expression` — **unavailable** until their live authoring contract exists | project |

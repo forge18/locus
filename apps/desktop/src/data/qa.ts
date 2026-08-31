@@ -6,8 +6,17 @@ import {
   QA_SCHEDULE_OPTIONS,
 } from "../fixtures/qa";
 import type { QaCheckRun, QaFinding, QaSchedule } from "../fixtures/qa";
+import { dataProvider } from "./provider";
+import type { Envelope } from "./envelope";
 
 export { QA_CHECK_SOURCES, QA_FOOTER, QA_LAST_RUN, QA_SCHEDULE_OPTIONS };
+
+/** Live findings for one project; the host owns the persisted QA snapshot. */
+export function fetchQaFindings(
+  projectId: string,
+): Promise<Envelope<QaFinding[]>> {
+  return dataProvider().query<QaFinding>("qa_snapshot", { projectId });
+}
 export type {
   CheckSourceDescriptor,
   FindingSeverity,

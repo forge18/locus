@@ -1,10 +1,13 @@
-import { For, Show, createMemo, createSignal } from 'solid-js'
+import { For, Match, Show, Switch, createEffect, createMemo, createSignal } from 'solid-js'
+import { isTauri } from '@tauri-apps/api/core'
+import { InlineError } from '../../ui/InlineError'
 import { Button } from '../../ui/Button'
 import { FixtureNotice } from '../../ui/FixtureNotice'
 import { Segmented } from '../../ui/Segmented'
 import {
   QA_FOOTER,
   QA_LAST_RUN,
+  fetchQaFindings,
   QA_SCHEDULE_OPTIONS,
   findingSummary,
   runQaCheck,
@@ -12,7 +15,8 @@ import {
   useQaFindings,
   useQaSources,
 } from '../../data/qa'
-import type { QaSchedule } from '../../data/qa'
+import type { QaFinding, QaSchedule } from '../../data/qa'
+import { failed, type Envelope } from '../../data/envelope'
 
 import './qa.css'
 
@@ -22,7 +26,77 @@ export interface QAViewProps {
   projectId?: string
 }
 
+function QALive(props: { projectId?: string }) {
+  const [findings, setFindings] = createSignal<Envelope<QaFinding[]>>({ status: 'loading' })
+  const rows = createMemo(() => {
+    const state = findings()
+    return state.status === 'ready' ? state.data : []
+  })
+  const errorMessage = createMemo(() => {
+    const state = findings()
+    return state.status === 'failed' ? `${state.error.command}: ${state.error.message}` : ''
+  })
+
+  let requestId = 0
+  createEffect(() => {
+    const projectId = props.projectId
+    const request = ++requestId
+    setFindings({ status: 'loading' })
+    if (!projectId) {
+      setFindings(failed('qa_snapshot', 'an active project is required to read QA findings'))
+      return
+    }
+    void fetchQaFindings(projectId).then((result) => {
+      if (request === requestId) setFindings(result)
+    }).catch((cause) => {
+      if (request === requestId) setFindings(failed('qa_snapshot', cause))
+    })
+  })
+
+  return (
+    <div class="qa-view" data-testid="qa" data-project={props.projectId}>
+      <header class="qa-header">
+        <div>
+          <h1>QA</h1>
+          <p>Persisted findings for {props.projectId ?? 'the active project'}.</p>
+        </div>
+      </header>
+      <main class="qa-groups" data-testid="qa-live-state" data-state={findings().status}>
+        <Switch>
+          <Match when={findings().status === 'loading'}>
+            <p class="qa-empty">Loading QA findings…</p>
+          </Match>
+          <Match when={findings().status === 'failed'}>
+            <InlineError cause={errorMessage()} next="Check the project connection and retry QA." />
+          </Match>
+          <Match when={findings().status === 'empty'}>
+            <p class="qa-empty">No persisted QA findings for this project.</p>
+          </Match>
+          <Match when={findings().status === 'ready'}>
+            <div class="qa-findings">
+              <For each={rows()}>
+                {(finding) => (
+                  <article class={`qa-finding qa-finding-${finding.severity}`} data-testid={`qa-finding-${finding.id}`}>
+                    <span class="qa-severity">{finding.severity}</span>
+                    <div class="qa-finding-copy">
+                      <strong>{finding.title}</strong>
+                      <span class="qa-location">{finding.project} · {finding.location}</span>
+                      <p>{finding.explanation}</p>
+                    </div>
+                  </article>
+                )}
+              </For>
+            </div>
+          </Match>
+        </Switch>
+      </main>
+    </div>
+  )
+}
+
 export function QAView(props: QAViewProps) {
+  if (isTauri()) return <QALive projectId={props.projectId} />
+
   const project = () => props.projectId ?? 'tapestry'
   const [schedule, setSchedule] = createSignal< QaSchedule >(schedules.get(project()) ?? 'manual')
   const [findings, setFindings] = createSignal(useQaFindings(project()))

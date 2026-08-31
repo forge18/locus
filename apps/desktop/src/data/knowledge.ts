@@ -10,6 +10,12 @@ import {
   WIKI_INGEST_COPY,
   WIKI_KIND_CHIPS,
 } from "../fixtures/knowledge";
+import { dataProvider } from "./provider";
+import type { Envelope } from "./envelope";
+import type {
+  FactConfidence,
+  KnowledgeFact,
+} from "../fixtures/knowledge";
 
 export {
   COMPACTED_CONTEXT,
@@ -30,6 +36,30 @@ export type {
   ResidentLayer,
   ResidentTag,
 } from "../fixtures/knowledge";
+
+/** Live project-scoped long-term facts. */
+export function fetchLongTermFacts(
+  projectId: string,
+): Promise<Envelope<KnowledgeFact[]>> {
+  return dataProvider().query<KnowledgeFact>("memory_facts", { projectId });
+}
+
+export interface MemoryMutationReceipt {
+  updated: boolean;
+}
+
+/** Adjudication changes only the confidence state; fact revisions remain append-only. */
+export function setMemoryFactConfidence(
+  projectId: string,
+  factId: string,
+  confidence: FactConfidence,
+): Promise<Envelope<MemoryMutationReceipt>> {
+  return dataProvider().queryOne<MemoryMutationReceipt>("memory_confidence_set", {
+    projectId,
+    factId,
+    confidence,
+  });
+}
 
 /** Becomes: invoke('memory_short_term') */
 export function useResidentLayers() {
