@@ -1,6 +1,6 @@
 # TODO
 
-**Remaining:** 49 open rows across 12 workstreams, worked top to bottom.
+**Remaining:** 47 open rows across 12 workstreams, worked top to bottom.
 
 This is the unfinished-work index. [`PLAN.md`](PLAN.md) is the architecture authority. Each feature's
 `spec.md` is its contract; its `tasks.md` is the runnable decomposition and verification source. One
@@ -11,10 +11,11 @@ owning workstream so nothing is tracked twice.
 
 - `chore/todo-completion` carries all completed work — 30 rows finished since the 2026-08-29
   audit; the record lives in this branch's git history, not here.
-- Active workstream: **1 — desktop data integration** (tasks 1–8 of 12 done: contract frozen,
-  provider seam, tracer bullet, shell live state, title-bar mutations, window chrome, and the
-  live run slice — runs, sessions, inbox, schedules, and the agent-pane event channel all hit
-  the real store; the configuration slice is complete, and the knowledge slice is next).
+- Active workstream: **1 — desktop data integration** (tasks 1–10 of 12 done: contract frozen,
+  provider seam, tracer bullet, shell live state, title-bar mutations, window chrome, the live run
+  slice — runs, sessions, inbox, schedules, and the agent-pane event channel — the live
+  configuration and knowledge/analytics slices, and the explicit demo/test bootstrap are complete;
+  real Tauri-window acceptance coverage is next).
 
 ## 1 — Desktop data integration (the epic)
 
@@ -63,14 +64,18 @@ audit findings; each is one of the epic's slices, tracked here once:
   - 8.5. ~~Agent-definition DTO reconciliation~~ done (`agent_defs_list`/`agent_def` read the
        latest immutable rows from `agents.agent_defs`; project and missing-definition boundaries
        are tested) ·
-  1. knowledge/analytics slice: Memory/Wiki/Artifacts/Telemetry/Review/Analytics (absorbs: wire
-  Memory actions, build the Wiki kind filter, surface backend errors in Memory) ·
-  2. demo/test bootstrap + delete fixture routes (absorbs: retire `WorkshopFixtureView`, retire
-  `MemoryFixtures`, use the already-wired accessors, fix the fixture-import guard's remaining
-  9 violations) ·
-  3. real Tauri-window acceptance coverage (absorbs: add live desktop integration
+  9. ~~knowledge/analytics slice~~ done — `memory_facts`/`memory_confidence_set`,
+  `analytics_at_a_glance`, `telemetry_metrics`, and `qa_snapshot` are project-scoped live
+  commands; Memory/Wiki/Artifacts/Telemetry/Review/Analytics render provider envelopes with
+  explicit loading, empty, failed, and unavailable states, Wiki has kind filtering, and the
+  project-isolation/error paths are tested. Short-term memory and compacted artifacts remain
+  explicitly unavailable ·
+  ~~10. demo/test bootstrap + delete fixture routes~~ done (retired `WorkshopFixtureView`, retired
+  `MemoryFixtures`, routed accessors through explicit demo/test providers, and fixed the fixture-import
+  guard's remaining 9 violations) ·
+  11. real Tauri-window acceptance coverage (absorbs: add live desktop integration
   coverage) ·
-  4. release gate.
+  12. release gate.
 - [ ] **Decide the registered-but-unused commands** — `telemetry_subscribe`, `lsp_enable_descriptor`,
   `lsp_disable_descriptor`, `detach_pane`, `repo_git_state` have no frontend caller
   (`materialization_report` and `telemetry_events_replay` now do); wire a UI or drop each.
