@@ -178,8 +178,18 @@ export function format(view: View, params: ViewParams): string {
 export function resolve(locator: string): NavTarget {
   const parsed = parse(locator);
   if (parsed.kind === null) {
+    const view = parsed.id as View;
+    const expectedScope = viewScope(view);
+    if (
+      (expectedScope === "project" && isScope(parsed.project)) ||
+      (expectedScope !== "project" && parsed.project !== expectedScope)
+    ) {
+      throw new LocatorError(
+        `scope: ${view} requires the ${expectedScope} scope`,
+      );
+    }
     return {
-      view: parsed.id as View,
+      view,
       params: isScope(parsed.project) ? {} : { project: parsed.project },
     };
   }

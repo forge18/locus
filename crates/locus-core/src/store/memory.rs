@@ -1,11 +1,12 @@
 //! Durable adapters for curated memory revisions and retrieval feedback.
 
 use crate::{
+    ids::ProjectId,
     services::memory::{ConfidenceState, FactRevision},
     store::Store,
 };
 use anyhow::{Context, Result};
-use sqlx::query;
+use sqlx::{query, query_as};
 use uuid::Uuid;
 
 fn confidence_name(state: ConfidenceState) -> &'static str {
@@ -17,7 +18,33 @@ fn confidence_name(state: ConfidenceState) -> &'static str {
     }
 }
 
+#[derive(Debug, sqlx::FromRow)]
+pub struct MemoryFactRow {
+    pub id: Uuid,
+    pub subject: String,
+    pub confidence_state: String,
+    pub score: Option<f64>,
+    pub recall_count: i32,
+}
+
 impl Store {
+    pub async fn memory_facts(&self, project_id: ProjectId) -> Result<Vec<MemoryFactRow>> {
+        query_as(
+            "SELECT id, subject, confidence_state,
+                    CASE WHEN confidence_state = 'contradicted' THEN NULL ELSE confidence END AS score,
+                    recall_count
+             FROM memory.store
+             WHERE project_id = $1
+               AND invalidated_at IS NULL
+               AND archived_at IS NULL
+             ORDER BY updated_at DESC, id",
+        )
+        .bind(project_id)
+        .fetch_all(self.pool())
+        .await
+        .context("list project memory facts")
+    }
+
     pub async fn append_memory_revision(
         &self,
         fact_id: Uuid,
@@ -45,6 +72,27 @@ impl Store {
             .await
             .context("set memory confidence")?;
         Ok(())
+    }
+
+    pub async fn set_memory_confidence_for_project(
+        &self,
+        project_id: ProjectId,
+        fact_id: Uuid,
+        state: ConfidenceState,
+    ) -> Result<bool> {
+        let updated = query(
+            "UPDATE memory.store
+             SET confidence_state = $3, updated_at = now()
+             WHERE project_id = $1 AND id = $2
+             RETURNING id",
+        )
+        .bind(project_id)
+        .bind(fact_id)
+        .bind(confidence_name(state))
+        .fetch_optional(self.pool())
+        .await
+        .context("set project memory confidence")?;
+        Ok(updated.is_some())
     }
 
     pub async fn record_memory_feedback(

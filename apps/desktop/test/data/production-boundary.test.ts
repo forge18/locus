@@ -68,6 +68,15 @@ describe("data/production-boundary", () => {
       status: "failed",
       error: { command: "analytics_stats", message: "unknown command" },
     });
+
+    mocks.invoke.mockRejectedValueOnce({
+      kind: "not_found",
+      message: "project was not found",
+    });
+    expect(await liveProvider.query("memory_facts")).toEqual({
+      status: "failed",
+      error: { command: "memory_facts", message: "project was not found" },
+    });
   });
 
   it("demo provider answers only its declared fixtures, as typed failures otherwise", async () => {

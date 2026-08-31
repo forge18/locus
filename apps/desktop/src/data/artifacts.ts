@@ -1,4 +1,4 @@
-import { convertFileSrc, invoke, isTauri } from "@tauri-apps/api/core";
+import { convertFileSrc, isTauri } from "@tauri-apps/api/core";
 import {
  ARTIFACTS,
  ARTIFACT_COMMENTS,
@@ -9,6 +9,8 @@ import {
 } from "../fixtures/artifacts";
 import type { UnifiedRow } from "../fixtures/artifacts";
 import type { Artifact, ArtifactComment } from "../types/agents";
+import { dataProvider } from "./provider";
+import type { Envelope } from "./envelope";
 
 export {
  ARTIFACT_LOCATOR,
@@ -24,20 +26,21 @@ export {
 export type { UnifiedRow, UnifiedRowKind } from "../fixtures/artifacts";
 
 /** Becomes: invoke("artifacts_list") */
-export async function fetchArtifactsFromCore(): Promise<Artifact[]> {
- // No host (browser preview, tests) → fixture, not an error.
- if (!isTauri()) return ARTIFACTS;
- return invoke<Artifact[]>("artifacts_list");
+export function fetchArtifactsFromCore(
+ projectId: string,
+): Promise<Envelope<Artifact[]>> {
+ return dataProvider().query<Artifact>("artifacts_list", { projectId });
 }
 
-/** Becomes: invoke("artifact_comments", { artifactId }) */
-export async function fetchArtifactCommentsFromCore(
+/** Becomes: invoke("artifact_comments", { projectId, artifactId }) */
+export function fetchArtifactCommentsFromCore(
+ projectId: string,
  artifactId: string,
-): Promise<ArtifactComment[]> {
- // No host (browser preview, tests) → fixture, not an error.
- if (!isTauri())
-  return ARTIFACT_COMMENTS.filter((c) => c.artifactId === artifactId);
- return invoke<ArtifactComment[]>("artifact_comments", { artifactId });
+): Promise<Envelope<ArtifactComment[]>> {
+ return dataProvider().query<ArtifactComment>("artifact_comments", {
+  projectId,
+  artifactId,
+ });
 }
 
 /** Fixture fallback until the Tauri runtime connects. */

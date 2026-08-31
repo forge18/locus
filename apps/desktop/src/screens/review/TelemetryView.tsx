@@ -1,10 +1,21 @@
-import { For, Show, createSignal } from "solid-js";
+import {
+  For,
+  Match,
+  Show,
+  Switch,
+  createEffect,
+  createMemo,
+  createSignal,
+} from "solid-js";
+import { isTauri } from "@tauri-apps/api/core";
+import { InlineError } from "../../ui/InlineError";
 import { FixtureNotice } from "../../ui/FixtureNotice";
 import { Icon } from "../../ui/Icon";
 import { VirtualTable } from "../../panes/VirtualTable";
 import type { Column } from "../../ui/Table";
 import {
   ACTION_NOTE,
+  fetchTelemetryMetrics,
   MISSING_VERB_NOTE,
   RESET_LABEL,
   SEARCH_NOTE,
@@ -22,7 +33,8 @@ import {
   useTelemetryMetrics,
   useToolRows,
 } from "../../data/telemetry";
-import type { SessionRow } from "../../data/telemetry";
+import type { SessionRow, TelemetryMetric } from "../../data/telemetry";
+import { failed, type Envelope } from "../../data/envelope";
 
 const orUnknown = (value: string | null) =>
   value === null ? <span class="unknown">unknown</span> : value;
@@ -113,7 +125,94 @@ const rowText = (row: SessionRow): string =>
 const ROW_HEIGHT = 26;
 const BODY_HEIGHT = 300;
 
-export function TelemetryView() {
+function TelemetryLive(props: { projectId?: string }) {
+  const [metrics, setMetrics] = createSignal<Envelope<TelemetryMetric[]>>({
+    status: "loading",
+  });
+  const rows = createMemo(() => {
+    const state = metrics();
+    return state.status === "ready" ? state.data : [];
+  });
+  const errorMessage = createMemo(() => {
+    const state = metrics();
+    return state.status === "failed"
+      ? `${state.error.command}: ${state.error.message}`
+      : "";
+  });
+
+  let requestId = 0;
+  createEffect(() => {
+    const scope = props.projectId ?? "all";
+    const request = ++requestId;
+    setMetrics({ status: "loading" });
+    void fetchTelemetryMetrics(scope, "30d")
+      .then((result) => {
+        if (request === requestId) setMetrics(result);
+      })
+      .catch((cause) => {
+        if (request === requestId) setMetrics(failed("telemetry_metrics", cause));
+      });
+  });
+
+  return (
+    <div
+      class="telemetry"
+      data-testid="telemetry"
+      data-desktop-route="review-telemetry"
+      data-filter-evidence="available"
+    >
+      <main data-testid="telemetry-live-state" data-state={metrics().status}>
+        <Switch>
+          <Match when={metrics().status === "loading"}>
+            <p>Loading telemetry…</p>
+          </Match>
+          <Match when={metrics().status === "failed"}>
+            <InlineError
+              cause={errorMessage()}
+              next="Check the project connection and retry Telemetry."
+            />
+          </Match>
+          <Match when={metrics().status === "empty"}>
+            <p>No telemetry in this scope.</p>
+          </Match>
+          <Match when={metrics().status === "ready"}>
+            <section class="tm-metrics" data-testid="tm-live-metrics">
+              <For each={rows()}>
+                {(metric) => (
+                  <div
+                    class={[
+                      "metric-card",
+                      metric.bad ? "tm-metric-bad" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                    data-bad={metric.bad ? "true" : undefined}
+                  >
+                    <span class="metric-label">{metric.label}</span>
+                    <div class="metric-value">
+                      <span class="metric-numeral">{metric.value}</span>
+                      <Show when={metric.unit}>
+                        <span class="metric-unit">{metric.unit}</span>
+                      </Show>
+                    </div>
+                  </div>
+                )}
+              </For>
+            </section>
+          </Match>
+        </Switch>
+      </main>
+    </div>
+  );
+}
+
+export interface TelemetryViewProps {
+  projectId?: string;
+}
+
+export function TelemetryView(props: TelemetryViewProps = {}) {
+  if (isTauri()) return <TelemetryLive projectId={props.projectId} />;
+
   const sessionTotal = useSessionRowCount();
   const [loaded, setLoaded] = createSignal(useSessionRowsPage(0));
 

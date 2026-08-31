@@ -73,7 +73,12 @@ function App() {
                                                         "telemetry"
                                                 }
                                         >
-                                                <TelemetryView />
+                                                <TelemetryView
+                                                        projectId={
+                                                                nav.params()
+                                                                        .project
+                                                        }
+                                                />
                                         </Match>
                                         <Match when={nav.view() === "projects"}>
                                                 <ProjectsView />
@@ -96,7 +101,12 @@ function App() {
                                                 />
                                         </Match>
                                         <Match when={nav.view() === "artifact"}>
-                                                <MemoryArtifactsFixture />
+                                                <MemoryArtifactsFixture
+                                                        projectId={
+                                                                nav.params()
+                                                                        .project
+                                                        }
+                                                />
                                         </Match>
                                         <Match when={nav.view() === "wiki"}>
                                                 <MemoryWikiFixture />
@@ -154,7 +164,12 @@ function App() {
                                                 <MemoryShortTermFixture />
                                         </Match>
                                         <Match when={nav.view() === "memory"}>
-                                                <MemoryLongTermFixture />
+                                                <MemoryLongTermFixture
+                                                        projectId={
+                                                                nav.params()
+                                                                        .project
+                                                        }
+                                                />
                                         </Match>
                                         <Match when={nav.view() === "settings"}>
                                                 <GuardrailsView />

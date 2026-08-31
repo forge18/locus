@@ -1,6 +1,17 @@
-import { For, createSignal, onMount, type JSX } from "solid-js";
+import {
+  For,
+  Match,
+  Show,
+  Switch,
+  createEffect,
+  createMemo,
+  createSignal,
+  type JSX,
+} from "solid-js";
+import { isTauri } from "@tauri-apps/api/core";
 import { Button } from "../../ui/Button";
 import { FixtureNotice } from "../../ui/FixtureNotice";
+import { InlineError } from "../../ui/InlineError";
 import { Tag } from "../../ui/Tag";
 import {
   ARTIFACT_LOCATOR,
@@ -10,7 +21,9 @@ import {
 import {
   COMPACTED_CONTEXT,
   CURATION_COPY,
+  fetchLongTermFacts,
   LONG_TERM_FACTS,
+  setMemoryFactConfidence,
   RESIDENT_LAYERS,
   SHORT_TERM_COPY,
   WIKI_CONTRADICTION_COPY,
@@ -18,6 +31,8 @@ import {
   WIKI_INGEST_COPY,
   WIKI_KIND_CHIPS,
 } from "../../data/knowledge";
+import { failed, type Envelope } from "../../data/envelope";
+import type { KnowledgeFact } from "../../fixtures/knowledge";
 import { ARTIFACTS } from "../../fixtures/artifacts";
 import { MailView } from "../mail/MailView";
 import type { Artifact } from "../../types/agents";
@@ -43,12 +58,15 @@ const artifacts = [
 ] as const;
 
 const pages = [
-  "Locus architecture",
-  "Clone from a local bare remote, never a mount",
-  "No MCP servers, ever",
-  "Byte-deterministic materialization",
-  "credential broker",
-  "canary token",
+  { title: "Locus architecture", kind: "concept" },
+  {
+    title: "Clone from a local bare remote, never a mount",
+    kind: "decision",
+  },
+  { title: "No MCP servers, ever", kind: "decision" },
+  { title: "Byte-deterministic materialization", kind: "concept" },
+  { title: "credential broker", kind: "entity" },
+  { title: "canary token", kind: "entity" },
 ] as const;
 
 const WIKI_GRAPH_NODES: GraphNodeShape[] = [
@@ -67,10 +85,10 @@ function Label(props: { children: string }) {
   return <div class="desktop-memory-label">{props.children}</div>;
 }
 
-function FactList() {
+function FactList(props: { facts: KnowledgeFact[] }) {
   return (
     <div class="desktop-memory-list" aria-label="Memory facts">
-      <For each={LONG_TERM_FACTS}>
+      <For each={props.facts}>
         {(fact, index) => (
           <div
             class="desktop-memory-list-item"
@@ -128,8 +146,37 @@ function MemoryFrame(props: {
   );
 }
 
+function UnavailableMemoryView(props: {
+  testId: string;
+  route: string;
+  surface: string;
+  command: string;
+}) {
+  return (
+    <MemoryFrame testId={props.testId} route={props.route}>
+      <section class="desktop-memory-main">
+        <InlineError
+          cause={`${props.surface} is unavailable`}
+          next={`${props.command} has no persisted desktop contract yet.`}
+        />
+      </section>
+    </MemoryFrame>
+  );
+}
+
 /** The rebuilt, per-iteration context window fixture. */
 export function MemoryShortTermFixture() {
+  if (isTauri()) {
+    return (
+      <UnavailableMemoryView
+        testId="desktop-memory-short-term"
+        route="short"
+        surface="Short-term memory"
+        command="memory_short_term"
+      />
+    );
+  }
+
   return (
     <MemoryFrame
       testId="desktop-memory-short-term"
@@ -250,8 +297,179 @@ export function MemoryShortTermFixture() {
   );
 }
 
+function MemoryLongTermLive(props: { projectId?: string }) {
+  const [facts, setFacts] = createSignal<Envelope<KnowledgeFact[]>>({
+    status: "loading",
+  });
+  const factRows = createMemo(() => {
+    const state = facts();
+    return state.status === "ready" ? state.data : [];
+  });
+  const errorMessage = createMemo(() => {
+    const state = facts();
+    return state.status === "failed"
+      ? `${state.error.command}: ${state.error.message}`
+      : "";
+  });
+  const [mutationStatus, setMutationStatus] = createSignal<
+    "idle" | "saving" | "saved" | "failed"
+  >("idle");
+  const [mutationError, setMutationError] = createSignal("");
+  let requestId = 0;
+
+  const loadFacts = (projectId?: string) => {
+    const request = ++requestId;
+    setFacts({ status: "loading" });
+    if (!projectId) {
+      setFacts(
+        failed("memory_facts", "an active project is required to read memory"),
+      );
+      return;
+    }
+    void fetchLongTermFacts(projectId)
+      .then((result) => {
+        if (request === requestId) setFacts(result);
+      })
+      .catch((cause) => {
+        if (request === requestId) setFacts(failed("memory_facts", cause));
+      });
+  };
+
+  const adjudicate = () => {
+    const fact = factRows()[0];
+    if (!props.projectId || !fact) return;
+    setMutationStatus("saving");
+    setMutationError("");
+    void setMemoryFactConfidence(props.projectId, fact.id, "verified")
+      .then((result) => {
+        if (result.status === "failed") {
+          setMutationError(`${result.error.command}: ${result.error.message}`);
+          setMutationStatus("failed");
+        } else {
+          setMutationStatus("saved");
+          loadFacts(props.projectId);
+        }
+      })
+      .catch((cause) => {
+        setMutationError(String(cause));
+        setMutationStatus("failed");
+      });
+  };
+
+  createEffect(() => loadFacts(props.projectId));
+
+  return (
+    <MemoryFrame
+      testId="desktop-memory-long-term"
+      route="memory"
+      factFixture="live"
+      factState="loading-empty-ready-failed"
+    >
+      <aside class="desktop-memory-left">
+        <header class="desktop-memory-pane-head">
+          <h1>
+            Long-term <code>{factRows().length}</code>
+          </h1>
+          <p>Project facts recalled across runs.</p>
+        </header>
+        <section class="desktop-memory-scope">
+          <Label>Scope</Label>
+          <span>{props.projectId ?? "No active project"}</span>
+          <small>never cross-project</small>
+        </section>
+        <div data-testid="memory-facts-state" data-state={facts().status}>
+          <Switch>
+            <Match when={facts().status === "loading"}>
+              <p class="desktop-memory-note">Loading project memory…</p>
+            </Match>
+            <Match when={facts().status === "failed"}>
+              <InlineError
+                cause={errorMessage()}
+                next="Check the project connection and retry this view."
+              />
+            </Match>
+            <Match when={facts().status === "empty"}>
+              <p class="desktop-memory-note">No durable facts for this project.</p>
+            </Match>
+            <Match when={facts().status === "ready"}>
+              <FactList facts={factRows()} />
+            </Match>
+          </Switch>
+        </div>
+      </aside>
+      <section class="desktop-memory-main">
+        <header class="desktop-memory-title-row desktop-memory-stacked">
+          <div>
+            <Tag>memory</Tag>
+            <h2>{factRows()[0]?.title ?? "Project memory"}</h2>
+          </div>
+          <p>Live data from the project-scoped memory store.</p>
+        </header>
+        <div class="desktop-memory-scroll">
+          <Switch>
+            <Match when={facts().status === "loading"}>
+              <p class="desktop-memory-note">Loading the selected project’s facts…</p>
+            </Match>
+            <Match when={facts().status === "failed"}>
+              <InlineError
+                cause={errorMessage()}
+                next="The memory detail is unavailable until the backend read succeeds."
+              />
+            </Match>
+            <Match when={facts().status === "empty"}>
+              <p class="desktop-memory-prose">
+                This project has no persisted long-term memory yet.
+              </p>
+            </Match>
+            <Match when={facts().status === "ready"}>
+              <p class="desktop-memory-prose">
+                {factRows()[0].title} is persisted for this project. The list
+                shows its current confidence and recall summary.
+              </p>
+              <section>
+                <Label>Current state</Label>
+                <p class="desktop-memory-note">
+                  {factRows()[0].confidence} · {factRows()[0].recall}
+                  {factRows()[0].score === null
+                    ? " · no score"
+                    : ` · score ${factRows()[0]!.score!.toFixed(2)}`}
+                </p>
+                <Button
+                  variant="primary"
+                  data-testid="memory-adjudicate"
+                  disabled={mutationStatus() === "saving"}
+                  onClick={adjudicate}
+                >
+                  {mutationStatus() === "saving" ? "Saving…" : "Adjudicate"}
+                </Button>
+                <Show when={mutationStatus() === "saved"}>
+                  <p role="status">Adjudication saved.</p>
+                </Show>
+                <Show when={mutationStatus() === "failed"}>
+                  <InlineError
+                    cause={mutationError()}
+                    next="The confidence state was not changed."
+                  />
+                </Show>
+              </section>
+            </Match>
+          </Switch>
+        </div>
+      </section>
+    </MemoryFrame>
+  );
+}
+
 /** Project-scoped facts, their provenance, decay, and contradiction state. */
-export function MemoryLongTermFixture() {
+export function MemoryLongTermFixture(props: { projectId?: string } = {}) {
+  if (isTauri()) return <MemoryLongTermLive projectId={props.projectId} />;
+
+  const [editing, setEditing] = createSignal(false);
+  const [correction, setCorrection] = createSignal(
+    "NOTIFY payload caps at 8000 bytes",
+  );
+  const [actionNotice, setActionNotice] = createSignal("");
+
   return (
     <MemoryFrame
       testId="desktop-memory-long-term"
@@ -274,7 +492,7 @@ export function MemoryLongTermFixture() {
           <span>#tapestry</span>
           <small>never cross-project</small>
         </section>
-        <FactList />
+        <FactList facts={LONG_TERM_FACTS} />
       </aside>
 
       <section class="desktop-memory-main">
@@ -342,7 +560,36 @@ export function MemoryLongTermFixture() {
                 Your correction · revision 2 · recalled now
               </span>
             </div>
-            <Button data-testid="edit-recalled-fact">Edit recalled fact</Button>
+            <Button
+              data-testid="edit-recalled-fact"
+              onClick={() => {
+                setEditing(true);
+                setActionNotice("");
+              }}
+            >
+              Edit recalled fact
+            </Button>
+            <Show when={editing()}>
+              <textarea
+                data-testid="memory-recalled-fact-editor"
+                aria-label="Recalled fact correction"
+                value={correction()}
+                onInput={(event) => setCorrection(event.currentTarget.value)}
+              />
+              <Button
+                data-testid="memory-save-revision"
+                onClick={() => {
+                  if (!correction().trim()) {
+                    setActionNotice("A correction is required before saving.");
+                    return;
+                  }
+                  setEditing(false);
+                  setActionNotice("Revision 2 staged in the demo provider.");
+                }}
+              >
+                Save revision 2
+              </Button>
+            </Show>
           </section>
         </div>
       </section>
@@ -362,7 +609,17 @@ export function MemoryLongTermFixture() {
             <br />
             <code>44000–44999</code> — ADR-007, 6h
           </p>
-          <Button variant="primary">Adjudicate</Button>
+          <Button
+            variant="primary"
+            onClick={() => setActionNotice("Contradiction adjudicated in the demo provider.")}
+          >
+            Adjudicate
+          </Button>
+          <Show when={actionNotice()}>
+            <p role="status" data-testid="memory-action-status">
+              {actionNotice()}
+            </p>
+          </Show>
         </section>
         <section class="desktop-memory-side-card">
           <Label>Decay</Label>
@@ -388,15 +645,124 @@ export function MemoryLongTermFixture() {
   );
 }
 
-/** Reviewable artifacts retain their source while comments steer their session. */
-export function MemoryArtifactsFixture() {
-  const [coreArtifacts, setCoreArtifacts] = createSignal<Artifact[]>([]);
-  onMount(() => {
-    void fetchArtifactsFromCore()
-      .then(setCoreArtifacts)
-      .catch(() => undefined);
+function MemoryArtifactsLive(props: { projectId?: string }) {
+  const [artifacts, setArtifacts] = createSignal<Envelope<Artifact[]>>({
+    status: "loading",
+  });
+  const rows = createMemo(() => {
+    const state = artifacts();
+    return state.status === "ready" ? state.data : [];
+  });
+  const errorMessage = createMemo(() => {
+    const state = artifacts();
+    return state.status === "failed"
+      ? `${state.error.command}: ${state.error.message}`
+      : "";
   });
 
+  let requestId = 0;
+  createEffect(() => {
+    const projectId = props.projectId;
+    const request = ++requestId;
+    setArtifacts({ status: "loading" });
+    if (!projectId) {
+      setArtifacts(
+        failed("artifacts_list", "an active project is required to read artifacts"),
+      );
+      return;
+    }
+    void fetchArtifactsFromCore(projectId)
+      .then((result) => {
+        if (request === requestId) setArtifacts(result);
+      })
+      .catch((cause) => {
+        if (request === requestId) setArtifacts(failed("artifacts_list", cause));
+      });
+  });
+
+  return (
+    <MemoryFrame
+      testId="desktop-memory-artifacts"
+      route="artifact"
+      artifactGroups="review-reference"
+      artifactPreview="live"
+    >
+      <aside class="desktop-memory-left">
+        <header class="desktop-memory-pane-head">
+          <h1>
+            Review artifacts <code>{rows().length}</code>
+          </h1>
+          <p>Project-scoped artifacts retained for human review.</p>
+        </header>
+        <div data-testid="memory-artifacts-state" data-state={artifacts().status}>
+          <Switch>
+            <Match when={artifacts().status === "loading"}>
+              <p class="desktop-memory-note">Loading review artifacts…</p>
+            </Match>
+            <Match when={artifacts().status === "failed"}>
+              <InlineError
+                cause={errorMessage()}
+                next="Check the project connection and retry this view."
+              />
+            </Match>
+            <Match when={artifacts().status === "empty"}>
+              <p class="desktop-memory-note">No review artifacts for this project.</p>
+            </Match>
+            <Match when={artifacts().status === "ready"}>
+              <div class="desktop-memory-list">
+                <For each={rows()}>
+                  {(artifact, index) => (
+                    <div
+                      class="desktop-memory-list-item"
+                      data-selected={index() === 0 ? "true" : undefined}
+                    >
+                      <div>{artifact.title}</div>
+                      <small>{artifact.kind}</small>
+                    </div>
+                  )}
+                </For>
+              </div>
+            </Match>
+          </Switch>
+        </div>
+      </aside>
+      <section class="desktop-memory-main">
+        <header class="desktop-memory-title-row">
+          <Tag>artifact</Tag>
+          <h2>{rows()[0]?.title ?? "Review artifacts"}</h2>
+        </header>
+        <div class="desktop-memory-scroll">
+          <Switch>
+            <Match when={artifacts().status === "loading"}>
+              <p class="desktop-memory-note">Loading artifact details…</p>
+            </Match>
+            <Match when={artifacts().status === "failed"}>
+              <InlineError
+                cause={errorMessage()}
+                next="The artifact detail is unavailable until the backend read succeeds."
+              />
+            </Match>
+            <Match when={artifacts().status === "empty"}>
+              <p class="desktop-memory-prose">Nothing has been retained for review yet.</p>
+            </Match>
+            <Match when={artifacts().status === "ready"}>
+              <p class="desktop-memory-prose">
+                {rows()[0]!.body ?? rows()[0]!.derivedText ?? "This artifact has no text preview."}
+              </p>
+              <small>Source retained by the project artifact store.</small>
+            </Match>
+          </Switch>
+        </div>
+      </section>
+    </MemoryFrame>
+  );
+}
+
+/** Reviewable artifacts retain their source while comments steer their session. */
+export function MemoryArtifactsFixture(props: { projectId?: string } = {}) {
+  if (isTauri()) return <MemoryArtifactsLive projectId={props.projectId} />;
+
+  const coreArtifacts = () => [] as Artifact[];
   const mediaArtifact = (kind: "image" | "recording") =>
     coreArtifacts().find((artifact) => artifact.kind === kind) ??
     ARTIFACTS.find((artifact) => artifact.kind === kind)!;
@@ -512,6 +878,29 @@ export function MemoryMailFixture() {
 }
 
 export function MemoryWikiFixture() {
+  if (isTauri()) {
+    return (
+      <UnavailableMemoryView
+        testId="desktop-memory-wiki"
+        route="wiki"
+        surface="Wiki"
+        command="wiki_pages"
+      />
+    );
+  }
+
+  const [wikiKind, setWikiKind] = createSignal("all");
+  const visiblePages = createMemo(() =>
+    wikiKind() === "all"
+      ? pages
+      : pages.filter((page) => page.kind === wikiKind()),
+  );
+  const selectedKind = createMemo(
+    () =>
+      WIKI_KIND_CHIPS.find((chip) => chip.kind === wikiKind()) ??
+      WIKI_KIND_CHIPS[0],
+  );
+
   return (
     <MemoryFrame
       testId="desktop-memory-wiki"
@@ -522,7 +911,7 @@ export function MemoryWikiFixture() {
       <aside class="desktop-memory-left">
         <header class="desktop-memory-pane-head">
           <h1>
-            All <code>153</code>
+            {selectedKind().label} <code>{selectedKind().count}</code>
           </h1>
           <p>
             Curated project knowledge derived from sources, then reviewed by
@@ -532,23 +921,34 @@ export function MemoryWikiFixture() {
             Ingest a document
           </Button>
         </header>
-        <div class="desktop-memory-kinds" aria-label="Wiki kinds">
+        <div
+          class="desktop-memory-kinds"
+          aria-label="Wiki kinds"
+          data-testid="wiki-kind-filter"
+        >
           <For each={WIKI_KIND_CHIPS}>
             {(chip) => (
-              <button type="button" data-kind={chip.kind}>
+              <button
+                type="button"
+                data-kind={chip.kind}
+                data-active={wikiKind() === chip.kind ? "true" : undefined}
+                aria-pressed={wikiKind() === chip.kind}
+                onClick={() => setWikiKind(chip.kind)}
+              >
                 {chip.label} {chip.count}
               </button>
             )}
           </For>
         </div>
-        <div class="desktop-memory-list">
-          <For each={pages}>
+        <div class="desktop-memory-list" data-testid="wiki-pages">
+          <For each={visiblePages()}>
             {(page, index) => (
               <div
                 class="desktop-memory-list-item"
                 data-selected={index() === 1 ? "true" : undefined}
+                data-page-kind={page.kind}
               >
-                {page}
+                {page.title}
               </div>
             )}
           </For>

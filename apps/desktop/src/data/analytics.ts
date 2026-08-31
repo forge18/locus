@@ -17,12 +17,25 @@ import {
 import type {
   AnalyticsMeasure,
   AnalyticsRange,
+  AtAGlanceMetric,
   AnalyticsScope,
   BreakdownDimension,
   ExtensionKind,
 } from "../fixtures/analytics";
+import { dataProvider } from "./provider";
+import type { Envelope } from "./envelope";
 
 export * from "../fixtures/analytics";
+
+/** Live scoped activity metrics used by the Analytics surface. */
+export function fetchAtAGlanceMetrics(
+  scope: AnalyticsScope = "all",
+  range: AnalyticsRange = "30d",
+): Promise<Envelope<AtAGlanceMetric[]>> {
+  return dataProvider().query<AtAGlanceMetric>("analytics_at_a_glance", {
+    query: { scope, range },
+  });
+}
 
 /** Becomes: invoke('analytics_at_a_glance', { query }) */
 export function useAtAGlanceMetrics(
