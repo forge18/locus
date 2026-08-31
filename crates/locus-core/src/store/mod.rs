@@ -6,10 +6,12 @@
 pub mod agents;
 pub mod artifacts;
 pub mod audits;
+pub mod board;
 pub mod backup;
 pub mod bots;
 pub mod bus;
 pub mod dispatch;
+pub mod guardrails;
 pub mod handoff;
 pub mod interact;
 pub mod mail;

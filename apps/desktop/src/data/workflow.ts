@@ -25,6 +25,8 @@ import {
 } from "./workflow-events";
 import type { NormalizedWorkflowEvent } from "./workflow-events";
 import type { GuardrailTrip, WorkflowDef } from "../types/workflows";
+import { dataProvider } from "./provider";
+import type { Envelope } from "./envelope";
 
 export {
   ARROW_MARKERS,
@@ -47,6 +49,20 @@ export type {
   Preset,
 } from "../fixtures/workflow";
 export type { NormalizedWorkflowEvent } from "./workflow-events";
+
+export interface WorkflowDefinitionSummary {
+  id: string;
+  name: string;
+  version: number;
+}
+
+export function fetchWorkflowDefinitions(
+  projectId: string,
+): Promise<Envelope<WorkflowDefinitionSummary[]>> {
+  return dataProvider().query<WorkflowDefinitionSummary>("workflow_definitions", {
+    projectId,
+  });
+}
 
 /** Becomes: invoke("workflow_node_vocabulary") */
 export function usePalette(): PaletteNode[] {

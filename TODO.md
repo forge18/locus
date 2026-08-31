@@ -11,16 +11,16 @@ owning workstream so nothing is tracked twice.
 
 - `chore/todo-completion` carries all completed work — 30 rows finished since the 2026-08-29
   audit; the record lives in this branch's git history, not here.
-- Active workstream: **1 — desktop data integration** (tasks 1–7 of 12 done: contract frozen,
+- Active workstream: **1 — desktop data integration** (tasks 1–8 of 12 done: contract frozen,
   provider seam, tracer bullet, shell live state, title-bar mutations, window chrome, and the
   live run slice — runs, sessions, inbox, schedules, and the agent-pane event channel all hit
-  the real store; the configuration slice is next).
+  the real store; the configuration slice is complete, and the knowledge slice is next).
 
 ## 1 — Desktop data integration (the epic)
 
 Owner of everything data-backed. [spec](.specs/desktop-data-integration/spec.md) ·
 [tasks](.specs/desktop-data-integration/tasks.md) · [contract](.specs/desktop-data-integration/contract.md)
-(82 commands promised, 56 missing from the host, 26 live, scope per command). The rows below were separate
+(82 commands promised; current host registration and per-module status are recorded in the contract). The rows below were separate
 audit findings; each is one of the epic's slices, tracked here once:
 
 - [ ] **Run the epic slices in tasks.md order** —
@@ -33,34 +33,44 @@ audit findings; each is one of the epic's slices, tracked here once:
   live with typed rejections; the Inbox-response command wiring moves with slice 7's live list) ·
   6. ~~window-chrome ownership + rail rendering~~ done (`decorations: false` — the custom title bar
   owns the chrome, its traffic lights call the real window API, the surface is a drag region, and
-  the rail buttons carry the shared control reset) · 
+  the rail buttons carry the shared control reset) ·
   7. ~~live run slice~~ done — `dispatch_runs_page`/`dispatch_runs_count`,
   `sessions_list`/`session`/`runs_for_session`, `inbox_list`/`inbox_resolve`/
   `inbox_throughput`, `dispatch_schedules`/`dispatch_schedule_executions`,
   `autorun_states`/`set_project_autorun_state` all live with scoped invalidation on
   project-scope change; the AgentPane replays persisted events and subscribes to the
   live Channel; the AutorunView renders live tri-state switches from the real
-  `core.project_autorun` table; InteractView is superseded by workstream 3 · 
-  8. configuration slice: Plan/Manage/Setup mutations/Workshop/agents
+  `core.project_autorun` table; InteractView is superseded by workstream 3 ·
+  8. ~~configuration slice~~ done — Plan/Manage/Setup mutations/Workshop/agents
   (absorbs: wire Manage's New Task and TaskDetail, wire Settings → Guardrails, expose the 13 core
-  service families as commands, reconcile the TypeScript types with the Rust DTOs)
+  service families as commands, reconcile the TypeScript types with the Rust DTOs; all supported
+  configuration reads and writes are live, missing persistence contracts are explicit unavailable
+  states, and host fixtures no longer serve artifacts or agent definitions)
      - 8.1. ~~Plan project-scoped list~~ done (`plans_list` resolves the active project, reads
        `core.plans`, maps durable stage/state/confidence fields, and renders live loading,
        empty, error, and unavailable-output states; cross-project isolation and unknown-project
        rejection are tested) ·
+     - 8.2. ~~Manage task list, creation, and detail~~ done (`board_tasks`, `task_detail`,
+       `task_create` read/write `board.tasks` with project-owned workflow validation; the selected
+       workflow is persisted by migration `0030_board_task_workflow`; dependency edges remain an
+       explicit unavailable state) ·
+     - 8.3. ~~Guardrails settings~~ done (`settings_guardrails`/`settings_guardrails_set` read and
+       persist `core.guardrail_defaults` plus `core.dispatch_policy`; controls, reset, save, and
+       visible loading/error states are live) ·
+     - 8.4. ~~Workshop configuration routing~~ done (agent definitions, configured providers, and
+       workflow definitions use live commands; CLI, extension, harness, and unsupported graph
+       details render explicit unavailable states in Tauri instead of fixture rows) ·
+     - 8.5. ~~Agent-definition DTO reconciliation~~ done (`agent_defs_list`/`agent_def` read the
+       latest immutable rows from `agents.agent_defs`; project and missing-definition boundaries
+       are tested) ·
   9. knowledge/analytics slice: Memory/Wiki/Artifacts/Telemetry/Review/Analytics (absorbs: wire
   Memory actions, build the Wiki kind filter, surface backend errors in Memory) ·
   10. demo/test bootstrap + delete fixture routes (absorbs: retire `WorkshopFixtureView`, retire
   `MemoryFixtures`, use the already-wired accessors, fix the fixture-import guard's remaining
-  9 violations) · 
+  9 violations) ·
   11. real Tauri-window acceptance coverage (absorbs: add live desktop integration
-  coverage) · 
+  coverage) ·
   12. release gate.
-- [ ] **Stop serving compiled-in fixtures from the host** — `artifacts_list`/`artifact_comments`
-  ([lib.rs:1531](apps/desktop/src-tauri/src/lib.rs#L1531)) read a store seeded by
-  `seeded_artifact_store()` with fresh ids each launch, and `agent_defs_list`/`agent_def` return
-  `seeded_agent_definitions()`; neither touches Postgres. Belongs to slices 3–8 (the commands exist;
-  their bodies must read the store).
 - [ ] **Decide the registered-but-unused commands** — `telemetry_subscribe`, `lsp_enable_descriptor`,
   `lsp_disable_descriptor`, `detach_pane`, `repo_git_state` have no frontend caller
   (`materialization_report` and `telemetry_events_replay` now do); wire a UI or drop each.

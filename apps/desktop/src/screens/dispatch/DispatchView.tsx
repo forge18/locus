@@ -25,6 +25,8 @@ import {
   type AutorunState,
   type PermissionPosture,
 } from "../../data/dispatch";
+import { DISPATCH_PROJECTS } from "../../fixtures/dispatch";
+import { isTauri } from "@tauri-apps/api/core";
 import type { NavStore } from "../../nav";
 import { fetchRunningCount } from "../../data/strip";
 import type { Envelope } from "../../data/envelope";
@@ -96,9 +98,15 @@ function AutorunView(props: {
   onSwitch?: (tab: DispatchTab) => void;
   nav?: NavStore;
 }) {
-  const [states, setStates] = createSignal<Envelope<AutorunStateRow[]>>({
-    status: "loading",
-  });
+  const liveMode = isTauri();
+  const demoStates: AutorunStateRow[] = DISPATCH_PROJECTS.map((project) => ({
+    projectId: project.id,
+    project: project.name,
+    state: project.state === "archived" ? "suspended" : project.state,
+  }));
+  const [states, setStates] = createSignal<Envelope<AutorunStateRow[]>>(
+    liveMode ? { status: "loading" } : { status: "ready", data: demoStates },
+  );
   const [stopOpen, setStopOpen] = createSignal(false);
   const [stopped, setStopped] = createSignal(false);
   const [handoff, setHandoff] = createSignal(true);
@@ -118,16 +126,28 @@ function AutorunView(props: {
   const master = () => autorunMasterState(projects());
 
   async function refreshAutorun() {
-    const [statesEnvelope, running] = await Promise.all([
-      fetchAutorunStates(),
-      fetchRunningCount(),
-    ]);
-    setStates(statesEnvelope);
-    if (running.status === "ready") setRunningCount(running.data);
+    try {
+      const [statesEnvelope, running] = await Promise.all([
+        fetchAutorunStates(),
+        fetchRunningCount(),
+      ]);
+      setStates(statesEnvelope);
+      if (running.status === "ready") setRunningCount(running.data);
+    } catch (cause) {
+      if (liveMode) {
+        setStates({
+          status: "failed",
+          error: {
+            command: "autorun_states",
+            message: cause instanceof Error ? cause.message : String(cause),
+          },
+        });
+      }
+    }
   }
 
   onMount(() => {
-    void refreshAutorun();
+    if (liveMode) void refreshAutorun();
   });
 
   const toggleProject = (id: string) => {
@@ -145,8 +165,10 @@ function AutorunView(props: {
     });
     const next = projects().find((project) => project.id === id);
     if (!next) return;
-    void setAutorunState(id, next.state === "on" ? "off" : "on").then(
-      (envelope) => {
+    void Promise.resolve()
+      .then(() => setAutorunState(id, next.state === "on" ? "off" : "on"))
+      .then(
+        (envelope) => {
         if (envelope.status === "failed") {
           notify({
             title: "Autorun change failed",
@@ -155,8 +177,8 @@ function AutorunView(props: {
           });
           void refreshAutorun();
         }
-      },
-    );
+        },
+      );
   };
 
   return (

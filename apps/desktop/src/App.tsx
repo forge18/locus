@@ -90,7 +90,10 @@ function App() {
                                                 />
                                         </Match>
                                         <Match when={nav.view() === "runs"}>
-                                                <DispatchView tab="runs" nav={nav} />
+                                                <DispatchView
+                                                        tab="runs"
+                                                        nav={nav}
+                                                />
                                         </Match>
                                         <Match when={nav.view() === "artifact"}>
                                                 <MemoryArtifactsFixture />
@@ -136,10 +139,16 @@ function App() {
                                                 />
                                         </Match>
                                         <Match when={nav.view() === "autorun"}>
-                                                <DispatchView tab="autorun" nav={nav} />
+                                                <DispatchView
+                                                        tab="autorun"
+                                                        nav={nav}
+                                                />
                                         </Match>
                                         <Match when={nav.view() === "schedule"}>
-                                                <DispatchView tab="schedules" nav={nav} />
+                                                <DispatchView
+                                                        tab="schedules"
+                                                        nav={nav}
+                                                />
                                         </Match>
                                         <Match when={nav.view() === "short"}>
                                                 <MemoryShortTermFixture />
@@ -180,7 +189,10 @@ function App() {
                                                 <WorkshopFixtureView fixture="skills" />
                                         </Match>
                                         <Match when={nav.view() === "canvas"}>
-                                                <WorkshopFixtureView fixture="workflows-visual" />
+                                                <WorkshopFixtureView
+                                                        fixture="workflows-visual"
+                                                        projectId={nav.params().project}
+                                                />
                                         </Match>
                                         <Match
                                                 when={
@@ -188,7 +200,10 @@ function App() {
                                                         "workflows"
                                                 }
                                         >
-                                                <WorkshopFixtureView fixture="workflows-list" />
+                                                <WorkshopFixtureView
+                                                        fixture="workflows-list"
+                                                        projectId={nav.params().project}
+                                                />
                                         </Match>
                                 </Switch>
                         </Suspense>

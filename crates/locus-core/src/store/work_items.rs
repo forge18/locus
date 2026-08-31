@@ -684,8 +684,8 @@ impl Store {
             "INSERT INTO board.tasks
              (id, project_id, repo_id, summary, description, column_name, blocked,
               blocked_reason, blocked_clear_condition, assigned_agent_def_id, session_id,
-              verify_command)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+              verify_command, workflow_def_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
              ON CONFLICT (id) DO NOTHING",
         )
         .bind(task.id)
@@ -700,6 +700,7 @@ impl Store {
         .bind(task.assigned_agent)
         .bind(task.session_id)
         .bind(&task.verify_command)
+        .bind(workflow_def_id)
         .execute(&mut *transaction)
         .await
         .context("persist imported board task")?;

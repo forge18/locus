@@ -1,4 +1,5 @@
-import { invoke, isTauri } from "@tauri-apps/api/core";
+import type { Envelope } from "./envelope";
+import { dataProvider } from "./provider";
 import {
  AGENT_DEFS,
  FRONTMATTER,
@@ -29,34 +30,15 @@ export interface CoreAgentDefinition {
  warnings: string[];
 }
 
-/** Rebuild a CoreAgentDefinition from the fixture so the no-host path renders the same content. */
-function fixtureDefinition(name: string): CoreAgentDefinition {
- const def = AGENT_DEFS.find((d) => d.name === name) ?? AGENT_DEFS[0];
- const frontmatter = Object.fromEntries(
-  FRONTMATTER.map((line) => [line.key, line.value]),
- );
- return {
-  name: def.name,
-  version: def.version,
-  frontmatter,
-  body: PROSE.join("\n\n"),
-  warnings: [],
- };
-}
-
 /** The Workshop IPC boundary; fixtures remain only as the non-Tauri test fallback. */
-export async function fetchAgentDefsFromCore(): Promise<AgentDefSummary[]> {
- // No host (browser preview, tests) → fixture, not an error.
- if (!isTauri()) return AGENT_DEFS;
- return invoke<AgentDefSummary[]>("agent_defs_list");
+export function fetchAgentDefsFromCore(): Promise<Envelope<AgentDefSummary[]>> {
+ return dataProvider().query<AgentDefSummary>("agent_defs_list");
 }
 
-export async function fetchAgentDefFromCore(
+export function fetchAgentDefFromCore(
  name: string,
-): Promise<CoreAgentDefinition> {
- // No host (browser preview, tests) → fixture, not an error.
- if (!isTauri()) return fixtureDefinition(name);
- return invoke<CoreAgentDefinition>("agent_def", { name });
+): Promise<Envelope<CoreAgentDefinition>> {
+ return dataProvider().queryOne<CoreAgentDefinition>("agent_def", { name });
 }
 
 /** Becomes: fetchAgentDefsFromCore() after the Tauri runtime connects. */

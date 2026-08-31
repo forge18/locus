@@ -71,6 +71,37 @@ pub struct SessionRunRow {
 }
 
 impl Store {
+    /// The latest immutable version of each named agent definition.
+    pub async fn agent_definitions(&self) -> Result<Vec<PersistedAgentDefinition>> {
+        query_as::<_, AgentDefinitionRow>(
+            "SELECT DISTINCT ON (name) id, name, version, frontmatter, body
+             FROM agents.agent_defs
+             ORDER BY name, version DESC",
+        )
+        .fetch_all(self.pool())
+        .await
+        .map(|rows| rows.into_iter().map(Into::into).collect())
+        .context("list agent definitions")
+    }
+
+    pub async fn latest_agent_definition(
+        &self,
+        name: &str,
+    ) -> Result<Option<PersistedAgentDefinition>> {
+        query_as::<_, AgentDefinitionRow>(
+            "SELECT id, name, version, frontmatter, body
+             FROM agents.agent_defs
+             WHERE name = $1
+             ORDER BY version DESC
+             LIMIT 1",
+        )
+        .bind(name)
+        .fetch_optional(self.pool())
+        .await
+        .map(|row| row.map(Into::into))
+        .context("read latest agent definition")
+    }
+
     pub async fn running_runs(
         &self,
         project_id: Option<ProjectId>,

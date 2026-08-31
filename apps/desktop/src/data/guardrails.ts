@@ -1,9 +1,39 @@
 import { GUARDRAIL_SECTIONS, PRIORITY_METHODS, SETTINGS_NAVIGATION } from '../fixtures/settings-guardrails'
 import type { GuardrailSection } from '../fixtures/settings-guardrails'
+import { dataProvider } from './provider'
+import type { Envelope } from './envelope'
 
 export { PRIORITY_METHODS, SETTINGS_NAVIGATION }
 
-/** Becomes: invoke("settings_guardrails") */
+export function fetchGuardrails(): Promise<Envelope<GuardrailSection[]>> {
+  return dataProvider().query<GuardrailSection>('settings_guardrails')
+}
+
+export interface GuardrailSettingsPayload {
+  maxIterations: number
+  tokenBudget: number | null
+  stuckIterations: number
+  killAndReassign: boolean
+  globalParallelism: number
+  perProjectParallelism: number
+  priorityMethod: string
+  tieBreak: string
+  changeLinesCeiling: number | null
+  changeFilesCeiling: number | null
+  networkTier: string
+  blockSystemChanges: boolean
+  autopilot: boolean
+}
+
+export function saveGuardrails(
+  request: GuardrailSettingsPayload,
+): Promise<Envelope<GuardrailSection[]>> {
+  return dataProvider().queryOne<GuardrailSection[]>('settings_guardrails_set', {
+    request,
+  })
+}
+
+/** Becomes: invoke("settings_guardrails") — demo-only hook retained for tests. */
 export function useGuardrails(): readonly GuardrailSection[] {
   return GUARDRAIL_SECTIONS
 }

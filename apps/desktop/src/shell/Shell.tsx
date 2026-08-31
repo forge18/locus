@@ -26,6 +26,21 @@ import {
 
 const Desktop_ROUTE_IDS = Desktop_ROUTE_KINDS.map((route) => route.id);
 
+function safeLiveRead<T>(
+    command: string,
+    read: () => Promise<Envelope<T>>,
+): Promise<Envelope<T>> {
+    return Promise.resolve()
+        .then(read)
+        .catch((cause) => ({
+            status: "failed" as const,
+            error: {
+                command,
+                message: cause instanceof Error ? cause.message : String(cause),
+            },
+        }));
+}
+
 export interface ShellProps {
     nav: NavStore;
     children: JSX.Element;
@@ -84,10 +99,10 @@ export function Shell(props: ShellProps) {
 
     const loadLiveStatus = async () => {
         const [cards, running, inbox, projects] = await Promise.all([
-            fetchStripCards(),
-            fetchRunningCount(),
-            fetchInboxPendingCount(),
-            fetchProjects(),
+            safeLiveRead("strip_cards", fetchStripCards),
+            safeLiveRead("running_count", fetchRunningCount),
+            safeLiveRead("inbox_pending_count", fetchInboxPendingCount),
+            safeLiveRead("projects_list", fetchProjects),
         ]);
         setStripEnvelope(cards);
         setRunningEnvelope(running);
@@ -104,7 +119,13 @@ export function Shell(props: ShellProps) {
         }
     };
     onMount(() => {
-        void loadLiveStatus();
+        void loadLiveStatus().catch((cause) => {
+            notify({
+                title: "Live status unavailable",
+                description: cause instanceof Error ? cause.message : String(cause),
+                type: "error",
+            });
+        });
     });
 
     const activeSessions = createMemo<ActiveSession[]>(() => {

@@ -15,6 +15,7 @@ import type {
   DraftOutputs,
   PlanMessage,
   PlanSummary,
+  PlanStep,
   Recommendation,
   ScopeDecision,
 } from "../fixtures/plan";
@@ -50,6 +51,52 @@ export function fetchPlans(
   projectId: string,
 ): Promise<Envelope<PlanSummary[]>> {
   return dataProvider().query<PlanSummary>("plans_list", { projectId });
+}
+
+export interface PlanMutationReceipt {
+  updated: boolean;
+}
+
+export interface PlanRequirementInput {
+  id: string;
+  body: string;
+}
+
+export function createPlan(
+  projectId: string,
+  title: string,
+  goal: string,
+): Promise<Envelope<PlanSummary>> {
+  return dataProvider().queryOne<PlanSummary>("plan_create", {
+    projectId,
+    title,
+    goal,
+  });
+}
+
+export function setPlanStage(
+  projectId: string,
+  planId: string,
+  stage: PlanStep,
+  description = "",
+): Promise<Envelope<PlanMutationReceipt>> {
+  return dataProvider().queryOne<PlanMutationReceipt>("plan_stage_set", {
+    projectId,
+    planId,
+    stage: stage.toLowerCase(),
+    description,
+  });
+}
+
+export function setPlanRequirements(
+  projectId: string,
+  planId: string,
+  requirements: PlanRequirementInput[],
+): Promise<Envelope<PlanMutationReceipt>> {
+  return dataProvider().queryOne<PlanMutationReceipt>(
+    "plan_requirements_set",
+    { projectId, planId, requirements },
+  );
 }
 
 /** Becomes: invoke("plans_list", { projectId }) — demo-only hook retained for component tests. */

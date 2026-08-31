@@ -21,6 +21,14 @@ pub struct PlanSummaryRow {
     pub updated_at: String,
 }
 
+#[derive(Debug, sqlx::FromRow)]
+pub struct PlanRequirementRow {
+    pub requirement_id: String,
+    pub body: String,
+    pub changed: bool,
+    pub carries_board_card: bool,
+}
+
 fn stage_name(stage: PlanningStage) -> &'static str {
     match stage {
         PlanningStage::Inputs => "inputs",
@@ -76,6 +84,37 @@ impl Store {
             .await
             .context("create plan")?;
         Ok(())
+    }
+
+    pub async fn plan_belongs_to_project(
+        &self,
+        plan_id: Uuid,
+        project_id: ProjectId,
+    ) -> Result<bool> {
+        sqlx::query_scalar(
+            "SELECT EXISTS(
+                 SELECT 1 FROM core.plans
+                 WHERE id = $1 AND project_id = $2
+             )",
+        )
+        .bind(plan_id)
+        .bind(project_id)
+        .fetch_one(self.pool())
+        .await
+        .context("validate plan project")
+    }
+
+    pub async fn plan_requirements(&self, plan_id: Uuid) -> Result<Vec<PlanRequirementRow>> {
+        sqlx::query_as(
+            "SELECT requirement_id, body, changed, carries_board_card
+             FROM core.plan_requirements
+             WHERE plan_id = $1
+             ORDER BY requirement_id",
+        )
+        .bind(plan_id)
+        .fetch_all(self.pool())
+        .await
+        .context("list plan requirements")
     }
 
     pub async fn set_plan_stage(

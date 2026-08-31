@@ -16,8 +16,7 @@ use locus_core::{
     plugin::{builtin_manifests, PluginKind, PluginProcess, WorkItemProviderDescriptor},
     repo::GitState,
     services::{
-        agents::{seeded_definitions, AgentDefinition},
-        artifact::{ArtifactComment, ArtifactContent, ArtifactKind, ArtifactRow, ArtifactStore},
+        artifact::{ArtifactComment, ArtifactContent, ArtifactKind, ArtifactRow},
         board::{BoardActor, BoardCommentOrigin, BoardEvidenceLink},
         bots::{
             Bot, BotContainerState, BotRoutine, RoutineAttribution, RoutineExecution,
@@ -1050,6 +1049,198 @@ async fn set_project_autorun_state_inner(
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+struct GuardrailControlResponse {
+    kind: String,
+    value: serde_json::Value,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GuardrailSettingResponse {
+    id: String,
+    label: String,
+    description: String,
+    control: GuardrailControlResponse,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GuardrailSectionResponse {
+    id: String,
+    label: String,
+    settings: Vec<GuardrailSettingResponse>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GuardrailSettingsRequest {
+    max_iterations: i32,
+    token_budget: Option<i64>,
+    stuck_iterations: i32,
+    kill_and_reassign: bool,
+    global_parallelism: i32,
+    per_project_parallelism: i32,
+    priority_method: String,
+    tie_break: String,
+    change_lines_ceiling: Option<i32>,
+    change_files_ceiling: Option<i32>,
+    network_tier: String,
+    block_system_changes: bool,
+    autopilot: bool,
+}
+
+fn guardrail_stepper(id: &str, label: &str, value: impl Into<String>) -> GuardrailSettingResponse {
+    GuardrailSettingResponse {
+        id: id.into(),
+        label: label.into(),
+        description: "Installation default; applies to runs started after saving.".into(),
+        control: GuardrailControlResponse {
+            kind: "stepper".into(),
+            value: serde_json::Value::String(value.into()),
+        },
+    }
+}
+
+fn guardrail_toggle(id: &str, label: &str, value: bool) -> GuardrailSettingResponse {
+    GuardrailSettingResponse {
+        id: id.into(),
+        label: label.into(),
+        description: "Installation default; applies to runs started after saving.".into(),
+        control: GuardrailControlResponse {
+            kind: "toggle".into(),
+            value: serde_json::Value::Bool(value),
+        },
+    }
+}
+
+fn guardrail_select(id: &str, label: &str, value: &str) -> GuardrailSettingResponse {
+    GuardrailSettingResponse {
+        id: id.into(),
+        label: label.into(),
+        description: "Installation default; applies to runs started after saving.".into(),
+        control: GuardrailControlResponse {
+            kind: "select".into(),
+            value: serde_json::Value::String(value.into()),
+        },
+    }
+}
+
+fn guardrail_settings_response(
+    settings: &locus_core::store::guardrails::GuardrailSettings,
+) -> Vec<GuardrailSectionResponse> {
+    let defaults = &settings.defaults;
+    let dispatch = &settings.dispatch;
+    vec![
+        GuardrailSectionResponse {
+            id: "stopping".into(),
+            label: "Stopping conditions".into(),
+            settings: vec![
+                guardrail_stepper("max-iterations", "Max iterations", defaults.max_iterations.to_string()),
+                guardrail_stepper(
+                    "token-budget",
+                    "Token budget per run",
+                    defaults
+                        .token_budget
+                        .map_or_else(|| "unlimited".into(), |budget| format!("{}k", budget / 1000)),
+                ),
+                guardrail_stepper("stuck-detection", "Stuck detection", defaults.stuck_iterations.to_string()),
+                guardrail_toggle("kill-reassign", "Kill & reassign on stuck", defaults.kill_and_reassign),
+            ],
+        },
+        GuardrailSectionResponse {
+            id: "parallelism".into(),
+            label: "Parallelism".into(),
+            settings: vec![
+                guardrail_stepper("max-parallel-agents", "Max parallel agents", dispatch.global_parallelism.to_string()),
+                guardrail_stepper("max-per-project", "Max per project", dispatch.per_project_parallelism.to_string()),
+                guardrail_select("priority-method", "Priority method", &dispatch.priority_method.replace('_', " ")),
+                guardrail_select("tie-break", "Tie-break", &dispatch.tie_break.replace('_', " ")),
+            ],
+        },
+        GuardrailSectionResponse {
+            id: "change-size".into(),
+            label: "Change size".into(),
+            settings: vec![
+                guardrail_stepper(
+                    "lines-changed",
+                    "Lines changed ceiling",
+                    defaults.change_lines_ceiling.map_or_else(|| "unlimited".into(), |value| value.to_string()),
+                ),
+                guardrail_stepper(
+                    "files-touched",
+                    "Files touched ceiling",
+                    defaults.change_files_ceiling.map_or_else(|| "unlimited".into(), |value| value.to_string()),
+                ),
+            ],
+        },
+        GuardrailSectionResponse {
+            id: "permissions".into(),
+            label: "Permissions".into(),
+            settings: vec![
+                guardrail_select("network-tier", "Network tier for new agents", &defaults.network_tier),
+                guardrail_toggle("block-system-changes", "Block unapproved system changes", defaults.block_system_changes),
+                guardrail_toggle("autopilot", "Autopilot", defaults.autopilot),
+            ],
+        },
+    ]
+}
+
+async fn guardrail_settings_inner(
+    store: &Store,
+) -> Result<Vec<GuardrailSectionResponse>, IpcError> {
+    store
+        .guardrail_settings()
+        .await
+        .map(|settings| guardrail_settings_response(&settings))
+        .map_err(IpcError::internal)
+}
+
+async fn set_guardrail_settings_inner(
+    store: &Store,
+    request: GuardrailSettingsRequest,
+) -> Result<Vec<GuardrailSectionResponse>, IpcError> {
+    let settings = store
+        .set_guardrail_settings(
+            &locus_core::store::guardrails::GuardrailDefaultsRow {
+                max_iterations: request.max_iterations,
+                token_budget: request.token_budget,
+                stuck_iterations: request.stuck_iterations,
+                kill_and_reassign: request.kill_and_reassign,
+                change_lines_ceiling: request.change_lines_ceiling,
+                change_files_ceiling: request.change_files_ceiling,
+                network_tier: request.network_tier,
+                block_system_changes: request.block_system_changes,
+                autopilot: request.autopilot,
+            },
+            &locus_core::store::guardrails::DispatchPolicyRow {
+                global_parallelism: request.global_parallelism,
+                per_project_parallelism: request.per_project_parallelism,
+                priority_method: request.priority_method.replace(' ', "_"),
+                tie_break: request.tie_break.replace(' ', "_"),
+            },
+        )
+        .await
+        .map_err(IpcError::internal)?;
+    Ok(guardrail_settings_response(&settings))
+}
+
+#[tauri::command]
+async fn settings_guardrails(
+    core: State<'_, Arc<Core>>,
+) -> Result<Vec<GuardrailSectionResponse>, IpcError> {
+    guardrail_settings_inner(connected_store(&core).await?).await
+}
+
+#[tauri::command]
+async fn settings_guardrails_set(
+    core: State<'_, Arc<Core>>,
+    request: GuardrailSettingsRequest,
+) -> Result<Vec<GuardrailSectionResponse>, IpcError> {
+    set_guardrail_settings_inner(connected_store(&core).await?, request).await
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct PlanSummaryResponse {
     id: String,
     title: String,
@@ -1079,6 +1270,21 @@ fn plan_step_label(stage: &str) -> Result<(&'static str, usize), IpcError> {
         }
     };
     Ok(result)
+}
+
+fn parse_plan_stage(stage: &str) -> Result<locus_core::services::planning::PlanningStage, IpcError> {
+    match stage {
+        "inputs" => Ok(locus_core::services::planning::PlanningStage::Inputs),
+        "orient" => Ok(locus_core::services::planning::PlanningStage::Orient),
+        "converse" => Ok(locus_core::services::planning::PlanningStage::Converse),
+        "synthesis" => Ok(locus_core::services::planning::PlanningStage::Synthesis),
+        "recommend" => Ok(locus_core::services::planning::PlanningStage::Recommend),
+        "decompose" => Ok(locus_core::services::planning::PlanningStage::Decompose),
+        "approved" => Ok(locus_core::services::planning::PlanningStage::Approved),
+        other => Err(IpcError::invalid_argument(format!(
+            "unknown plan stage `{other}`"
+        ))),
+    }
 }
 
 async fn plans_list_inner(
@@ -1117,6 +1323,100 @@ async fn plans_list_inner(
         .collect()
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PlanMutationResponse {
+    updated: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PlanRequirementRequest {
+    id: String,
+    body: String,
+}
+
+async fn plan_create_inner(
+    store: &Store,
+    project_id: &str,
+    title: &str,
+    goal: &str,
+) -> Result<PlanSummaryResponse, IpcError> {
+    let project_id = resolve_setup_project(store, project_id).await?;
+    let id = uuid::Uuid::new_v4();
+    store
+        .create_plan(id, project_id.into(), title, goal)
+        .await
+        .map_err(IpcError::internal)?;
+    plans_list_inner(store, &project_id.to_string())
+        .await?
+        .into_iter()
+        .find(|plan| plan.id == id.to_string())
+        .ok_or_else(|| IpcError::internal("created plan disappeared"))
+}
+
+async fn plan_stage_set_inner(
+    store: &Store,
+    project_id: &str,
+    plan_id: &str,
+    stage: &str,
+    description: &str,
+    duration_seconds: Option<i64>,
+) -> Result<(), IpcError> {
+    let project_id = resolve_setup_project(store, project_id).await?;
+    let plan_id = plan_id
+        .parse()
+        .map_err(|_| IpcError::invalid_argument("plan id must be a UUID"))?;
+    if !store
+        .plan_belongs_to_project(plan_id, project_id)
+        .await
+        .map_err(IpcError::internal)?
+    {
+        return Err(IpcError::not_found("plan was not found in the active project"));
+    }
+    store
+        .set_plan_stage(
+            plan_id,
+            parse_plan_stage(stage)?,
+            description,
+            duration_seconds,
+        )
+        .await
+        .map_err(IpcError::internal)
+}
+
+async fn plan_requirements_set_inner(
+    store: &Store,
+    project_id: &str,
+    plan_id: &str,
+    requirements: Vec<PlanRequirementRequest>,
+) -> Result<(), IpcError> {
+    let project_id = resolve_setup_project(store, project_id).await?;
+    let plan_id = plan_id
+        .parse()
+        .map_err(|_| IpcError::invalid_argument("plan id must be a UUID"))?;
+    if !store
+        .plan_belongs_to_project(plan_id, project_id)
+        .await
+        .map_err(IpcError::internal)?
+    {
+        return Err(IpcError::not_found("plan was not found in the active project"));
+    }
+    let requirements = requirements
+        .into_iter()
+        .map(|requirement| {
+            locus_core::services::planning::Requirement::new(requirement.id, requirement.body)
+                .map_err(|error| IpcError::invalid_argument(error.to_string()))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let spec = locus_core::services::planning::EditableSpec::new(requirements)
+        .map_err(|error| IpcError::invalid_argument(error.to_string()))?;
+    store
+        .save_plan_requirements(plan_id, &spec)
+        .await
+        .map_err(IpcError::internal)
+}
+
 #[tauri::command]
 async fn plans_list(
     core: State<'_, Arc<Core>>,
@@ -1124,6 +1424,216 @@ async fn plans_list(
 ) -> Result<Vec<PlanSummaryResponse>, IpcError> {
     let store = connected_store(&core).await?;
     plans_list_inner(store, &project_id).await
+}
+
+#[tauri::command]
+async fn plan_create(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    title: String,
+    goal: String,
+) -> Result<PlanSummaryResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    plan_create_inner(store, &project_id, &title, &goal).await
+}
+
+#[tauri::command]
+async fn plan_stage_set(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    plan_id: String,
+    stage: String,
+    description: String,
+    duration_seconds: Option<i64>,
+) -> Result<PlanMutationResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    plan_stage_set_inner(
+        store,
+        &project_id,
+        &plan_id,
+        &stage,
+        &description,
+        duration_seconds,
+    )
+    .await?;
+    Ok(PlanMutationResponse { updated: true })
+}
+
+#[tauri::command]
+async fn plan_requirements_set(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    plan_id: String,
+    requirements: Vec<PlanRequirementRequest>,
+) -> Result<PlanMutationResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    plan_requirements_set_inner(store, &project_id, &plan_id, requirements).await?;
+    Ok(PlanMutationResponse { updated: true })
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct BoardTaskResponse {
+    id: String,
+    project_id: String,
+    repo_id: String,
+    title: String,
+    column: String,
+    status: String,
+    verify_command: String,
+    assignee: Option<String>,
+    gate: String,
+    stuck_iterations: Option<u32>,
+    max_iterations: u32,
+    tools: String,
+    tokens: Option<String>,
+    workflow_id: Option<String>,
+    root_session_id: Option<String>,
+    child_run_ids: Vec<String>,
+    evidence_ids: Vec<String>,
+    external_link: Option<String>,
+}
+
+fn board_column_name(column: &str) -> Result<&'static str, IpcError> {
+    match column {
+        "ready" => Ok("ready"),
+        "in_progress" => Ok("in_progress"),
+        "testing" => Ok("testing"),
+        "reviewing" => Ok("reviewing"),
+        "waiting_for_approval" => Ok("waiting_for_approval"),
+        "done" => Ok("done"),
+        other => Err(IpcError::internal(format!(
+            "board task has unknown column `{other}`"
+        ))),
+    }
+}
+
+fn board_task_response(row: locus_core::store::board::BoardTaskRow) -> Result<BoardTaskResponse, IpcError> {
+    let column = board_column_name(&row.column_name)?;
+    Ok(BoardTaskResponse {
+        id: row.id.to_string(),
+        project_id: row.project_id.to_string(),
+        repo_id: row.repo_id.map_or_else(String::new, |id| id.to_string()),
+        title: row.summary,
+        column: column.into(),
+        status: if row.blocked { "blocked".into() } else { "ok".into() },
+        verify_command: row.verify_command.unwrap_or_default(),
+        assignee: row.assigned_agent,
+        gate: "unavailable".into(),
+        stuck_iterations: None,
+        max_iterations: 0,
+        tools: "unavailable".into(),
+        tokens: None,
+        workflow_id: row.workflow_id.map(|id| id.to_string()),
+        root_session_id: row.session_id.map(|id| id.to_string()),
+        child_run_ids: row.child_run_ids.into_iter().map(|id| id.to_string()).collect(),
+        evidence_ids: row.evidence_ids.into_iter().map(|id| id.to_string()).collect(),
+        external_link: row.external_link,
+    })
+}
+
+async fn board_tasks_inner(
+    store: &Store,
+    project_id: &str,
+) -> Result<Vec<BoardTaskResponse>, IpcError> {
+    let project_id = resolve_setup_project(store, project_id).await?;
+    store
+        .board_tasks(project_id)
+        .await
+        .map_err(IpcError::internal)?
+        .into_iter()
+        .map(board_task_response)
+        .collect()
+}
+
+async fn task_detail_inner(
+    store: &Store,
+    project_id: &str,
+    task_id: &str,
+) -> Result<BoardTaskResponse, IpcError> {
+    let project_id = resolve_setup_project(store, project_id).await?;
+    let task_id = task_id
+        .parse()
+        .map_err(|_| IpcError::invalid_argument("task id must be a UUID"))?;
+    store
+        .board_task(project_id, task_id)
+        .await
+        .map_err(IpcError::internal)?
+        .ok_or_else(|| IpcError::not_found("task was not found in the active project"))
+        .and_then(board_task_response)
+}
+
+#[tauri::command]
+async fn board_tasks(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+) -> Result<Vec<BoardTaskResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    board_tasks_inner(store, &project_id).await
+}
+
+#[tauri::command]
+async fn task_detail(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    task_id: String,
+) -> Result<BoardTaskResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    task_detail_inner(store, &project_id, &task_id).await
+}
+
+async fn task_create_inner(
+    store: &Store,
+    project_id: &str,
+    repo_id: Option<&str>,
+    summary: &str,
+    workflow_def_id: &str,
+) -> Result<BoardTaskResponse, IpcError> {
+    let project_id = resolve_setup_project(store, project_id).await?;
+    let repo_id = repo_id
+        .filter(|value| !value.trim().is_empty())
+        .map(|value| {
+            value
+                .parse()
+                .map_err(|_| IpcError::invalid_argument("repo id must be a UUID"))
+        })
+        .transpose()?;
+    let workflow_def_id = workflow_def_id
+        .parse()
+        .map_err(|_| IpcError::invalid_argument("workflow definition id must be a UUID"))?;
+    if !store
+        .workflow_definition_belongs_to_project(workflow_def_id, project_id)
+        .await
+        .map_err(IpcError::internal)?
+    {
+        return Err(IpcError::not_found(
+            "workflow definition was not found in the active project",
+        ));
+    }
+    store
+        .create_board_task(project_id, repo_id, summary, workflow_def_id)
+        .await
+        .map(board_task_response)
+        .map_err(IpcError::internal)?
+}
+
+#[tauri::command]
+async fn task_create(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    repo_id: Option<String>,
+    summary: String,
+    workflow_def_id: String,
+) -> Result<BoardTaskResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    task_create_inner(
+        store,
+        &project_id,
+        repo_id.as_deref(),
+        &summary,
+        &workflow_def_id,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -1511,13 +2021,11 @@ struct ExternalWorkItemWorkflowResponse {
     version: i32,
 }
 
-#[tauri::command]
-async fn external_work_item_workflows(
-    core: State<'_, Arc<Core>>,
-    project_id: String,
+async fn workflow_definitions_inner(
+    store: &Store,
+    project_id: &str,
 ) -> Result<Vec<ExternalWorkItemWorkflowResponse>, IpcError> {
-    let store = connected_store(&core).await?;
-    let project_id = resolve_project_id(store, &project_id).await?;
+    let project_id = resolve_project_id(store, project_id).await?;
     store
         .workflow_definition_summaries(project_id)
         .await
@@ -1532,6 +2040,22 @@ async fn external_work_item_workflows(
                 .collect()
         })
         .map_err(IpcError::internal)
+}
+
+#[tauri::command]
+async fn workflow_definitions(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+) -> Result<Vec<ExternalWorkItemWorkflowResponse>, IpcError> {
+    workflow_definitions_inner(connected_store(&core).await?, &project_id).await
+}
+
+#[tauri::command]
+async fn external_work_item_workflows(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+) -> Result<Vec<ExternalWorkItemWorkflowResponse>, IpcError> {
+    workflow_definitions_inner(connected_store(&core).await?, &project_id).await
 }
 
 #[tauri::command]
@@ -2515,54 +3039,37 @@ fn artifact_comment_response(comment: &ArtifactComment) -> ArtifactCommentRespon
     }
 }
 
-fn seeded_artifact_store() -> ArtifactStore {
-    let project_id = ProjectId::generate();
-    let run_id = RunId::generate();
-    let mut store = ArtifactStore::default();
-    let diff = ArtifactRow::text(
-        project_id,
-        run_id,
-        ArtifactKind::Diff,
-        "diff --git a/src/lib.rs b/src/lib.rs\n+real artifact data reaches Review",
-    );
-    let diff_id = diff.id;
-    store.put(diff);
-    store.put(ArtifactRow::text(
-        project_id,
-        run_id,
-        ArtifactKind::Plan,
-        "Wire the Review Artifacts screen to the core artifact store.",
-    ));
-    store
-        .comment(
-            diff_id,
-            None,
-            "Review this artifact from the live core store.",
-        )
-        .expect("seeded artifact exists");
-    store
+#[tauri::command]
+async fn artifacts_list(
+    core: State<'_, Arc<Core>>,
+    project_id: Option<String>,
+) -> Result<Vec<ArtifactResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = match project_id.as_deref() {
+        Some(identifier) => Some(resolve_setup_project(store, identifier).await?),
+        None => None,
+    };
+    let artifacts = store
+        .review_artifacts(project_id)
+        .await
+        .map_err(IpcError::internal)?;
+    Ok(artifacts.iter().map(artifact_response).collect())
 }
 
 #[tauri::command]
-fn artifacts_list(artifacts: State<'_, ArtifactStore>) -> Vec<ArtifactResponse> {
-    artifacts
-        .review_inbox()
-        .into_iter()
-        .map(artifact_response)
-        .collect()
-}
-
-#[tauri::command]
-fn artifact_comments(
-    artifacts: State<'_, ArtifactStore>,
+async fn artifact_comments(
+    core: State<'_, Arc<Core>>,
     artifact_id: String,
 ) -> Result<Vec<ArtifactCommentResponse>, IpcError> {
-    let artifact_id: ArtifactId = artifact_id.parse().map_err(IpcError::internal)?;
-    Ok(artifacts
-        .comments(artifact_id)
-        .into_iter()
-        .map(artifact_comment_response)
-        .collect())
+    let store = connected_store(&core).await?;
+    let artifact_id: ArtifactId = artifact_id
+        .parse()
+        .map_err(|_| IpcError::invalid_argument("artifact id must be a UUID"))?;
+    let comments = store
+        .artifact_comments(artifact_id)
+        .await
+        .map_err(IpcError::internal)?;
+    Ok(comments.iter().map(artifact_comment_response).collect())
 }
 
 #[derive(Debug, Serialize)]
@@ -2763,40 +3270,51 @@ async fn bot_routine_delete(
         .map_err(IpcError::internal)
 }
 
-fn seeded_agent_definitions() -> Vec<(u32, AgentDefinition)> {
-    // M1 has no editable Workshop form yet. The screen reads the same core-owned
-    // seed definitions that later migrate into agents.agent_defs, never fixtures.
-    seeded_definitions()
-        .into_iter()
-        .map(|definition| (1, definition))
-        .collect()
-}
-
-#[tauri::command]
-fn agent_defs_list() -> Vec<AgentDefSummary> {
-    seeded_agent_definitions()
-        .into_iter()
-        .map(|(version, definition)| AgentDefSummary {
-            name: definition.frontmatter.name,
-            version,
+async fn agent_defs_list_inner(store: &Store) -> Result<Vec<AgentDefSummary>, IpcError> {
+    store
+        .agent_definitions()
+        .await
+        .map(|definitions| {
+            definitions
+                .into_iter()
+                .map(|definition| AgentDefSummary {
+                    name: definition.name,
+                    version: u32::try_from(definition.version).unwrap_or_default(),
+                })
+                .collect()
         })
-        .collect()
+        .map_err(IpcError::internal)
+}
+
+async fn agent_def_inner(store: &Store, name: &str) -> Result<AgentDefResponse, IpcError> {
+    let definition = store
+        .latest_agent_definition(name)
+        .await
+        .map_err(IpcError::internal)?
+        .ok_or_else(|| IpcError::not_found(format!("agent definition `{name}` was not found")))?;
+    Ok(AgentDefResponse {
+        name: definition.name,
+        version: u32::try_from(definition.version)
+            .map_err(|_| IpcError::internal("agent definition version is invalid"))?,
+        frontmatter: definition.frontmatter,
+        body: definition.body,
+        warnings: Vec::new(),
+    })
 }
 
 #[tauri::command]
-fn agent_def(name: String) -> Result<AgentDefResponse, IpcError> {
-    let (version, definition) = seeded_agent_definitions()
-        .into_iter()
-        .find(|(_, definition)| definition.frontmatter.name == name)
-        .ok_or_else(|| IpcError::not_found(format!("agent definition `{name}` was not found")))?;
-    let frontmatter = serde_json::to_value(&definition.frontmatter).map_err(IpcError::internal)?;
-    Ok(AgentDefResponse {
-        name: definition.frontmatter.name,
-        version,
-        frontmatter,
-        body: definition.body,
-        warnings: definition.warnings,
-    })
+async fn agent_defs_list(
+    core: State<'_, Arc<Core>>,
+) -> Result<Vec<AgentDefSummary>, IpcError> {
+    agent_defs_list_inner(connected_store(&core).await?).await
+}
+
+#[tauri::command]
+async fn agent_def(
+    core: State<'_, Arc<Core>>,
+    name: String,
+) -> Result<AgentDefResponse, IpcError> {
+    agent_def_inner(connected_store(&core).await?, &name).await
 }
 
 #[derive(Debug, Serialize)]
@@ -3147,7 +3665,6 @@ pub fn run() {
     tauri::Builder::default()
         .manage(core)
         .manage(Arc::new(LspDiagnosticsSubscriptions::default()))
-        .manage(seeded_artifact_store())
         .setup(|app| {
             let command_palette = MenuItem::with_id(
                 app,
@@ -3186,6 +3703,15 @@ pub fn run() {
             sessions_list,
             runs_for_session,
             plans_list,
+            plan_create,
+            plan_stage_set,
+            plan_requirements_set,
+            board_tasks,
+            task_detail,
+            task_create,
+            settings_guardrails,
+            settings_guardrails_set,
+            workflow_definitions,
             dispatch_schedules,
             dispatch_schedule_executions,
             session,
@@ -3299,24 +3825,6 @@ mod tests {
         let runtime = WorkItemProviderDescriptor::from_plugin_descriptor(&reduced)
             .expect("reduced runtime descriptor shape");
         assert!(negotiate_work_item_provider(&catalog, runtime, &reduced.schema_versions).is_err());
-    }
-
-    #[test]
-    fn agent_definitions_are_served_by_core() {
-        let definitions = agent_defs_list();
-        assert_eq!(definitions.len(), 6);
-        let builder = agent_def("builder".into()).expect("builder seed definition");
-        assert_eq!(builder.name, "builder");
-        assert_eq!(builder.frontmatter["task_class"], "code");
-    }
-
-    #[test]
-    fn ipc_errors_expose_a_machine_readable_kind() {
-        let error = agent_def("missing".into()).expect_err("missing definition is refused");
-        assert_eq!(
-            serde_json::to_value(error).expect("serialize IPC error")["kind"],
-            "not_found"
-        );
     }
 
     #[test]
@@ -4201,8 +4709,6 @@ mod session_queries {
     use locus_core::testkit::postgres::{
         start_postgres_named, test_backup_config, NoopMigrationBackup,
     };
-    use uuid::Uuid;
-
     async fn test_store() -> (Store, locus_core::testkit::postgres::DockerCleanup) {
         let (container, cleanup) = start_postgres_named("locus-tauri-sessions").await;
         let store = Store::connect(&container.database_url())
@@ -4822,5 +5328,266 @@ mod configuration_commands {
             .await
             .expect_err("unknown project rejected");
         assert!(matches!(unknown.kind, IpcErrorKind::NotFound));
+    }
+
+    #[tokio::test]
+    async fn workflow_definitions_are_project_scoped() {
+        let (store, _cleanup) = test_store().await;
+        sqlx::query(
+            "INSERT INTO core.projects (id, name)
+             VALUES ('00000000-0000-0000-0000-000000000aa1', 'tapestry'),
+                    ('00000000-0000-0000-0000-000000000aa2', 'loom-db')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed projects");
+        sqlx::query(
+            "INSERT INTO workflows.workflow_defs
+                (id, project_id, name, version, graph, spec, verify_command)
+             VALUES ('00000000-0000-0000-0000-000000000ab1',
+                     '00000000-0000-0000-0000-000000000aa1', 'build', 1,
+                     '{}'::jsonb, '{}'::jsonb, 'cargo test'),
+                    ('00000000-0000-0000-0000-000000000ab2',
+                     '00000000-0000-0000-0000-000000000aa2', 'review', 1,
+                     '{}'::jsonb, '{}'::jsonb, 'cargo test')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed workflow definitions");
+
+        let definitions = workflow_definitions_inner(&store, "tapestry")
+            .await
+            .expect("list tapestry workflows");
+        assert_eq!(definitions.len(), 1);
+        assert_eq!(definitions[0].name, "build");
+        let missing = workflow_definitions_inner(&store, "missing-project")
+            .await
+            .expect_err("unknown workflow project rejected");
+        assert!(matches!(missing.kind, IpcErrorKind::InvalidArgument));
+    }
+
+    #[tokio::test]
+    async fn agent_definitions_read_latest_versions_from_store() {
+        let (store, _cleanup) = test_store().await;
+        sqlx::query(
+            "INSERT INTO agents.agent_defs (id, name, version, frontmatter, body)
+             VALUES ('00000000-0000-0000-0000-000000000a71', 'builder', 1, '{\"task_class\":\"code\"}', 'v1'),
+                    ('00000000-0000-0000-0000-000000000a72', 'builder', 2, '{\"task_class\":\"research\"}', 'v2'),
+                    ('00000000-0000-0000-0000-000000000a73', 'reviewer', 1, '{}', 'review')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed agent definitions");
+
+        let definitions = agent_defs_list_inner(&store)
+            .await
+            .expect("list latest definitions");
+        assert_eq!(definitions.len(), 2);
+        assert_eq!(definitions[0].name, "builder");
+        assert_eq!(definitions[0].version, 2);
+        let builder = agent_def_inner(&store, "builder")
+            .await
+            .expect("read builder definition");
+        assert_eq!(builder.version, 2);
+        assert_eq!(builder.frontmatter["task_class"], "research");
+        let missing = agent_def_inner(&store, "missing")
+            .await
+            .expect_err("unknown definition rejected");
+        assert!(matches!(missing.kind, IpcErrorKind::NotFound));
+    }
+
+    #[tokio::test]
+    async fn guardrails_read_and_save_durable_defaults() {
+        let (store, _cleanup) = test_store().await;
+        let defaults = guardrail_settings_inner(&store)
+            .await
+            .expect("read guardrail settings");
+        let max_iterations = defaults[0].settings[0].control.value.clone();
+        assert_eq!(max_iterations, serde_json::json!("8"));
+        assert_eq!(defaults[1].settings[0].control.value, serde_json::json!("6"));
+
+        let updated = set_guardrail_settings_inner(
+            &store,
+            GuardrailSettingsRequest {
+                max_iterations: 10,
+                token_budget: Some(120_000),
+                stuck_iterations: 4,
+                kill_and_reassign: false,
+                global_parallelism: 7,
+                per_project_parallelism: 2,
+                priority_method: "manual".into(),
+                tie_break: "longest_waiting".into(),
+                change_lines_ceiling: Some(500),
+                change_files_ceiling: Some(15),
+                network_tier: "allowlist".into(),
+                block_system_changes: true,
+                autopilot: true,
+            },
+        )
+        .await
+        .expect("save guardrail settings");
+        assert_eq!(updated[0].settings[0].control.value, serde_json::json!("10"));
+        assert_eq!(updated[1].settings[2].control.value, serde_json::json!("manual"));
+        assert_eq!(updated[3].settings[2].control.value, serde_json::json!(true));
+    }
+
+    #[tokio::test]
+    async fn board_tasks_and_detail_are_project_scoped() {
+        let (store, _cleanup) = test_store().await;
+        sqlx::query(
+            "INSERT INTO core.projects (id, name)
+             VALUES ('00000000-0000-0000-0000-000000000a31', 'tapestry'),
+                    ('00000000-0000-0000-0000-000000000a32', 'loom-db')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed projects");
+        sqlx::query(
+            "INSERT INTO board.tasks (id, project_id, summary, verify_command)
+             VALUES ('00000000-0000-0000-0000-000000000a41',
+                     '00000000-0000-0000-0000-000000000a31',
+                     'Tapestry task', 'cargo test')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed board task");
+
+        let tasks = board_tasks_inner(&store, "tapestry")
+            .await
+            .expect("list tapestry tasks");
+        assert_eq!(tasks.len(), 1);
+        assert_eq!(tasks[0].title, "Tapestry task");
+        assert_eq!(tasks[0].column, "ready");
+        assert_eq!(tasks[0].status, "ok");
+        assert_eq!(tasks[0].verify_command, "cargo test");
+
+        let detail = task_detail_inner(
+            &store,
+            "tapestry",
+            "00000000-0000-0000-0000-000000000a41",
+        )
+        .await
+        .expect("read tapestry task detail");
+        assert_eq!(detail.id, tasks[0].id);
+        let foreign = task_detail_inner(
+            &store,
+            "loom-db",
+            "00000000-0000-0000-0000-000000000a41",
+        )
+        .await
+        .expect_err("cross-project task detail rejected");
+        assert!(matches!(foreign.kind, IpcErrorKind::NotFound));
+    }
+
+    #[tokio::test]
+    async fn task_create_requires_owned_workflow_and_persists_ready_task() {
+        let (store, _cleanup) = test_store().await;
+        sqlx::query(
+            "INSERT INTO core.projects (id, name)
+             VALUES ('00000000-0000-0000-0000-000000000a51', 'tapestry'),
+                    ('00000000-0000-0000-0000-000000000a52', 'loom-db')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed projects");
+        sqlx::query(
+            "INSERT INTO workflows.workflow_defs
+                (id, project_id, name, version, graph, spec, verify_command)
+             VALUES ('00000000-0000-0000-0000-000000000a61',
+                     '00000000-0000-0000-0000-000000000a51', 'build', 1,
+                     '{}'::jsonb, '{}'::jsonb, 'cargo test')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed workflow");
+
+        let task = task_create_inner(
+            &store,
+            "tapestry",
+            None,
+            "Created task",
+            "00000000-0000-0000-0000-000000000a61",
+        )
+        .await
+        .expect("create task");
+        assert_eq!(task.title, "Created task");
+        assert_eq!(task.column, "ready");
+
+        let foreign = task_create_inner(
+            &store,
+            "loom-db",
+            None,
+            "Foreign task",
+            "00000000-0000-0000-0000-000000000a61",
+        )
+        .await
+        .expect_err("cross-project workflow rejected");
+        assert!(matches!(foreign.kind, IpcErrorKind::NotFound));
+    }
+
+    #[tokio::test]
+    async fn plan_mutations_require_project_ownership_and_persist() {
+        let (store, _cleanup) = test_store().await;
+        sqlx::query(
+            "INSERT INTO core.projects (id, name)
+             VALUES ('00000000-0000-0000-0000-000000000a21', 'tapestry'),
+                    ('00000000-0000-0000-0000-000000000a22', 'loom-db')",
+        )
+        .execute(store.test_pool())
+        .await
+        .expect("seed projects");
+
+        let created = plan_create_inner(&store, "tapestry", "New plan", "Do the thing")
+            .await
+            .expect("create plan");
+        assert_eq!(created.project, "tapestry");
+        assert_eq!(created.step, "Inputs");
+
+        let foreign = plan_stage_set_inner(
+            &store,
+            "loom-db",
+            &created.id,
+            "orient",
+            "orient the project",
+            None,
+        )
+        .await
+        .expect_err("cross-project stage update rejected");
+        assert!(matches!(foreign.kind, IpcErrorKind::NotFound));
+
+        plan_stage_set_inner(
+            &store,
+            "tapestry",
+            &created.id,
+            "converse",
+            "ask the open questions",
+            None,
+        )
+        .await
+        .expect("set owned plan stage");
+        plan_requirements_set_inner(
+            &store,
+            "tapestry",
+            &created.id,
+            vec![
+                PlanRequirementRequest {
+                    id: "R-01".into(),
+                    body: "The plan must persist its goal.".into(),
+                },
+                PlanRequirementRequest {
+                    id: "R-02".into(),
+                    body: "The plan must preserve stable ids.".into(),
+                },
+            ],
+        )
+        .await
+        .expect("save owned plan requirements");
+        let requirements = store
+            .plan_requirements(created.id.parse().expect("plan id"))
+            .await
+            .expect("read plan requirements");
+        assert_eq!(requirements.len(), 2);
+        assert_eq!(requirements[0].requirement_id, "R-01");
+        assert!(requirements.iter().all(|row| row.changed));
     }
 }

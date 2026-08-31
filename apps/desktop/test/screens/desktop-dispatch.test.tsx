@@ -32,7 +32,7 @@ const mount = (tab: "autorun" | "schedules" | "runs" = "autorun") =>
   render(() => <DispatchView tab={tab} />);
 
 describe("screens/desktop-dispatch", () => {
-  it("renders autorun as a per-project switch from the live states", async () => {
+  it("renders autorun as a per-project switch from demo states", async () => {
     const { getByTestId } = mount();
 
     await waitFor(() =>
@@ -45,12 +45,10 @@ describe("screens/desktop-dispatch", () => {
       "Autorun is on or off, per project",
     );
     expect(
-      getByTestId("autorun-project-00000000-0000-0000-0000-000000000a03")
-        .getAttribute("data-state"),
-    ).toBe("off");
+      getByTestId("autorun-project-weaver").getAttribute("data-state"),
+    ).toBe("suspended");
     expect(
-      getByTestId("autorun-project-00000000-0000-0000-0000-000000000a02")
-        .getAttribute("data-state"),
+      getByTestId("autorun-project-loom-db").getAttribute("data-state"),
     ).toBe("on");
   });
 

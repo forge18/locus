@@ -5,7 +5,7 @@
 use crate::ids::{ArtifactId, ProjectId, RunId, SessionId};
 use std::path::PathBuf;
 
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use sqlx::query;
 use sqlx::{query_as, FromRow};
 use uuid::Uuid;
@@ -19,6 +19,27 @@ use crate::{
 };
 
 impl Store {
+    pub async fn review_artifacts(
+        &self,
+        project_id: Option<ProjectId>,
+    ) -> Result<Vec<ArtifactRow>> {
+        let rows = query_as::<_, PersistedArtifactRow>(
+            "SELECT a.id, s.project_id, a.run_id, a.kind, a.body, a.blob_path,
+                    a.media_type, a.sha256, a.derived_representation, a.summary
+             FROM agents.artifacts a
+             JOIN agents.runs r ON r.id = a.run_id
+             JOIN agents.sessions s ON s.id = r.session_id
+             WHERE a.kind NOT IN ('finding', 'payload')
+               AND ($1::uuid IS NULL OR s.project_id = $1)
+             ORDER BY a.created_at DESC, a.id",
+        )
+        .bind(project_id)
+        .fetch_all(self.pool())
+        .await
+        .context("list review artifacts")?;
+        rows.into_iter().map(TryInto::try_into).collect()
+    }
+
     pub async fn session_research_feed(
         &self,
         session_id: SessionId,
