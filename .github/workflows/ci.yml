@@ -23,7 +23,8 @@ jobs:
             libxdo-dev \
             libssl-dev \
             libayatana-appindicator3-dev \
-            librsvg2-dev
+            librsvg2-dev \
+          xvfb
 
       - name: Install just
         uses: extractions/setup-just@v2
@@ -81,6 +82,9 @@ jobs:
 
       - name: Desktop build
         run: pnpm -C apps/desktop build
+
+      - name: Real Tauri desktop integration
+        run: just test-desktop-integration
 
       - name: locusd starts and serves its socket
         run: |
