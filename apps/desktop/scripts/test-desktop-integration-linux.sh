@@ -14,7 +14,7 @@ fi
 cleanup() {
   rm -rf "$build_context"
   if [ "$created_permissions_dir" -eq 1 ]; then
-    rmdir "$permissions_dir" 2>/dev/null || true
+    rm -rf "$permissions_dir"
   fi
 }
 trap cleanup EXIT
@@ -24,7 +24,7 @@ docker build --file "$build_context/Dockerfile" --tag "$image" "$build_context"
 
 docker run --rm --init --network host \
   --env CI=true \
-  --volume "$repo_root:/workspace:ro" \
+  --volume "$repo_root:/workspace" \
   --volume /var/run/docker.sock:/var/run/docker.sock \
   --volume "$volume_prefix-node-modules:/workspace/apps/desktop/node_modules" \
   --volume "$volume_prefix-dist:/workspace/apps/desktop/dist" \
