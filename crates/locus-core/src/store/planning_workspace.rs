@@ -47,6 +47,17 @@ pub struct PlanningWorkspaceSpecRow {
     pub updated_at: String,
 }
 
+#[derive(Debug, sqlx::FromRow)]
+pub struct PlanningWorkspaceTaskProvenanceRow {
+    pub id: Uuid,
+    pub materialization_id: Uuid,
+    pub workspace_id: Uuid,
+    pub revision_id: Uuid,
+    pub board_task_id: Uuid,
+    pub spec_id: Uuid,
+    pub requirement_id: Option<String>,
+}
+
 fn valid_scope(scope: &str) -> bool {
     matches!(scope, "amendment" | "feature" | "project")
 }
@@ -782,6 +793,8 @@ impl crate::store::Store {
             }
         }
         let mut all_requirement_ids = HashSet::new();
+        let mut spec_ids = HashMap::<String, Uuid>::new();
+        let mut task_requirement_refs = HashMap::<String, Vec<String>>::new();
         for spec in specs {
             if spec.get("reviewed").and_then(Value::as_bool) != Some(true) {
                 bail!("every workspace spec must be reviewed before approval");
@@ -793,6 +806,7 @@ impl crate::store::Store {
             let spec_id = spec_key
                 .parse::<Uuid>()
                 .context("parse workspace spec id")?;
+            spec_ids.insert(spec_key.to_owned(), spec_id);
             let spec_name = spec
                 .get("name")
                 .and_then(Value::as_str)
@@ -871,6 +885,10 @@ impl crate::store::Store {
                     if task_spec_keys.get(task_ref).map(String::as_str) != Some(spec_key) {
                         bail!("workspace requirement task belongs to another spec");
                     }
+                    task_requirement_refs
+                        .entry(task_ref.to_owned())
+                        .or_default()
+                        .push(requirement_id.to_owned());
                 }
             }
         }
@@ -989,18 +1007,67 @@ impl crate::store::Store {
                 .map(|id| Value::String(id.to_string()))
                 .collect(),
         );
+        let materialization_id = Uuid::new_v4();
         query(
             "INSERT INTO core.planning_workspace_materializations
                 (id, workspace_id, revision_id, board_task_ids)
              VALUES ($1, $2, $3, $4)",
         )
-        .bind(Uuid::new_v4())
+        .bind(materialization_id)
         .bind(workspace_id.as_uuid())
         .bind(revision_id)
         .bind(&task_ids_json)
         .execute(&mut *tx)
         .await
         .context("record workspace materialization")?;
+        for (task_key, board_task_id) in &task_ids {
+            let spec_key = task_spec_keys
+                .get(task_key)
+                .ok_or_else(|| anyhow::anyhow!("workspace task spec owner is missing"))?;
+            let spec_id = spec_ids
+                .get(spec_key)
+                .ok_or_else(|| anyhow::anyhow!("workspace task spec is missing"))?;
+            let requirement_ids = task_requirement_refs
+                .get(task_key)
+                .cloned()
+                .unwrap_or_default();
+            if requirement_ids.is_empty() {
+                query(
+                    "INSERT INTO core.planning_workspace_task_provenance
+                        (id, materialization_id, workspace_id, revision_id,
+                         board_task_id, spec_id, requirement_id)
+                     VALUES ($1, $2, $3, $4, $5, $6, NULL)",
+                )
+                .bind(Uuid::new_v4())
+                .bind(materialization_id)
+                .bind(workspace_id.as_uuid())
+                .bind(revision_id)
+                .bind(board_task_id)
+                .bind(spec_id)
+                .execute(&mut *tx)
+                .await
+                .context("record workspace task provenance")?;
+            } else {
+                for requirement_id in requirement_ids {
+                    query(
+                        "INSERT INTO core.planning_workspace_task_provenance
+                            (id, materialization_id, workspace_id, revision_id,
+                             board_task_id, spec_id, requirement_id)
+                         VALUES ($1, $2, $3, $4, $5, $6, $7)",
+                    )
+                    .bind(Uuid::new_v4())
+                    .bind(materialization_id)
+                    .bind(workspace_id.as_uuid())
+                    .bind(revision_id)
+                    .bind(board_task_id)
+                    .bind(spec_id)
+                    .bind(requirement_id)
+                    .execute(&mut *tx)
+                    .await
+                    .context("record workspace requirement provenance")?;
+                }
+            }
+        }
         query(
             "UPDATE core.planning_workspace_revisions
              SET approved_at = now() WHERE id = $1",
@@ -1033,6 +1100,26 @@ impl crate::store::Store {
         .context("record workspace approval")?;
         tx.commit().await.context("commit planning workspace approval")?;
         Ok(created_ids)
+    }
+
+    pub async fn planning_workspace_task_provenance(
+        &self,
+        project_id: ProjectId,
+        workspace_id: PlanningWorkspaceId,
+    ) -> Result<Vec<PlanningWorkspaceTaskProvenanceRow>> {
+        query_as(
+            "SELECT p.id, p.materialization_id, p.workspace_id, p.revision_id,
+                    p.board_task_id, p.spec_id, p.requirement_id
+             FROM core.planning_workspace_task_provenance p
+             JOIN core.planning_workspaces w ON w.id = p.workspace_id
+             WHERE p.workspace_id = $1 AND w.project_id = $2
+             ORDER BY p.board_task_id, p.requirement_id NULLS LAST, p.id",
+        )
+        .bind(workspace_id.as_uuid())
+        .bind(project_id)
+        .fetch_all(self.pool())
+        .await
+        .context("list planning workspace task provenance")
     }
 
     pub async fn delete_planning_workspace(

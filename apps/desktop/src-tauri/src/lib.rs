@@ -1741,6 +1741,18 @@ struct PlanningWorkspaceSpecResponse {
     updated_at: String,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PlanningWorkspaceTaskProvenanceResponse {
+    id: String,
+    materialization_id: String,
+    workspace_id: String,
+    revision_id: String,
+    board_task_id: String,
+    spec_id: String,
+    requirement_id: Option<String>,
+}
+
 fn planning_workspace_response(
     row: locus_core::store::planning_workspace::PlanningWorkspaceRow,
 ) -> PlanningWorkspaceResponse {
@@ -1789,6 +1801,20 @@ fn planning_workspace_spec_response(
         state: row.state,
         stale: row.stale,
         updated_at: row.updated_at,
+    }
+}
+
+fn planning_workspace_task_provenance_response(
+    row: locus_core::store::planning_workspace::PlanningWorkspaceTaskProvenanceRow,
+) -> PlanningWorkspaceTaskProvenanceResponse {
+    PlanningWorkspaceTaskProvenanceResponse {
+        id: row.id.to_string(),
+        materialization_id: row.materialization_id.to_string(),
+        workspace_id: row.workspace_id.to_string(),
+        revision_id: row.revision_id.to_string(),
+        board_task_id: row.board_task_id.to_string(),
+        spec_id: row.spec_id.to_string(),
+        requirement_id: row.requirement_id,
     }
 }
 
@@ -2075,6 +2101,28 @@ async fn planning_workspace_spec_save(
         .find(|spec| spec.id == spec_id)
         .map(planning_workspace_spec_response)
         .ok_or_else(|| IpcError::internal("saved planning workspace spec disappeared"))
+}
+
+#[tauri::command]
+async fn planning_workspace_task_provenance_list(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    workspace_id: String,
+) -> Result<Vec<PlanningWorkspaceTaskProvenanceResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = resolve_setup_project(store, &project_id).await?;
+    store
+        .planning_workspace_task_provenance(
+            project_id,
+            parse_planning_workspace_id(&workspace_id)?,
+        )
+        .await
+        .map_err(IpcError::internal)
+        .map(|rows| {
+            rows.into_iter()
+                .map(planning_workspace_task_provenance_response)
+                .collect()
+        })
 }
 
 #[tauri::command]
@@ -4921,6 +4969,7 @@ pub fn run() {
             planning_workspace_revisions_list,
             planning_workspace_specs_list,
             planning_workspace_spec_save,
+            planning_workspace_task_provenance_list,
             planning_workspace_decision_record,
             planning_workspace_sessions_list,
             planning_workspace_session_link,

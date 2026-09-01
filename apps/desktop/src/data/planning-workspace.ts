@@ -43,6 +43,16 @@ export interface PlanningWorkspaceSession {
   linkedAt: string;
 }
 
+export interface PlanningWorkspaceTaskProvenance {
+  id: string;
+  materializationId: string;
+  workspaceId: string;
+  revisionId: string;
+  boardTaskId: string;
+  specId: string;
+  requirementId: string | null;
+}
+
 export function listPlanningWorkspaces(
   projectId?: string,
 ): Promise<Envelope<PlanningWorkspace[]>> {
@@ -95,6 +105,16 @@ export function savePlanningWorkspaceSpec(
   return dataProvider().queryOne<PlanningWorkspaceSpec>(
     "planning_workspace_spec_save",
     { projectId, workspaceId, specId, repoId, name, state, stale },
+  );
+}
+
+export function listPlanningWorkspaceTaskProvenance(
+  projectId: string,
+  workspaceId: string,
+): Promise<Envelope<PlanningWorkspaceTaskProvenance[]>> {
+  return dataProvider().query<PlanningWorkspaceTaskProvenance>(
+    "planning_workspace_task_provenance_list",
+    { projectId, workspaceId },
   );
 }
 
