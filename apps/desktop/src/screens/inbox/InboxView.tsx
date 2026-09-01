@@ -60,7 +60,7 @@ interface InboxDecision {
 /**
  * The only interruption surface. A decision resolves here; the work it is about
  * opens where that work lives, by locator — this screen never grows a second copy
- * of Plan, Interact or Review.
+ * of Plan, Workers or Review.
  */
 export function InboxView(_props: InboxViewProps) {
   const [tab, setTab] = createSignal<InboxTab>("todo");

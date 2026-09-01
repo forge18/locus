@@ -59,7 +59,7 @@ function viewFor(kind: LocatorKind, hasSub: boolean): View {
   if (kind === "artifact") return "artifact" as View;
   if (kind === "page") return "wiki" as View;
   if (kind === "workflow") return "canvas" as View;
-  if (kind === "bot") return "bots" as View;
+  if (kind === "bot") return "workers" as View;
   return "agents" as View;
 }
 
@@ -71,21 +71,15 @@ export function parse(locator: string): Locator {
   if (!scope || !SEGMENT.test(scope))
     throw new LocatorError(`scope: "${scope}" is invalid`);
 
-  if (kind === "bots") {
-    if (isScope(scope))
-      throw new LocatorError("scope: bot locators require a project");
-    if (segments.length === 2) {
-      return { project: scope, kind: null, id: "bots", subId: null };
-    }
-    if (segments.length === 3 && id && SEGMENT.test(id)) {
-      return { project: scope, kind: "bot", id, subId: null };
-    }
-    throw new LocatorError("bot: expected locus://<project>/bots[/<bot-id>]");
+  if (kind === "workers") {
+    if (isScope(scope) || segments.length !== 3 || !id || !SEGMENT.test(id))
+      throw new LocatorError("worker: expected locus://<project>/workers/<worker-id>");
+    return { project: scope, kind: "bot", id, subId: null };
   }
 
   if (kind === "view") {
     if (segments.length !== 3 || !VIEW_IDS.includes(id)) {
-      throw new LocatorError(`view: "${id}" is not one of the 30 views`);
+      throw new LocatorError(`view: "${id}" is not one of the registered views`);
     }
     return { project: scope, kind: null, id, subId: null };
   }
@@ -128,16 +122,18 @@ export function format(view: View, params: ViewParams): string {
     return `${LOCATOR_SCHEME}${project}/task/${params.taskId}`;
   }
   const project = params.project;
-  if (view === "bots") {
-    const project = params.project;
-    if (!project || isScope(project) || !SEGMENT.test(project))
-      throw new LocatorError("project: bot views require a project segment");
+  if (view === "workers") {
     if (params.botId !== undefined) {
+      const project = params.project;
+      if (!project || isScope(project) || !SEGMENT.test(project))
+        throw new LocatorError("project: worker locators require a project segment");
       if (!SEGMENT.test(params.botId))
-        throw new LocatorError("bot: bot id must be one locator segment");
-      return `${LOCATOR_SCHEME}${project}/bots/${params.botId}`;
+        throw new LocatorError("worker: id must be one locator segment");
+      return `${LOCATOR_SCHEME}${project}/workers/${params.botId}`;
     }
-    return `${LOCATOR_SCHEME}${project}/bots`;
+    if (project !== undefined)
+      throw new LocatorError("scope: workers list does not carry a project");
+    return `${LOCATOR_SCHEME}all/view/workers`;
   }
   const forms: Partial<Record<View, [LocatorKind, string, string?]>> = {
     sessions: ["session", "sessionId"],

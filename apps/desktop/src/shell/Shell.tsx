@@ -73,15 +73,11 @@ export function desktopLocatorFor(
     botId?: string,
 ): string {
     const route = desktopRoutes[view];
-    return Desktop_PROJECT_ROUTE_KINDS.some(
-        (candidate) => candidate.id === route,
-    )
-        ? destinationDesktop(
-              route,
-              project,
-              view === "bots" ? botId : undefined,
-          )
-        : destinationDesktop(route);
+    if (view === "workers" && botId)
+        return destinationDesktop(route, project, botId);
+    if (Desktop_PROJECT_ROUTE_KINDS.some((candidate) => candidate.id === route))
+        return destinationDesktop(route, project);
+    return destinationDesktop(route);
 }
 
 /** The desktop title bar and project-scoped rail frame every screen. */
@@ -269,7 +265,7 @@ export function Shell(props: ShellProps) {
                 </div>
             </div>
 
-            <Show when={props.nav.view() !== "interact" && !dispatchOpen()}>
+            <Show when={!dispatchOpen()}>
                 <ToastRegion />
             </Show>
             <LocatorPalette

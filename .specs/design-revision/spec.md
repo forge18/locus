@@ -1,5 +1,7 @@
 # design-revision
 
+> **Navigation revision:** `planning-workspace` supersedes this spec's rail vocabulary and screen inventory. This file remains the historical M0.7 design record; the adopted rail has no Interact route and calls Bots **Workers**.
+
 **Milestone** M0.7 · **Depends on** M0.6 (`design-desktop`) · **Blocks** every other M0.7 feature and
 every desktop surface built after it.
 

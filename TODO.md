@@ -1,6 +1,6 @@
 # TODO
 
-**Remaining:** 37 open rows across 12 workstreams, worked top to bottom.
+**Remaining:** 36 open rows across 12 workstreams, worked top to bottom.
 
 This is the unfinished-work index. [`PLAN.md`](PLAN.md) is the architecture authority. Each feature's
 `spec.md` is its contract; its `tasks.md` is the runnable decomposition and verification source. One
@@ -121,7 +121,7 @@ These wait on approving and decomposing
 [`PLANNING_WORKSPACE_PLAN.md`](PLANNING_WORKSPACE_PLAN.md); nothing here starts before that spec
 pair exists.
 
-- [ ] **Adopt the Planning Workspace contract** — update `PLAN.md`, the root feature counts, and every superseded planning/navigation contract before production code changes.
+- [x] **Adopt the Planning Workspace contract** — accepted `PLANNING_WORKSPACE_PLAN.md`, updated `PLAN.md`, revised the root count, and added supersession/retirement pointers before production code changes.
 - [ ] **Replace global project navigation with page-owned scope** — remove the shell project selector (this absorbs the old "wire/remove the project switcher" defect row); install the Projects / Workers / Telemetry+Automation / Workshop rail; move route authority out of fixtures; preserve compatible deep links.
 - [ ] **Persist resumable planning workspaces** — amendment/feature/project scope, lifecycle, revisions, structured resume state, planning-session linkage, live IPC, explicit deletion.
 - [ ] **Plan whole projects through specs and tasks** — project brief, spec map, per-spec grilling, cross-spec audit, unified dependency graph, frozen approval revision, idempotent board materialization. (Absorbs the old "wire Plan actions / capture Plan inputs" rows — the current screen is replaced, not patched.)

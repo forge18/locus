@@ -11,8 +11,7 @@ import { AnalyticsView } from "./screens/analytics/AnalyticsView";
 import { QAView } from "./screens/review/QAView";
 import { DispatchView } from "./screens/dispatch/DispatchView";
 import { GuardrailsView } from "./screens/settings/GuardrailsView";
-import InteractView from "./screens/interact/InteractView";
-import { BotsView } from "./screens";
+import { WorkersView } from "./screens";
 import ManageView from "./screens/manage/ManageView";
 import { AgentDefinitionsView } from "./screens/workshop/AgentDefinitionsView";
 import { HarnessesView } from "./screens/workshop/HarnessesView";
@@ -129,16 +128,8 @@ function App() {
                                         <Match when={nav.view() === "mail"}>
                                                 <MailView />
                                         </Match>
-                                        <Match when={nav.view() === "interact"}>
-                                                <InteractView
-                                                        projectId={
-                                                                nav.params()
-                                                                        .project
-                                                        }
-                                                />
-                                        </Match>
-                                        <Match when={nav.view() === "bots"}>
-                                                <BotsView
+                                        <Match when={nav.view() === "workers"}>
+                                                <WorkersView
                                                         projectId={
                                                                 nav.params()
                                                                         .project

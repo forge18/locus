@@ -9,8 +9,7 @@ const EXPECTED_SCREENS = [
   "projects",
   "plan",
   "sessions",
-  "interact",
-  "bots",
+  "workers",
   "qa",
   "autorun",
   "schedule",
@@ -39,7 +38,7 @@ describe("nav/desktop-screen-inventory", () => {
     expect(DESKTOP_ROUTES.map((route) => route.screen)).toEqual(
       EXPECTED_SCREENS,
     );
-    expect(new Set(DESKTOP_ROUTES.map((route) => route.id)).size).toBe(30);
+    expect(new Set(DESKTOP_ROUTES.map((route) => route.id)).size).toBe(29);
   });
 
   it("gives every route a stable route id, label, scope, and screenshot", () => {

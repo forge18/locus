@@ -12,6 +12,7 @@ import { tabsFor } from './tabs'
 import type { CategoryTab } from './tabs'
 import { format, resolve } from './locator'
 import type { NavTarget, ViewParams } from './locator'
+import { DESKTOP_ROUTES } from './desktop-screen-inventory'
 
 /** The latest locator, retained for compatibility with the first persistence format. */
 export const NAV_STORAGE_KEY = 'locus.navigation.current'
@@ -171,9 +172,14 @@ function browserState(
 
 export function createNavStore(options: NavStoreOptions = {}): NavStore {
   const project = options.project ?? 'tapestry'
+  const fallbackView = options.view ?? 'inbox'
   const fallback: NavTarget = {
-    view: options.view ?? 'inbox',
-    params: { project },
+    view: fallbackView,
+    params:
+      DESKTOP_ROUTES.find((route) => route.id === fallbackView)?.scope ===
+      'project'
+        ? { project }
+        : {},
   }
 
   // An explicit target is an intentional deep link (and is used by detached
@@ -265,11 +271,14 @@ export function createNavStore(options: NavStoreOptions = {}): NavStore {
   }
 
   const go: NavStore['go'] = (nextView, nextParams) => {
-    // A named project scopes a target. `project: undefined` deliberately carries
-    // global scope instead of re-adding the last selected project.
-    const params = nextParams && 'project' in nextParams
-      ? nextParams.project === undefined ? {} : nextParams
-      : { project: target().params.project ?? project, ...nextParams }
+    const routeScope = DESKTOP_ROUTES.find(
+      (route) => route.id === nextView,
+    )?.scope
+    const { project: requestedProject, ...otherParams } = nextParams ?? {}
+    const params =
+      routeScope === 'project'
+        ? { project: requestedProject ?? target().params.project ?? project, ...otherParams }
+        : otherParams
     push({ view: nextView, params })
   }
 

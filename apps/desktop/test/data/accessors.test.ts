@@ -39,7 +39,6 @@ const LIVE_DATA_SETS = [
   "runs",
   "sessions",
   "strip",
-  "interact",
 ];
 
 /** The task-2 seam: typed envelope + provider. Not data sets, never fixture-backed. */

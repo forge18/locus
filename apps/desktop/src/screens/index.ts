@@ -17,7 +17,7 @@ export { QAView } from "./review/QAView";
 export type { QAViewProps } from "./review/QAView";
 export { AnalyticsView } from "./analytics/AnalyticsView";
 export type { AnalyticsViewProps } from "./analytics/AnalyticsView";
-export { default as BotsView } from "./bots/BotsView";
+export { default as WorkersView } from "./bots/BotsView";
 export type {
   BotState,
   BotViewModel,

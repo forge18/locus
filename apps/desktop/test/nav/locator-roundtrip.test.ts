@@ -8,12 +8,11 @@ const CASES: Array<[View, ViewParams]> = [
     ["status", {}],
     ["telemetry", {}],
     ["mail", {}],
-    ["projects", { project: "tapestry" }],
-    ["plan", { project: "loom-db" }],
+    ["projects", {}],
+    ["plan", {}],
     ["sessions", { project: "tapestry" }],
-    ["interact", { project: "tapestry" }],
-    ["bots", { project: "tapestry" }],
-    ["bots", { project: "tapestry", botId: "keeper" }],
+    ["workers", {}],
+    ["workers", { project: "tapestry", botId: "keeper" }],
     ["qa", { project: "tapestry" }],
     ["autorun", {}],
     ["schedule", {}],
@@ -59,7 +58,7 @@ describe("nav/locator-roundtrip", () => {
         }
     });
 
-    it("covers every one of the 30 views", () => {
+    it("covers every registered view", () => {
         expect(new Set(CASES.map(([v]) => v)).size).toBe(VIEWS.length);
     });
 

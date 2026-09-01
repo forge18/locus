@@ -55,7 +55,7 @@ function toBotViewModel(bot: Bot): BotViewModel {
   return {
     id: bot.id,
     name: bot.name,
-    description: "Created from the Bots workspace.",
+    description: "Created from the Workers workspace.",
     harness: bot.harness ?? "unknown",
     lastActivity: bot.lastActivityAt ?? "never",
     state: bot.containerState === "running" ? "working" : "idle",
@@ -400,11 +400,11 @@ export default function BotsView(props: BotsViewProps) {
       data-project={project()}
       data-collapsed={collapsed() ? "true" : "false"}
     >
-      <aside class="bots-list-rail" aria-label="Bots">
+      <aside class="bots-list-rail" aria-label="Workers">
         <header class="bots-list-head">
           <div>
             <span class="bots-eyebrow">teammates</span>
-            <h1>Bots</h1>
+            <h1>Workers</h1>
           </div>
           <button
             type="button"
@@ -417,7 +417,7 @@ export default function BotsView(props: BotsViewProps) {
         </header>
         <div class="bots-list-actions">
           <Button variant="primary" data-testid="new-bot" onClick={openNewBot}>
-            + New bot
+            + New worker
           </Button>
           <Button
             variant="secondary"
@@ -432,7 +432,7 @@ export default function BotsView(props: BotsViewProps) {
             when={bots().length > 0}
             fallback={
               <p class="bots-empty-state" data-testid="bots-empty-state">
-                No bots yet. Create one to have a standing agent you can message
+                No workers yet. Create one to have a standing agent you can message
                 any time and hand recurring work to.
               </p>
             }
@@ -444,7 +444,7 @@ export default function BotsView(props: BotsViewProps) {
                   class="bot-list-row"
                   data-testid={`bot-row-${bot.id}`}
                   data-selected={selectedId() === bot.id ? "true" : "false"}
-                  data-locator={destinationDesktop("bots", project(), bot.id)}
+                  data-locator={destinationDesktop("workers", project(), bot.id)}
                   onClick={() => setSelectedId(bot.id)}
                 >
                   <Avatar
@@ -472,16 +472,16 @@ export default function BotsView(props: BotsViewProps) {
           </Show>
         </div>
         <footer class="bots-list-footer">
-          A bot is a named teammate with one conversation and one workspace. It
+          A Worker is a named teammate with one conversation and one workspace. It
           is not a task and never touches the board.
         </footer>
       </aside>
       <main class="bots-home-pane" data-testid="bot-home-pane">
         <Show when={!liveMode && props.bots === undefined}>
-          <FixtureNotice surface="Bots" command='invoke("bots_list")' />
+          <FixtureNotice surface="Workers" command='invoke("bots_list")' />
         </Show>
         <Show when={liveMode && botEnvelope().status === "loading"}>
-          <p data-testid="bots-loading">Loading bots…</p>
+          <p data-testid="bots-loading">Loading workers…</p>
         </Show>
         <Show when={botError()}>
           {(error) => <p role="alert">{error()}</p>}
@@ -504,7 +504,7 @@ export default function BotsView(props: BotsViewProps) {
           )}
         </Show>
       </main>
-      <Sheet open={newBotOpen()} onOpenChange={setNewBotOpen} title="New bot">
+      <Sheet open={newBotOpen()} onOpenChange={setNewBotOpen} title="New worker">
         <form
           class="bots-new-bot-form"
           data-testid="new-bot-form"

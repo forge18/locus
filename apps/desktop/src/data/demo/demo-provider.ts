@@ -11,7 +11,6 @@ import * as bots from "./fixtures/bots";
 import * as core from "../../fixtures/core";
 import * as extensions from "../../fixtures/extensions";
 import * as guardrails from "../../fixtures/settings-guardrails";
-import * as interact from "./fixtures/interact";
 import * as harnesses from "../../fixtures/generated/harnesses";
 import * as knowledge from "../../fixtures/knowledge";
 import * as mail from "../../fixtures/mail";
@@ -48,12 +47,6 @@ const FIXTURES: Record<string, FixtureValue> = {
   ],
   board_tasks: () => board.TASKS,
   board_dependencies: () => board.DEPENDENCIES,
-  interact_sessions_list: (args) => {
-    const projectId = args?.projectId;
-    return typeof projectId === "string"
-      ? interact.SESSIONS.filter((session) => session.projectId === projectId)
-      : interact.SESSIONS;
-  },
   bots_list: (args) => {
     const projectId = args?.projectId;
     return typeof projectId === "string"
