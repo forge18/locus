@@ -1161,3 +1161,26 @@ impl crate::store::Store {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn accepts_only_planning_workspace_scopes() {
+        assert!(valid_scope("amendment"));
+        assert!(valid_scope("feature"));
+        assert!(valid_scope("project"));
+        assert!(!valid_scope("task"));
+    }
+
+    #[test]
+    fn checkpoint_lifecycle_is_forward_only_until_ready() {
+        assert!(valid_lifecycle_transition("draft", "in_progress"));
+        assert!(valid_lifecycle_transition("in_progress", "ready_for_approval"));
+        assert!(valid_lifecycle_transition("ready_for_approval", "in_progress"));
+        assert!(!valid_lifecycle_transition("in_progress", "draft"));
+        assert!(!valid_lifecycle_transition("approved", "in_progress"));
+        assert!(!valid_lifecycle_transition("deleted", "draft"));
+    }
+}
