@@ -11,7 +11,6 @@ fn acp_process_is_not_in_the_host_pid_namespace() -> Result<(), Box<dyn Error>> 
         .args([
             "run",
             "--rm",
-            "--pid=private",
             "alpine:3.22",
             "readlink",
             "/proc/1/ns/pid",
