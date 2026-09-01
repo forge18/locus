@@ -8,6 +8,7 @@ import {
   createSignal,
 } from "solid-js";
 import { dataProvider } from "../../data/provider";
+import { PageProjectFilter } from "../PageProjectFilter";
 import { InlineError } from "../../ui/InlineError";
 import { FixtureNotice } from "../../ui/FixtureNotice";
 import { Icon } from "../../ui/Icon";
@@ -126,6 +127,9 @@ const ROW_HEIGHT = 26;
 const BODY_HEIGHT = 300;
 
 function TelemetryLive(props: { projectId?: string }) {
+  const [selectedProjectId, setSelectedProjectId] = createSignal(
+    props.projectId,
+  );
   const [metrics, setMetrics] = createSignal<Envelope<TelemetryMetric[]>>({
     status: "loading",
   });
@@ -142,7 +146,7 @@ function TelemetryLive(props: { projectId?: string }) {
 
   let requestId = 0;
   createEffect(() => {
-    const scope = props.projectId ?? "all";
+    const scope = selectedProjectId() ?? "all";
     const request = ++requestId;
     setMetrics({ status: "loading" });
     void fetchTelemetryMetrics(scope, "30d")
@@ -162,6 +166,12 @@ function TelemetryLive(props: { projectId?: string }) {
       data-desktop-route="review-telemetry"
       data-filter-evidence="available"
     >
+      <header class="telemetry-header">
+        <PageProjectFilter
+          value={selectedProjectId()}
+          onChange={(projectId) => setSelectedProjectId(projectId)}
+        />
+      </header>
       <main data-testid="telemetry-live-state" data-state={metrics().status}>
         <Switch>
           <Match when={metrics().status === "loading"}>

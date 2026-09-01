@@ -14,7 +14,7 @@ export {
 } from "./demo/fixtures/board";
 export type { BoardColumn, Task } from "../types/board";
 
-export function fetchTasks(projectId: string): Promise<Envelope<Task[]>> {
+export function fetchTasks(projectId?: string): Promise<Envelope<Task[]>> {
   return dataProvider().query<Task>("board_tasks", { projectId });
 }
 

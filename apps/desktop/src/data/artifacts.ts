@@ -20,7 +20,7 @@ export type { UnifiedRow, UnifiedRowKind } from "./demo/fixtures/artifacts";
 
 /** Becomes: invoke("artifacts_list") */
 export function fetchArtifactsFromCore(
- projectId: string,
+ projectId?: string,
 ): Promise<Envelope<Artifact[]>> {
  return dataProvider().query<Artifact>("artifacts_list", { projectId });
 }

@@ -8,6 +8,7 @@ import {
   onMount,
 } from "solid-js";
 import { Button } from "../../ui/Button";
+import { PageProjectFilter } from "../PageProjectFilter";
 import { Segmented } from "../../ui/Segmented";
 import { Tag } from "../../ui/Tag";
 import {
@@ -674,6 +675,9 @@ export interface ManageViewProps {
 
 export function ManageView(props: ManageViewProps = {}) {
   const liveMode = dataProvider().kind === "live";
+  const [pageProjectId, setPageProjectId] = createSignal(props.projectId);
+  const selectedProjectId = () =>
+    liveMode ? pageProjectId() : props.projectId;
   const fixtureTasks = useTasks();
   const [taskEnvelope, setTaskEnvelope] = createSignal<Envelope<Task[]>>(
     liveMode ? { status: "loading" } : { status: "ready", data: fixtureTasks },
@@ -693,15 +697,8 @@ export function ManageView(props: ManageViewProps = {}) {
 
   const refreshTasks = async () => {
     if (!liveMode) return;
-    if (!props.projectId) {
-      setTaskEnvelope({
-        status: "failed",
-        error: { command: "board_tasks", message: "no project is selected" },
-      });
-      return;
-    }
     setTaskEnvelope({ status: "loading" });
-    setTaskEnvelope(await fetchTasks(props.projectId));
+    setTaskEnvelope(await fetchTasks(selectedProjectId()));
   };
 
   onMount(() => {
@@ -713,7 +710,7 @@ export function ManageView(props: ManageViewProps = {}) {
     }
   });
   createEffect(() => {
-    const projectId = props.projectId;
+    const projectId = selectedProjectId();
     setImportedTasks([]);
     setSelectedTaskId(null);
     if (props.workflowDefinitions === undefined) setLoadedWorkflows([]);
@@ -774,8 +771,9 @@ export function ManageView(props: ManageViewProps = {}) {
   };
   const openTask = (task: Task) => {
     setSelectedTaskId(task.id);
-    if (!liveMode || !props.projectId) return;
-    void fetchTaskDetail(props.projectId, task.id).then((envelope) => {
+    if (!liveMode) return;
+    const projectId = selectedProjectId() ?? task.projectId;
+    void fetchTaskDetail(projectId, task.id).then((envelope) => {
       if (envelope.status !== "ready") return;
       setTaskEnvelope((current) =>
         current.status === "ready"
@@ -790,8 +788,9 @@ export function ManageView(props: ManageViewProps = {}) {
     });
   };
   const createManualTask = (summary: string, workflowDefId: string) => {
-    if (!liveMode || !props.projectId) return;
-    void createTask(props.projectId, summary, workflowDefId).then(
+    const projectId = selectedProjectId();
+    if (!liveMode || !projectId) return;
+    void createTask(projectId, summary, workflowDefId).then(
       (envelope) => {
         if (envelope.status === "ready") {
           setTaskEnvelope((current) =>
@@ -832,6 +831,12 @@ export function ManageView(props: ManageViewProps = {}) {
         </p>
       </Show>
       <header class="manage-toolbar">
+        <Show when={liveMode}>
+          <PageProjectFilter
+            value={selectedProjectId()}
+            onChange={setPageProjectId}
+          />
+        </Show>
         <Segmented
           options={[
             { value: "kanban", label: "Kanban" },
@@ -869,7 +874,7 @@ export function ManageView(props: ManageViewProps = {}) {
             onClose={() => setImportSource(undefined)}
             providers={props.workItemProviders ?? loadedWorkItemProviders()}
             workflows={props.workflowDefinitions ?? loadedWorkflows()}
-            projectId={props.projectId}
+            projectId={selectedProjectId()}
             onExistingTask={(taskId) => setSelectedTaskId(taskId)}
             onImported={(task) => {
               setImportedTasks((current) => [...current, task]);

@@ -25,7 +25,7 @@ pub struct BoardTaskRow {
 
 impl Store {
     /// Read board tasks and their persisted run/evidence links for one project.
-    pub async fn board_tasks(&self, project_id: ProjectId) -> Result<Vec<BoardTaskRow>> {
+    pub async fn board_tasks(&self, project_id: Option<ProjectId>) -> Result<Vec<BoardTaskRow>> {
         query_as(
             "SELECT t.id,
                     t.project_id,
@@ -53,7 +53,7 @@ impl Store {
                  WHERE task_evidence.task_id = t.id
              ) evidence ON TRUE
              LEFT JOIN board.external_work_items external_item ON external_item.task_id = t.id
-             WHERE t.project_id = $1
+             WHERE ($1::uuid IS NULL OR t.project_id = $1)
              ORDER BY t.updated_at DESC, t.id",
         )
         .bind(project_id)
@@ -68,7 +68,7 @@ impl Store {
         task_id: Uuid,
     ) -> Result<Option<BoardTaskRow>> {
         Ok(self
-            .board_tasks(project_id)
+            .board_tasks(Some(project_id))
             .await?
             .into_iter()
             .find(|task| task.id == task_id))

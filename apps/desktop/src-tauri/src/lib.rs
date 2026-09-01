@@ -2349,9 +2349,12 @@ fn board_task_response(
 
 async fn board_tasks_inner(
     store: &Store,
-    project_id: &str,
+    project_id: Option<&str>,
 ) -> Result<Vec<BoardTaskResponse>, IpcError> {
-    let project_id = resolve_setup_project(store, project_id).await?;
+    let project_id = match project_id {
+        Some(project_id) => Some(resolve_setup_project(store, project_id).await?),
+        None => None,
+    };
     store
         .board_tasks(project_id)
         .await
@@ -2381,10 +2384,10 @@ async fn task_detail_inner(
 #[tauri::command]
 async fn board_tasks(
     core: State<'_, Arc<Core>>,
-    project_id: String,
+    project_id: Option<String>,
 ) -> Result<Vec<BoardTaskResponse>, IpcError> {
     let store = connected_store(&core).await?;
-    board_tasks_inner(store, &project_id).await
+    board_tasks_inner(store, project_id.as_deref()).await
 }
 
 #[tauri::command]
@@ -3829,10 +3832,13 @@ fn artifact_comment_response(comment: &ArtifactComment) -> ArtifactCommentRespon
 #[tauri::command]
 async fn artifacts_list(
     core: State<'_, Arc<Core>>,
-    project_id: String,
+    project_id: Option<String>,
 ) -> Result<Vec<ArtifactResponse>, IpcError> {
     let store = connected_store(&core).await?;
-    let project_id = Some(resolve_setup_project(store, &project_id).await?);
+    let project_id = match project_id {
+        Some(project_id) => Some(resolve_setup_project(store, &project_id).await?),
+        None => None,
+    };
     let artifacts = store
         .review_artifacts(project_id)
         .await
@@ -4046,9 +4052,12 @@ struct MemoryFactResponse {
 
 async fn memory_facts_inner(
     store: &Store,
-    project_id: &str,
+    project_id: Option<&str>,
 ) -> Result<Vec<MemoryFactResponse>, IpcError> {
-    let project_id = resolve_setup_project(store, project_id).await?;
+    let project_id = match project_id {
+        Some(project_id) => Some(resolve_setup_project(store, project_id).await?),
+        None => None,
+    };
     store
         .memory_facts(project_id)
         .await
@@ -4073,9 +4082,9 @@ async fn memory_facts_inner(
 #[tauri::command]
 async fn memory_facts(
     core: State<'_, Arc<Core>>,
-    project_id: String,
+    project_id: Option<String>,
 ) -> Result<Vec<MemoryFactResponse>, IpcError> {
-    memory_facts_inner(connected_store(&core).await?, &project_id).await
+    memory_facts_inner(connected_store(&core).await?, project_id.as_deref()).await
 }
 
 #[derive(Debug, Deserialize)]
@@ -6747,7 +6756,7 @@ mod configuration_commands {
         .await
         .expect("seed board task");
 
-        let tasks = board_tasks_inner(&store, "tapestry")
+        let tasks = board_tasks_inner(&store, Some("tapestry"))
             .await
             .expect("list tapestry tasks");
         assert_eq!(tasks.len(), 1);
@@ -6932,7 +6941,7 @@ mod analytics_memory_queries {
         .await
         .expect("seed memory facts");
 
-        let facts = memory_facts_inner(&store, "tapestry")
+        let facts = memory_facts_inner(&store, Some("tapestry"))
             .await
             .expect("list project memory facts");
         assert_eq!(facts.len(), 1);
@@ -6941,7 +6950,7 @@ mod analytics_memory_queries {
         assert_eq!(facts[0].score, Some(0.94));
         assert_eq!(facts[0].recall, "recalled 31×");
 
-        let foreign = memory_facts_inner(&store, "loom-db")
+        let foreign = memory_facts_inner(&store, Some("loom-db"))
             .await
             .expect("list the other project memory facts");
         assert_eq!(foreign.len(), 1);
@@ -6971,7 +6980,7 @@ mod analytics_memory_queries {
         .expect_err("cross-project adjudication rejected");
         assert!(matches!(foreign_update.kind, IpcErrorKind::NotFound));
 
-        let unknown = memory_facts_inner(&store, "missing")
+        let unknown = memory_facts_inner(&store, Some("missing"))
             .await
             .expect_err("unknown project rejected");
         assert!(matches!(unknown.kind, IpcErrorKind::NotFound));

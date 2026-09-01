@@ -28,13 +28,16 @@ pub struct MemoryFactRow {
 }
 
 impl Store {
-    pub async fn memory_facts(&self, project_id: ProjectId) -> Result<Vec<MemoryFactRow>> {
+    pub async fn memory_facts(
+        &self,
+        project_id: Option<ProjectId>,
+    ) -> Result<Vec<MemoryFactRow>> {
         query_as(
             "SELECT id, subject, confidence_state,
                     CASE WHEN confidence_state = 'contradicted' THEN NULL ELSE confidence END AS score,
                     recall_count
              FROM memory.store
-             WHERE project_id = $1
+             WHERE ($1::uuid IS NULL OR project_id = $1)
                AND invalidated_at IS NULL
                AND archived_at IS NULL
              ORDER BY updated_at DESC, id",

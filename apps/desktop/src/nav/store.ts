@@ -171,14 +171,16 @@ function browserState(
 }
 
 export function createNavStore(options: NavStoreOptions = {}): NavStore {
-  const project = options.project ?? 'tapestry'
+  const project = options.project
   const fallbackView = options.view ?? 'inbox'
   const fallback: NavTarget = {
     view: fallbackView,
     params:
       DESKTOP_ROUTES.find((route) => route.id === fallbackView)?.scope ===
       'project'
-        ? { project }
+        ? project
+          ? { project }
+          : {}
         : {},
   }
 
@@ -277,7 +279,10 @@ export function createNavStore(options: NavStoreOptions = {}): NavStore {
     const { project: requestedProject, ...otherParams } = nextParams ?? {}
     const params =
       routeScope === 'project'
-        ? { project: requestedProject ?? target().params.project ?? project, ...otherParams }
+        ? {
+            project: requestedProject ?? target().params.project ?? project,
+            ...otherParams,
+          }
         : otherParams
     push({ view: nextView, params })
   }
