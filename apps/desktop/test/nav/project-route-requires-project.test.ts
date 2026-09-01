@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { resolveRouteScope } from "../../src/nav/route-scope";
 import {
   Desktop_ALL_ROUTE_KINDS,
   Desktop_PROJECT_ROUTE_KINDS,
@@ -12,9 +11,8 @@ describe("nav/project-route-requires-project", () => {
     expect(Desktop_ALL_ROUTE_KINDS.map((route) => route.id)).toContain("sessions");
   });
 
-  it("allows a global route without a selected project", () => {
-    expect(resolveRouteScope(Desktop_ALL_ROUTE_KINDS[0], null)).toEqual({
-      kind: "all",
-    });
+  it("keeps all-project routes usable without shell scope", () => {
+    expect(Desktop_ALL_ROUTE_KINDS[0].scope).toBe("all");
+    expect(Desktop_ALL_ROUTE_KINDS.map((route) => route.id)).toContain("plan");
   });
 });

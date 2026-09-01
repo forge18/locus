@@ -2,7 +2,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { DispatchPill } from "./DispatchPill";
 import { InboxPill } from "./InboxPill";
 import type { InboxDelivery } from "../data/inbox";
-import type { ActiveSession } from "./RunningPill";
+import type { ActiveSession } from "./session-types";
 import type { StoreHealth } from "../data/health";
 
 export interface AppTitleBarProps {

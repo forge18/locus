@@ -20,7 +20,7 @@ import { stopAllDispatch } from "../data/dispatch";
 import { fetchInboxPendingCount } from "../data/inbox";
 import { fetchStoreHealth, type StoreHealth } from "../data/health";
 import type { Envelope } from "../data/envelope";
-import type { ActiveSession } from "./RunningPill";
+import type { ActiveSession } from "./session-types";
 import { BackLink, type NavStore, type View } from "../nav";
 import { destinationDesktop } from "../nav/desktop-navigation";
 import type { DesktopNavTarget, DesktopRouteId } from "../nav/desktop-locator";

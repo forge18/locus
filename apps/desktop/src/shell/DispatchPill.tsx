@@ -1,5 +1,5 @@
 import { For, Show, createEffect, createSignal, onCleanup } from "solid-js";
-import type { ActiveSession } from "./RunningPill";
+import type { ActiveSession } from "./session-types";
 
 export interface DispatchPillProps {
   running: number;
@@ -102,7 +102,7 @@ export function DispatchPill(props: DispatchPillProps) {
                   <span class="dispatch-project-tag">
                     {session.project ?? "project"}
                   </span>
-                  <small>{session.meta ?? session.role ?? "running"}</small>
+                  <small>{session.meta ?? "running"}</small>
                 </li>
               )}
             </For>
