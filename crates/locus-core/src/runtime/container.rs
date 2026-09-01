@@ -1,4 +1,4 @@
-//! The container supervisor: bollard over the Docker Engine API, and the PTY stream.
+//! The container supervisor over the Docker Engine API.
 
 use std::{
     collections::{HashMap, VecDeque},
@@ -12,7 +12,6 @@ use std::{
     time::Duration,
 };
 
-use crate::bus::InProcessBus;
 use anyhow::{bail, Context, Result};
 use bollard::{
     body_full,
@@ -23,24 +22,20 @@ use bollard::{
         NetworkCreateRequest, NetworkingConfig,
     },
     query_parameters::{
-        AttachContainerOptionsBuilder, BuildImageOptionsBuilder, CreateContainerOptionsBuilder,
-        InspectContainerOptionsBuilder, InspectNetworkOptionsBuilder,
-        RemoveContainerOptionsBuilder, StartContainerOptions, StopContainerOptions,
+        BuildImageOptionsBuilder, CreateContainerOptionsBuilder, InspectContainerOptionsBuilder,
+        InspectNetworkOptionsBuilder, RemoveContainerOptionsBuilder, StartContainerOptions,
+        StopContainerOptions,
     },
     Docker,
 };
 use futures::StreamExt;
-use tokio::{
-    io::AsyncWriteExt,
-    sync::{broadcast, mpsc as tokio_mpsc},
-};
+use tokio::{io::AsyncWriteExt, sync::mpsc as tokio_mpsc};
 
 use crate::sandbox::{
     forward_proxy::{
         policy_directory_is_empty, ForwardProxyLaunch, ForwardProxyPolicy, FORWARD_PROXY_ALIAS,
     },
     mounts::Mount,
-    mounts::{PtyAttachment, AGENT_PTY},
 };
 /// Whether the container runtime built the image or reused its existing cache entry.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -48,37 +43,6 @@ pub enum ImageDisposition {
     Built,
     Reused,
 }
-
-pub(crate) const PTY_STREAM_CAPACITY: usize = 1_024;
-
-/// Broadcasts raw PTY bytes from a run's container runtime to its UI subscribers.
-#[derive(Clone, Debug)]
-pub struct PtyStream(InProcessBus<Vec<u8>>);
-
-impl PtyStream {
-    pub fn new(capacity: usize) -> Self {
-        Self(InProcessBus::new(capacity))
-    }
-
-    /// Registers one UI consumer. The desktop forwards each received buffer through
-    /// its `Channel<&[u8]>` transport.
-    pub fn subscribe(&self) -> broadcast::Receiver<Vec<u8>> {
-        self.0.subscribe()
-    }
-
-    /// Delivers one byte buffer read from the attached PTY.
-    pub fn write(&self, bytes: &[u8]) -> usize {
-        self.0.publish(bytes.to_vec())
-    }
-}
-
-impl PartialEq for PtyStream {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.same_channel(&other.0)
-    }
-}
-
-impl Eq for PtyStream {}
 
 /// The complete, harness-agnostic request made to the container runtime.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -138,7 +102,7 @@ impl DebugAdapterLaunch {
 
 /// The narrow container boundary required by run spawning.
 ///
-/// The supplied container adapter owns image caching, container creation, and PTY plumbing; this
+/// The supplied container adapter owns image caching and container creation; this
 /// supervisor owns their ordering and the run state transition.
 pub trait ContainerRuntime: Send {
     fn backend(&self) -> super::backend::RuntimeBackend {
@@ -150,12 +114,6 @@ pub trait ContainerRuntime: Send {
         Ok(())
     }
     fn start_container(&mut self, container: &ContainerLaunch) -> Result<()>;
-    fn attach_pty(
-        &mut self,
-        container: &str,
-        attachment: PtyAttachment,
-        stream: PtyStream,
-    ) -> Result<()>;
     fn stop_container(&mut self, container: &str) -> Result<()>;
 
     fn attach_audit_sink(
@@ -449,19 +407,6 @@ fn docker_shell_entrypoint(setup: &str) -> Vec<String> {
     ]
 }
 
-#[cfg(test)]
-mod docker_entrypoint {
-    use super::docker_shell_entrypoint;
-
-    #[test]
-    fn setup_execs_the_harness_command_passed_as_docker_cmd() {
-        assert_eq!(
-            docker_shell_entrypoint("prepare"),
-            ["/bin/sh", "-lc", "prepare && exec \"$@\"", "locus-agent"]
-        );
-    }
-}
-
 impl DockerContainerRuntime {
     pub fn connect() -> Result<Self> {
         Ok(Self {
@@ -534,7 +479,7 @@ impl ContainerRuntime for DockerContainerRuntime {
                 cmd: Some(launch.command),
                 entrypoint: Some(docker_shell_entrypoint(&launch.entrypoint)),
                 env: Some(launch.environment),
-                tty: Some(true),
+                tty: Some(false),
                 open_stdin: Some(true),
                 host_config: Some(HostConfig {
                     binds: Some(binds),
@@ -560,41 +505,6 @@ impl ContainerRuntime for DockerContainerRuntime {
                 .context("start agent container")?;
             Ok(())
         })
-    }
-
-    fn attach_pty(
-        &mut self,
-        container: &str,
-        attachment: PtyAttachment,
-        stream: PtyStream,
-    ) -> Result<()> {
-        let docker = self.docker.clone();
-        let container = container.to_owned();
-        std::thread::spawn(move || {
-            let runtime = tokio::runtime::Runtime::new().expect("create Docker runtime");
-            runtime.block_on(async move {
-                let mut attached = docker
-                    .attach_container(
-                        &container,
-                        Some(
-                            AttachContainerOptionsBuilder::default()
-                                .stdin(attachment.tty)
-                                .stdout(attachment.stdout)
-                                .stderr(attachment.stderr)
-                                .stream(true)
-                                .logs(true)
-                                .build(),
-                        ),
-                    )
-                    .await?;
-                while let Some(output) = attached.output.next().await {
-                    let output: LogOutput = output?;
-                    stream.write(output.as_ref());
-                }
-                Ok::<_, bollard::errors::Error>(())
-            })
-        });
-        Ok(())
     }
 
     fn stop_container(&mut self, container: &str) -> Result<()> {
@@ -802,8 +712,11 @@ impl crate::runtime::boot::BootRuntime for DockerContainerRuntime {
         })
     }
 
-    fn reattach_pty(&mut self, container: &str, stream: PtyStream) -> Result<()> {
-        <Self as ContainerRuntime>::attach_pty(self, container, AGENT_PTY, stream)
+    fn reattach_agent(&mut self, container: &str) -> Result<()> {
+        if !<Self as ContainerRuntime>::container_is_alive(self, container)? {
+            bail!("agent container `{container}` is not running")
+        }
+        Ok(())
     }
 }
 
@@ -962,18 +875,14 @@ fn vendored_proxy_context() -> Result<Vec<u8>> {
 }
 
 #[cfg(test)]
-mod streams_pty {
-    use super::PtyStream;
+mod docker_entrypoint {
+    use super::docker_shell_entrypoint;
 
-    #[tokio::test]
-    async fn delivers_pty_bytes_to_each_ui_subscriber() {
-        let stream = PtyStream::new(2);
-        let mut first_ui = stream.subscribe();
-        let mut second_ui = stream.subscribe();
-
-        stream.write(b"agent output");
-
-        assert_eq!(first_ui.recv().await.unwrap(), b"agent output");
-        assert_eq!(second_ui.recv().await.unwrap(), b"agent output");
+    #[test]
+    fn setup_execs_the_harness_command_passed_as_docker_cmd() {
+        assert_eq!(
+            docker_shell_entrypoint("prepare"),
+            ["/bin/sh", "-lc", "prepare && exec \"$@\"", "locus-agent"]
+        );
     }
 }

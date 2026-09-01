@@ -9,7 +9,6 @@ use anyhow::{bail, Result};
 use crate::{
     ids::RunId,
     runtime::{
-        container::PtyStream,
         run::{Inbox, InboxItem},
         session::{Run, RunStatus},
     },
@@ -82,7 +81,7 @@ mod tests {
 /// Each backend implements this boundary without exposing its control client to agents.
 pub trait BootRuntime {
     fn container_is_alive(&mut self, container: &str) -> Result<bool>;
-    fn reattach_pty(&mut self, container: &str, stream: PtyStream) -> Result<()>;
+    fn reattach_agent(&mut self, container: &str) -> Result<()>;
 }
 
 /// Result of reconciling one persisted running run at daemon boot.
@@ -94,11 +93,7 @@ pub enum BootReconciliation {
 
 /// Reattach to containers that survived a daemon restart. Missing containers are handled by
 /// `abort_missing_on_boot`, which additionally records their terminal event and inbox item.
-pub fn reattach_on_boot(
-    run: &Run,
-    runtime: &mut impl BootRuntime,
-    stream: PtyStream,
-) -> Result<BootReconciliation> {
+pub fn reattach_on_boot(run: &Run, runtime: &mut impl BootRuntime) -> Result<BootReconciliation> {
     if run.status != RunStatus::Running {
         bail!("only running runs are reconciled at boot")
     }
@@ -106,7 +101,7 @@ pub fn reattach_on_boot(
     if !runtime.container_is_alive(&container)? {
         return Ok(BootReconciliation::Missing);
     }
-    runtime.reattach_pty(&container, stream)?;
+    runtime.reattach_agent(&container)?;
     Ok(BootReconciliation::Reattached)
 }
 
@@ -218,7 +213,7 @@ mod reattach_on_boot {
     use crate::ids::{RunId, SessionId};
     use anyhow::Result;
 
-    use super::{reattach_on_boot, BootReconciliation, BootRuntime, PtyStream};
+    use super::{reattach_on_boot, BootReconciliation, BootRuntime};
     use crate::runtime::session::{Artifact, Run, RunStatus};
 
     struct RecordingRuntime {
@@ -230,7 +225,7 @@ mod reattach_on_boot {
             Ok(true)
         }
 
-        fn reattach_pty(&mut self, container: &str, _: PtyStream) -> Result<()> {
+        fn reattach_agent(&mut self, container: &str) -> Result<()> {
             self.attached = Some(container.into());
             Ok(())
         }
@@ -253,7 +248,7 @@ mod reattach_on_boot {
         };
         let mut runtime = RecordingRuntime { attached: None };
 
-        let result = reattach_on_boot(&run, &mut runtime, PtyStream::new(1)).expect("reconcile");
+        let result = reattach_on_boot(&run, &mut runtime).expect("reconcile");
 
         assert_eq!(result, BootReconciliation::Reattached);
         assert_eq!(runtime.attached, Some(format!("locus-agent-{}", run.id)));

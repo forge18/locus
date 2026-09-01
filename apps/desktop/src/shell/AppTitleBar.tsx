@@ -3,6 +3,7 @@ import { DispatchPill } from "./DispatchPill";
 import { InboxPill } from "./InboxPill";
 import type { InboxDelivery } from "../data/inbox";
 import type { ActiveSession } from "./RunningPill";
+import type { StoreHealth } from "../data/health";
 
 export interface AppTitleBarProps {
     categoryLabel: string;
@@ -16,6 +17,7 @@ export interface AppTitleBarProps {
     onStopAll?: () => void;
     onOpenInbox?: () => void;
     onDispatchOpenChange?: (open: boolean) => void;
+    storeHealth?: StoreHealth;
 }
 
 /** The custom title bar owns the window chrome: with native decorations off,
@@ -59,6 +61,13 @@ export function AppTitleBar(props: AppTitleBarProps) {
                 <span data-testid="title-view">{props.viewLabel}</span>
             </div>
             <div style={{ flex: 1 }} data-tauri-drag-region />
+            <span
+                data-testid="store-health"
+                data-status={props.storeHealth?.status ?? "not_configured"}
+                title={props.storeHealth?.message ?? undefined}
+            >
+                {props.storeHealth?.status ?? "not configured"}
+            </span>
             <DispatchPill
                 running={props.running}
                 needsYou={props.needsYou}

@@ -18,6 +18,7 @@ import {
 import { stopAllDispatch } from "../data/dispatch";
 import { fetchInboxPendingCount } from "../data/inbox";
 import { fetchProjects } from "../data/core";
+import { fetchStoreHealth, type StoreHealth } from "../data/health";
 import type { Envelope } from "../data/envelope";
 import type { ActiveSession } from "./RunningPill";
 import { BackLink, type NavStore, type View } from "../nav";
@@ -100,19 +101,24 @@ export function Shell(props: ShellProps) {
     const [projectsEnvelope, setProjectsEnvelope] = createSignal<
         Envelope<{ id: string; name: string }[]>
     >({ status: "loading" });
+    const [healthEnvelope, setHealthEnvelope] = createSignal<
+        Envelope<StoreHealth>
+    >({ status: "loading" });
 
     const loadLiveStatus = async () => {
-        const [cards, running, inbox, projects] = await Promise.all([
+        const [cards, running, inbox, projects, health] = await Promise.all([
             safeLiveRead("strip_cards", fetchStripCards),
             safeLiveRead("running_count", fetchRunningCount),
             safeLiveRead("inbox_pending_count", fetchInboxPendingCount),
             safeLiveRead("projects_list", fetchProjects),
+            safeLiveRead("store_health", fetchStoreHealth),
         ]);
         setStripEnvelope(cards);
         setRunningEnvelope(running);
         setInboxEnvelope(inbox);
         setProjectsEnvelope(projects);
-        for (const failed of [cards, running, inbox, projects]) {
+        setHealthEnvelope(health);
+        for (const failed of [cards, running, inbox, projects, health]) {
             if (failed.status === "failed") {
                 notify({
                     title: "Live status unavailable",
@@ -171,6 +177,10 @@ export function Shell(props: ShellProps) {
         return envelope.status === "ready"
             ? envelope.data.map((project) => project.name)
             : undefined;
+    });
+    const storeHealth = createMemo<StoreHealth | undefined>(() => {
+        const envelope = healthEnvelope();
+        return envelope.status === "ready" ? envelope.data : undefined;
     });
     const openDesktopTarget = (target: DesktopNavTarget) => {
         const params =
@@ -240,6 +250,7 @@ export function Shell(props: ShellProps) {
                     openDesktopLocator(destinationDesktop("inbox"))
                 }
                 onDispatchOpenChange={setDispatchOpen}
+                storeHealth={storeHealth()}
             />
             <div class="body">
                 <ProjectRail

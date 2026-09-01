@@ -13,15 +13,19 @@
 use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex, OnceLock},
+    sync::{Arc, Mutex, OnceLock, RwLock},
     time::Duration,
 };
 
 use anyhow::{anyhow, bail, Context, Result};
+use serde::Serialize;
 
 use crate::{
-    harness::registry::{load_from_directory, HarnessRegistry},
-    ids::{ProjectId, TaskId},
+    harness::{
+        materialize::extensions::{ExtensionEntry, ExtensionSet},
+        registry::{load_from_directory, HarnessDefinition, HarnessRegistry},
+    },
+    ids::{ProjectId, RoutineId, RunId, TaskId},
     ipc::{EventChannel, PtyChannel},
     lsp::{LanguageCatalog, LspHost},
     plugin::{builtin_manifests, PluginKind, PluginProcess, WorkItemProviderDescriptor},
@@ -30,9 +34,19 @@ use crate::{
         container::{ContainerRuntime, DockerContainerRuntime},
         daemon::Daemon,
         dap::DebugSessionRegistry,
+        run::{self, SpawnRequest},
+        session::{Artifact, PermissionPosture, Run, RunStatus},
     },
-    sandbox::sbx::SbxContainerRuntime,
-    services::{handoff::HandoffRegistry, telemetry::EventCollector},
+    sandbox::{
+        credential_proxy::CredentialProxy,
+        egress::{DestinationAllowlists, EgressTier},
+        image::ToolPin,
+        sbx::SbxContainerRuntime,
+    },
+    services::{
+        agents::AgentDefinition, bots::RoutineClaimResult, handoff::HandoffRegistry,
+        telemetry::EventCollector, tools::RoleToolScope,
+    },
     store::Store,
     work_item::{
         pull_from_plugin, sync_capability_from_plugin, CompletionDelivery, CompletionEvent,
@@ -42,6 +56,38 @@ use crate::{
 
 /// How much fan-out each in-process channel buffers before a slow subscriber lags.
 const CHANNEL_CAPACITY: usize = 1_024;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StoreHealthStatus {
+    NotConfigured,
+    Connecting,
+    Connected,
+    Unavailable,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StoreHealth {
+    pub status: StoreHealthStatus,
+    pub message: Option<String>,
+}
+
+impl StoreHealth {
+    fn initial() -> Self {
+        let configured = std::env::var("DATABASE_URL")
+            .ok()
+            .is_some_and(|url| !url.trim().is_empty());
+        Self {
+            status: if configured {
+                StoreHealthStatus::Connecting
+            } else {
+                StoreHealthStatus::NotConfigured
+            },
+            message: None,
+        }
+    }
+}
 
 /// Everything that outlives a window.
 ///
@@ -65,7 +111,9 @@ pub struct Core {
     pending_work_item_previews: Mutex<BTreeMap<TaskId, (ProjectId, WorkItemSnapshot)>>,
     /// Set once, by [`Core::connect`].
     store: OnceLock<Store>,
-    daemon: Mutex<Daemon>,
+    store_health: RwLock<StoreHealth>,
+    daemon: Arc<tokio::sync::Mutex<Daemon>>,
+    credential_proxy: CredentialProxy,
 }
 
 impl Core {
@@ -103,7 +151,14 @@ impl Core {
             work_item_operation_lock: tokio::sync::Mutex::new(()),
             pending_work_item_previews: Mutex::new(BTreeMap::new()),
             store: OnceLock::new(),
-            daemon: Mutex::new(Daemon::with_debug(debug)),
+            store_health: RwLock::new(StoreHealth::initial()),
+            daemon: Arc::new(tokio::sync::Mutex::new(Daemon::with_debug(debug))),
+            credential_proxy: CredentialProxy::new(
+                std::env::var("LOCUS_CREDENTIAL_SECRET")
+                    .or_else(|_| std::env::var("ANTHROPIC_API_KEY"))
+                    .unwrap_or_default(),
+                "model-provider",
+            ),
         }))
     }
 
@@ -111,74 +166,119 @@ impl Core {
     /// before Postgres is reachable, and the registry surfaces do not need it.
     pub async fn connect(&self, database_url: &str) -> Result<&Store> {
         if let Some(store) = self.store.get() {
+            self.set_store_health(StoreHealth {
+                status: StoreHealthStatus::Connected,
+                message: None,
+            });
             return Ok(store);
         }
         let _connect_lock = self.connect_lock.lock().await;
         if let Some(store) = self.store.get() {
+            self.set_store_health(StoreHealth {
+                status: StoreHealthStatus::Connected,
+                message: None,
+            });
             return Ok(store);
         }
-        let store = Store::connect(database_url)
-            .await
-            .context("connect the Locus store")?;
-        let configs = store
-            .load_external_work_item_providers()
-            .await
-            .context("hydrate external work-item providers")?;
-        let imported = store
-            .load_external_work_items()
-            .await
-            .context("hydrate imported work items")?;
-        let completions = store
-            .load_external_completions()
-            .await
-            .context("hydrate external completion outbox")?;
+        self.set_store_health(StoreHealth {
+            status: StoreHealthStatus::Connecting,
+            message: None,
+        });
+        let result: Result<&Store> = async {
+            let store = Store::connect(database_url)
+                .await
+                .context("connect the Locus store")?;
+            let configs = store
+                .load_external_work_item_providers()
+                .await
+                .context("hydrate external work-item providers")?;
+            let imported = store
+                .load_external_work_items()
+                .await
+                .context("hydrate imported work items")?;
+            let completions = store
+                .load_external_completions()
+                .await
+                .context("hydrate external completion outbox")?;
 
-        let mut work_item_registry = WorkItemRegistry::default();
-        for config in configs {
-            work_item_registry.configure(config);
-        }
-        for item in imported {
-            work_item_registry
-                .restore_imported_with_sync_state(
-                    item.task,
-                    item.snapshot,
-                    item.workflow,
-                    item.runs,
-                    item.evidence,
-                    item.sync_state,
-                )
-                .map_err(|error| anyhow!("restore imported work item: {error}"))?;
-        }
-        let mut completion_outbox = CompletionOutbox::default();
-        for item in completions {
-            completion_outbox
-                .restore_delivery(CompletionDelivery {
-                    event: CompletionEvent {
-                        id: item.id,
-                        task_id: item.task_id,
-                        locator: item.locator,
-                        evidence: item.evidence,
-                        comment: item.comment,
-                    },
-                    attempts: item.attempts,
-                    commented: item.commented,
-                    resolved: item.resolved,
-                })
-                .map_err(|error| anyhow!("restore external completion: {error}"))?;
-        }
+            let mut work_item_registry = WorkItemRegistry::default();
+            for config in configs {
+                work_item_registry.configure(config);
+            }
+            for item in imported {
+                work_item_registry
+                    .restore_imported_with_sync_state(
+                        item.task,
+                        item.snapshot,
+                        item.workflow,
+                        item.runs,
+                        item.evidence,
+                        item.sync_state,
+                    )
+                    .map_err(|error| anyhow!("restore imported work item: {error}"))?;
+            }
+            let mut completion_outbox = CompletionOutbox::default();
+            for item in completions {
+                completion_outbox
+                    .restore_delivery(CompletionDelivery {
+                        event: CompletionEvent {
+                            id: item.id,
+                            task_id: item.task_id,
+                            locator: item.locator,
+                            evidence: item.evidence,
+                            comment: item.comment,
+                        },
+                        attempts: item.attempts,
+                        commented: item.commented,
+                        resolved: item.resolved,
+                    })
+                    .map_err(|error| anyhow!("restore external completion: {error}"))?;
+            }
 
-        *self
-            .work_items
-            .lock()
-            .map_err(|_| anyhow!("external work-item registry lock is poisoned"))? =
-            work_item_registry;
-        *self.completion_outbox.lock().await = completion_outbox;
-        self.store
-            .set(store)
-            .map_err(|_| anyhow!("Locus store was connected concurrently"))?;
-        self.store
-            .get()
-            .ok_or_else(|| anyhow!("Locus store was not initialized"))
+            *self
+                .work_items
+                .lock()
+                .map_err(|_| anyhow!("external work-item registry lock is poisoned"))? =
+                work_item_registry;
+            *self.completion_outbox.lock().await = completion_outbox;
+            self.store
+                .set(store)
+                .map_err(|_| anyhow!("Locus store was connected concurrently"))?;
+            self.store
+                .get()
+                .ok_or_else(|| anyhow!("Locus store was not initialized"))
+        }
+        .await;
+        match &result {
+            Ok(_) => self.set_store_health(StoreHealth {
+                status: StoreHealthStatus::Connected,
+                message: None,
+            }),
+            Err(error) => {
+                tracing::warn!(%error, "Locus store connection failed");
+                self.set_store_health(StoreHealth {
+                    status: StoreHealthStatus::Unavailable,
+                    message: Some("Locus store is unavailable".into()),
+                });
+            }
+        }
+        result
+    }
+
+    fn set_store_health(&self, health: StoreHealth) {
+        if let Ok(mut current) = self.store_health.write() {
+            *current = health;
+        }
+    }
+
+    pub fn store_health(&self) -> StoreHealth {
+        self.store_health
+            .read()
+            .map(|health| health.clone())
+            .unwrap_or(StoreHealth {
+                status: StoreHealthStatus::Unavailable,
+                message: Some("store health lock is poisoned".into()),
+            })
     }
 
     pub fn registry(&self) -> &HarnessRegistry {
@@ -360,7 +460,234 @@ impl Core {
         result
     }
 
-    pub fn daemon(&self) -> &Mutex<Daemon> {
-        &self.daemon
+    pub fn daemon(&self) -> &tokio::sync::Mutex<Daemon> {
+        self.daemon.as_ref()
     }
+
+    /// Launch one queue-claimed run from durable state. All inputs that affect
+    /// the container are resolved by the host from the run, its session, and
+    /// the project settings; no queue caller can substitute them.
+    pub async fn fire_due_bot_routines(
+        &self,
+        seen_minutes: &mut BTreeMap<RoutineId, i64>,
+        runtime: &mut dyn ContainerRuntime,
+    ) -> Result<usize> {
+        let Some(store) = self.store() else {
+            return Ok(0);
+        };
+        let now = time::OffsetDateTime::now_utc();
+        let minute = now.unix_timestamp() / 60;
+        let default_model =
+            std::env::var("LOCUS_DEFAULT_MODEL_ID").unwrap_or_else(|_| "unconfigured-model".into());
+        let mut started = 0;
+        for routine in store.all_bot_routines().await? {
+            if !routine.enabled || seen_minutes.get(&routine.id) == Some(&minute) {
+                continue;
+            }
+            let cron = match crate::services::schedule::CronExpression::parse(
+                &routine.cron_expression,
+            ) {
+                Ok(cron) => cron,
+                Err(error) => {
+                    tracing::warn!(routine = %routine.id, %error, "skip invalid bot routine cron");
+                    seen_minutes.insert(routine.id, minute);
+                    continue;
+                }
+            };
+            if !cron.matches(now) {
+                continue;
+            }
+            seen_minutes.insert(routine.id, minute);
+            let claim = store
+                .fire_bot_routine(routine.id, now, &default_model)
+                .await?;
+            if let RoutineClaimResult::Started(start) = claim {
+                let run_id = store
+                    .active_bot_run(start.bot_id)
+                    .await?
+                    .ok_or_else(|| anyhow!("bot routine started without an active run"))?;
+                let dispatch = store
+                    .dispatch_run(run_id)
+                    .await?
+                    .ok_or_else(|| anyhow!("bot routine run disappeared before launch"))?;
+                self.spawn_dispatch_run(store, dispatch, runtime).await?;
+                started += 1;
+            }
+        }
+        Ok(started)
+    }
+
+    pub async fn dispatch_once(&self, runtime: &mut dyn ContainerRuntime) -> Result<Vec<RunId>> {
+        let Some(store) = self.store() else {
+            return Ok(Vec::new());
+        };
+        let claimed = store.claim_dispatchable_runs().await?;
+        let mut started = Vec::new();
+        for run_id in claimed {
+            let Some(dispatch) = store.dispatch_run(run_id).await? else {
+                store
+                    .abort_dispatch_run(run_id, "dispatch run disappeared before launch")
+                    .await?;
+                continue;
+            };
+            match self.spawn_dispatch_run(store, dispatch, runtime).await {
+                Ok(_) => started.push(run_id),
+                Err(error) => {
+                    tracing::warn!(%run_id, %error, "dispatch run failed to start");
+                    store.abort_dispatch_run(run_id, &error.to_string()).await?;
+                }
+            }
+        }
+        Ok(started)
+    }
+
+    pub async fn spawn_dispatch_run(
+        &self,
+        store: &Store,
+        dispatch: crate::store::dispatch::DispatchRun,
+        runtime: &mut dyn ContainerRuntime,
+    ) -> Result<run::SpawnedRun> {
+        let project_settings = store.project_settings(dispatch.project_id.into()).await?;
+        let project_id = dispatch.project_id.to_string();
+        let harness = select_dispatch_harness(
+            &self.registry,
+            &project_settings,
+            dispatch.harness.as_deref(),
+        )?;
+        let frontmatter = serde_json::from_value(dispatch.agent_frontmatter.clone())?;
+        let definition = AgentDefinition {
+            frontmatter,
+            body: dispatch.agent_body,
+            warnings: Vec::new(),
+        };
+        let mut extensions = ExtensionSet::default();
+        extensions.insert("agents", vec![definition.extension_entry()?]);
+        if let Some(base_context) = project_settings.base_context() {
+            extensions.insert(
+                "context",
+                vec![ExtensionEntry::new(
+                    "project-base-context.md",
+                    serde_json::json!({"name": "project-base-context"}),
+                    base_context,
+                )],
+            );
+        }
+        let tools = definition
+            .frontmatter
+            .tools
+            .iter()
+            .map(|name| ToolPin {
+                name: name.clone(),
+                version: "catalog".into(),
+            })
+            .collect();
+        let guardrails = store.guardrail_defaults().await?;
+        let egress_tier = match guardrails.network_tier {
+            crate::runtime::dispatch::NetworkTier::Closed => EgressTier::None,
+            crate::runtime::dispatch::NetworkTier::Internal => EgressTier::Model,
+            crate::runtime::dispatch::NetworkTier::Open => EgressTier::Open,
+        };
+        let run_id: RunId = dispatch.run_id.into();
+        let mut run = Run {
+            id: run_id,
+            session_id: dispatch.session_id.into(),
+            resolved_model_id: dispatch.resolved_model_id.clone(),
+            status: match dispatch.status.as_str() {
+                "queued" => RunStatus::Queued,
+                "running" => RunStatus::Running,
+                status => bail!("dispatch run `{run_id}` has non-launchable status `{status}`"),
+            },
+            permission_posture: PermissionPosture::default(),
+            events: Vec::new(),
+            usage: None,
+            exit_code: None,
+            cancel_reason: None,
+            native_session_id: None,
+            artifacts: Vec::<Artifact>::new(),
+        };
+        let workspace_remote = dispatch
+            .workspace_remote
+            .ok_or_else(|| anyhow!("dispatch run has no project local remote"))?;
+        let config_root = std::env::var_os("LOCUS_RUN_CONFIG_ROOT")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| std::env::temp_dir().join("locus/config"))
+            .join(run_id.to_string());
+        let policy_root = std::env::var_os("LOCUS_EGRESS_POLICY_ROOT")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| std::env::temp_dir().join("locus/egress-policies"));
+        let socket_source = std::env::var_os("LOCUS_SOCKET_PATH")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("/run/locus.sock"));
+        let request = SpawnRequest {
+            project_id: &project_id,
+            harness,
+            extensions: &extensions,
+            config_root,
+            socket_source,
+            workspace_remote,
+            credential_proxy: run::CredentialProxyConfig::new(
+                "http://host.docker.internal:44000/",
+            )?,
+            credential_proxy_authorizer: &self.credential_proxy,
+            audit_store: store.clone(),
+            egress_tier,
+            egress_allowlists: DestinationAllowlists::new(
+                ["api.anthropic.com"],
+                std::iter::empty::<&str>(),
+            ),
+            egress_policy_root: policy_root,
+            run_nonce: uuid::Uuid::new_v4().to_string(),
+            lsp_enabled: definition
+                .frontmatter
+                .tools
+                .iter()
+                .any(|tool| tool == "lsp"),
+            base_image_digest: format!("{}:{}", harness.image.base, harness.image.version),
+            tools,
+            project_extension_scope: project_settings.extension_overrides().clone(),
+            project_tool_scope: project_settings.tool_scope().clone(),
+            role_tool_scope: RoleToolScope::default(),
+            project_settings,
+            handoff_context: None,
+            plugin: None,
+            collector: &self.collector,
+        };
+        let spawned = self
+            .daemon
+            .lock()
+            .await
+            .spawn_run(store, &mut run, request, runtime)
+            .await?;
+        if let Some(session) = spawned.acp_session.clone() {
+            let store = store.clone();
+            let daemon = self.daemon.clone();
+            tokio::spawn(async move {
+                session.wait_closed().await;
+                if let Err(error) = store.complete_dispatch_run(run_id, 0).await {
+                    tracing::warn!(%run_id, %error, "persist completed dispatch run");
+                }
+                daemon.lock().await.finish_run(run_id);
+            });
+        }
+        Ok(spawned)
+    }
+}
+
+fn select_dispatch_harness<'a>(
+    registry: &'a HarnessRegistry,
+    settings: &crate::services::project::ProjectSettings,
+    requested: Option<&str>,
+) -> Result<&'a HarnessDefinition> {
+    let requested = requested
+        .filter(|name| !name.eq_ignore_ascii_case("any"))
+        .or_else(|| settings.agent_default())
+        .or_else(|| settings.harness_allow_list().first().map(String::as_str));
+    let harness = requested
+        .and_then(|name| registry.by_name(name))
+        .or_else(|| registry.iter().next())
+        .ok_or_else(|| anyhow!("no harness is registered"))?;
+    if !settings.harness_allow_list().is_empty() && !settings.permits_harness(&harness.name) {
+        bail!("harness `{}` is not allowed for the project", harness.name)
+    }
+    Ok(harness)
 }

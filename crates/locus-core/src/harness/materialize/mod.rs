@@ -11,15 +11,16 @@ pub mod report;
 pub mod strategy;
 pub mod tree;
 
-#[cfg(test)]
-use crate::harness::materialize::{extensions::EXTENSIONS, report::reports_for_registry};
 use crate::harness::materialize::{
+    context::assemble_frozen_head,
     extensions::{ExtensionEntry, ExtensionSet, ProjectExtensionScope},
     plugin::PluginHost,
     report::{MaterializationLoss, MaterializationReport},
     strategy::{DirStrategy, EntriesInStrategy, ListedInStrategy, MergedIntoStrategy},
     tree::{CoreDrivenEvent, GeneratedFile, MaterializedTree},
 };
+#[cfg(test)]
+use crate::harness::materialize::{extensions::EXTENSIONS, report::reports_for_registry};
 use crate::harness::registry::Via;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -336,7 +337,8 @@ fn append_trust_boundary_rule(
             field: "always-on context file",
         }
     })?;
-    tree.append(registry_path(root, context), TRUST_BOUNDARY_RULE.into())
+    let frozen_rule = assemble_frozen_head([("locus-trust-boundary", TRUST_BOUNDARY_RULE)]);
+    tree.append(registry_path(root, context), frozen_rule)
 }
 
 fn merge_target(

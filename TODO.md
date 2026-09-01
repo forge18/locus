@@ -1,6 +1,6 @@
 # TODO
 
-**Remaining:** 44 open rows across 12 workstreams, worked top to bottom.
+**Remaining:** 38 open rows across 12 workstreams, worked top to bottom.
 
 This is the unfinished-work index. [`PLAN.md`](PLAN.md) is the architecture authority. Each feature's
 `spec.md` is its contract; its `tasks.md` is the runnable decomposition and verification source. One
@@ -11,8 +11,8 @@ owning workstream so nothing is tracked twice.
 
 - `chore/todo-completion` carries all completed work — 30 rows finished since the 2026-08-29
   audit; the record lives in this branch's git history, not here.
-- Active workstream: **2 — Runtime integrity chain** (desktop data integration tasks 1–12 and the
-  registered-command disposition are complete; the next item is the dispatch loop).
+- Active workstream: **3 — Workers consolidation** (the runtime integrity batch is complete; the
+  next item is resolving Interact through Workers).
 
 ## 1 — Desktop data integration (the epic)
 
@@ -90,27 +90,21 @@ The core can materialize, clone, and start a container. The session layer it nee
 (ACP session establishment, telemetry persistence + replay, and daemon memory-promote routing are
 done and checked off in git history). Remaining, in dependency order:
 
-- [ ] **Wire the dispatch loop** — `Daemon::spawn_run` ([daemon.rs:281](crates/locus-core/src/runtime/daemon.rs#L281))
-  has zero callers and `Store::claim_dispatchable_runs` is called only from tests; `locusd` has no
-  queue poll and no Tauri command starts a run. Queued runs stay queued forever. This is the caller
-  the session/telemetry work has been waiting for.
-- [ ] **Run bot routines** — `Store::start_bot_run` ([bots.rs:226](crates/locus-core/src/store/bots.rs#L226))
-  has zero callers; a cron routine can be enabled from the UI but never fires. Depends on the
-  dispatch loop.
-- [ ] **Remove the PTY from the agent run** — `spawn_at_port` still attaches `AGENT_PTY`
-  ([run.rs:552-553](crates/locus-core/src/runtime/run.rs#L552-L553)); [acp-client](.specs/acp-client/spec.md)
-  acceptance 7 says no PTY on any run. The ACP session now exists; this row deletes the attach, the
-  `PtyStream` plumbing, and the `pty_subscribe` command, and gives the UI a `Channel<Event>`.
-- [ ] **Consume the context layer from the run path** — `materialize()` calls none of
-  `assemble_frozen_head`/`recall_with_settings`/`ContextBudget`/`RecitationEmitter` (commit `67bf248`
-  built them; [materialize/mod.rs:6](crates/locus-core/src/harness/materialize/mod.rs#L6) only
-  declares the module).
-- [ ] **Make store connectivity a startup health state** — `Core::load` skips the store and
-  `connected_store` connects lazily, so with `DATABASE_URL` unset every store command fails
-  individually while demo-provider-backed surfaces keep answering. One health state, one indicator.
-- [ ] **Test the ACP namespace claim** — [acp-client](.specs/acp-client/spec.md) acceptance 3 wants a
-  test asserting the agent process's namespace; the transport tests assert only the
-  `docker exec -i` argv.
+- [x] **Wire the dispatch loop** — `locusd` polls `Store::claim_dispatchable_runs`, resolves each
+  durable run context, and calls `Daemon::spawn_run`; failed launches become visible aborted runs
+  instead of remaining phantom `running` rows.
+- [x] **Run bot routines** — the same headless loop evaluates UTC cron routines, claims overlap in
+  the store, starts bot home runs without a window, and keeps one firing per routine per minute.
+- [x] **Remove the PTY from the agent run** — agent containers start without a TTY, ACP owns the
+  process I/O, boot reconciliation no longer reattaches terminal bytes, and `pty_subscribe`,
+  `PtyStream`, and agent PTY attachment plumbing are gone.
+- [x] **Consume the context layer from the run path** — run startup now assembles a deterministic
+  frozen head, bounded recall/tail budget, and state-change recitation; project base context enters
+  the materialized context plane.
+- [x] **Make store connectivity a startup health state** — `Core` tracks configured, connecting,
+  connected, and unavailable states; Tauri exposes `store_health` and the title bar displays it.
+- [x] **Test the ACP namespace claim** — the Linux-only `acp_namespace` integration test proves a
+  Docker process does not share the host PID namespace; ACP transports remain container execs.
 
 ## 3 — Workers consolidation
 

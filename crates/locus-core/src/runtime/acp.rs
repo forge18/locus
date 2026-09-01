@@ -1,7 +1,13 @@
 //! ACP planning-client transport.
 
 use crate::{bus::InProcessBus, runtime::backend::RuntimeBackend};
-use std::path::PathBuf;
+use std::{
+    path::PathBuf,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+};
 
 // `SessionId` here is the ACP wire type, not `crate::ids::SessionId`. They are
 // different identifiers: one is the harness's session handle, one is ours.
@@ -12,7 +18,7 @@ use agent_client_protocol::{
     AcpAgent, AcpAgentConfig, Client, ConnectTo,
 };
 use anyhow::Context as _;
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, Notify};
 use tokio::task::AbortHandle;
 
 pub use super::controls::{
@@ -74,7 +80,20 @@ where
         RuntimeBackend::Docker => "docker",
         RuntimeBackend::Sbx => "sbx",
     };
-    let mut runtime_args = vec!["exec".into(), "-i".into(), container.into(), command.into()];
+    let mut runtime_args = vec!["exec".into(), "-i".into()];
+    if backend == RuntimeBackend::Docker {
+        runtime_args.extend(["-w".into(), "/workspace".into()]);
+    }
+    runtime_args.push(container.into());
+    if backend == RuntimeBackend::Sbx {
+        runtime_args.extend([
+            "/bin/sh".into(),
+            "-lc".into(),
+            "cd /workspace && exec \"$@\"".into(),
+            "locus-agent".into(),
+        ]);
+    }
+    runtime_args.push(command.into());
     runtime_args.extend(args.into_iter().map(Into::into));
     planning_stdio_transport(executable, runtime_args)
 }
@@ -126,6 +145,24 @@ impl UpdateStream {
     }
 }
 
+struct AgentSessionCompletion {
+    closed: AtomicBool,
+    notify: Notify,
+}
+
+impl AgentSessionCompletion {
+    fn close(&self) {
+        self.closed.store(true, Ordering::Release);
+        self.notify.notify_waiters();
+    }
+
+    async fn wait(&self) {
+        while !self.closed.load(Ordering::Acquire) {
+            self.notify.notified().await;
+        }
+    }
+}
+
 /// An established ACP conversation with the run's agent: the wire session id, the
 /// broadcast of streamed `session/update` notifications, and the handle keeping the
 /// connection (and with it the exec'd agent process) alive. Dropping the handle aborts
@@ -135,6 +172,7 @@ pub struct AgentSession {
     pub session_id: SessionId,
     pub updates: UpdateStream,
     connection: AbortHandle,
+    completion: Arc<AgentSessionCompletion>,
 }
 
 impl std::fmt::Debug for AgentSession {
@@ -142,6 +180,13 @@ impl std::fmt::Debug for AgentSession {
         f.debug_struct("AgentSession")
             .field("session_id", &self.session_id)
             .finish_non_exhaustive()
+    }
+}
+
+impl AgentSession {
+    /// Wait until the ACP transport reaches EOF after the run's session ends.
+    pub async fn wait_closed(&self) {
+        self.completion.wait().await;
     }
 }
 
@@ -167,6 +212,11 @@ where
     let (session_tx, session_rx) = tokio::sync::oneshot::channel();
     let cwd: PathBuf = cwd.into();
     let handler_updates = updates.clone();
+    let completion = Arc::new(AgentSessionCompletion {
+        closed: AtomicBool::new(false),
+        notify: Notify::new(),
+    });
+    let completion_for_task = completion.clone();
     let connection = Client
         .builder()
         .on_receive_notification::<SessionNotification, _, _, _>(
@@ -189,6 +239,7 @@ where
             // The session lives until the run ends: hold the connection open on
             // incoming EOF rather than closing it after the handshake.
             cx.incoming_closed().await;
+            completion_for_task.close();
             Ok(())
         });
     let connection = tokio::spawn(connection);
@@ -199,6 +250,7 @@ where
         session_id,
         updates,
         connection: connection.abort_handle(),
+        completion,
     })
 }
 
@@ -230,7 +282,15 @@ mod runs_in_container {
         assert_eq!(transport.config().command(), Path::new("docker"));
         assert_eq!(
             transport.config().arguments(),
-            ["exec", "-i", "locus-agent-run-1", "agent", "acp"]
+            [
+                "exec",
+                "-i",
+                "-w",
+                "/workspace",
+                "locus-agent-run-1",
+                "agent",
+                "acp",
+            ]
         );
     }
 
@@ -246,7 +306,17 @@ mod runs_in_container {
         assert_eq!(transport.config().command(), Path::new("sbx"));
         assert_eq!(
             transport.config().arguments(),
-            ["exec", "-i", "locus-agent-run-1", "agent", "acp"]
+            [
+                "exec",
+                "-i",
+                "locus-agent-run-1",
+                "/bin/sh",
+                "-lc",
+                "cd /workspace && exec \"$@\"",
+                "locus-agent",
+                "agent",
+                "acp",
+            ]
         );
     }
 }
@@ -264,7 +334,15 @@ mod not_on_host {
         assert_eq!(transport.config().command(), Path::new("docker"));
         assert_eq!(
             transport.config().arguments(),
-            ["exec", "-i", "locus-agent-run-1", "agent", "acp"]
+            [
+                "exec",
+                "-i",
+                "-w",
+                "/workspace",
+                "locus-agent-run-1",
+                "agent",
+                "acp",
+            ]
         );
     }
 }

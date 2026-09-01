@@ -463,6 +463,18 @@ async fn connected_store(core: &Core) -> Result<&Store, IpcError> {
         .map_err(IpcError::internal)
 }
 
+#[tauri::command]
+async fn store_health(
+    core: State<'_, Arc<Core>>,
+) -> Result<locus_core::core::StoreHealth, IpcError> {
+    if core.store().is_none() {
+        if let Ok(database_url) = std::env::var("DATABASE_URL") {
+            let _ = core.connect(&database_url).await;
+        }
+    }
+    Ok(core.store_health())
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct DispatchStopAllResponse {
@@ -3846,18 +3858,6 @@ fn lsp_diagnostics_unsubscribe(
 }
 
 #[tauri::command]
-fn pty_subscribe(core: State<'_, Arc<Core>>, channel: Channel<Vec<u8>>) {
-    let mut bytes = core.pty().subscribe();
-    tauri::async_runtime::spawn(async move {
-        while let Ok(bytes) = bytes.recv().await {
-            if channel.send(bytes).is_err() {
-                break;
-            }
-        }
-    });
-}
-
-#[tauri::command]
 fn telemetry_subscribe(core: State<'_, Arc<Core>>, channel: Channel<Event>) {
     let mut events = core.collector().subscribe();
     tauri::async_runtime::spawn(async move {
@@ -4067,7 +4067,6 @@ pub fn run() {
             inbox_throughput,
             inbox_resolve,
             harness_tier_grid,
-            pty_subscribe,
             telemetry_subscribe,
             desktop_integration_emit_event,
             telemetry_events_replay,
@@ -4097,6 +4096,7 @@ pub fn run() {
             bot_routine_update,
             bot_routine_delete,
             dispatch_stop_all,
+            store_health,
             external_work_item_providers,
             external_work_item_workflows,
             external_work_item_tasks,
