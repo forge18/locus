@@ -26,6 +26,7 @@ pub mod providers;
 pub mod qa;
 pub mod restore;
 pub mod routing;
+pub mod search;
 pub mod runtime;
 pub mod schedules;
 pub mod session_controls;

@@ -46,7 +46,9 @@ export interface ShellProps {
     nav: NavStore;
     children: JSX.Element;
     /** Unified search_all results supplied by the command surface. */
-    searchAll?: (query: string) => PaletteResult[];
+    searchAll?: (
+        query: string,
+    ) => PaletteResult[] | Promise<PaletteResult[]>;
 }
 
 const desktopViews: Record<DesktopRouteId, View> = Object.fromEntries(

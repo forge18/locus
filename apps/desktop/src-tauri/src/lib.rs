@@ -1693,6 +1693,16 @@ struct PlanMutationResponse {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+struct PaletteSearchResponse {
+    kind: String,
+    project: String,
+    label: String,
+    locator: String,
+    score: i32,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct PlanningWorkspaceResponse {
     id: String,
     project_id: String,
@@ -1915,6 +1925,32 @@ async fn plan_requirements_set_inner(
         .save_plan_requirements(plan_id, &spec)
         .await
         .map_err(IpcError::internal)
+}
+
+#[tauri::command]
+async fn search_all(
+    core: State<'_, Arc<Core>>,
+    query: String,
+) -> Result<Vec<PaletteSearchResponse>, IpcError> {
+    if query.trim().is_empty() {
+        return Ok(Vec::new());
+    }
+    connected_store(&core)
+        .await?
+        .palette_search(&query)
+        .await
+        .map_err(IpcError::internal)
+        .map(|rows| {
+            rows.into_iter()
+                .map(|row| PaletteSearchResponse {
+                    kind: row.kind,
+                    project: row.project,
+                    label: row.label,
+                    locator: row.locator,
+                    score: row.score,
+                })
+                .collect()
+        })
 }
 
 #[tauri::command]
@@ -5012,6 +5048,7 @@ pub fn run() {
             plan_create,
             plan_stage_set,
             plan_requirements_set,
+            search_all,
             planning_workspaces_list,
             planning_workspace_create,
             planning_workspace_revisions_list,

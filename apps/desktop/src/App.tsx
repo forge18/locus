@@ -6,6 +6,7 @@ import { mountIconSprite } from "./ui/sprite";
 import { createNavStore } from "./nav";
 import { applyTheme, savedTheme } from "./styles/theme";
 import { configureDataProvider, liveProvider } from "./data/provider";
+import { searchAll as searchAllResults } from "./data/search";
 import { MailView } from "./screens/mail/MailView";
 import { AnalyticsView } from "./screens/analytics/AnalyticsView";
 import { QAView } from "./screens/review/QAView";
@@ -47,7 +48,18 @@ function App() {
         });
 
         return (
-                <Shell nav={nav}>
+                <Shell
+                        nav={nav}
+                        searchAll={async (query) => {
+                                const envelope = await searchAllResults(query);
+                                if (envelope.status === "failed") {
+                                        throw new Error(envelope.error.message);
+                                }
+                                return envelope.status === "ready"
+                                        ? envelope.data
+                                        : [];
+                        }}
+                >
                         <Suspense
                                 fallback={
                                         <SkeletonRows

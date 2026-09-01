@@ -91,7 +91,9 @@ export interface LocatorPaletteProps {
   current: string;
   mode?: PaletteMode;
   /** Cmd-P delegates to the unified search_all result stream. */
-  searchAll?: (query: string) => PaletteResult[];
+  searchAll?: (
+    query: string,
+  ) => PaletteResult[] | Promise<PaletteResult[]>;
   onResolve: (target: DesktopNavTarget) => void;
   /** Object locators use the shared NavStore resolver rather than the view-only adapter. */
   onOpenLocator?: (locator: string) => void;
@@ -138,9 +140,34 @@ export function LocatorPalette(props: LocatorPaletteProps) {
     else props.onResolve(navigateDesktop(locator));
     props.onOpenChange(false);
   };
-  const searchResults = createMemo(() =>
-    value() && props.searchAll ? props.searchAll(value()) : [],
-  );
+  const [searchResults, setSearchResults] = createSignal<PaletteResult[]>([]);
+  let searchRequest = 0;
+  createEffect(() => {
+    const query = value();
+    const search = props.searchAll;
+    if (mode() !== "search" || !query || !search) {
+      setSearchResults([]);
+      return;
+    }
+    const request = ++searchRequest;
+    try {
+      const result = search(query);
+      if (result instanceof Promise) {
+        void result
+          .then((rows) => {
+            if (request === searchRequest) setSearchResults(rows);
+          })
+          .catch((cause) => {
+            if (request === searchRequest)
+              setError(cause instanceof Error ? cause.message : String(cause));
+          });
+      } else {
+        setSearchResults(result);
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  });
   const submit = () => {
     if (mode() === "search") {
       const result = searchResults()[selected()] ?? searchResults()[0];
