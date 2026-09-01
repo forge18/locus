@@ -28,6 +28,14 @@ pub struct PlanningWorkspaceRevisionRow {
     pub approved_at: Option<String>,
 }
 
+#[derive(Debug, sqlx::FromRow)]
+pub struct PlanningWorkspaceSessionRow {
+    pub workspace_id: Uuid,
+    pub spec_id: Option<Uuid>,
+    pub session_id: Uuid,
+    pub linked_at: String,
+}
+
 fn valid_scope(scope: &str) -> bool {
     matches!(scope, "amendment" | "feature" | "project")
 }
@@ -230,6 +238,104 @@ impl crate::store::Store {
         .context("record workspace checkpoint")?;
         tx.commit().await.context("commit workspace checkpoint")?;
         Ok(next_revision)
+    }
+
+    pub async fn planning_workspace_sessions(
+        &self,
+        project_id: ProjectId,
+        workspace_id: PlanningWorkspaceId,
+    ) -> Result<Vec<PlanningWorkspaceSessionRow>> {
+        query_as(
+            "SELECT s.workspace_id, s.spec_id, s.session_id,
+                    s.linked_at::text AS linked_at
+             FROM core.planning_workspace_sessions s
+             JOIN core.planning_workspaces w ON w.id = s.workspace_id
+             WHERE s.workspace_id = $1 AND w.project_id = $2
+             ORDER BY s.linked_at, s.session_id",
+        )
+        .bind(workspace_id.as_uuid())
+        .bind(project_id)
+        .fetch_all(self.pool())
+        .await
+        .context("list planning workspace sessions")
+    }
+
+    pub async fn link_planning_workspace_session(
+        &self,
+        project_id: ProjectId,
+        workspace_id: PlanningWorkspaceId,
+        spec_id: Option<Uuid>,
+        session_id: Uuid,
+    ) -> Result<()> {
+        if !query_scalar::<_, bool>(
+            "SELECT EXISTS(
+                 SELECT 1 FROM core.planning_workspaces
+                 WHERE id = $1 AND project_id = $2
+             )",
+        )
+        .bind(workspace_id.as_uuid())
+        .bind(project_id)
+        .fetch_one(self.pool())
+        .await
+        .context("validate planning workspace session owner")?
+        {
+            bail!("planning workspace was not found in the project");
+        }
+        if !query_scalar::<_, bool>(
+            "SELECT EXISTS(
+                 SELECT 1 FROM agents.sessions
+                 WHERE id = $1 AND project_id = $2
+             )",
+        )
+        .bind(session_id)
+        .bind(project_id)
+        .fetch_one(self.pool())
+        .await
+        .context("validate planning session owner")?
+        {
+            bail!("planning session does not belong to the project");
+        }
+        if let Some(spec_id) = spec_id {
+            if !query_scalar::<_, bool>(
+                "SELECT EXISTS(
+                     SELECT 1 FROM core.planning_workspace_specs
+                     WHERE id = $1 AND workspace_id = $2
+                 )",
+            )
+            .bind(spec_id)
+            .bind(workspace_id.as_uuid())
+            .fetch_one(self.pool())
+            .await
+            .context("validate planning workspace spec owner")?
+            {
+                bail!("planning workspace spec does not belong to the workspace");
+            }
+        }
+        query(
+            "INSERT INTO core.planning_workspace_sessions
+                (workspace_id, spec_id, session_id)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (workspace_id, session_id)
+             DO UPDATE SET spec_id = EXCLUDED.spec_id",
+        )
+        .bind(workspace_id.as_uuid())
+        .bind(spec_id)
+        .bind(session_id)
+        .execute(self.pool())
+        .await
+        .context("link planning workspace session")?;
+        query(
+            "INSERT INTO core.planning_workspace_events
+                (id, workspace_id, kind, payload)
+             VALUES ($1, $2, 'session_linked', $3)",
+        )
+        .bind(Uuid::new_v4())
+        .bind(workspace_id.as_uuid())
+        .bind(json!({ "session_id": session_id, "spec_id": spec_id }))
+        .execute(self.pool())
+        .await
+        .context("record planning workspace session link")?;
+        Ok(())
     }
 
     pub async fn approve_planning_workspace(

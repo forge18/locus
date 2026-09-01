@@ -1720,6 +1720,15 @@ struct PlanningWorkspaceRevisionResponse {
     approved_at: Option<String>,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PlanningWorkspaceSessionResponse {
+    workspace_id: String,
+    spec_id: Option<String>,
+    session_id: String,
+    linked_at: String,
+}
+
 fn planning_workspace_response(
     row: locus_core::store::planning_workspace::PlanningWorkspaceRow,
 ) -> PlanningWorkspaceResponse {
@@ -1743,6 +1752,17 @@ fn planning_workspace_revision_response(
         state: row.state,
         frozen_at: row.frozen_at,
         approved_at: row.approved_at,
+    }
+}
+
+fn planning_workspace_session_response(
+    row: locus_core::store::planning_workspace::PlanningWorkspaceSessionRow,
+) -> PlanningWorkspaceSessionResponse {
+    PlanningWorkspaceSessionResponse {
+        workspace_id: row.workspace_id.to_string(),
+        spec_id: row.spec_id.map(|id| id.to_string()),
+        session_id: row.session_id.to_string(),
+        linked_at: row.linked_at,
     }
 }
 
@@ -1964,6 +1984,57 @@ async fn planning_workspace_revisions_list(
                 .map(planning_workspace_revision_response)
                 .collect()
         })
+}
+
+#[tauri::command]
+async fn planning_workspace_sessions_list(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    workspace_id: String,
+) -> Result<Vec<PlanningWorkspaceSessionResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = resolve_setup_project(store, &project_id).await?;
+    store
+        .planning_workspace_sessions(project_id, parse_planning_workspace_id(&workspace_id)?)
+        .await
+        .map_err(IpcError::internal)
+        .map(|rows| {
+            rows.into_iter()
+                .map(planning_workspace_session_response)
+                .collect()
+        })
+}
+
+#[tauri::command]
+async fn planning_workspace_session_link(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    workspace_id: String,
+    spec_id: Option<String>,
+    session_id: String,
+) -> Result<bool, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = resolve_setup_project(store, &project_id).await?;
+    let spec_id = spec_id
+        .map(|value| {
+            value
+                .parse()
+                .map_err(|_| IpcError::invalid_argument("planning workspace spec id must be a UUID"))
+        })
+        .transpose()?;
+    let session_id = session_id
+        .parse()
+        .map_err(|_| IpcError::invalid_argument("planning session id must be a UUID"))?;
+    store
+        .link_planning_workspace_session(
+            project_id,
+            parse_planning_workspace_id(&workspace_id)?,
+            spec_id,
+            session_id,
+        )
+        .await
+        .map_err(IpcError::internal)?;
+    Ok(true)
 }
 
 #[tauri::command]
@@ -4727,6 +4798,8 @@ pub fn run() {
             planning_workspaces_list,
             planning_workspace_create,
             planning_workspace_revisions_list,
+            planning_workspace_sessions_list,
+            planning_workspace_session_link,
             planning_workspace_checkpoint_save,
             planning_workspace_approve,
             planning_workspace_delete,

@@ -26,6 +26,13 @@ export interface PlanningWorkspaceRevision {
   approvedAt: string | null;
 }
 
+export interface PlanningWorkspaceSession {
+  workspaceId: string;
+  specId: string | null;
+  sessionId: string;
+  linkedAt: string;
+}
+
 export function listPlanningWorkspaces(
   projectId?: string,
 ): Promise<Envelope<PlanningWorkspace[]>> {
@@ -54,6 +61,30 @@ export function listPlanningWorkspaceRevisions(
     "planning_workspace_revisions_list",
     { projectId, workspaceId },
   );
+}
+
+export function listPlanningWorkspaceSessions(
+  projectId: string,
+  workspaceId: string,
+): Promise<Envelope<PlanningWorkspaceSession[]>> {
+  return dataProvider().query<PlanningWorkspaceSession>(
+    "planning_workspace_sessions_list",
+    { projectId, workspaceId },
+  );
+}
+
+export function linkPlanningWorkspaceSession(
+  projectId: string,
+  workspaceId: string,
+  sessionId: string,
+  specId?: string,
+): Promise<Envelope<boolean>> {
+  return dataProvider().queryOne<boolean>("planning_workspace_session_link", {
+    projectId,
+    workspaceId,
+    sessionId,
+    specId,
+  });
 }
 
 export function savePlanningWorkspaceCheckpoint(
