@@ -325,7 +325,11 @@ try {
   await stopHost();
   docker(["stop", "--time", "1", container], { stdio: "ignore" });
   await sleep(1_000);
-  app = startHost(binary, databaseUrl, webdriverPort);
+  const unavailableDatabaseUrl = databaseUrl.replace(
+    /127\.0\.0\.1:\d+/,
+    "127.0.0.1:1",
+  );
+  app = startHost(binary, unavailableDatabaseUrl, webdriverPort);
   await waitForWebdriver(webdriverPort);
   browser = await remote({
     hostname: "127.0.0.1",
