@@ -1,7 +1,7 @@
 //! Durable Planning Workspace wrapper projections.
 
 use crate::ids::{PlanningWorkspaceId, ProjectId};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use anyhow::{bail, Context, Result};
 use serde_json::{json, Value};
@@ -34,6 +34,15 @@ fn valid_scope(scope: &str) -> bool {
 
 fn valid_checkpoint_lifecycle(lifecycle: &str) -> bool {
     matches!(lifecycle, "draft" | "in_progress" | "ready_for_approval")
+}
+
+fn valid_lifecycle_transition(from: &str, to: &str) -> bool {
+    matches!(
+        (from, to),
+        ("draft", "draft" | "in_progress")
+            | ("in_progress", "in_progress" | "ready_for_approval")
+            | ("ready_for_approval", "in_progress" | "ready_for_approval")
+    )
 }
 
 impl crate::store::Store {
@@ -155,6 +164,9 @@ impl crate::store::Store {
         if !valid_checkpoint_lifecycle(lifecycle) {
             bail!("checkpoint lifecycle must be draft, in_progress, or ready_for_approval");
         }
+        if !state.is_object() {
+            bail!("planning workspace checkpoint state must be a JSON object");
+        }
         let mut tx = self.pool().begin().await.context("begin workspace checkpoint")?;
         let row = query(
             "SELECT lifecycle, current_revision
@@ -170,8 +182,8 @@ impl crate::store::Store {
         .ok_or_else(|| anyhow::anyhow!("planning workspace was not found in the project"))?;
         let current_lifecycle: String = row.try_get("lifecycle")?;
         let current_revision: i32 = row.try_get("current_revision")?;
-        if current_lifecycle == "approved" || current_lifecycle == "deleted" {
-            bail!("planning workspace is terminal");
+        if !valid_lifecycle_transition(&current_lifecycle, lifecycle) {
+            bail!("planning workspace lifecycle transition is not allowed");
         }
         if current_revision != expected_revision {
             bail!(
@@ -290,6 +302,184 @@ impl crate::store::Store {
             .ok_or_else(|| anyhow::anyhow!("approved workspace has no task set"))?;
         if tasks.is_empty() {
             bail!("approved workspace must contain at least one task");
+        }
+        let specs = state
+            .get("specs")
+            .and_then(Value::as_array)
+            .ok_or_else(|| anyhow::anyhow!("approved workspace has no child specs"))?;
+        if specs.is_empty() {
+            bail!("approved workspace must contain at least one child spec");
+        }
+        let mut task_keys = HashSet::new();
+        let mut dependencies = HashMap::<String, Vec<String>>::new();
+        for task in tasks {
+            let key = task
+                .get("id")
+                .and_then(Value::as_str)
+                .ok_or_else(|| anyhow::anyhow!("workspace task id is required"))?;
+            if !task_keys.insert(key.to_owned()) {
+                bail!("workspace task ids must be unique");
+            }
+            let summary = task
+                .get("summary")
+                .and_then(Value::as_str)
+                .ok_or_else(|| anyhow::anyhow!("workspace task summary is required"))?;
+            if summary.trim().is_empty() {
+                bail!("workspace task summary must not be empty");
+            }
+            let after = task
+                .get("after")
+                .and_then(Value::as_array)
+                .map(|values| {
+                    values
+                        .iter()
+                        .map(|value| {
+                            value
+                                .as_str()
+                                .map(str::to_owned)
+                                .ok_or_else(|| anyhow::anyhow!("workspace task dependency id is invalid"))
+                        })
+                        .collect::<Result<Vec<_>>>()
+                })
+                .transpose()?
+                .unwrap_or_default();
+            dependencies.insert(key.to_owned(), after);
+        }
+        for (task_key, after) in &dependencies {
+            for dependency in after {
+                if task_key == dependency {
+                    bail!("workspace task dependencies cannot be self-referential");
+                }
+                if !task_keys.contains(dependency) {
+                    bail!("workspace task dependency is missing");
+                }
+            }
+        }
+        let mut indegree = task_keys
+            .iter()
+            .map(|key| (key.clone(), 0usize))
+            .collect::<HashMap<_, _>>();
+        let mut dependents = HashMap::<String, Vec<String>>::new();
+        for (task_key, after) in &dependencies {
+            for dependency in after {
+                *indegree
+                    .get_mut(task_key)
+                    .ok_or_else(|| anyhow::anyhow!("workspace task dependency owner is missing"))? += 1;
+                dependents
+                    .entry(dependency.clone())
+                    .or_default()
+                    .push(task_key.clone());
+            }
+        }
+        let mut ready = indegree
+            .iter()
+            .filter_map(|(key, degree)| (*degree == 0).then_some(key.clone()))
+            .collect::<Vec<_>>();
+        let mut visited = 0usize;
+        while let Some(key) = ready.pop() {
+            visited += 1;
+            for dependent in dependents.get(&key).into_iter().flatten() {
+                let degree = indegree
+                    .get_mut(dependent)
+                    .ok_or_else(|| anyhow::anyhow!("workspace dependency graph is invalid"))?;
+                *degree -= 1;
+                if *degree == 0 {
+                    ready.push(dependent.clone());
+                }
+            }
+        }
+        if visited != task_keys.len() {
+            bail!("workspace task dependencies must be acyclic");
+        }
+        let mut all_requirement_ids = HashSet::new();
+        for spec in specs {
+            if spec.get("reviewed").and_then(Value::as_bool) != Some(true) {
+                bail!("every workspace spec must be reviewed before approval");
+            }
+            let spec_id = spec
+                .get("id")
+                .and_then(Value::as_str)
+                .ok_or_else(|| anyhow::anyhow!("workspace spec id is required"))?
+                .parse::<Uuid>()
+                .context("parse workspace spec id")?;
+            let spec_name = spec
+                .get("name")
+                .and_then(Value::as_str)
+                .ok_or_else(|| anyhow::anyhow!("workspace spec name is required"))?;
+            if spec_name.trim().is_empty() {
+                bail!("workspace spec name must not be empty");
+            }
+            let repo_id = spec
+                .get("repoId")
+                .and_then(Value::as_str)
+                .and_then(Value::as_str)
+                .ok_or_else(|| anyhow::anyhow!("workspace spec repoId is required"))?
+                .parse::<Uuid>()
+                .context("parse workspace spec repository id")?;
+            if !query_scalar::<_, bool>(
+                "SELECT EXISTS(
+                     SELECT 1 FROM core.repos
+                     WHERE id = $1 AND project_id = $2
+                 )",
+            )
+            .bind(repo_id)
+            .bind(project_id)
+            .fetch_one(&mut *tx)
+            .await
+            .context("validate workspace spec repository")?
+            {
+                bail!("workspace spec repository does not belong to the project");
+            }
+            query(
+                "INSERT INTO core.planning_workspace_specs
+                    (id, workspace_id, repo_id, name, state)
+                 VALUES ($1, $2, $3, $4, $5)",
+            )
+            .bind(spec_id)
+            .bind(workspace_id.as_uuid())
+            .bind(repo_id)
+            .bind(spec_name.trim())
+            .bind(spec)
+            .execute(&mut *tx)
+            .await
+            .context("persist approved workspace spec")?;
+            let requirements = spec
+                .get("requirements")
+                .and_then(Value::as_array)
+                .ok_or_else(|| anyhow::anyhow!("workspace spec requirements are required"))?;
+            if requirements.is_empty() {
+                bail!("workspace specs must contain requirements");
+            }
+            let mut requirement_ids = HashSet::new();
+            for requirement in requirements {
+                let requirement_id = requirement
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| anyhow::anyhow!("workspace requirement id is required"))?;
+                if !requirement_ids.insert(requirement_id)
+                    || !all_requirement_ids.insert(requirement_id.to_owned())
+                {
+                    bail!("workspace requirement ids must be unique");
+                }
+                let task_refs = requirement
+                    .get("taskIds")
+                    .and_then(Value::as_array)
+                    .cloned()
+                    .unwrap_or_default();
+                if task_refs.is_empty()
+                    && requirement.get("nonTaskOutcome").and_then(Value::as_bool) != Some(true)
+                {
+                    bail!("every workspace requirement needs a task or explicit non-task outcome");
+                }
+                for task_ref in task_refs {
+                    let task_ref = task_ref
+                        .as_str()
+                        .ok_or_else(|| anyhow::anyhow!("workspace requirement task id is invalid"))?;
+                    if !task_keys.contains(task_ref) {
+                        bail!("workspace requirement points to a missing task");
+                    }
+                }
+            }
         }
         let mut task_ids = HashMap::new();
         let mut created_ids = Vec::with_capacity(tasks.len());
