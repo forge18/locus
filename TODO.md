@@ -1,6 +1,6 @@
 # TODO
 
-**Remaining:** 38 open rows across 12 workstreams, worked top to bottom.
+**Remaining:** 37 open rows across 12 workstreams, worked top to bottom.
 
 This is the unfinished-work index. [`PLAN.md`](PLAN.md) is the architecture authority. Each feature's
 `spec.md` is its contract; its `tasks.md` is the runnable decomposition and verification source. One
@@ -11,8 +11,8 @@ owning workstream so nothing is tracked twice.
 
 - `chore/todo-completion` carries all completed work — 30 rows finished since the 2026-08-29
   audit; the record lives in this branch's git history, not here.
-- Active workstream: **3 — Workers consolidation** (the runtime integrity batch is complete; the
-  next item is resolving Interact through Workers).
+- Active workstream: **4 — Planning workspace & navigation revision** (Workers consolidation is
+  complete; the next item is adopting the gated Planning Workspace contract).
 
 ## 1 — Desktop data integration (the epic)
 
@@ -108,18 +108,12 @@ done and checked off in git history). Remaining, in dependency order:
 
 ## 3 — Workers consolidation
 
-- [ ] **Resolve Interact through Workers** — [InteractView.tsx:219-227](apps/desktop/src/screens/interact/InteractView.tsx#L219-L227)
-  is inert, and its disposable-session, changed-file, commit, promote, discard, and research contracts
-  are not equivalent to Bots. One workstream, four folded rows:
-  - build Workers on the live bot/session accessors (`BotsView` hard-codes `BOTS`/`INITIAL_ROUTINES`,
-    invents `cost: "$0.42"` and a context meter, and a canned transcript);
-  - connect `services/interact.rs` — `promote()`/`discard()` have no Tauri command;
-    [interact-sessions](.specs/interact-sessions/spec.md) acceptance 1, 2, 4, 5, 6, 9 unmet;
-  - remove the Interact hard-coded `SESSIONS` rows ([InteractView.tsx:18-42](apps/desktop/src/screens/interact/InteractView.tsx#L18-L42));
-  - show cost in the Agent Pane (`showCost` never passed; `permissionPosture: "bypass"` hard-coded so
-    permission/elicitation/checkpoint surfaces never render — [interact-sessions](.specs/interact-sessions/spec.md)
-    acceptance 14).
-  Remove the Interact route only after every retained behavior is preserved or explicitly retired.
+- [x] **Resolve Interact through Workers** — Interact and Bots now read explicit live-provider
+  accessors, while demo/test hosts select their fixtures explicitly. The Interact surface owns
+  board-less session creation, terminal promote/discard transitions, branch push/delete, changed-file
+  summaries, research/changed-file rail exclusivity, and the shared Agent Pane with visible cost and
+  persisted permission posture. Bot rows, active runs, cost, routines, and routine mutations use the
+  store rather than hard-coded records; no route was removed before its behavior was preserved.
 
 ## 4 — Planning workspace & navigation revision (gated)
 

@@ -1,4 +1,5 @@
-import { invoke } from "@tauri-apps/api/core";
+import type { Envelope } from "./envelope";
+import { dataProvider } from "./provider";
 
 export type BotContainerState = "cold" | "running" | "warm";
 export type RoutineExecutionStatus =
@@ -14,6 +15,8 @@ export interface Bot {
   name: string;
   agentDefId: string;
   homeSessionId: string;
+  activeRunId?: string | null;
+  harness?: string | null;
   branch: string;
   containerId: string | null;
   containerState: BotContainerState;
@@ -42,38 +45,91 @@ export interface BotRoutineExecution {
   testRun: boolean;
 }
 
-export function botsList(projectId: string) {
-  return invoke<Bot[]>("bots_list", { projectId });
+export function botsList(projectId: string): Promise<Envelope<Bot[]>> {
+  return dataProvider().query<Bot>("bots_list", { projectId });
 }
 
-export function createBot(projectId: string, markdown: string) {
-  return invoke<Bot>("bot_create", { projectId, markdown });
+export function createBot(
+  projectId: string,
+  markdown: string,
+): Promise<Envelope<Bot>> {
+  return dataProvider().queryOne<Bot>("bot_create", { projectId, markdown });
 }
 
-export function botRoutines(botId: string) {
-  return invoke<BotRoutine[]>("bot_routines", { botId });
+export function botRoutines(
+  projectId: string,
+  botId: string,
+): Promise<Envelope<BotRoutine[]>> {
+  return dataProvider().query<BotRoutine>("bot_routines", {
+    projectId,
+    botId,
+  });
 }
 
-export function botRoutineExecutions(botId: string) {
-  return invoke<BotRoutineExecution[]>("bot_routine_executions", { botId });
+export function botRoutineExecutions(
+  projectId: string,
+  botId: string,
+): Promise<Envelope<BotRoutineExecution[]>> {
+  return dataProvider().query<BotRoutineExecution>("bot_routine_executions", {
+    projectId,
+    botId,
+  });
 }
 
-export function setBotRoutineEnabled(routineId: string, enabled: boolean) {
-  return invoke<void>("bot_routine_set_enabled", { routineId, enabled });
+export function setBotRoutineEnabled(
+  projectId: string,
+  routineId: string,
+  enabled: boolean,
+): Promise<Envelope<void>> {
+  return dataProvider().queryOne<void>("bot_routine_set_enabled", {
+    projectId,
+    routineId,
+    enabled,
+  });
 }
 
 export function updateBotRoutine(
+  projectId: string,
   routineId: string,
   prompt: string,
   cronExpression: string,
-) {
-  return invoke<BotRoutine>("bot_routine_update", {
+): Promise<Envelope<BotRoutine>> {
+  return dataProvider().queryOne<BotRoutine>("bot_routine_update", {
+    projectId,
     routineId,
     prompt,
     cronExpression,
   });
 }
 
-export function deleteBotRoutine(routineId: string) {
-  return invoke<void>("bot_routine_delete", { routineId });
+export function deleteBotRoutine(
+  projectId: string,
+  routineId: string,
+): Promise<Envelope<void>> {
+  return dataProvider().queryOne<void>("bot_routine_delete", {
+    projectId,
+    routineId,
+  });
+}
+
+export function testBotRoutine(
+  projectId: string,
+  routineId: string,
+): Promise<Envelope<BotRoutineExecution>> {
+  return dataProvider().queryOne<BotRoutineExecution>("bot_routine_test", {
+    projectId,
+    routineId,
+  });
+}
+
+export function sendBotPrompt(
+  projectId: string,
+  botId: string,
+  prompt: string,
+): Promise<Envelope<void>> {
+  return dataProvider().queryOne<void>("bot_prompt", {
+    projectId,
+    botId,
+    prompt,
+  });
 }

@@ -56,6 +56,13 @@ pub struct ContainerLaunch {
     pub network: String,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ContainerExecResult {
+    pub status_code: i32,
+    pub stdout: Vec<u8>,
+    pub stderr: Vec<u8>,
+}
+
 /// The command and container identity for one run-owned debug adapter.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DebugAdapterLaunch {
@@ -125,6 +132,11 @@ pub trait ContainerRuntime: Send {
 
     fn remove_container(&mut self, _container: &str) -> Result<()> {
         bail!("container removal is not supported by this runtime")
+    }
+
+    /// Run a non-interactive command in an existing agent workspace.
+    fn exec(&mut self, _container: &str, _command: &[String]) -> Result<ContainerExecResult> {
+        bail!("container command execution is not supported by this runtime")
     }
 
     fn container_is_alive(&mut self, _container: &str) -> Result<bool> {
@@ -531,6 +543,69 @@ impl ContainerRuntime for DockerContainerRuntime {
                 .await
                 .context("remove agent container")?;
             Ok(())
+        })
+    }
+
+    fn exec(&mut self, container: &str, command: &[String]) -> Result<ContainerExecResult> {
+        if command.is_empty() {
+            bail!("container command must not be empty")
+        }
+        let docker = self.docker.clone();
+        let container = container.to_owned();
+        let command = command.to_vec();
+        Self::block_on(async move {
+            let exec = docker
+                .create_exec(
+                    &container,
+                    CreateExecOptions {
+                        attach_stdout: Some(true),
+                        attach_stderr: Some(true),
+                        cmd: Some(command),
+                        working_dir: Some("/workspace".into()),
+                        ..Default::default()
+                    },
+                )
+                .await
+                .context("create container command")?;
+            let mut stdout = Vec::new();
+            let mut stderr = Vec::new();
+            match docker
+                .start_exec(
+                    &exec.id,
+                    Some(StartExecOptions {
+                        detach: false,
+                        tty: false,
+                        output_capacity: None,
+                    }),
+                )
+                .await
+                .context("start container command")?
+            {
+                StartExecResults::Attached { mut output, .. } => {
+                    while let Some(message) = output.next().await {
+                        match message.context("read container command output")? {
+                            LogOutput::StdOut { message } => stdout.extend(message),
+                            LogOutput::StdErr { message } => stderr.extend(message),
+                            _ => {}
+                        }
+                    }
+                }
+                StartExecResults::Detached => bail!("container command unexpectedly detached"),
+            }
+            let status_code = docker
+                .inspect_exec(&exec.id)
+                .await
+                .context("inspect container command")?
+                .exit_code
+                .map(i32::try_from)
+                .transpose()
+                .context("container command exit code exceeds i32")?
+                .unwrap_or(-1);
+            Ok(ContainerExecResult {
+                status_code,
+                stdout,
+                stderr,
+            })
         })
     }
 

@@ -25,7 +25,7 @@ use url::Url;
 use crate::{
     runtime::{
         backend::RuntimeBackend,
-        container::{ContainerLaunch, ContainerRuntime, ImageDisposition},
+        container::{ContainerExecResult, ContainerLaunch, ContainerRuntime, ImageDisposition},
     },
     sandbox::{
         egress::{AuditSink, EgressTarget, EgressTier},
@@ -1112,6 +1112,35 @@ impl ContainerRuntime for SbxContainerRuntime {
         }
         remove_launch_state(&self.config.scratch_root, container);
         result
+    }
+
+    fn exec(&mut self, container: &str, command: &[String]) -> Result<ContainerExecResult> {
+        if command.is_empty() {
+            bail!("container command must not be empty")
+        }
+        let command = command
+            .iter()
+            .map(|part| shell_quote(part))
+            .collect::<Vec<_>>()
+            .join(" ");
+        let args = Self::exec_args(
+            container,
+            PtyAttachment {
+                tty: false,
+                stdout: true,
+                stderr: true,
+            },
+            &format!("cd /workspace && {command}"),
+            &["/bin/true".into()],
+        )?;
+        let output = self
+            .run_sbx(args)
+            .context("run command in sbx agent workspace")?;
+        Ok(ContainerExecResult {
+            status_code: output.status_code,
+            stdout: output.stdout,
+            stderr: output.stderr,
+        })
     }
 
     fn container_is_alive(&mut self, container: &str) -> Result<bool> {

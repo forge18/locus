@@ -1,9 +1,21 @@
-import { For, Show, createMemo, createSignal } from "solid-js";
-import type { AgentEvent } from "../../types/event";
+import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
 import { Avatar } from "../../avatars/Avatar";
 import { AgentPane, type AgentPaneSession } from "../../panes/AgentPane";
 import { destinationDesktop } from "../../nav/desktop-navigation";
-import { createBot, type Bot } from "../../data/bots";
+import {
+  botRoutines,
+  botsList,
+  createBot,
+  deleteBotRoutine,
+  sendBotPrompt,
+  setBotRoutineEnabled,
+  testBotRoutine,
+  updateBotRoutine,
+  type Bot,
+  type BotRoutine,
+} from "../../data/bots";
+import { dataProvider } from "../../data/provider";
+import { ready, type Envelope } from "../../data/envelope";
 import { Button } from "../../ui/Button";
 import { FixtureNotice } from "../../ui/FixtureNotice";
 import { Input, Textarea } from "../../ui/Input";
@@ -20,6 +32,8 @@ export interface BotViewModel {
   lastActivity: string;
   state: BotState;
   runId: string;
+  activeRunId?: string | null;
+  cost?: string | null;
 }
 
 export interface RoutineViewModel {
@@ -29,37 +43,6 @@ export interface RoutineViewModel {
   enabled: boolean;
   skipped: number;
 }
-
-const BOTS: readonly BotViewModel[] = [
-  {
-    id: "keeper",
-    name: "Keeper",
-    description: "Curates durable project memory.",
-    harness: "pi",
-    lastActivity: "now",
-    state: "working",
-    runId: "bot-keeper-run",
-  },
-  {
-    id: "night-watch",
-    name: "Night Watch",
-    description: "Checks the repository while the window is closed.",
-    harness: "pi",
-    lastActivity: "18m ago",
-    state: "idle",
-    runId: "bot-night-watch-run",
-  },
-];
-
-const INITIAL_ROUTINES: readonly RoutineViewModel[] = [
-  {
-    id: "routine-health",
-    prompt: "Check the repository health and report only actionable drift.",
-    cron: "0 9 * * 1-5",
-    enabled: true,
-    skipped: 1,
-  },
-];
 
 export interface BotsViewProps {
   projectId?: string;
@@ -73,10 +56,15 @@ function toBotViewModel(bot: Bot): BotViewModel {
     id: bot.id,
     name: bot.name,
     description: "Created from the Bots workspace.",
-    harness: "pi",
-    lastActivity: "now",
+    harness: bot.harness ?? "unknown",
+    lastActivity: bot.lastActivityAt ?? "never",
     state: bot.containerState === "running" ? "working" : "idle",
     runId: bot.homeSessionId,
+    activeRunId: bot.activeRunId,
+    cost:
+      bot.totalCostMicros == null
+        ? null
+        : `$${(bot.totalCostMicros / 1_000_000).toFixed(2)}`,
   };
 }
 
@@ -84,15 +72,28 @@ function botSession(bot: BotViewModel, project: string): AgentPaneSession {
   return {
     project,
     agent: bot.name,
-    model: "claude-sonnet-4",
+    model: "unavailable",
     harness: bot.harness,
-    effort: "high",
+    effort: "unavailable",
     name: `${bot.name} home session`,
-    context: { used: 12_400, total: 200_000 },
-    cost: "$0.42",
+    cost: bot.cost ?? undefined,
     permissionPosture: "bypass",
     status: bot.state,
   };
+}
+
+function routineViewModel(routine: BotRoutine): RoutineViewModel {
+  return {
+    id: routine.id,
+    prompt: routine.prompt,
+    cron: routine.cronExpression,
+    enabled: routine.enabled,
+    skipped: routine.skippedCount,
+  };
+}
+
+function botViewModels(bots: Bot[]): BotViewModel[] {
+  return bots.map(toBotViewModel);
 }
 
 function BotViewHeader(props: { bot: BotViewModel }) {
@@ -112,65 +113,66 @@ function BotViewHeader(props: { bot: BotViewModel }) {
   );
 }
 
-function botEvents(bot: BotViewModel): AgentEvent[] {
-  return [
-    {
-      id: `${bot.runId}-user`,
-      runId: bot.runId,
-      seq: 0,
-      ts: "now",
-      verb: "user",
-      text: "Keep an eye on this project and tell me what matters.",
-      raw: { source: "bot-home" },
-    },
-    {
-      id: `${bot.runId}-assistant`,
-      runId: bot.runId,
-      seq: 1,
-      ts: "now",
-      verb: "assistant",
-      text: `${bot.name} is ready. This is the durable home conversation.`,
-      raw: { source: "bot-home" },
-    },
-  ];
-}
-
 function RoutinesSheet(props: {
   routines: readonly RoutineViewModel[];
   onChange: (routines: RoutineViewModel[]) => void;
   onClose: () => void;
+  live: boolean;
+  projectId: string;
 }) {
   const [editingId, setEditingId] = createSignal<string | null>(null);
   const [draftPrompt, setDraftPrompt] = createSignal("");
   const [testRun, setTestRun] = createSignal<string | null>(null);
+  const [mutationError, setMutationError] = createSignal<string | null>(null);
 
+  const report = async <T,>(operation: Promise<Envelope<T>>) => {
+    const result = await operation;
+    if (result.status === "failed") setMutationError(result.error.message);
+  };
   const beginEdit = (routine: RoutineViewModel) => {
     setEditingId(routine.id);
     setDraftPrompt(routine.prompt);
+    setMutationError(null);
   };
   const saveEdit = (routine: RoutineViewModel) => {
+    const prompt = draftPrompt() || routine.prompt;
     props.onChange(
       props.routines.map((candidate) =>
-        candidate.id === routine.id
-          ? { ...candidate, prompt: draftPrompt() || candidate.prompt }
-          : candidate,
+        candidate.id === routine.id ? { ...candidate, prompt } : candidate,
       ),
     );
     setEditingId(null);
+    if (props.live)
+      void report(
+        updateBotRoutine(props.projectId, routine.id, prompt, routine.cron),
+      );
   };
   const toggle = (routine: RoutineViewModel) => {
+    const enabled = !routine.enabled;
     props.onChange(
       props.routines.map((candidate) =>
-        candidate.id === routine.id
-          ? { ...candidate, enabled: !candidate.enabled }
-          : candidate,
+        candidate.id === routine.id ? { ...candidate, enabled } : candidate,
       ),
     );
+    if (props.live)
+      void report(setBotRoutineEnabled(props.projectId, routine.id, enabled));
   };
   const remove = (routine: RoutineViewModel) => {
     props.onChange(
       props.routines.filter((candidate) => candidate.id !== routine.id),
     );
+    if (props.live) void report(deleteBotRoutine(props.projectId, routine.id));
+  };
+  const test = (routine: RoutineViewModel) => {
+    setMutationError(null);
+    if (!props.live) {
+      setTestRun(routine.id);
+      return;
+    }
+    void testBotRoutine(props.projectId, routine.id).then((result) => {
+      if (result.status === "failed") setMutationError(result.error.message);
+      if (result.status === "ready") setTestRun(routine.id);
+    });
   };
 
   return (
@@ -188,6 +190,9 @@ function RoutinesSheet(props: {
         Cron prompts post into this bot&apos;s home conversation. Overlap is
         skipped, never queued.
       </p>
+      <Show when={mutationError()}>
+        {(error) => <p role="alert">{error()}</p>}
+      </Show>
       <section class="bots-routine-list" aria-label="Bot routines">
         <Show
           when={props.routines.length > 0}
@@ -250,7 +255,7 @@ function RoutinesSheet(props: {
                   <Button
                     variant="secondary"
                     data-testid={`bot-routine-test-${routine.id}`}
-                    onClick={() => setTestRun(routine.id)}
+                    onClick={() => test(routine)}
                   >
                     Test run
                   </Button>
@@ -275,8 +280,21 @@ function RoutinesSheet(props: {
 
 export default function BotsView(props: BotsViewProps) {
   const project = () => props.projectId ?? "tapestry";
+  const liveMode = dataProvider().kind === "live";
+  const demoBots =
+    dataProvider().read?.<Bot[]>("bots_list", {
+      projectId: project(),
+    }) ?? [];
+  const [botEnvelope, setBotEnvelope] = createSignal<Envelope<Bot[]>>(
+    liveMode ? { status: "loading" } : ready(demoBots),
+  );
   const [createdBots, setCreatedBots] = createSignal<BotViewModel[]>([]);
-  const bots = createMemo(() => [...(props.bots ?? BOTS), ...createdBots()]);
+  const loadedBots = createMemo(() => {
+    if (props.bots) return props.bots;
+    const envelope = botEnvelope();
+    return envelope.status === "ready" ? botViewModels(envelope.data) : [];
+  });
+  const bots = createMemo(() => [...loadedBots(), ...createdBots()]);
   const [selectedId, setSelectedId] = createSignal(
     props.botId && bots().some((bot) => bot.id === props.botId)
       ? props.botId
@@ -288,12 +306,55 @@ export default function BotsView(props: BotsViewProps) {
   const [newBotMarkdown, setNewBotMarkdown] = createSignal("");
   const [newBotError, setNewBotError] = createSignal<string | null>(null);
   const [creatingBot, setCreatingBot] = createSignal(false);
-  const [routines, setRoutines] = createSignal(
-    props.initialRoutines ?? INITIAL_ROUTINES,
-  );
+  const [panelError, setPanelError] = createSignal<string | null>(null);
+  const demoRoutines =
+    dataProvider().read?.<BotRoutine[]>("bot_routines", {
+      botId: selectedId(),
+    }) ?? [];
+  const [routines, setRoutines] = createSignal<RoutineViewModel[]>([
+    ...(props.initialRoutines ?? demoRoutines.map(routineViewModel)),
+  ]);
   const selected = createMemo(
     () => bots().find((bot) => bot.id === selectedId()) ?? bots()[0],
   );
+  const botError = createMemo(() => {
+    const envelope = botEnvelope();
+    return envelope.status === "failed" ? envelope.error.message : null;
+  });
+
+  createEffect(() => {
+    const projectId = project();
+    if (!liveMode || props.bots) return;
+    void botsList(projectId).then(setBotEnvelope);
+  });
+
+  createEffect(() => {
+    const available = bots();
+    const requested = props.botId;
+    if (requested && available.some((bot) => bot.id === requested)) {
+      if (selectedId() !== requested) setSelectedId(requested);
+    } else if (!available.some((bot) => bot.id === selectedId())) {
+      setSelectedId(available[0]?.id);
+    }
+  });
+
+  createEffect(() => {
+    const botId = selected()?.id;
+    if (!botId || !liveMode || props.initialRoutines) return;
+    void botRoutines(project(), botId).then((result) => {
+      if (result.status === "ready")
+        setRoutines(result.data.map(routineViewModel));
+      if (result.status === "empty") setRoutines([]);
+    });
+  });
+
+  const sendPrompt = (bot: BotViewModel, prompt: string) => {
+    if (!liveMode) return;
+    setPanelError(null);
+    void sendBotPrompt(project(), bot.id, prompt).then((result) => {
+      if (result.status === "failed") setPanelError(result.error.message);
+    });
+  };
 
   const openNewBot = () => {
     setNewBotError(null);
@@ -312,8 +373,12 @@ export default function BotsView(props: BotsViewProps) {
     setCreatingBot(true);
     setNewBotError(null);
     try {
-      const bot = await createBot(project(), markdown);
-      const viewModel = toBotViewModel(bot);
+      const result = await createBot(project(), markdown);
+      if (result.status === "failed") throw new Error(result.error.message);
+      if (result.status !== "ready") {
+        throw new Error("The bot was not returned by the store.");
+      }
+      const viewModel = toBotViewModel(result.data);
       setCreatedBots((current) => [...current, viewModel]);
       setSelectedId(viewModel.id);
       setNewBotOpen(false);
@@ -412,18 +477,28 @@ export default function BotsView(props: BotsViewProps) {
         </footer>
       </aside>
       <main class="bots-home-pane" data-testid="bot-home-pane">
-        <Show when={props.bots === undefined}>
+        <Show when={!liveMode && props.bots === undefined}>
           <FixtureNotice surface="Bots" command='invoke("bots_list")' />
+        </Show>
+        <Show when={liveMode && botEnvelope().status === "loading"}>
+          <p data-testid="bots-loading">Loading bots…</p>
+        </Show>
+        <Show when={botError()}>
+          {(error) => <p role="alert">{error()}</p>}
         </Show>
         <Show when={selected()}>
           {(bot) => (
             <>
               <BotViewHeader bot={bot()} />
+              <Show when={panelError()}>
+                {(error) => <p role="alert">{error()}</p>}
+              </Show>
               <AgentPane
-                runId={bot().runId}
-                live={false}
+                runId={bot().activeRunId ?? bot().runId}
+                live={liveMode && Boolean(bot().activeRunId)}
+                showCost
                 session={botSession(bot(), project())}
-                events={botEvents(bot())}
+                onSend={(prompt) => sendPrompt(bot(), prompt)}
               />
             </>
           )}
@@ -483,6 +558,8 @@ export default function BotsView(props: BotsViewProps) {
           routines={routines()}
           onChange={setRoutines}
           onClose={() => setRoutinesOpen(false)}
+          live={liveMode}
+          projectId={project()}
         />
       </Sheet>
     </div>

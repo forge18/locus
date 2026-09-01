@@ -258,6 +258,19 @@ impl Daemon {
         self.active_runs.contains(&run_id)
     }
 
+    /// Deliver a host prompt to the ACP session retained for an active run.
+    pub fn prompt_run(&self, run_id: RunId, prompt: impl Into<String>) -> Result<()> {
+        let spawned = self
+            .active_spawns
+            .get(&run_id)
+            .ok_or_else(|| anyhow::anyhow!("run `{run_id}` is not active"))?;
+        let session = spawned
+            .acp_session
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("run `{run_id}` has no ACP session"))?;
+        session.prompt(prompt)
+    }
+
     pub fn debug(&self) -> &DebugSessionRegistry {
         &self.debug
     }

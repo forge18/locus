@@ -12,12 +12,15 @@ describe("bots/panel", () => {
       "Keeper",
     );
     expect(view.getByTestId("agent-stream").textContent).toContain(
-      "durable home conversation",
+      "Waiting for ACP events from this run.",
+    );
+    expect(view.getByTestId("agent-cost-toggle").textContent).toContain(
+      "$0.42",
     );
 
     await fireEvent.click(view.getByTestId("bot-row-night-watch"));
     expect(view.getByTestId("agent-pane").getAttribute("data-run-id")).toBe(
-      "bot-night-watch-run",
+      "bot-night-watch-session",
     );
   });
 });

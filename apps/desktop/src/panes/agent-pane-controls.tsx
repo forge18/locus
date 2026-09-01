@@ -135,9 +135,25 @@ export function AgentHeader(props: {
         </label>
       </div>
       <Show when={props.posture === "gated"}>
-        <div class="agent-gate-toggle" role="group" aria-label="Permission gate mode">
-          <button type="button" aria-pressed={props.gateMode === "manual"} onClick={() => props.onGateModeChange("manual")}>Manual</button>
-          <button type="button" aria-pressed={props.gateMode === "auto"} onClick={() => props.onGateModeChange("auto")}>Auto</button>
+        <div
+          class="agent-gate-toggle"
+          role="group"
+          aria-label="Permission gate mode"
+        >
+          <button
+            type="button"
+            aria-pressed={props.gateMode === "manual"}
+            onClick={() => props.onGateModeChange("manual")}
+          >
+            Manual
+          </button>
+          <button
+            type="button"
+            aria-pressed={props.gateMode === "auto"}
+            onClick={() => props.onGateModeChange("auto")}
+          >
+            Auto
+          </button>
         </div>
       </Show>
       <button
@@ -147,8 +163,11 @@ export function AgentHeader(props: {
         data-testid="agent-context-toggle"
         onClick={props.onContextToggle}
       >
-        {formatTokens(props.session.context.used)} /{" "}
-        {formatTokens(props.session.context.total)}
+        <Show when={props.session.context} fallback="context unknown">
+          {(context) =>
+            `${formatTokens(context().used)} / ${formatTokens(context().total)}`
+          }
+        </Show>
       </button>
       <button
         type="button"
@@ -308,7 +327,9 @@ export function ElicitationCard(props: {
             </p>
           }
         >
-          <p class="agent-elicitation-review-note">Review the values before sending.</p>
+          <p class="agent-elicitation-review-note">
+            Review the values before sending.
+          </p>
           <div class="agent-elicitation-fields">
             <For each={props.elicitation.fields}>
               {(field) => {

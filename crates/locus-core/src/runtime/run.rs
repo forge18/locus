@@ -318,6 +318,9 @@ pub struct SpawnRequest<'a> {
     pub config_root: PathBuf,
     pub socket_source: PathBuf,
     pub workspace_remote: String,
+    /// Optional existing branch for persistent bot and Interact sessions. Standard runs create
+    /// their private `agent/<run-id>` branch when this is absent.
+    pub workspace_branch: Option<&'a str>,
     /// Agent-visible credential broker endpoint. The credential remains host-only.
     pub credential_proxy: CredentialProxyConfig,
     /// Host-only proxy that injects the sentinel and records the egress authorization.
@@ -582,10 +585,20 @@ fn spawn_at_port(
     let image_disposition = runtime
         .build_or_reuse_image(&image)
         .context("build or reuse agent image")?;
-    let setup = crate::sandbox::workspace::workspace_clone_command(
-        &request.workspace_remote,
-        &run.id.to_string(),
-    )?;
+    let setup = match request.workspace_branch {
+        Some(branch) => crate::sandbox::workspace::workspace_clone_branch_command(
+            &request.workspace_remote,
+            branch,
+        )?,
+        None => crate::sandbox::workspace::workspace_clone_command(
+            &request.workspace_remote,
+            &run.id.to_string(),
+        )?,
+    };
+    let workspace_branch = request
+        .workspace_branch
+        .map(str::to_owned)
+        .unwrap_or_else(|| format!("agent/{}", run.id));
     let mut environment = request
         .credential_proxy_authorizer
         .container_environment_for_run(&run.id.to_string(), &request.run_nonce)
@@ -628,7 +641,7 @@ fn spawn_at_port(
             "LOCUS_SBX_WORKSPACE_REMOTE={}",
             request.workspace_remote
         ));
-        environment.push(format!("LOCUS_SBX_WORKSPACE_BRANCH=agent/{}", run.id));
+        environment.push(format!("LOCUS_SBX_WORKSPACE_BRANCH={workspace_branch}"));
     }
     environment.push(format!(
         "LOCUS_LSP_ENABLED={}",
@@ -705,6 +718,18 @@ pub async fn spawn_persisted(
     let collector = request.collector.clone();
     match spawn_at_port(run, request, port, runtime) {
         Ok(mut spawned) => {
+            if let Err(error) = store
+                .record_run_container(run.id, &spawned.container.name)
+                .await
+            {
+                let _ = runtime.stop_container(&spawned.container.name);
+                let _ = runtime.remove_container(&spawned.container.name);
+                proxy.release_run(&run_id);
+                let _ = ForwardProxyPolicy::remove_from(&forwarding.policy_root, &run_id);
+                let _ = runtime.release_egress_proxy(&forwarding, &run_id);
+                let _ = store.release_run_port(run.id).await;
+                return Err(error).context("record started run container");
+            }
             // Subscribe before the handshake so updates streamed during
             // establishment reach the durable pump.
             let updates = spawned.acp_updates.subscribe();
@@ -718,6 +743,7 @@ pub async fn spawn_persisted(
                         "establish the run's ACP session; failed to stop the started container: {stop_error}"
                     ));
                 }
+                let _ = runtime.remove_container(&spawned.container.name);
                 proxy.release_run(&run_id);
                 let _ = ForwardProxyPolicy::remove_from(&forwarding.policy_root, &run_id);
                 let _ = runtime.release_egress_proxy(&forwarding, &run_id);
@@ -1226,6 +1252,7 @@ mod spawns {
             config_root,
             socket_source: PathBuf::from("/tmp/locus.sock"),
             workspace_remote: "/var/lib/locus/repos/project.git".into(),
+            workspace_branch: None,
             credential_proxy: CredentialProxyConfig::new(CREDENTIAL_PROXY_ENDPOINT).unwrap(),
             credential_proxy_authorizer,
             audit_store: Store::connect_lazy("postgres://locus@127.0.0.1/locus").unwrap(),
