@@ -366,6 +366,64 @@ impl crate::store::Store {
         Ok(spec_id)
     }
 
+    pub async fn mark_planning_workspace_specs_stale(
+        &self,
+        project_id: ProjectId,
+        workspace_id: PlanningWorkspaceId,
+        spec_ids: &[Uuid],
+        decision: Value,
+    ) -> Result<usize> {
+        if spec_ids.is_empty() {
+            bail!("at least one affected workspace spec is required");
+        }
+        if !decision.is_object() {
+            bail!("workspace decision must be a JSON object");
+        }
+        if !query_scalar::<_, bool>(
+            "SELECT EXISTS(
+                 SELECT 1 FROM core.planning_workspaces
+                 WHERE id = $1 AND project_id = $2
+             )",
+        )
+        .bind(workspace_id.as_uuid())
+        .bind(project_id)
+        .fetch_one(self.pool())
+        .await
+        .context("validate planning workspace decision owner")?
+        {
+            bail!("planning workspace was not found in the project");
+        }
+        let mut updated = 0;
+        for spec_id in spec_ids {
+            let result = query(
+                "UPDATE core.planning_workspace_specs
+                 SET stale = true, updated_at = now()
+                 WHERE id = $1 AND workspace_id = $2",
+            )
+            .bind(spec_id)
+            .bind(workspace_id.as_uuid())
+            .execute(self.pool())
+            .await
+            .context("mark planning workspace spec stale")?;
+            if result.rows_affected() == 0 {
+                bail!("affected planning workspace spec was not found in the workspace");
+            }
+            updated += 1;
+        }
+        query(
+            "INSERT INTO core.planning_workspace_events
+                (id, workspace_id, kind, payload)
+             VALUES ($1, $2, 'decision_changed', $3)",
+        )
+        .bind(Uuid::new_v4())
+        .bind(workspace_id.as_uuid())
+        .bind(json!({ "decision": decision, "affected_spec_ids": spec_ids }))
+        .execute(self.pool())
+        .await
+        .context("record planning workspace decision")?;
+        Ok(updated)
+    }
+
     pub async fn planning_workspace_sessions(
         &self,
         project_id: ProjectId,
@@ -542,7 +600,97 @@ impl crate::store::Store {
         if specs.is_empty() {
             bail!("approved workspace must contain at least one child spec");
         }
+        if query_scalar::<_, bool>(
+            "SELECT EXISTS(
+                 SELECT 1 FROM core.planning_workspace_specs
+                 WHERE workspace_id = $1 AND stale
+             )",
+        )
+        .bind(workspace_id.as_uuid())
+        .fetch_one(&mut *tx)
+        .await
+        .context("check stale workspace specs")?
+        {
+            bail!("workspace contains stale specs that must be reconciled before approval");
+        }
+        let mut spec_keys = HashSet::new();
+        let mut spec_dependencies = HashMap::<String, Vec<String>>::new();
+        for spec in specs {
+            if spec.get("stale").and_then(Value::as_bool) == Some(true) {
+                bail!("workspace contains a stale spec that must be reconciled before approval");
+            }
+            let key = spec
+                .get("id")
+                .and_then(Value::as_str)
+                .ok_or_else(|| anyhow::anyhow!("workspace spec id is required"))?;
+            if !spec_keys.insert(key.to_owned()) {
+                bail!("workspace spec ids must be unique");
+            }
+            let after = spec
+                .get("after")
+                .and_then(Value::as_array)
+                .map(|values| {
+                    values
+                        .iter()
+                        .map(|value| {
+                            value.as_str().map(str::to_owned).ok_or_else(|| {
+                                anyhow::anyhow!("workspace spec dependency id is invalid")
+                            })
+                        })
+                        .collect::<Result<Vec<_>>>()
+                })
+                .transpose()?
+                .unwrap_or_default();
+            spec_dependencies.insert(key.to_owned(), after);
+        }
+        for (spec_key, after) in &spec_dependencies {
+            for dependency in after {
+                if spec_key == dependency {
+                    bail!("workspace spec dependencies cannot be self-referential");
+                }
+                if !spec_keys.contains(dependency) {
+                    bail!("workspace spec dependency is missing");
+                }
+            }
+        }
+        let mut spec_indegree = spec_keys
+            .iter()
+            .map(|key| (key.clone(), 0usize))
+            .collect::<HashMap<_, _>>();
+        let mut spec_dependents = HashMap::<String, Vec<String>>::new();
+        for (spec_key, after) in &spec_dependencies {
+            for dependency in after {
+                *spec_indegree
+                    .get_mut(spec_key)
+                    .ok_or_else(|| anyhow::anyhow!("workspace spec dependency owner is missing"))? += 1;
+                spec_dependents
+                    .entry(dependency.clone())
+                    .or_default()
+                    .push(spec_key.clone());
+            }
+        }
+        let mut spec_ready = spec_indegree
+            .iter()
+            .filter_map(|(key, degree)| (*degree == 0).then_some(key.clone()))
+            .collect::<Vec<_>>();
+        let mut spec_visited = 0usize;
+        while let Some(key) = spec_ready.pop() {
+            spec_visited += 1;
+            for dependent in spec_dependents.get(&key).into_iter().flatten() {
+                let degree = spec_indegree
+                    .get_mut(dependent)
+                    .ok_or_else(|| anyhow::anyhow!("workspace spec graph is invalid"))?;
+                *degree -= 1;
+                if *degree == 0 {
+                    spec_ready.push(dependent.clone());
+                }
+            }
+        }
+        if spec_visited != spec_keys.len() {
+            bail!("workspace spec dependencies must be acyclic");
+        }
         let mut task_keys = HashSet::new();
+        let mut task_spec_keys = HashMap::<String, String>::new();
         let mut dependencies = HashMap::<String, Vec<String>>::new();
         for task in tasks {
             let key = task
@@ -552,6 +700,11 @@ impl crate::store::Store {
             if !task_keys.insert(key.to_owned()) {
                 bail!("workspace task ids must be unique");
             }
+            let spec_key = task
+                .get("specId")
+                .and_then(Value::as_str)
+                .ok_or_else(|| anyhow::anyhow!("workspace task specId is required"))?;
+            task_spec_keys.insert(key.to_owned(), spec_key.to_owned());
             let summary = task
                 .get("summary")
                 .and_then(Value::as_str)
@@ -623,15 +776,21 @@ impl crate::store::Store {
         if visited != task_keys.len() {
             bail!("workspace task dependencies must be acyclic");
         }
+        for spec_key in task_spec_keys.values() {
+            if !spec_keys.contains(spec_key) {
+                bail!("workspace task points to a missing spec");
+            }
+        }
         let mut all_requirement_ids = HashSet::new();
         for spec in specs {
             if spec.get("reviewed").and_then(Value::as_bool) != Some(true) {
                 bail!("every workspace spec must be reviewed before approval");
             }
-            let spec_id = spec
+            let spec_key = spec
                 .get("id")
                 .and_then(Value::as_str)
-                .ok_or_else(|| anyhow::anyhow!("workspace spec id is required"))?
+                .ok_or_else(|| anyhow::anyhow!("workspace spec id is required"))?;
+            let spec_id = spec_key
                 .parse::<Uuid>()
                 .context("parse workspace spec id")?;
             let spec_name = spec
@@ -708,6 +867,9 @@ impl crate::store::Store {
                         .ok_or_else(|| anyhow::anyhow!("workspace requirement task id is invalid"))?;
                     if !task_keys.contains(task_ref) {
                         bail!("workspace requirement points to a missing task");
+                    }
+                    if task_spec_keys.get(task_ref).map(String::as_str) != Some(spec_key) {
+                        bail!("workspace requirement task belongs to another spec");
                     }
                 }
             }

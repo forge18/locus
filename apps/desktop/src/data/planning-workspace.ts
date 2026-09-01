@@ -98,6 +98,18 @@ export function savePlanningWorkspaceSpec(
   );
 }
 
+export function recordPlanningWorkspaceDecision(
+  projectId: string,
+  workspaceId: string,
+  affectedSpecIds: string[],
+  decision: Record<string, unknown>,
+): Promise<Envelope<{ updated: boolean }>> {
+  return dataProvider().queryOne<{ updated: boolean }>(
+    "planning_workspace_decision_record",
+    { projectId, workspaceId, affectedSpecIds, decision },
+  );
+}
+
 export function listPlanningWorkspaceSessions(
   projectId: string,
   workspaceId: string,

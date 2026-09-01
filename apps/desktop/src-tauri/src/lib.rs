@@ -2078,6 +2078,36 @@ async fn planning_workspace_spec_save(
 }
 
 #[tauri::command]
+async fn planning_workspace_decision_record(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    workspace_id: String,
+    affected_spec_ids: Vec<String>,
+    decision: Value,
+) -> Result<PlanMutationResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = resolve_setup_project(store, &project_id).await?;
+    let spec_ids = affected_spec_ids
+        .into_iter()
+        .map(|value| {
+            value
+                .parse()
+                .map_err(|_| IpcError::invalid_argument("affected planning spec id must be a UUID"))
+        })
+        .collect::<Result<Vec<uuid::Uuid>, _>>()?;
+    store
+        .mark_planning_workspace_specs_stale(
+            project_id,
+            parse_planning_workspace_id(&workspace_id)?,
+            &spec_ids,
+            decision,
+        )
+        .await
+        .map_err(IpcError::internal)?;
+    Ok(PlanMutationResponse { updated: true })
+}
+
+#[tauri::command]
 async fn planning_workspace_sessions_list(
     core: State<'_, Arc<Core>>,
     project_id: String,
@@ -4891,6 +4921,7 @@ pub fn run() {
             planning_workspace_revisions_list,
             planning_workspace_specs_list,
             planning_workspace_spec_save,
+            planning_workspace_decision_record,
             planning_workspace_sessions_list,
             planning_workspace_session_link,
             planning_workspace_checkpoint_save,
