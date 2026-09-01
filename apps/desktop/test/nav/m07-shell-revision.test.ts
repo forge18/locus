@@ -73,9 +73,9 @@ describe("planning-workspace navigation inventory", () => {
     );
     expect(destinationDesktop("status")).toBe("locus://all/view/status");
     expect(destinationDesktop("settings")).toBe("locus://app/view/settings");
-    expect(navigateDesktop("locus://tapestry/view/qa")).toEqual({
+    expect(navigateDesktop("locus://all/view/qa")).toEqual({
       route: "qa",
-      scope: { kind: "project", project: "tapestry" },
+      scope: { kind: "all" },
     });
     expect(navigateDesktop("locus://all/view/inbox")).toEqual({
       route: "inbox",

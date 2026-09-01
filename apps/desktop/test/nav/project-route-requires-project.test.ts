@@ -6,12 +6,10 @@ import {
 } from "../../src/nav/desktop-route-kinds";
 
 describe("nav/project-route-requires-project", () => {
-  it("rejects a project-scoped route with no selected project", () => {
-    expect(() =>
-      resolveRouteScope(Desktop_PROJECT_ROUTE_KINDS[0], null),
-    ).toThrow(
-      `${Desktop_PROJECT_ROUTE_KINDS[0].label} requires a selected project`,
-    );
+  it("keeps list routes page-owned instead of project-scoped", () => {
+    expect(Desktop_PROJECT_ROUTE_KINDS).toHaveLength(0);
+    expect(Desktop_ALL_ROUTE_KINDS.map((route) => route.id)).toContain("qa");
+    expect(Desktop_ALL_ROUTE_KINDS.map((route) => route.id)).toContain("sessions");
   });
 
   it("allows a global route without a selected project", () => {

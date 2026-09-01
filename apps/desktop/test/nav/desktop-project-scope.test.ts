@@ -15,20 +15,22 @@ describe("nav/desktop-project-scope", () => {
     });
   });
 
-  it("formats project routes with an explicit project scope and project segment", () => {
-    expect(formatDesktopLocator("plan", "tapestry")).toBe(
-      "locus://tapestry/view/plan",
-    );
-    expect(resolveDesktopLocator("locus://loom-db/view/plan")).toEqual({
+  it("formats page-owned routes with the all-project scope", () => {
+    expect(formatDesktopLocator("plan", "tapestry")).toThrow(/scope:/);
+    expect(formatDesktopLocator("plan")).toBe("locus://all/view/plan");
+    expect(resolveDesktopLocator("locus://all/view/plan")).toEqual({
       route: "plan",
-      scope: { kind: "project", project: "loom-db" },
+      scope: { kind: "all" },
+    });
+    expect(resolveDesktopLocator("locus://all/view/qa")).toEqual({
+      route: "qa",
+      scope: { kind: "all" },
     });
   });
 
   it("rejects routes addressed with the wrong scope or an implicit v1 scope", () => {
     expect(() => formatDesktopLocator("inbox", "tapestry")).toThrow(/scope:/);
-    expect(() => formatDesktopLocator("plan")).toThrow(/project:/);
-    expect(() => resolveDesktopLocator("locus://all/view/plan")).toThrow(
+    expect(() => resolveDesktopLocator("locus://app/view/plan")).toThrow(
       /scope:/,
     );
     expect(() => resolveDesktopLocator("locus://tapestry/view/inbox")).toThrow(

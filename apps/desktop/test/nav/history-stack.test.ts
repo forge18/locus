@@ -12,10 +12,10 @@ describe("nav/history-stack", () => {
   it("is a stack of locators, not of views", () => {
     const nav = createNavStore();
     nav.go("sessions");
-    nav.go("sessions", { sessionId: "8f21" });
+    nav.go("sessions", { project: "tapestry", sessionId: "8f21" });
     expect(nav.history()).toEqual([
       "locus://all/view/inbox",
-      "locus://tapestry/view/sessions",
+      "locus://all/view/sessions",
       "locus://tapestry/session/8f21",
     ]);
   });
@@ -40,7 +40,11 @@ describe("nav/history-stack", () => {
 
   it("restores the params, not just the view", () => {
     const nav = createNavStore();
-    nav.go("runs", { sessionId: "8f21", runId: "3c04" });
+    nav.go("runs", {
+      project: "tapestry",
+      sessionId: "8f21",
+      runId: "3c04",
+    });
     nav.go("plan");
     nav.back();
     expect(nav.view()).toBe("runs");
@@ -59,8 +63,8 @@ describe("nav/history-stack", () => {
     nav.go("plan");
     expect(nav.history()).toEqual([
       "locus://all/view/inbox",
-      "locus://tapestry/view/sessions",
-      "locus://tapestry/view/plan",
+      "locus://all/view/sessions",
+      "locus://all/view/plan",
     ]);
     expect(nav.canForward()).toBe(false);
   });
@@ -72,7 +76,7 @@ describe("nav/history-stack", () => {
     nav.go("sessions");
     expect(nav.history()).toEqual([
       "locus://all/view/inbox",
-      "locus://tapestry/view/sessions",
+      "locus://all/view/sessions",
     ]);
   });
 

@@ -6,10 +6,10 @@ import {
 
 describe("nav/one-resolver", () => {
   it("uses one boundary to format and resolve rail/palette destinations", () => {
-    const locator = destinationDesktop("plan", "locus");
+    const locator = destinationDesktop("plan");
     expect(navigateDesktop(locator)).toEqual({
       route: "plan",
-      scope: { kind: "project", project: "locus" },
+      scope: { kind: "all" },
     });
   });
 });
