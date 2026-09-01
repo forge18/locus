@@ -29,9 +29,17 @@ import type { Envelope } from "../../data/envelope";
 import type { NavStore } from "../../nav";
 import { Button } from "../../ui/Button";
 import { InlineError } from "../../ui/InlineError";
+import { Tabs } from "../../ui/Tabs";
 
 const SCOPES: PlanningWorkspaceScope[] = ["amendment", "feature", "project"];
-const ROOM_TABS = ["brief", "shape", "specs", "tasks", "coverage", "activity"] as const;
+const ROOM_TABS = [
+  "brief",
+  "shape",
+  "specs",
+  "tasks",
+  "coverage",
+  "activity",
+] as const;
 type RoomTab = (typeof ROOM_TABS)[number];
 type Props = { nav?: NavStore };
 type CheckpointState = Record<string, unknown>;
@@ -84,7 +92,9 @@ export function PlanningWorkspaceView(props: Props) {
   const [selectedId, setSelectedId] = createSignal("");
   const [brief, setBrief] = createSignal("");
   const [scope, setScope] = createSignal<PlanningWorkspaceScope>("feature");
-  const [projectId, setProjectId] = createSignal(props.nav?.params().project ?? "");
+  const [projectId, setProjectId] = createSignal(
+    props.nav?.params().project ?? "",
+  );
   const [stateText, setStateText] = createSignal("{}");
   const [tab, setTab] = createSignal<RoomTab>("brief");
   const [busy, setBusy] = createSignal(false);
@@ -99,7 +109,8 @@ export function PlanningWorkspaceView(props: Props) {
     return envelope.status === "ready" ? envelope.data : [];
   });
   const selected = createMemo(
-    () => workspaces().find((workspace) => workspace.id === selectedId()) ?? null,
+    () =>
+      workspaces().find((workspace) => workspace.id === selectedId()) ?? null,
   );
   const revisions = createMemo(() => {
     const envelope = revisionEnvelope();
@@ -114,9 +125,13 @@ export function PlanningWorkspaceView(props: Props) {
     return envelope.status === "ready" ? envelope.data : [];
   });
   const currentRevision = createMemo(
-    () => revisions().find((revision) => revision.revision === selected()?.currentRevision) ?? null,
+    () =>
+      revisions().find(
+        (revision) => revision.revision === selected()?.currentRevision,
+      ) ?? null,
   );
-  const projectName = (id: string) => projects().find((project) => project.id === id)?.name ?? id;
+  const projectName = (id: string) =>
+    projects().find((project) => project.id === id)?.name ?? id;
   const currentState = createMemo<CheckpointState>(() => {
     const revision = currentRevision();
     return revision?.state ?? {};
@@ -135,7 +150,9 @@ export function PlanningWorkspaceView(props: Props) {
     setWorkspaceEnvelope(workspaceRows);
     setProjectEnvelope(projectRows);
     if (workspaceRows.status === "ready") {
-      const next = workspaceRows.data.find((workspace) => workspace.id === selectedId()) ?? workspaceRows.data[0];
+      const next =
+        workspaceRows.data.find((workspace) => workspace.id === selectedId()) ??
+        workspaceRows.data[0];
       setSelectedId(next?.id ?? "");
     }
   }
@@ -160,7 +177,10 @@ export function PlanningWorkspaceView(props: Props) {
     setSpecEnvelope(specRows);
     setSessionEnvelope(sessionRows);
     if (revisionRows.status === "ready") {
-      const revision = revisionRows.data.find((row) => row.revision === workspace.currentRevision) ?? revisionRows.data[revisionRows.data.length - 1];
+      const revision =
+        revisionRows.data.find(
+          (row) => row.revision === workspace.currentRevision,
+        ) ?? revisionRows.data[revisionRows.data.length - 1];
       if (revision) setStateText(JSON.stringify(revision.state, null, 2));
     }
   }
@@ -178,7 +198,11 @@ export function PlanningWorkspaceView(props: Props) {
     if (!selectedProject || !nextBrief) return;
     setBusy(true);
     setMessage(null);
-    const envelope = await createPlanningWorkspace(selectedProject, scope(), nextBrief);
+    const envelope = await createPlanningWorkspace(
+      selectedProject,
+      scope(),
+      nextBrief,
+    );
     if (envelope.status === "ready") {
       setBrief("");
       await load();
@@ -195,14 +219,17 @@ export function PlanningWorkspaceView(props: Props) {
     let state: Record<string, unknown>;
     try {
       const parsed: unknown = JSON.parse(stateText());
-      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("state must be a JSON object");
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+        throw new Error("state must be a JSON object");
       state = parsed as Record<string, unknown>;
     } catch (cause) {
       setMessage(cause instanceof Error ? cause.message : String(cause));
       return;
     }
     const lifecycle: Exclude<PlanningWorkspaceLifecycle, "approved"> =
-      workspace.lifecycle === "ready_for_approval" ? "ready_for_approval" : "in_progress";
+      workspace.lifecycle === "ready_for_approval"
+        ? "ready_for_approval"
+        : "in_progress";
     setBusy(true);
     setMessage(null);
     const envelope = await savePlanningWorkspaceCheckpoint(
@@ -241,7 +268,10 @@ export function PlanningWorkspaceView(props: Props) {
     if (!workspace) return;
     setBusy(true);
     setMessage(null);
-    const envelope = await deletePlanningWorkspace(workspace.projectId, workspace.id);
+    const envelope = await deletePlanningWorkspace(
+      workspace.projectId,
+      workspace.id,
+    );
     if (envelope.status === "failed") setMessage(envelope.error.message);
     else {
       setSelectedId("");
@@ -250,10 +280,15 @@ export function PlanningWorkspaceView(props: Props) {
     setBusy(false);
   }
 
-  const loadError = createMemo(() => errorFrom(workspaceEnvelope()) ?? errorFrom(projectEnvelope()));
+  const loadError = createMemo(
+    () => errorFrom(workspaceEnvelope()) ?? errorFrom(projectEnvelope()),
+  );
 
   return (
-    <div class="plan-workspace planning-workspace-live" data-testid="planning-workspace">
+    <div
+      class="plan-workspace planning-workspace-live"
+      data-testid="planning-workspace"
+    >
       <header class="plan-workspace-head">
         <span class="plan-workspace-toggle">
           Planning workspaces <span class="mono">{workspaces().length}</span>
@@ -280,7 +315,9 @@ export function PlanningWorkspaceView(props: Props) {
               >
                 <option value="">Choose a project</option>
                 <For each={projects()}>
-                  {(project) => <option value={project.id}>{project.name}</option>}
+                  {(project) => (
+                    <option value={project.id}>{project.name}</option>
+                  )}
                 </For>
               </select>
             </label>
@@ -353,9 +390,7 @@ export function PlanningWorkspaceView(props: Props) {
                   </div>
                   <div class="planning-workspace-actions">
                     <Button
-                      disabled={
-                        busy() || workspace().lifecycle === "approved"
-                      }
+                      disabled={busy() || workspace().lifecycle === "approved"}
                       onClick={() => void saveCheckpoint()}
                     >
                       Save checkpoint
@@ -382,24 +417,17 @@ export function PlanningWorkspaceView(props: Props) {
                     </Button>
                   </div>
                 </header>
-                <nav
-                  class="planning-room-tabs"
-                  role="tablist"
-                  aria-label="Planning room"
-                >
-                  <For each={ROOM_TABS}>
-                    {(entry) => (
-                      <button
-                        type="button"
-                        role="tab"
-                        aria-selected={tab() === entry}
-                        onClick={() => setTab(entry)}
-                      >
-                        {entry}
-                      </button>
-                    )}
-                  </For>
-                </nav>
+                <div class="planning-room-tabs">
+                  <Tabs
+                    items={ROOM_TABS.map((entry) => ({
+                      value: entry,
+                      label: entry,
+                    }))}
+                    value={tab()}
+                    onChange={(value) => setTab(value as RoomTab)}
+                    label="Planning room"
+                  />
+                </div>
                 <Switch>
                   <Match when={tab() === "brief"}>
                     <section class="planning-room-panel">
@@ -407,19 +435,33 @@ export function PlanningWorkspaceView(props: Props) {
                       <p class="planning-room-lead">
                         {textIn(currentState(), "brief")}
                       </p>
-                      <RoomList title="Use cases" items={stringsIn(currentState(), "useCases")} />
-                      <RoomList title="Success criteria" items={stringsIn(currentState(), "successCriteria")} />
+                      <RoomList
+                        title="Use cases"
+                        items={stringsIn(currentState(), "useCases")}
+                      />
+                      <RoomList
+                        title="Success criteria"
+                        items={stringsIn(currentState(), "successCriteria")}
+                      />
                     </section>
                   </Match>
                   <Match when={tab() === "shape"}>
                     <section class="planning-room-panel">
                       <h2>Shape</h2>
                       <dl class="planning-room-facts">
-                        <dt>Scope</dt><dd>{workspace().scope}</dd>
-                        <dt>Depth</dt><dd>{textIn(currentState(), "depth")}</dd>
+                        <dt>Scope</dt>
+                        <dd>{workspace().scope}</dd>
+                        <dt>Depth</dt>
+                        <dd>{textIn(currentState(), "depth")}</dd>
                       </dl>
-                      <RoomList title="Risks" items={stringsIn(currentState(), "risks")} />
-                      <RoomList title="Open questions" items={stringsIn(currentState(), "openQuestions")} />
+                      <RoomList
+                        title="Risks"
+                        items={stringsIn(currentState(), "risks")}
+                      />
+                      <RoomList
+                        title="Open questions"
+                        items={stringsIn(currentState(), "openQuestions")}
+                      />
                     </section>
                   </Match>
                   <Match when={tab() === "specs"}>
@@ -427,14 +469,24 @@ export function PlanningWorkspaceView(props: Props) {
                       <h2>Specs</h2>
                       <Show
                         when={specs().length > 0}
-                        fallback={<RoomList title="Checkpoint specs" items={stateSpecs().map((spec) => textIn(spec, "name"))} />}
+                        fallback={
+                          <RoomList
+                            title="Checkpoint specs"
+                            items={stateSpecs().map((spec) =>
+                              textIn(spec, "name"),
+                            )}
+                          />
+                        }
                       >
                         <For each={specs()}>
                           {(spec) => (
                             <article class="planning-room-card">
                               <strong>{spec.name}</strong>
                               <span>repo {spec.repoId}</span>
-                              <small>{spec.stale ? "stale" : "current"} · updated {spec.updatedAt}</small>
+                              <small>
+                                {spec.stale ? "stale" : "current"} · updated{" "}
+                                {spec.updatedAt}
+                              </small>
                             </article>
                           )}
                         </For>
@@ -444,13 +496,20 @@ export function PlanningWorkspaceView(props: Props) {
                   <Match when={tab() === "tasks"}>
                     <section class="planning-room-panel">
                       <h2>Tasks</h2>
-                      <Show when={stateTasks().length > 0} fallback={<p>No tasks are in this checkpoint.</p>}>
+                      <Show
+                        when={stateTasks().length > 0}
+                        fallback={<p>No tasks are in this checkpoint.</p>}
+                      >
                         <For each={stateTasks()}>
                           {(task) => (
                             <article class="planning-room-card">
                               <strong>{textIn(task, "summary")}</strong>
                               <span>{textIn(task, "verify")}</span>
-                              <small>after {stringsIn(task, "after").join(", ") || "nothing"}</small>
+                              <small>
+                                after{" "}
+                                {stringsIn(task, "after").join(", ") ||
+                                  "nothing"}
+                              </small>
                             </article>
                           )}
                         </For>
@@ -460,13 +519,21 @@ export function PlanningWorkspaceView(props: Props) {
                   <Match when={tab() === "coverage"}>
                     <section class="planning-room-panel">
                       <h2>Coverage</h2>
-                      <p class="planning-room-lead">Every requirement must map to a task or an explicit non-task outcome before approval.</p>
+                      <p class="planning-room-lead">
+                        Every requirement must map to a task or an explicit
+                        non-task outcome before approval.
+                      </p>
                       <For each={stateRequirements()}>
                         {(requirement) => (
                           <article class="planning-room-coverage">
                             <strong>{textIn(requirement, "id")}</strong>
                             <span>{textIn(requirement, "body")}</span>
-                            <small>{stringsIn(requirement, "taskIds").join(", ") || (requirement.nonTaskOutcome === true ? "non-task outcome" : "uncovered")}</small>
+                            <small>
+                              {stringsIn(requirement, "taskIds").join(", ") ||
+                                (requirement.nonTaskOutcome === true
+                                  ? "non-task outcome"
+                                  : "uncovered")}
+                            </small>
                           </article>
                         )}
                       </For>
@@ -479,18 +546,30 @@ export function PlanningWorkspaceView(props: Props) {
                         {(revision) => (
                           <article class="planning-room-card">
                             <strong>Revision {revision.revision}</strong>
-                            <span>{revision.frozenAt ? "frozen" : "editable"}{revision.approvedAt ? " · approved" : ""}</span>
+                            <span>
+                              {revision.frozenAt ? "frozen" : "editable"}
+                              {revision.approvedAt ? " · approved" : ""}
+                            </span>
                             <small>{revision.id}</small>
                           </article>
                         )}
                       </For>
                       <Show when={sessions().length > 0}>
-                        <RoomList title="Planning sessions" items={sessions().map((session) => session.sessionId)} />
+                        <RoomList
+                          title="Planning sessions"
+                          items={sessions().map((session) => session.sessionId)}
+                        />
                       </Show>
                       <Show when={currentRevision()}>
                         <label class="planning-room-raw">
                           Raw checkpoint state
-                          <textarea value={stateText()} onInput={(event) => setStateText(event.currentTarget.value)} aria-label="Workspace checkpoint state" />
+                          <textarea
+                            value={stateText()}
+                            onInput={(event) =>
+                              setStateText(event.currentTarget.value)
+                            }
+                            aria-label="Workspace checkpoint state"
+                          />
                         </label>
                       </Show>
                     </section>
@@ -526,9 +605,15 @@ function RoomList(props: { title: string; items: string[] }) {
 
 function UnavailablePanel() {
   return (
-    <section class="plan-stage-panel" data-testid="planning-workspace-empty-detail">
+    <section
+      class="plan-stage-panel"
+      data-testid="planning-workspace-empty-detail"
+    >
       <h2>Select or create a workspace</h2>
-      <p>Planning state is persisted per project and remains resumable until you approve or delete it.</p>
+      <p>
+        Planning state is persisted per project and remains resumable until you
+        approve or delete it.
+      </p>
     </section>
   );
 }
