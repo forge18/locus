@@ -25,6 +25,7 @@ Owner of everything data-backed. [spec](.specs/desktop-data-integration/spec.md)
 audit findings; each is one of the epic's slices, tracked here once:
 
 - [ ] **Run the epic slices in tasks.md order** —
+  <!-- markdownlint-disable MD029 -->
   3. ~~tracer bullet: Setup reads the real store~~ done (`projects_list`/`repos_list`/
   `local_remotes_list`/`project_setup` live, ProjectsView on envelopes, cross-project rejection
   tested both sides) ·
@@ -75,8 +76,9 @@ audit findings; each is one of the epic's slices, tracked here once:
   guard's remaining 9 violations) ·
   ~~11. real Tauri-window acceptance coverage~~ done (the Tauri host boots against disposable
   pgvector, exercises live Setup data, project scope switching, Stop all, a real event Channel,
-  and a visible backend error; unsupported Linux hosts report explicitly) ·
+  and a visible backend error; Linux runs inside a Dockerized Xvfb host) ·
   12. release gate.
+  <!-- markdownlint-enable MD029 -->
 - [ ] **Decide the registered-but-unused commands** — `telemetry_subscribe`, `lsp_enable_descriptor`,
   `lsp_disable_descriptor`, `detach_pane`, `repo_git_state` have no frontend caller
   (`materialization_report` and `telemetry_events_replay` now do); wire a UI or drop each.
