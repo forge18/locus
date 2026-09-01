@@ -69,6 +69,23 @@ export function savePlanningWorkspaceCheckpoint(
   );
 }
 
+export interface PlanningWorkspaceApproval {
+  workspaceId: string;
+  revision: number;
+  taskIds: string[];
+}
+
+export function approvePlanningWorkspace(
+  projectId: string,
+  workspaceId: string,
+  expectedRevision: number,
+): Promise<Envelope<PlanningWorkspaceApproval>> {
+  return dataProvider().queryOne<PlanningWorkspaceApproval>(
+    "planning_workspace_approve",
+    { projectId, workspaceId, expectedRevision },
+  );
+}
+
 export function deletePlanningWorkspace(
   projectId: string,
   workspaceId: string,

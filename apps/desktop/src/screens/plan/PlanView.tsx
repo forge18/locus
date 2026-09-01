@@ -388,16 +388,6 @@ export function PlanView(props: PlanViewProps = {}) {
       async function refreshPlans() {
             if (!liveMode) return;
             const projectId = props.nav?.params().project;
-            if (!projectId) {
-                  setPlanEnvelope({
-                        status: "failed",
-                        error: {
-                              command: "plans_list",
-                              message: "no project is selected",
-                        },
-                  });
-                  return;
-            }
             const envelope = await fetchPlans(projectId);
             setPlanEnvelope(envelope);
             if (envelope.status === "ready") {
@@ -418,7 +408,7 @@ export function PlanView(props: PlanViewProps = {}) {
                   () => {
                         void refreshPlans();
                   },
-                  { defer: true },
+                  { defer: false },
             ),
       );
 

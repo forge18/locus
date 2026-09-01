@@ -1647,9 +1647,12 @@ fn parse_plan_stage(
 
 async fn plans_list_inner(
     store: &Store,
-    project_id: &str,
+    project_id: Option<&str>,
 ) -> Result<Vec<PlanSummaryResponse>, IpcError> {
-    let project_id = resolve_setup_project(store, project_id).await?;
+    let project_id = match project_id {
+        Some(project_id) => Some(resolve_setup_project(store, project_id).await?),
+        None => None,
+    };
     let rows = store
         .plans_list(project_id)
         .await
@@ -1696,6 +1699,14 @@ struct PlanningWorkspaceResponse {
     lifecycle: String,
     current_revision: i32,
     updated_at: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PlanningWorkspaceApprovalResponse {
+    workspace_id: String,
+    revision: i32,
+    task_ids: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -1760,7 +1771,7 @@ async fn plan_create_inner(
         .create_plan(id, project_id.into(), title, goal)
         .await
         .map_err(IpcError::internal)?;
-    plans_list_inner(store, &project_id.to_string())
+    plans_list_inner(store, Some(&project_id.to_string()))
         .await?
         .into_iter()
         .find(|plan| plan.id == id.to_string())
@@ -1836,10 +1847,10 @@ async fn plan_requirements_set_inner(
 #[tauri::command]
 async fn plans_list(
     core: State<'_, Arc<Core>>,
-    project_id: String,
+    project_id: Option<String>,
 ) -> Result<Vec<PlanSummaryResponse>, IpcError> {
     let store = connected_store(&core).await?;
-    plans_list_inner(store, &project_id).await
+    plans_list_inner(store, project_id.as_deref()).await
 }
 
 #[tauri::command]
@@ -1983,6 +1994,27 @@ async fn planning_workspace_checkpoint_save(
         .map_err(IpcError::internal)?
         .map(planning_workspace_response)
         .ok_or_else(|| IpcError::internal("planning workspace disappeared after checkpoint"))
+}
+
+#[tauri::command]
+async fn planning_workspace_approve(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    workspace_id: String,
+    expected_revision: i32,
+) -> Result<PlanningWorkspaceApprovalResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = resolve_setup_project(store, &project_id).await?;
+    let workspace_id = parse_planning_workspace_id(&workspace_id)?;
+    let task_ids = store
+        .approve_planning_workspace(project_id, workspace_id, expected_revision)
+        .await
+        .map_err(IpcError::internal)?;
+    Ok(PlanningWorkspaceApprovalResponse {
+        workspace_id: workspace_id.to_string(),
+        revision: expected_revision,
+        task_ids: task_ids.into_iter().map(|id| id.to_string()).collect(),
+    })
 }
 
 #[tauri::command]
@@ -4695,6 +4727,7 @@ pub fn run() {
             planning_workspace_create,
             planning_workspace_revisions_list,
             planning_workspace_checkpoint_save,
+            planning_workspace_approve,
             planning_workspace_delete,
             board_tasks,
             task_detail,
@@ -6314,7 +6347,7 @@ mod configuration_commands {
         .await
         .expect("seed plans");
 
-        let plans = plans_list_inner(&store, "tapestry")
+        let plans = plans_list_inner(&store, Some("tapestry"))
             .await
             .expect("list tapestry plans");
         assert_eq!(plans.len(), 1);
@@ -6327,7 +6360,7 @@ mod configuration_commands {
         assert!(plans[0].landed.is_none());
         assert!(!plans[0].age.is_empty());
 
-        let unknown = plans_list_inner(&store, "00000000-0000-0000-0000-000000000aff")
+        let unknown = plans_list_inner(&store, Some("00000000-0000-0000-0000-000000000aff"))
             .await
             .expect_err("unknown project rejected");
         assert!(matches!(unknown.kind, IpcErrorKind::NotFound));
