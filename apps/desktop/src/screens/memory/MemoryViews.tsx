@@ -42,8 +42,11 @@ function UnavailableMemoryView(props: {
   route: string;
   surface: string;
   command: string;
+  projectId?: string;
 }) {
-  const [selectedProjectId, setSelectedProjectId] = createSignal<string>();
+  const [selectedProjectId, setSelectedProjectId] = createSignal(
+    props.projectId,
+  );
   return (
     <MemoryFrame testId={props.testId} route={props.route}>
       <section class="desktop-memory-main">
@@ -91,24 +94,26 @@ function FactList(props: { facts: KnowledgeFact[] }) {
   );
 }
 
-export function MemoryShortTermView() {
+export function MemoryShortTermView(props: { projectId?: string } = {}) {
   return (
     <UnavailableMemoryView
       testId="desktop-memory-short-term"
       route="short"
       surface="Short-term memory"
       command="memory_short_term"
+      projectId={props.projectId}
     />
   );
 }
 
-export function MemoryWikiView() {
+export function MemoryWikiView(props: { projectId?: string } = {}) {
   return (
     <UnavailableMemoryView
       testId="desktop-memory-wiki"
       route="wiki"
       surface="Wiki"
       command="wiki_pages"
+      projectId={props.projectId}
     />
   );
 }

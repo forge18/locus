@@ -1,6 +1,6 @@
 # TODO
 
-**Remaining:** 28 open rows across 8 workstreams, worked top to bottom.
+**Remaining:** 27 open rows across 7 workstreams, worked top to bottom.
 
 This is the unfinished-work index. [`PLAN.md`](PLAN.md) is the architecture authority. Each feature's
 `spec.md` is its contract; its `tasks.md` is the runnable decomposition and verification source. One
@@ -11,8 +11,8 @@ owning workstream so nothing is tracked twice.
 
 - `feat/planning-workspace` carries the completed work checked off below; this file is the
   current progress record, not a claim that every open row is complete.
-- Active workstream: **6 — Workshop & canvas**. Workstream 4 has one remaining secondary-surface
-  rehome row; its persistence, navigation, Planning Room, Workers, and capability rows are done.
+- Active workstream: **6 — Workshop & canvas**. Workstream 4 is complete; its persistence, navigation,
+  Planning Room, Workers, capability, and secondary-surface rows are done.
 
 ## 1 — Desktop data integration (the epic)
 
@@ -117,15 +117,16 @@ done and checked off in git history). Remaining, in dependency order:
 
 ## 4 — Planning workspace & navigation revision (gated)
 
-The accepted contract is implemented in dependency order; the remaining secondary-surface row
-is intentionally still open.
+The accepted contract is implemented in dependency order.
 
 - [x] **Adopt the Planning Workspace contract** — accepted `PLANNING_WORKSPACE_PLAN.md`, updated `PLAN.md`, revised the root count, and added supersession/retirement pointers before production code changes.
 - [x] **Replace global project navigation with page-owned scope** — removed the shell project selector; installed the Projects / Workers / Telemetry+Automation / Workshop rail; moved route authority to `desktop-route-manifest.ts`; preserved compatible deep links and added scope tests.
 - [x] **Persist resumable planning workspaces** — added the workspace schema/backfill, lifecycle and optimistic revisions, structured checkpoints, planning-session linkage, live IPC, restricted hard deletion, and acceptance/provider coverage.
 - [x] **Plan whole projects through specs and tasks** — Planning Room now has Brief, Shape, Specs, Tasks, Coverage, and Activity sections; approval enforces reviewed specs, stale-spec checks, cross-spec/task DAG validation, frozen revisions, provenance, and idempotent board materialization.
 - [x] **Consolidate Bots and Interact as Workers** — Workers owns the preserved session/run behavior; Interact navigation and desktop-only surfaces were retired without removing the backend compatibility code.
-- [ ] **Rehome secondary surfaces** — Analytics Overview under Telemetry; Autorun/Schedules/Runs stay in Dispatch; Mail into project-owned background/history; Short-term/Long-term/Artifacts/Wiki under Workshop → Knowledge.
+- [x] **Rehome secondary surfaces** — Analytics Overview is under Telemetry; Autorun/Schedules/Runs remain
+  in Dispatch; Mail is a project-owned background/history surface with a page-owned filter; and
+  Short-term/Long-term/Artifacts/Wiki are nested under Workshop → Knowledge.
 - [x] **Add agent capability inheritance and limits** — added project/workflow narrowing, non-escalating effective policies, immutable per-run snapshots, and the Workshop policy editor.
 
 ## 5 — Navigation & shell polish (ungated)

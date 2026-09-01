@@ -28,6 +28,17 @@ describe("screens/desktop-mail", () => {
     expect(view.container.querySelectorAll(".mail-message")).toHaveLength(4);
   });
 
+  it("keeps mail scope page-owned and filters threads by project", async () => {
+    const view = render(() => <MailView projectId="weaver" />);
+    const filter = view.getByTestId("page-project-filter").querySelector("select")!;
+
+    expect(view.getByTestId("mail").getAttribute("data-scope")).toBe("weaver");
+    expect(view.queryByTestId("mail-thread-thread-1")).toBeNull();
+    expect(view.getByTestId("mail-thread-thread-2")).toBeTruthy();
+
+    expect(filter).toBeTruthy();
+  });
+
   it("keeps the reply draft controlled and sends it as mail reply from you", async () => {
     const view = mount();
     const textarea = composer(view);

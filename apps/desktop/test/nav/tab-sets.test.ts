@@ -43,7 +43,7 @@ describe("nav/tab-sets", () => {
   it("lights the tab for a view that has one", () => {
     expect(activeTabFor("telemetry")).toBe("telemetry");
     expect(activeTabFor("wiki")).toBe("wiki");
-    expect(activeTabFor("agents")).toBe(null);
+    expect(activeTabFor("agents")).toBe("agents");
     expect(activeTabFor("plan")).toBe(null);
   });
 });

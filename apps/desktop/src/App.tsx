@@ -124,7 +124,12 @@ function App() {
                                                 />
                                         </Match>
                                         <Match when={nav.view() === "wiki"}>
-                                                <MemoryWikiView />
+                                                <MemoryWikiView
+                                                        projectId={
+                                                                nav.params()
+                                                                        .project
+                                                        }
+                                                />
                                         </Match>
                                         <Match when={nav.view() === "agents"}>
                                                 <AgentDefinitionsView />
@@ -138,7 +143,12 @@ function App() {
                                                 <HarnessesView />
                                         </Match>
                                         <Match when={nav.view() === "mail"}>
-                                                <MailView />
+                                                <MailView
+                                                        projectId={
+                                                                nav.params()
+                                                                        .project
+                                                        }
+                                                />
                                         </Match>
                                         <Match when={nav.view() === "workers"}>
                                                 <WorkersView
@@ -173,7 +183,12 @@ function App() {
                                                 />
                                         </Match>
                                         <Match when={nav.view() === "short"}>
-                                                <MemoryShortTermView />
+                                                <MemoryShortTermView
+                                                        projectId={
+                                                                nav.params()
+                                                                        .project
+                                                        }
+                                                />
                                         </Match>
                                         <Match when={nav.view() === "memory"}>
                                                 <MemoryLongTermView
