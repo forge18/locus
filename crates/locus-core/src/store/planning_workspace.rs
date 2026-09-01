@@ -412,7 +412,6 @@ impl crate::store::Store {
             let repo_id = spec
                 .get("repoId")
                 .and_then(Value::as_str)
-                .and_then(Value::as_str)
                 .ok_or_else(|| anyhow::anyhow!("workspace spec repoId is required"))?
                 .parse::<Uuid>()
                 .context("parse workspace spec repository id")?;

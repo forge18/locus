@@ -89,8 +89,8 @@ export function approvePlanningWorkspace(
 export function deletePlanningWorkspace(
   projectId: string,
   workspaceId: string,
-): Promise<Envelope<void>> {
-  return dataProvider().queryOne<void>("planning_workspace_delete", {
+): Promise<Envelope<boolean>> {
+  return dataProvider().queryOne<boolean>("planning_workspace_delete", {
     projectId,
     workspaceId,
   });

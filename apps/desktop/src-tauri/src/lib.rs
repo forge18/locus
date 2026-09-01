@@ -2022,13 +2022,14 @@ async fn planning_workspace_delete(
     core: State<'_, Arc<Core>>,
     project_id: String,
     workspace_id: String,
-) -> Result<(), IpcError> {
+) -> Result<bool, IpcError> {
     let store = connected_store(&core).await?;
     let project_id = resolve_setup_project(store, &project_id).await?;
     store
         .delete_planning_workspace(project_id, parse_planning_workspace_id(&workspace_id)?)
         .await
-        .map_err(IpcError::internal)
+        .map_err(IpcError::internal)?;
+    Ok(true)
 }
 
 #[derive(Debug, Serialize)]

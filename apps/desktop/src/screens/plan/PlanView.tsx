@@ -17,6 +17,7 @@ import { Recommendation } from "./Recommendation";
 import { ScopeDecision } from "./ScopeDecision";
 import { PlanSpecView } from "./PlanSpecView";
 import { PlanTasksView } from "./PlanTasksView";
+import { PlanningWorkspaceView } from "./PlanningWorkspaceView";
 import { Icon } from "../../ui/Icon";
 import { InlineError } from "../../ui/InlineError";
 import { Tag } from "../../ui/Tag";
@@ -295,6 +296,7 @@ export interface PlanViewProps {
 
 export function PlanView(props: PlanViewProps = {}) {
       const liveMode = dataProvider().kind === "live";
+      if (liveMode) return <PlanningWorkspaceView nav={props.nav} />;
       const fixturePlans = usePlans();
       const [planEnvelope, setPlanEnvelope] = createSignal<
             Envelope<PlanSummary[]>
