@@ -293,21 +293,16 @@ try {
     logLevel: "error",
     capabilities: { browserName: "tauri" },
   });
-  await waitForElement(browser, '[data-testid="project-switcher-option-tapestry"]');
-  await clickSelector(browser, '[data-testid="project-switcher-option-tapestry"]');
+  await waitForElement(browser, '[data-testid="project-rail"]');
+  await clickExact(browser, '[data-testid="project-rail"] button', "Projects");
   await waitForElement(browser, '[data-testid="projects-view"]');
+  await waitForText(browser, '[data-testid="project-state-list"]', "#tapestry");
+  await clickExact(browser, '[data-testid="project-state-list"] .project-list-item', "#tapestry");
   await waitForText(browser, '[data-testid="project-repos"]', "locus");
   await waitForText(browser, '[data-testid="project-harnesses"]', "Harnesses");
 
-  await clickSelector(browser, '[data-testid="project-switcher-option-loom-db"]');
-  await browser.waitUntil(
-    async () => await browser.execute(() =>
-      document
-        .querySelector('[data-testid="project-switcher-option-loom-db"]')
-        ?.getAttribute("data-selected-project") === "true",
-    ),
-    { timeout: 30_000, interval: 250, timeoutMsg: "project scope did not switch to loom-db" },
-  );
+  await clickExact(browser, '[data-testid="project-state-list"] .project-list-item', "#loom-db");
+  await waitForText(browser, '[data-testid="project-repos"]', "loom");
 
   await clickSelector(browser, '[data-testid="dispatch-pill"]');
   await clickExact(browser, '[data-testid="dispatch-popover"] button', "Stop all");
@@ -338,9 +333,8 @@ try {
     logLevel: "error",
     capabilities: { browserName: "tauri" },
   });
-  await waitForElement(browser, '[data-testid="project-rail-routes"] button');
-  await clickExact(browser, '[data-testid="project-rail-routes"] button', "Setup");
-  await sleep(1_000);
+  await waitForElement(browser, '[data-testid="project-rail"]');
+  await clickExact(browser, '[data-testid="project-rail"] button', "Projects");
   const error = await waitForElement(browser, '[data-testid="project-state-list"] [role="alert"]');
   if (!(await error.getText()).trim()) throw new Error("backend error state was empty");
   process.stdout.write("desktop integration passed: live setup, project scope, stop all, stream, and backend error\n");
