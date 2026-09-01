@@ -11,7 +11,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Linux dependencies
+      - name: Install Linux build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
@@ -23,8 +23,7 @@ jobs:
             libxdo-dev \
             libssl-dev \
             libayatana-appindicator3-dev \
-            librsvg2-dev \
-          xvfb
+            librsvg2-dev
 
       - name: Install just
         uses: extractions/setup-just@v2
@@ -83,8 +82,8 @@ jobs:
       - name: Desktop build
         run: pnpm -C apps/desktop build
 
-      - name: Real Tauri desktop integration
-        run: just test-desktop-integration
+      - name: Real Linux Tauri desktop integration
+        run: just test-desktop-integration-linux
 
       - name: locusd starts and serves its socket
         run: |
