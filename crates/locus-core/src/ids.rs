@@ -79,6 +79,7 @@ macro_rules! typed_id {
 }
 
 typed_id!(ProjectId, "project");
+typed_id!(PlanningWorkspaceId, "planning workspace");
 typed_id!(BotId, "persistent bot");
 typed_id!(RoutineId, "bot routine");
 typed_id!(SessionId, "agent session");

@@ -24,6 +24,7 @@ const FIXTURE_DATA_SETS = [
   "knowledge",
   "mail",
   "plan",
+  "planning-workspace",
   "qa",
   "settings",
   "telemetry",

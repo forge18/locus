@@ -36,6 +36,8 @@ const FIXTURES: Record<string, FixtureValue> = {
   },
   local_remotes_list: () => core.LOCAL_REMOTES,
   plans_list: () => plan.PLANS,
+  planning_workspaces_list: () => [],
+  planning_workspace_revisions_list: () => [],
   plan_conversation: () => plan.CONVERSATION,
   plan_live_line: () => plan.LIVE_LINE,
   workflow_definitions: () => [

@@ -19,6 +19,7 @@ pub mod market;
 pub mod memory;
 pub mod model_tiers;
 pub mod planning;
+pub mod planning_workspace;
 pub mod projects;
 pub mod providers;
 pub mod qa;

@@ -11,7 +11,9 @@ use std::{
 use locus_core::{
     core::Core,
     harness::materialize::report::{reports_for_registry, MaterializationReport},
-    ids::{ArtifactId, BotId, ProjectId, RoutineId, RunId, TaskId},
+    ids::{
+        ArtifactId, BotId, PlanningWorkspaceId, ProjectId, RoutineId, RunId, TaskId,
+    },
     lsp::{DescriptorPin, LspDiagnostic},
     plugin::{builtin_manifests, PluginKind, PluginProcess, WorkItemProviderDescriptor},
     repo::{GitState, RepoManager},
@@ -41,6 +43,7 @@ use locus_core::{
     },
 };
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use tauri::{
     ipc::Channel,
     menu::{Menu, MenuItem},
@@ -1684,6 +1687,60 @@ struct PlanMutationResponse {
     updated: bool,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PlanningWorkspaceResponse {
+    id: String,
+    project_id: String,
+    scope: String,
+    lifecycle: String,
+    current_revision: i32,
+    updated_at: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PlanningWorkspaceRevisionResponse {
+    id: String,
+    workspace_id: String,
+    revision: i32,
+    state: Value,
+    frozen_at: Option<String>,
+    approved_at: Option<String>,
+}
+
+fn planning_workspace_response(
+    row: locus_core::store::planning_workspace::PlanningWorkspaceRow,
+) -> PlanningWorkspaceResponse {
+    PlanningWorkspaceResponse {
+        id: row.id.to_string(),
+        project_id: row.project_id.to_string(),
+        scope: row.scope,
+        lifecycle: row.lifecycle,
+        current_revision: row.current_revision,
+        updated_at: row.updated_at,
+    }
+}
+
+fn planning_workspace_revision_response(
+    row: locus_core::store::planning_workspace::PlanningWorkspaceRevisionRow,
+) -> PlanningWorkspaceRevisionResponse {
+    PlanningWorkspaceRevisionResponse {
+        id: row.id.to_string(),
+        workspace_id: row.workspace_id.to_string(),
+        revision: row.revision,
+        state: row.state,
+        frozen_at: row.frozen_at,
+        approved_at: row.approved_at,
+    }
+}
+
+fn parse_planning_workspace_id(value: &str) -> Result<PlanningWorkspaceId, IpcError> {
+    value
+        .parse()
+        .map_err(|_| IpcError::invalid_argument("planning workspace id must be a UUID"))
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PlanRequirementRequest {
@@ -1828,6 +1885,118 @@ async fn plan_requirements_set(
     let store = connected_store(&core).await?;
     plan_requirements_set_inner(store, &project_id, &plan_id, requirements).await?;
     Ok(PlanMutationResponse { updated: true })
+}
+
+#[tauri::command]
+async fn planning_workspaces_list(
+    core: State<'_, Arc<Core>>,
+    project_id: Option<String>,
+) -> Result<Vec<PlanningWorkspaceResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = match project_id {
+        Some(project_id) => Some(resolve_setup_project(store, &project_id).await?),
+        None => None,
+    };
+    store
+        .planning_workspaces(project_id)
+        .await
+        .map_err(IpcError::internal)
+        .map(|rows| rows.into_iter().map(planning_workspace_response).collect())
+}
+
+#[tauri::command]
+async fn planning_workspace_create(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    scope: String,
+    brief: String,
+) -> Result<PlanningWorkspaceResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = resolve_setup_project(store, &project_id).await?;
+    let workspace_id = store
+        .create_planning_workspace(project_id, &scope, &brief)
+        .await
+        .map_err(IpcError::internal)?;
+    store
+        .planning_workspace(project_id, workspace_id)
+        .await
+        .map_err(IpcError::internal)?
+        .map(planning_workspace_response)
+        .ok_or_else(|| IpcError::internal("created planning workspace disappeared"))
+}
+
+#[tauri::command]
+async fn planning_workspace_revisions_list(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    workspace_id: String,
+) -> Result<Vec<PlanningWorkspaceRevisionResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = resolve_setup_project(store, &project_id).await?;
+    let workspace_id = parse_planning_workspace_id(&workspace_id)?;
+    if store
+        .planning_workspace(project_id, workspace_id)
+        .await
+        .map_err(IpcError::internal)?
+        .is_none()
+    {
+        return Err(IpcError::not_found(
+            "planning workspace was not found in the active project",
+        ));
+    }
+    store
+        .planning_workspace_revisions(project_id, workspace_id)
+        .await
+        .map_err(IpcError::internal)
+        .map(|rows| {
+            rows.into_iter()
+                .map(planning_workspace_revision_response)
+                .collect()
+        })
+}
+
+#[tauri::command]
+async fn planning_workspace_checkpoint_save(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    workspace_id: String,
+    expected_revision: i32,
+    lifecycle: String,
+    state: Value,
+) -> Result<PlanningWorkspaceResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = resolve_setup_project(store, &project_id).await?;
+    let workspace_id = parse_planning_workspace_id(&workspace_id)?;
+    store
+        .save_planning_workspace_checkpoint(
+            project_id,
+            workspace_id,
+            expected_revision,
+            &lifecycle,
+            state,
+        )
+        .await
+        .map_err(IpcError::internal)?;
+    store
+        .planning_workspace(project_id, workspace_id)
+        .await
+        .map_err(IpcError::internal)?
+        .map(planning_workspace_response)
+        .ok_or_else(|| IpcError::internal("planning workspace disappeared after checkpoint"))
+}
+
+#[tauri::command]
+async fn planning_workspace_delete(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    workspace_id: String,
+) -> Result<(), IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = resolve_setup_project(store, &project_id).await?;
+    store
+        .delete_planning_workspace(project_id, parse_planning_workspace_id(&workspace_id)?)
+        .await
+        .map_err(IpcError::internal)
 }
 
 #[derive(Debug, Serialize)]
@@ -4522,6 +4691,11 @@ pub fn run() {
             plan_create,
             plan_stage_set,
             plan_requirements_set,
+            planning_workspaces_list,
+            planning_workspace_create,
+            planning_workspace_revisions_list,
+            planning_workspace_checkpoint_save,
+            planning_workspace_delete,
             board_tasks,
             task_detail,
             task_create,
