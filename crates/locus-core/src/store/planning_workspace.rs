@@ -36,6 +36,17 @@ pub struct PlanningWorkspaceSessionRow {
     pub linked_at: String,
 }
 
+#[derive(Debug, sqlx::FromRow)]
+pub struct PlanningWorkspaceSpecRow {
+    pub id: Uuid,
+    pub workspace_id: Uuid,
+    pub repo_id: Uuid,
+    pub name: String,
+    pub state: Value,
+    pub stale: bool,
+    pub updated_at: String,
+}
+
 fn valid_scope(scope: &str) -> bool {
     matches!(scope, "amendment" | "feature" | "project")
 }
@@ -238,6 +249,121 @@ impl crate::store::Store {
         .context("record workspace checkpoint")?;
         tx.commit().await.context("commit workspace checkpoint")?;
         Ok(next_revision)
+    }
+
+    pub async fn planning_workspace_specs(
+        &self,
+        project_id: ProjectId,
+        workspace_id: PlanningWorkspaceId,
+    ) -> Result<Vec<PlanningWorkspaceSpecRow>> {
+        query_as(
+            "SELECT s.id, s.workspace_id, s.repo_id, s.name, s.state, s.stale,
+                    s.updated_at::text AS updated_at
+             FROM core.planning_workspace_specs s
+             JOIN core.planning_workspaces w ON w.id = s.workspace_id
+             WHERE s.workspace_id = $1 AND w.project_id = $2
+             ORDER BY s.name, s.id",
+        )
+        .bind(workspace_id.as_uuid())
+        .bind(project_id)
+        .fetch_all(self.pool())
+        .await
+        .context("list planning workspace specs")
+    }
+
+    pub async fn save_planning_workspace_spec(
+        &self,
+        project_id: ProjectId,
+        workspace_id: PlanningWorkspaceId,
+        spec_id: Option<Uuid>,
+        repo_id: Uuid,
+        name: &str,
+        state: Value,
+        stale: bool,
+    ) -> Result<Uuid> {
+        if name.trim().is_empty() {
+            bail!("planning workspace spec name must not be empty");
+        }
+        if !state.is_object() {
+            bail!("planning workspace spec state must be a JSON object");
+        }
+        if !query_scalar::<_, bool>(
+            "SELECT EXISTS(
+                 SELECT 1 FROM core.planning_workspaces
+                 WHERE id = $1 AND project_id = $2
+             )",
+        )
+        .bind(workspace_id.as_uuid())
+        .bind(project_id)
+        .fetch_one(self.pool())
+        .await
+        .context("validate planning workspace spec owner")?
+        {
+            bail!("planning workspace was not found in the project");
+        }
+        if !query_scalar::<_, bool>(
+            "SELECT EXISTS(
+                 SELECT 1 FROM core.repos
+                 WHERE id = $1 AND project_id = $2
+             )",
+        )
+        .bind(repo_id)
+        .bind(project_id)
+        .fetch_one(self.pool())
+        .await
+        .context("validate planning workspace spec repository")?
+        {
+            bail!("planning workspace spec repository does not belong to the project");
+        }
+        if let Some(spec_id) = spec_id {
+            if !query_scalar::<_, bool>(
+                "SELECT EXISTS(
+                     SELECT 1 FROM core.planning_workspace_specs
+                     WHERE id = $1 AND workspace_id = $2
+                 )",
+            )
+            .bind(spec_id)
+            .bind(workspace_id.as_uuid())
+            .fetch_one(self.pool())
+            .await
+            .context("validate existing planning workspace spec")?
+            {
+                bail!("planning workspace spec does not belong to the workspace");
+            }
+        }
+        let spec_id = spec_id.unwrap_or_else(Uuid::new_v4);
+        query(
+            "INSERT INTO core.planning_workspace_specs
+                (id, workspace_id, repo_id, name, state, stale)
+             VALUES ($1, $2, $3, $4, $5, $6)
+             ON CONFLICT (id) DO UPDATE SET
+                 repo_id = EXCLUDED.repo_id,
+                 name = EXCLUDED.name,
+                 state = EXCLUDED.state,
+                 stale = EXCLUDED.stale,
+                 updated_at = now()",
+        )
+        .bind(spec_id)
+        .bind(workspace_id.as_uuid())
+        .bind(repo_id)
+        .bind(name.trim())
+        .bind(state)
+        .bind(stale)
+        .execute(self.pool())
+        .await
+        .context("save planning workspace spec")?;
+        query(
+            "INSERT INTO core.planning_workspace_events
+                (id, workspace_id, kind, payload)
+             VALUES ($1, $2, 'spec_saved', $3)",
+        )
+        .bind(Uuid::new_v4())
+        .bind(workspace_id.as_uuid())
+        .bind(json!({ "spec_id": spec_id, "stale": stale }))
+        .execute(self.pool())
+        .await
+        .context("record planning workspace spec save")?;
+        Ok(spec_id)
     }
 
     pub async fn planning_workspace_sessions(

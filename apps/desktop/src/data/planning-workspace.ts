@@ -26,6 +26,16 @@ export interface PlanningWorkspaceRevision {
   approvedAt: string | null;
 }
 
+export interface PlanningWorkspaceSpec {
+  id: string;
+  workspaceId: string;
+  repoId: string;
+  name: string;
+  state: Record<string, unknown>;
+  stale: boolean;
+  updatedAt: string;
+}
+
 export interface PlanningWorkspaceSession {
   workspaceId: string;
   specId: string | null;
@@ -60,6 +70,31 @@ export function listPlanningWorkspaceRevisions(
   return dataProvider().query<PlanningWorkspaceRevision>(
     "planning_workspace_revisions_list",
     { projectId, workspaceId },
+  );
+}
+
+export function listPlanningWorkspaceSpecs(
+  projectId: string,
+  workspaceId: string,
+): Promise<Envelope<PlanningWorkspaceSpec[]>> {
+  return dataProvider().query<PlanningWorkspaceSpec>(
+    "planning_workspace_specs_list",
+    { projectId, workspaceId },
+  );
+}
+
+export function savePlanningWorkspaceSpec(
+  projectId: string,
+  workspaceId: string,
+  repoId: string,
+  name: string,
+  state: Record<string, unknown>,
+  stale: boolean,
+  specId?: string,
+): Promise<Envelope<PlanningWorkspaceSpec>> {
+  return dataProvider().queryOne<PlanningWorkspaceSpec>(
+    "planning_workspace_spec_save",
+    { projectId, workspaceId, specId, repoId, name, state, stale },
   );
 }
 

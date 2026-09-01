@@ -1729,6 +1729,18 @@ struct PlanningWorkspaceSessionResponse {
     linked_at: String,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PlanningWorkspaceSpecResponse {
+    id: String,
+    workspace_id: String,
+    repo_id: String,
+    name: String,
+    state: Value,
+    stale: bool,
+    updated_at: String,
+}
+
 fn planning_workspace_response(
     row: locus_core::store::planning_workspace::PlanningWorkspaceRow,
 ) -> PlanningWorkspaceResponse {
@@ -1763,6 +1775,20 @@ fn planning_workspace_session_response(
         spec_id: row.spec_id.map(|id| id.to_string()),
         session_id: row.session_id.to_string(),
         linked_at: row.linked_at,
+    }
+}
+
+fn planning_workspace_spec_response(
+    row: locus_core::store::planning_workspace::PlanningWorkspaceSpecRow,
+) -> PlanningWorkspaceSpecResponse {
+    PlanningWorkspaceSpecResponse {
+        id: row.id.to_string(),
+        workspace_id: row.workspace_id.to_string(),
+        repo_id: row.repo_id.to_string(),
+        name: row.name,
+        state: row.state,
+        stale: row.stale,
+        updated_at: row.updated_at,
     }
 }
 
@@ -1984,6 +2010,71 @@ async fn planning_workspace_revisions_list(
                 .map(planning_workspace_revision_response)
                 .collect()
         })
+}
+
+#[tauri::command]
+async fn planning_workspace_specs_list(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    workspace_id: String,
+) -> Result<Vec<PlanningWorkspaceSpecResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = resolve_setup_project(store, &project_id).await?;
+    store
+        .planning_workspace_specs(project_id, parse_planning_workspace_id(&workspace_id)?)
+        .await
+        .map_err(IpcError::internal)
+        .map(|rows| {
+            rows.into_iter()
+                .map(planning_workspace_spec_response)
+                .collect()
+        })
+}
+
+#[tauri::command]
+async fn planning_workspace_spec_save(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    workspace_id: String,
+    spec_id: Option<String>,
+    repo_id: String,
+    name: String,
+    state: Value,
+    stale: bool,
+) -> Result<PlanningWorkspaceSpecResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = resolve_setup_project(store, &project_id).await?;
+    let spec_id = spec_id
+        .map(|value| {
+            value
+                .parse()
+                .map_err(|_| IpcError::invalid_argument("planning workspace spec id must be a UUID"))
+        })
+        .transpose()?;
+    let repo_id = repo_id
+        .parse()
+        .map_err(|_| IpcError::invalid_argument("planning workspace repository id must be a UUID"))?;
+    let workspace_id = parse_planning_workspace_id(&workspace_id)?;
+    let spec_id = store
+        .save_planning_workspace_spec(
+            project_id,
+            workspace_id,
+            spec_id,
+            repo_id,
+            &name,
+            state,
+            stale,
+        )
+        .await
+        .map_err(IpcError::internal)?;
+    store
+        .planning_workspace_specs(project_id, workspace_id)
+        .await
+        .map_err(IpcError::internal)?
+        .into_iter()
+        .find(|spec| spec.id == spec_id)
+        .map(planning_workspace_spec_response)
+        .ok_or_else(|| IpcError::internal("saved planning workspace spec disappeared"))
 }
 
 #[tauri::command]
@@ -4798,6 +4889,8 @@ pub fn run() {
             planning_workspaces_list,
             planning_workspace_create,
             planning_workspace_revisions_list,
+            planning_workspace_specs_list,
+            planning_workspace_spec_save,
             planning_workspace_sessions_list,
             planning_workspace_session_link,
             planning_workspace_checkpoint_save,
