@@ -39,7 +39,7 @@ function sessionLocators(
   return new Set(
     (sessions ?? [])
       .filter((session) => session.needsAttention === needsAttention)
-      .map((session) => destinationDesktop("sessions", session.project)),
+      .map(() => destinationDesktop("sessions")),
   );
 }
 

@@ -17,17 +17,13 @@ import {
 } from "../data/strip";
 import { stopAllDispatch } from "../data/dispatch";
 import { fetchInboxPendingCount } from "../data/inbox";
-import { fetchProjects } from "../data/core";
 import { fetchStoreHealth, type StoreHealth } from "../data/health";
 import type { Envelope } from "../data/envelope";
 import type { ActiveSession } from "./RunningPill";
 import { BackLink, type NavStore, type View } from "../nav";
 import { destinationDesktop } from "../nav/desktop-navigation";
 import type { DesktopNavTarget, DesktopRouteId } from "../nav/desktop-locator";
-import {
-    Desktop_PROJECT_ROUTE_KINDS,
-    Desktop_ROUTE_KINDS,
-} from "../nav/desktop-route-kinds";
+import { Desktop_ROUTE_KINDS } from "../nav/desktop-route-kinds";
 
 const Desktop_ROUTE_IDS = Desktop_ROUTE_KINDS.map((route) => route.id);
 
@@ -75,8 +71,6 @@ export function desktopLocatorFor(
     const route = desktopRoutes[view];
     if (view === "workers" && botId)
         return destinationDesktop(route, project, botId);
-    if (Desktop_PROJECT_ROUTE_KINDS.some((candidate) => candidate.id === route))
-        return destinationDesktop(route, project);
     return destinationDesktop(route);
 }
 
@@ -94,27 +88,22 @@ export function Shell(props: ShellProps) {
     const [inboxEnvelope, setInboxEnvelope] = createSignal<Envelope<number>>({
         status: "loading",
     });
-    const [projectsEnvelope, setProjectsEnvelope] = createSignal<
-        Envelope<{ id: string; name: string }[]>
-    >({ status: "loading" });
     const [healthEnvelope, setHealthEnvelope] = createSignal<
         Envelope<StoreHealth>
     >({ status: "loading" });
 
     const loadLiveStatus = async () => {
-        const [cards, running, inbox, projects, health] = await Promise.all([
+        const [cards, running, inbox, health] = await Promise.all([
             safeLiveRead("strip_cards", fetchStripCards),
             safeLiveRead("running_count", fetchRunningCount),
             safeLiveRead("inbox_pending_count", fetchInboxPendingCount),
-            safeLiveRead("projects_list", fetchProjects),
             safeLiveRead("store_health", fetchStoreHealth),
         ]);
         setStripEnvelope(cards);
         setRunningEnvelope(running);
         setInboxEnvelope(inbox);
-        setProjectsEnvelope(projects);
         setHealthEnvelope(health);
-        for (const failed of [cards, running, inbox, projects, health]) {
+        for (const failed of [cards, running, inbox, health]) {
             if (failed.status === "failed") {
                 notify({
                     title: "Live status unavailable",
@@ -168,12 +157,6 @@ export function Shell(props: ShellProps) {
             needsAttention: session.needsAttention,
         })),
     );
-    const railProjects = createMemo(() => {
-        const envelope = projectsEnvelope();
-        return envelope.status === "ready"
-            ? envelope.data.map((project) => project.name)
-            : undefined;
-    });
     const storeHealth = createMemo<StoreHealth | undefined>(() => {
         const envelope = healthEnvelope();
         return envelope.status === "ready" ? envelope.data : undefined;
@@ -189,12 +172,7 @@ export function Shell(props: ShellProps) {
         props.nav.go(desktopViewFor(target), params);
     };
     const openDesktopLocator = (locator: string) => props.nav.open(locator);
-    const currentDesktopLocator = () =>
-        desktopLocatorFor(
-            props.nav.view(),
-            props.nav.params().project ?? "tapestry",
-            props.nav.params().botId,
-        );
+    const currentDesktopLocator = () => props.nav.locator();
 
     // ⌘K resolves a locator. It is bound here because the palette is shell
     // chrome, and there is one of it per window.
@@ -250,8 +228,6 @@ export function Shell(props: ShellProps) {
             />
             <div class="body">
                 <ProjectRail
-                    selectedProject={props.nav.params().project ?? "tapestry"}
-                    projects={railProjects()}
                     onNavigate={openDesktopLocator}
                 />
                 <div class="main">
@@ -272,7 +248,7 @@ export function Shell(props: ShellProps) {
                 open={paletteOpen()}
                 onOpenChange={setPaletteOpen}
                 current={currentDesktopLocator()}
-                project={props.nav.params().project ?? "tapestry"}
+                project={props.nav.params().project}
                 history={props.nav.history()}
                 sessions={paletteSessions()}
                 mode={paletteMode()}

@@ -3,7 +3,7 @@ import { destinationDesktop } from "../nav/desktop-navigation";
 import type { DesktopRouteId } from "../nav/desktop-locator";
 import {
       Desktop_APP_ROUTE_KINDS,
-      Desktop_PROJECT_ROUTE_KINDS,
+      Desktop_ROUTE_KINDS,
 } from "../nav/desktop-route-kinds";
 
 export const RAIL_EXPANSION_STORAGE_KEY = "locus.rail-expansion";
@@ -18,7 +18,7 @@ const AUTOMATION_LINKS = [
       ["Manage", "sessions"],
       ["Review", "qa"],
 ] as const;
-const MEMORY_ROUTES = Desktop_PROJECT_ROUTE_KINDS.filter(
+const MEMORY_ROUTES = Desktop_ROUTE_KINDS.filter(
       (route) => route.category === "knowledge",
 );
 const WORKSHOP_ROUTES = Desktop_APP_ROUTE_KINDS.filter(
@@ -56,7 +56,7 @@ const readExpansion = (): Record<string, boolean> => {
 
 export interface ProjectRailProps {
       /** Used only by page-owned project filters and project object links. */
-      selectedProject: string;
+      selectedProject?: string;
       inboxCount?: number;
       dispatchState?: "ready" | "working" | "blocked";
       /** Deprecated compatibility inputs; scope is no longer shell-owned. */
@@ -69,15 +69,8 @@ export interface ProjectRailProps {
       onNavigate?: (locator: string) => void;
 }
 
-function routeLocator(route: DesktopRouteId, project: string): string {
-      return route === "sessions" ||
-            route === "qa" ||
-            route === "short" ||
-            route === "memory" ||
-            route === "artifact" ||
-            route === "wiki"
-            ? destinationDesktop(route, project)
-            : destinationDesktop(route);
+function routeLocator(route: DesktopRouteId): string {
+      return destinationDesktop(route);
 }
 
 function WorkshopRailLinks(
@@ -95,10 +88,7 @@ function WorkshopRailLinks(
                         <div data-testid="workshop-plugin-links">
                               <For each={WORKSHOP_PLUGIN_ROUTES}>
                                     {(route) => {
-                                          const locator = routeLocator(
-                                                route.id,
-                                                props.selectedProject,
-                                          );
+                                          const locator = routeLocator(route.id);
                                           return (
                                                 <button
                                                       type="button"
@@ -119,10 +109,7 @@ function WorkshopRailLinks(
                         <div data-testid="workshop-extension-links">
                               <For each={WORKSHOP_EXTENSION_LINKS}>
                                     {(link) => {
-                                          const locator = routeLocator(
-                                                link[1],
-                                                props.selectedProject,
-                                          );
+                                          const locator = routeLocator(link[1]);
                                           return (
                                                 <button
                                                       type="button"
@@ -156,7 +143,7 @@ export function ProjectRail(props: ProjectRailProps) {
                   JSON.stringify({ ...readExpansion(), [name]: value }),
             );
       const navigate = (route: DesktopRouteId) =>
-            props.onNavigate?.(routeLocator(route, props.selectedProject));
+            props.onNavigate?.(routeLocator(route));
 
       return (
             <nav
@@ -206,7 +193,10 @@ export function ProjectRail(props: ProjectRailProps) {
                         >
                               Knowledge
                         </button>
-                        <div data-testid="memory-rail-links" hidden={!memoryExpanded()}>
+                        <div
+                              data-testid="memory-rail-links"
+                              hidden={!memoryExpanded()}
+                        >
                               <For each={MEMORY_ROUTES}>
                                     {(route) => (
                                           <button
