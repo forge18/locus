@@ -138,8 +138,8 @@ impl crate::store::Store {
         .context("create planning workspace")?;
         query(
             "INSERT INTO core.planning_workspace_revisions
-                (id, workspace_id, revision, state)
-             VALUES ($1, $2, 1, $3)",
+                (id, workspace_id, revision, state, frozen_at)
+             VALUES ($1, $2, 1, $3, now())",
         )
         .bind(revision_id)
         .bind(workspace_id)
@@ -225,13 +225,12 @@ impl crate::store::Store {
         query(
             "INSERT INTO core.planning_workspace_revisions
                 (id, workspace_id, revision, state, frozen_at)
-             VALUES ($1, $2, $3, $4, CASE WHEN $5 = 'ready_for_approval' THEN now() END)",
+             VALUES ($1, $2, $3, $4, now())",
         )
         .bind(revision_id)
         .bind(workspace_id)
         .bind(next_revision)
         .bind(state)
-        .bind(lifecycle)
         .execute(&mut *tx)
         .await
         .context("save workspace revision")?;
@@ -298,19 +297,20 @@ impl crate::store::Store {
         if !state.is_object() {
             bail!("planning workspace spec state must be a JSON object");
         }
-        if !query_scalar::<_, bool>(
-            "SELECT EXISTS(
-                 SELECT 1 FROM core.planning_workspaces
-                 WHERE id = $1 AND project_id = $2
-             )",
+        let lifecycle: Option<String> = query_scalar(
+            "SELECT lifecycle FROM core.planning_workspaces
+             WHERE id = $1 AND project_id = $2",
         )
         .bind(workspace_id.as_uuid())
         .bind(project_id)
-        .fetch_one(self.pool())
+        .fetch_optional(self.pool())
         .await
-        .context("validate planning workspace spec owner")?
-        {
+        .context("validate planning workspace spec owner")?;
+        let Some(lifecycle) = lifecycle else {
             bail!("planning workspace was not found in the project");
+        };
+        if matches!(lifecycle.as_str(), "approved" | "deleted") {
+            bail!("planning workspace is terminal");
         }
         if !query_scalar::<_, bool>(
             "SELECT EXISTS(
@@ -390,19 +390,20 @@ impl crate::store::Store {
         if !decision.is_object() {
             bail!("workspace decision must be a JSON object");
         }
-        if !query_scalar::<_, bool>(
-            "SELECT EXISTS(
-                 SELECT 1 FROM core.planning_workspaces
-                 WHERE id = $1 AND project_id = $2
-             )",
+        let lifecycle: Option<String> = query_scalar(
+            "SELECT lifecycle FROM core.planning_workspaces
+             WHERE id = $1 AND project_id = $2",
         )
         .bind(workspace_id.as_uuid())
         .bind(project_id)
-        .fetch_one(self.pool())
+        .fetch_optional(self.pool())
         .await
-        .context("validate planning workspace decision owner")?
-        {
+        .context("validate planning workspace decision owner")?;
+        let Some(lifecycle) = lifecycle else {
             bail!("planning workspace was not found in the project");
+        };
+        if matches!(lifecycle.as_str(), "approved" | "deleted") {
+            bail!("planning workspace is terminal");
         }
         let mut updated = 0;
         for spec_id in spec_ids {
@@ -554,9 +555,6 @@ impl crate::store::Store {
         .ok_or_else(|| anyhow::anyhow!("planning workspace was not found in the project"))?;
         let lifecycle: String = workspace.try_get("lifecycle")?;
         let current_revision: i32 = workspace.try_get("current_revision")?;
-        if lifecycle != "ready_for_approval" {
-            bail!("planning workspace is not ready for approval");
-        }
         if current_revision != expected_revision {
             bail!(
                 "planning workspace revision conflict: expected {expected_revision}, current {current_revision}"
@@ -596,6 +594,9 @@ impl crate::store::Store {
                 .collect::<Result<Vec<_>>>()?;
             tx.commit().await.context("commit existing workspace materialization")?;
             return Ok(ids);
+        }
+        if lifecycle != "ready_for_approval" {
+            bail!("planning workspace is not ready for approval");
         }
         let tasks = state
             .get("tasks")
@@ -836,8 +837,14 @@ impl crate::store::Store {
             }
             query(
                 "INSERT INTO core.planning_workspace_specs
-                    (id, workspace_id, repo_id, name, state)
-                 VALUES ($1, $2, $3, $4, $5)",
+                    (id, workspace_id, repo_id, name, state, stale)
+                 VALUES ($1, $2, $3, $4, $5, false)
+                 ON CONFLICT (id) DO UPDATE SET
+                     repo_id = EXCLUDED.repo_id,
+                     name = EXCLUDED.name,
+                     state = EXCLUDED.state,
+                     stale = false,
+                     updated_at = now()",
             )
             .bind(spec_id)
             .bind(workspace_id.as_uuid())
