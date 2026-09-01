@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { configureDataProvider, resetDataProvider } from "../../src/data/provider";
+import {
+  configureDataProvider,
+  resetDataProvider,
+} from "../../src/data/provider";
 import {
   approvePlanningWorkspace,
   createPlanningWorkspace,
@@ -23,17 +26,11 @@ describe("planning-workspace/provider", () => {
     const calls: { command: string; args?: Record<string, unknown> }[] = [];
     configureDataProvider({
       kind: "live",
-      async query<T>(
-        command: string,
-        args?: Record<string, unknown>,
-      ) {
+      async query<T>(command: string, args?: Record<string, unknown>) {
         calls.push({ command, args });
         return { status: "empty" } as Envelope<T[]>;
       },
-      async queryOne<T>(
-        command: string,
-        args?: Record<string, unknown>,
-      ) {
+      async queryOne<T>(command: string, args?: Record<string, unknown>) {
         calls.push({ command, args });
         return { status: "empty" } as Envelope<T>;
       },
@@ -46,7 +43,9 @@ describe("planning-workspace/provider", () => {
     await savePlanningWorkspaceSpec("p-1", "w-1", "r-1", "spec", {}, false);
     await listPlanningWorkspaceSessions("p-1", "w-1");
     await linkPlanningWorkspaceSession("p-1", "w-1", "s-1");
-    await recordPlanningWorkspaceDecision("p-1", "w-1", ["r-1"], { key: "value" });
+    await recordPlanningWorkspaceDecision("p-1", "w-1", ["r-1"], {
+      key: "value",
+    });
     await savePlanningWorkspaceCheckpoint("p-1", "w-1", 1, "in_progress", {});
     await approvePlanningWorkspace("p-1", "w-1", 2);
     await listPlanningWorkspaceTaskProvenance("p-1", "w-1");

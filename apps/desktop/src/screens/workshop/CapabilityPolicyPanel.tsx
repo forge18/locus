@@ -63,9 +63,15 @@ export function CapabilityPolicyPanel() {
   };
 
   function updatePolicy(key: PolicyKey, mode: string, values: string) {
-    const next = mode === "inherit"
-      ? deferred()
-      : { allow_only: values.split("\n").map((value) => value.trim()).filter(Boolean) };
+    const next =
+      mode === "inherit"
+        ? deferred()
+        : {
+            allow_only: values
+              .split("\n")
+              .map((value) => value.trim())
+              .filter(Boolean),
+          };
     setDraft((current) => ({ ...current, [key]: next }));
   }
 
@@ -85,11 +91,17 @@ export function CapabilityPolicyPanel() {
   }
 
   return (
-    <section class="capability-policy-panel" data-testid="capability-policy-panel">
+    <section
+      class="capability-policy-panel"
+      data-testid="capability-policy-panel"
+    >
       <header>
         <div>
           <h2>Capability policy</h2>
-          <p>Project policy is the ceiling. Agent and workflow restrictions can only narrow it.</p>
+          <p>
+            Project policy is the ceiling. Agent and workflow restrictions can
+            only narrow it.
+          </p>
         </div>
         <PageProjectFilter
           value={projectId()}
@@ -119,7 +131,11 @@ export function CapabilityPolicyPanel() {
                   <select
                     value={isDeferred(draft()[key]) ? "inherit" : "allow"}
                     onChange={(event) =>
-                      updatePolicy(key, event.currentTarget.value, allowedValues(draft()[key]))
+                      updatePolicy(
+                        key,
+                        event.currentTarget.value,
+                        allowedValues(draft()[key]),
+                      )
                     }
                   >
                     <option value="inherit">Defer to project catalog</option>
@@ -138,12 +154,18 @@ export function CapabilityPolicyPanel() {
               )}
             </For>
           </div>
-          <Button variant="primary" disabled={saving()} onClick={() => void save()}>
+          <Button
+            variant="primary"
+            disabled={saving()}
+            onClick={() => void save()}
+          >
             {saving() ? "Saving…" : "Save policy"}
           </Button>
         </Match>
       </Switch>
-      <Show when={message()}><p role="status">{message()}</p></Show>
+      <Show when={message()}>
+        <p role="status">{message()}</p>
+      </Show>
     </section>
   );
 }

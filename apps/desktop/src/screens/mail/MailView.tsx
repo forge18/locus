@@ -86,18 +86,19 @@ export function MailView(props: MailViewProps = {}) {
     Partial<Record<string, MailStatus>>
   >({});
   const [composerError, setComposerError] = createSignal<string | null>(null);
-  const selected = createMemo<MailThreadFixture>(() =>
-    scopedThreads().find((thread) => thread.id === selectedId()) ??
-    scopedThreads()[0] ?? {
-      id: "",
-      project: "",
-      status: "open",
-      subject: "No mail thread",
-      from: "",
-      to: "",
-      messageCount: 0,
-      blocking: null,
-    },
+  const selected = createMemo<MailThreadFixture>(
+    () =>
+      scopedThreads().find((thread) => thread.id === selectedId()) ??
+      scopedThreads()[0] ?? {
+        id: "",
+        project: "",
+        status: "open",
+        subject: "No mail thread",
+        from: "",
+        to: "",
+        messageCount: 0,
+        blocking: null,
+      },
   );
   const statusFor = (thread: MailThreadFixture) =>
     statusOverrides()[thread.id] ?? thread.status;
@@ -106,19 +107,25 @@ export function MailView(props: MailViewProps = {}) {
   const visibleThreads = createMemo(() => {
     const currentTab = tab();
     if (currentTab === "Waiting")
-      return scopedThreads().filter((thread) => statusFor(thread) === "waiting");
+      return scopedThreads().filter(
+        (thread) => statusFor(thread) === "waiting",
+      );
     if (currentTab === "To you")
       return scopedThreads().filter(
         (thread) => statusFor(thread) === "you" || thread.to === "you",
       );
     return scopedThreads();
   });
-  const messages = createMemo(() =>
-    [...useMailMessages(selected().id), ...sentReplies()],
-  );
+  const messages = createMemo(() => [
+    ...useMailMessages(selected().id),
+    ...sentReplies(),
+  ]);
   createEffect(() => {
     const current = scopedThreads();
-    if (current.length > 0 && !current.some((thread) => thread.id === selectedId())) {
+    if (
+      current.length > 0 &&
+      !current.some((thread) => thread.id === selectedId())
+    ) {
       setSelectedId(current[0].id);
       setDraft("");
       setComposerError(null);

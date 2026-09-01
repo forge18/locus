@@ -6,7 +6,10 @@ import { createNavStore } from "../../src/nav";
 describe("nav/project-is-filter", () => {
   it("does not own a project selector", () => {
     const { queryByTestId } = render(() => (
-      <ProjectRail selectedProject="tapestry" projects={["tapestry", "weaver"]} />
+      <ProjectRail
+        selectedProject="tapestry"
+        projects={["tapestry", "weaver"]}
+      />
     ));
     expect(queryByTestId("project-switcher-option-tapestry")).toBeNull();
     expect(queryByTestId("project-switcher-results")).toBeNull();

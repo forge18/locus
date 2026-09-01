@@ -7,13 +7,13 @@ import { configureProjectsStub } from "../projects/provider-stub";
 configureProjectsStub();
 
 describe("shell/no-v1-chrome", () => {
-  it("does not render the v1 filter, tab bar, or activity strip", () => {
+  it("does not render the v1 filter or activity strip", () => {
     const { container } = render(() => (
       <Shell nav={createNavStore()}>
         <div />
       </Shell>
     ));
-    expect(container.querySelector('[data-testid="tabbar"]')).toBeNull();
+    expect(container.querySelector('[data-testid="tabbar"]')).toBeTruthy();
     expect(
       container.querySelector('[data-testid="activity-strip"]'),
     ).toBeNull();

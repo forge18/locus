@@ -8,10 +8,12 @@ import {
 afterEach(() => localStorage.removeItem(RAIL_EXPANSION_STORAGE_KEY));
 
 describe("shell/rail-expansion-persists", () => {
-  it("restores Memory and Workshop expansion after remount", () => {
+  it("restores Knowledge and Extensions expansion after remount", () => {
     const first = render(() => <ProjectRail selectedProject="locus" />);
-    fireEvent.click(first.getByRole("button", { name: "Memory" }));
-    fireEvent.click(first.getByRole("button", { name: "Workshop" }));
+    fireEvent.click(first.getByRole("button", { name: "Knowledge" }));
+    fireEvent.click(
+      first.getByRole("button", { name: "Extensions / Plugins" }),
+    );
     first.unmount();
 
     const restored = render(() => <ProjectRail selectedProject="locus" />);

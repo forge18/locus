@@ -11,7 +11,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::services::capabilities::CapabilityPolicies;
 use crate::harness::{
     materialize::{
         extensions::ExtensionEntry, extensions::ExtensionSet, materialize, plugin::PluginHost,
@@ -19,6 +18,7 @@ use crate::harness::{
     },
     registry::HarnessRegistry,
 };
+use crate::services::capabilities::CapabilityPolicies;
 
 #[cfg(test)]
 use crate::store::Store;

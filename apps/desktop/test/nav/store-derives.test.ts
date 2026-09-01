@@ -11,9 +11,9 @@ describe("nav/store-derives", () => {
 
   it("derives the category label the rail and tab bar show", () => {
     const nav = createNavStore({ view: "status" });
-    expect(nav.categoryLabel()).toBe("Analytics");
+    expect(nav.categoryLabel()).toBe("Telemetry");
     nav.go("canvas");
-    expect(nav.categoryLabel()).toBe("Workshop");
+    expect(nav.categoryLabel()).toBe("Extensions");
   });
 
   it("derives the locator, and the path form the bars render", () => {
@@ -24,7 +24,11 @@ describe("nav/store-derives", () => {
 
   it("derives the visible tab set", () => {
     const nav = createNavStore({ view: "status" });
-    expect(nav.tabs().map((t) => t.label)).toEqual(["Overview", "Telemetry"]);
+    expect(nav.tabs().map((t) => t.label)).toEqual([
+      "Overview",
+      "Telemetry",
+      "Mail",
+    ]);
     nav.go("memory");
     expect(nav.tabs().map((t) => t.label)).toEqual([
       "Short-term",

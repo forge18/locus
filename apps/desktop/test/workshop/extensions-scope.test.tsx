@@ -5,7 +5,9 @@ import { ProjectRail } from "../../src/shell/ProjectRail";
 describe("workshop/extensions-scope", () => {
   it("keeps extension editors and Workflows under Extensions", () => {
     const view = render(() => <ProjectRail selectedProject="locus" />);
-    fireEvent.click(view.getByRole("button", { name: "Workshop" }));
+    fireEvent.click(
+      view.getByRole("button", { name: "Extensions / Plugins" }),
+    );
     const labels = [
       ...view
         .getByTestId("workshop-extension-links")
@@ -14,7 +16,7 @@ describe("workshop/extensions-scope", () => {
     expect(labels).toEqual([
       "Agents",
       "Commands",
-      "Base context",
+      "Context",
       "Hooks",
       "Linters",
       "Output styles",

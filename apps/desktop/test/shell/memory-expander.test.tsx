@@ -3,11 +3,11 @@ import { describe, expect, it } from "vitest";
 import { ProjectRail } from "../../src/shell/ProjectRail";
 
 describe("shell/memory-expander", () => {
-  it("reveals Memory links only after the Memory control expands", () => {
+  it("reveals Knowledge links only after the Knowledge control expands", () => {
     const { getByRole, getByTestId } = render(() => (
       <ProjectRail selectedProject="locus" />
     ));
-    const memory = getByRole("button", { name: "Memory" });
+    const memory = getByRole("button", { name: "Knowledge" });
 
     expect(getByTestId("memory-rail-links").hidden).toBe(true);
     fireEvent.click(memory);

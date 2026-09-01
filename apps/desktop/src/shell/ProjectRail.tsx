@@ -22,7 +22,8 @@ const MEMORY_ROUTES = Desktop_ROUTE_KINDS.filter(
       (route) => route.category === "knowledge",
 );
 const WORKSHOP_ROUTES = Desktop_APP_ROUTE_KINDS.filter(
-      (route) => route.category === "plugins" || route.category === "extensions",
+      (route) =>
+            route.category === "plugins" || route.category === "extensions",
 );
 const WORKSHOP_PLUGIN_ROUTES = WORKSHOP_ROUTES.filter((route) =>
       ["cli", "harnesses", "providers"].includes(route.id),
@@ -79,7 +80,11 @@ function WorkshopRailLinks(
       },
 ) {
       const pluginLabel = (id: string) =>
-            id === "cli" ? "CLI Tool" : id === "harnesses" ? "Harness" : "Provider";
+            id === "cli"
+                  ? "CLI Tool"
+                  : id === "harnesses"
+                    ? "Harness"
+                    : "Provider";
 
       return (
             <div data-testid="workshop-rail-links" hidden={props.hidden}>
@@ -88,13 +93,17 @@ function WorkshopRailLinks(
                         <div data-testid="workshop-plugin-links">
                               <For each={WORKSHOP_PLUGIN_ROUTES}>
                                     {(route) => {
-                                          const locator = routeLocator(route.id);
+                                          const locator = routeLocator(
+                                                route.id,
+                                          );
                                           return (
                                                 <button
                                                       type="button"
                                                       data-locator={locator}
                                                       onClick={() =>
-                                                            props.onNavigate?.(locator)
+                                                            props.onNavigate?.(
+                                                                  locator,
+                                                            )
                                                       }
                                                 >
                                                       {pluginLabel(route.id)}
@@ -115,7 +124,9 @@ function WorkshopRailLinks(
                                                       type="button"
                                                       data-locator={locator}
                                                       onClick={() =>
-                                                            props.onNavigate?.(locator)
+                                                            props.onNavigate?.(
+                                                                  locator,
+                                                            )
                                                       }
                                                 >
                                                       {link[0]}
@@ -201,14 +212,19 @@ export function ProjectRail(props: ProjectRailProps) {
                                     {(route) => (
                                           <button
                                                 type="button"
-                                                onClick={() => navigate(route.id)}
+                                                onClick={() =>
+                                                      navigate(route.id)
+                                                }
                                           >
                                                 {route.label}
                                           </button>
                                     )}
                               </For>
                         </div>
-                        <button type="button" onClick={() => navigate("settings")}>
+                        <button
+                              type="button"
+                              onClick={() => navigate("settings")}
+                        >
                               Settings
                         </button>
                         <button

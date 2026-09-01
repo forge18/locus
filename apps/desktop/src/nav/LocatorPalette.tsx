@@ -91,9 +91,7 @@ export interface LocatorPaletteProps {
   current: string;
   mode?: PaletteMode;
   /** Cmd-P delegates to the unified search_all result stream. */
-  searchAll?: (
-    query: string,
-  ) => PaletteResult[] | Promise<PaletteResult[]>;
+  searchAll?: (query: string) => PaletteResult[] | Promise<PaletteResult[]>;
   onResolve: (target: DesktopNavTarget) => void;
   /** Object locators use the shared NavStore resolver rather than the view-only adapter. */
   onOpenLocator?: (locator: string) => void;

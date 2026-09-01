@@ -44,10 +44,7 @@ fn stage_name(stage: PlanningStage) -> &'static str {
 impl Store {
     /// List plans for one project. The project filter is part of the query so a
     /// caller cannot accidentally receive another project's planning work.
-    pub async fn plans_list(
-        &self,
-        project_id: Option<ProjectId>,
-    ) -> Result<Vec<PlanSummaryRow>> {
+    pub async fn plans_list(&self, project_id: Option<ProjectId>) -> Result<Vec<PlanSummaryRow>> {
         sqlx::query_as(
             "SELECT p.id,
                     p.title,

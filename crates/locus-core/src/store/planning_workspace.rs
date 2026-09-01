@@ -125,7 +125,11 @@ impl crate::store::Store {
         }
         let workspace_id = PlanningWorkspaceId::generate();
         let revision_id = Uuid::new_v4();
-        let mut tx = self.pool().begin().await.context("begin planning workspace")?;
+        let mut tx = self
+            .pool()
+            .begin()
+            .await
+            .context("begin planning workspace")?;
         query(
             "INSERT INTO core.planning_workspaces (id, project_id, scope)
              VALUES ($1, $2, $3)",
@@ -197,7 +201,11 @@ impl crate::store::Store {
         if !state.is_object() {
             bail!("planning workspace checkpoint state must be a JSON object");
         }
-        let mut tx = self.pool().begin().await.context("begin workspace checkpoint")?;
+        let mut tx = self
+            .pool()
+            .begin()
+            .await
+            .context("begin workspace checkpoint")?;
         let row = query(
             "SELECT lifecycle, current_revision
              FROM core.planning_workspaces
@@ -281,6 +289,7 @@ impl crate::store::Store {
         .context("list planning workspace specs")
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn save_planning_workspace_spec(
         &self,
         project_id: ProjectId,
@@ -540,7 +549,11 @@ impl crate::store::Store {
         workspace_id: PlanningWorkspaceId,
         expected_revision: i32,
     ) -> Result<Vec<Uuid>> {
-        let mut tx = self.pool().begin().await.context("begin workspace approval")?;
+        let mut tx = self
+            .pool()
+            .begin()
+            .await
+            .context("begin workspace approval")?;
         let workspace = query(
             "SELECT lifecycle, current_revision
              FROM core.planning_workspaces
@@ -583,16 +596,22 @@ impl crate::store::Store {
         {
             let ids = materialized
                 .as_array()
-                .ok_or_else(|| anyhow::anyhow!("workspace materialization has an invalid task list"))?
+                .ok_or_else(|| {
+                    anyhow::anyhow!("workspace materialization has an invalid task list")
+                })?
                 .iter()
                 .map(|id| {
                     id.as_str()
-                        .ok_or_else(|| anyhow::anyhow!("workspace materialization has an invalid task id"))?
+                        .ok_or_else(|| {
+                            anyhow::anyhow!("workspace materialization has an invalid task id")
+                        })?
                         .parse::<Uuid>()
                         .context("parse materialized board task id")
                 })
                 .collect::<Result<Vec<_>>>()?;
-            tx.commit().await.context("commit existing workspace materialization")?;
+            tx.commit()
+                .await
+                .context("commit existing workspace materialization")?;
             return Ok(ids);
         }
         if lifecycle != "ready_for_approval" {
@@ -672,9 +691,9 @@ impl crate::store::Store {
         let mut spec_dependents = HashMap::<String, Vec<String>>::new();
         for (spec_key, after) in &spec_dependencies {
             for dependency in after {
-                *spec_indegree
-                    .get_mut(spec_key)
-                    .ok_or_else(|| anyhow::anyhow!("workspace spec dependency owner is missing"))? += 1;
+                *spec_indegree.get_mut(spec_key).ok_or_else(|| {
+                    anyhow::anyhow!("workspace spec dependency owner is missing")
+                })? += 1;
                 spec_dependents
                     .entry(dependency.clone())
                     .or_default()
@@ -731,10 +750,9 @@ impl crate::store::Store {
                     values
                         .iter()
                         .map(|value| {
-                            value
-                                .as_str()
-                                .map(str::to_owned)
-                                .ok_or_else(|| anyhow::anyhow!("workspace task dependency id is invalid"))
+                            value.as_str().map(str::to_owned).ok_or_else(|| {
+                                anyhow::anyhow!("workspace task dependency id is invalid")
+                            })
                         })
                         .collect::<Result<Vec<_>>>()
                 })
@@ -759,9 +777,9 @@ impl crate::store::Store {
         let mut dependents = HashMap::<String, Vec<String>>::new();
         for (task_key, after) in &dependencies {
             for dependency in after {
-                *indegree
-                    .get_mut(task_key)
-                    .ok_or_else(|| anyhow::anyhow!("workspace task dependency owner is missing"))? += 1;
+                *indegree.get_mut(task_key).ok_or_else(|| {
+                    anyhow::anyhow!("workspace task dependency owner is missing")
+                })? += 1;
                 dependents
                     .entry(dependency.clone())
                     .or_default()
@@ -883,9 +901,9 @@ impl crate::store::Store {
                     bail!("every workspace requirement needs a task or explicit non-task outcome");
                 }
                 for task_ref in task_refs {
-                    let task_ref = task_ref
-                        .as_str()
-                        .ok_or_else(|| anyhow::anyhow!("workspace requirement task id is invalid"))?;
+                    let task_ref = task_ref.as_str().ok_or_else(|| {
+                        anyhow::anyhow!("workspace requirement task id is invalid")
+                    })?;
                     if !task_keys.contains(task_ref) {
                         bail!("workspace requirement points to a missing task");
                     }
@@ -961,7 +979,11 @@ impl crate::store::Store {
             .bind(project_id)
             .bind(repo_id)
             .bind(summary.trim())
-            .bind(task.get("description").and_then(Value::as_str).unwrap_or_default())
+            .bind(
+                task.get("description")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default(),
+            )
             .bind(workflow_id)
             .execute(&mut *tx)
             .await
@@ -1105,7 +1127,9 @@ impl crate::store::Store {
         .execute(&mut *tx)
         .await
         .context("record workspace approval")?;
-        tx.commit().await.context("commit planning workspace approval")?;
+        tx.commit()
+            .await
+            .context("commit planning workspace approval")?;
         Ok(created_ids)
     }
 
@@ -1177,8 +1201,14 @@ mod tests {
     #[test]
     fn checkpoint_lifecycle_is_forward_only_until_ready() {
         assert!(valid_lifecycle_transition("draft", "in_progress"));
-        assert!(valid_lifecycle_transition("in_progress", "ready_for_approval"));
-        assert!(valid_lifecycle_transition("ready_for_approval", "in_progress"));
+        assert!(valid_lifecycle_transition(
+            "in_progress",
+            "ready_for_approval"
+        ));
+        assert!(valid_lifecycle_transition(
+            "ready_for_approval",
+            "in_progress"
+        ));
         assert!(!valid_lifecycle_transition("in_progress", "draft"));
         assert!(!valid_lifecycle_transition("approved", "in_progress"));
         assert!(!valid_lifecycle_transition("deleted", "draft"));

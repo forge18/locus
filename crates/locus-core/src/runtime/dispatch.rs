@@ -1452,8 +1452,8 @@ mod stop_all_restores {
         .expect("insert agent");
         query(
             "INSERT INTO agents.sessions
-                 (id, project_id, agent_def_id, name, branch, board_task_id, memory_base)
-             VALUES ($1, $2, $3, 'preempted', 'agent/preempted', $4, $5)",
+                 (id, project_id, agent_def_id, name, branch, board_task_id, memory_base, interact_state)
+             VALUES ($1, $2, $3, 'preempted', 'agent/preempted', $4, $5, 'promoted')",
         )
         .bind(session)
         .bind(project)

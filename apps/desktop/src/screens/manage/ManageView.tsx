@@ -790,19 +790,17 @@ export function ManageView(props: ManageViewProps = {}) {
   const createManualTask = (summary: string, workflowDefId: string) => {
     const projectId = selectedProjectId();
     if (!liveMode || !projectId) return;
-    void createTask(projectId, summary, workflowDefId).then(
-      (envelope) => {
-        if (envelope.status === "ready") {
-          setTaskEnvelope((current) =>
-            current.status === "ready"
-              ? { status: "ready", data: [...current.data, envelope.data] }
-              : { status: "ready", data: [envelope.data] },
-          );
-          setSelectedTaskId(envelope.data.id);
-          setDraftSource(undefined);
-        }
-      },
-    );
+    void createTask(projectId, summary, workflowDefId).then((envelope) => {
+      if (envelope.status === "ready") {
+        setTaskEnvelope((current) =>
+          current.status === "ready"
+            ? { status: "ready", data: [...current.data, envelope.data] }
+            : { status: "ready", data: [envelope.data] },
+        );
+        setSelectedTaskId(envelope.data.id);
+        setDraftSource(undefined);
+      }
+    });
   };
   const openDraft = () => {
     const current = view();

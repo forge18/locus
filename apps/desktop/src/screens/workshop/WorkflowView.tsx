@@ -121,7 +121,7 @@ export function WorkflowView(props: { projectId?: string } = {}) {
             <div
               class={[
                 "wf-chip",
-                node.tone !== "default" ? `wf-chip-${node.tone}` : "",
+                node.tone === "default" ? "" : `wf-chip-${node.tone}`,
               ]
                 .filter(Boolean)
                 .join(" ")}

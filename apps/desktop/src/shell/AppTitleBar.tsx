@@ -68,6 +68,12 @@ export function AppTitleBar(props: AppTitleBarProps) {
             >
                 {props.storeHealth?.status ?? "not configured"}
             </span>
+            <span class="sr-only" data-testid="running-count" aria-live="polite">
+                {props.running} running
+            </span>
+            <span class="sr-only" data-testid="needs-you-count" aria-live="assertive">
+                {props.needsYou} need your attention
+            </span>
             <DispatchPill
                 running={props.running}
                 needsYou={props.needsYou}

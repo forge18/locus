@@ -316,7 +316,10 @@ function Frontmatter(props: {
                                     <Input
                                         value={props.values[name] ?? value}
                                         onInput={(event) =>
-                                            props.onChange(name, event.currentTarget.value)
+                                            props.onChange(
+                                                name,
+                                                event.currentTarget.value,
+                                            )
                                         }
                                     />
                                 }
@@ -325,7 +328,10 @@ function Frontmatter(props: {
                                     aria-label="Default effort"
                                     value={props.values[name] ?? value}
                                     onChange={(event) =>
-                                        props.onChange(name, event.currentTarget.value)
+                                        props.onChange(
+                                            name,
+                                            event.currentTarget.value,
+                                        )
                                     }
                                 >
                                     {EFFORTS.map((effort) => (
@@ -439,7 +445,9 @@ function HarnessDetails(props: { onAddConfigKey: () => void }) {
                     <span>bypass</span>
                     <Tag variant="neutral">string</Tag>
                 </div>
-                <Button variant="ghost" onClick={props.onAddConfigKey}>Add config key</Button>
+                <Button variant="ghost" onClick={props.onAddConfigKey}>
+                    Add config key
+                </Button>
             </section>
         </>
     );
@@ -516,7 +524,9 @@ export function ExtensionEditor(props: { type: ExtensionEditorType }) {
                             type="button"
                             class="extension-item"
                             data-testid={`extension-item-${item}`}
-                            aria-selected={selectedItem() === item ? "true" : "false"}
+                            aria-selected={
+                                selectedItem() === item ? "true" : "false"
+                            }
                             onClick={() => setSelectedItem(item)}
                         >
                             <span>{item}</span>
@@ -536,13 +546,18 @@ export function ExtensionEditor(props: { type: ExtensionEditorType }) {
                 <header class="extension-editor-head">
                     <div>
                         <h1>{selectedItem()}</h1>
-                        <p>{label} · version 4 · {saved() ? "saved" : "unsaved changes"}</p>
+                        <p>
+                            {label} · version 4 ·{" "}
+                            {saved() ? "saved" : "unsaved changes"}
+                        </p>
                     </div>
                     <div class="ws-actions">
                         <Button
                             variant="secondary"
                             data-testid="extension-history"
-                            onClick={() => setHistoryOpen((current) => !current)}
+                            onClick={() =>
+                                setHistoryOpen((current) => !current)
+                            }
                         >
                             History
                         </Button>
@@ -561,8 +576,13 @@ export function ExtensionEditor(props: { type: ExtensionEditorType }) {
                     onChange={updateField}
                 />
                 <Show when={historyOpen()}>
-                    <section class="extension-history" data-testid="extension-history-panel">
-                        v4 · current draft<br />v3 · edited yesterday
+                    <section
+                        class="extension-history"
+                        data-testid="extension-history-panel"
+                    >
+                        v4 · current draft
+                        <br />
+                        v3 · edited yesterday
                     </section>
                 </Show>
                 <Show when={props.type === "harnesses"}>
@@ -597,9 +617,14 @@ export function ExtensionEditor(props: { type: ExtensionEditorType }) {
                     </section>
                 </Show>
                 <Show when={configKeys().length > 0}>
-                    <section class="extension-config-keys" data-testid="extension-config-keys">
+                    <section
+                        class="extension-config-keys"
+                        data-testid="extension-config-keys"
+                    >
                         <h2>Added config keys</h2>
-                        <For each={configKeys()}>{(key) => <code>{key}</code>}</For>
+                        <For each={configKeys()}>
+                            {(key) => <code>{key}</code>}
+                        </For>
                     </section>
                 </Show>
                 <section class="extension-body" data-testid="extension-body">

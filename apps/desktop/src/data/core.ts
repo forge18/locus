@@ -7,9 +7,7 @@ import type {
 import type { Envelope } from "./envelope";
 import { dataProvider } from "./provider";
 
-export type CapabilityPolicy =
- | "defer_to_project"
- | { allow_only: string[] };
+export type CapabilityPolicy = "defer_to_project" | { allow_only: string[] };
 
 export interface CapabilityPolicies {
  cliTools: CapabilityPolicy;
@@ -82,35 +80,35 @@ export function saveProjectCapabilityPolicy(
 /** Replace the project's base context. Empty content clears it and its budget —
  * the domain rule keeps the two together. */
 export function saveBaseContext(
-  projectId: string,
-  content: string,
-  tokenBudget: number | undefined,
+ projectId: string,
+ content: string,
+ tokenBudget: number | undefined,
 ): Promise<Envelope<ProjectSetup>> {
-  return dataProvider().queryOne<ProjectSetup>("project_base_context_set", {
-    projectId,
-    content,
-    tokenBudget,
-  });
+ return dataProvider().queryOne<ProjectSetup>("project_base_context_set", {
+  projectId,
+  content,
+  tokenBudget,
+ });
 }
 
 /** Archive or restore a project. */
 export function setProjectArchived(
-  projectId: string,
-  archived: boolean,
+ projectId: string,
+ archived: boolean,
 ): Promise<Envelope<{ archived: boolean }>> {
-  return dataProvider().queryOne<{ archived: boolean }>("project_archive_set", {
-    projectId,
-    archived,
-  });
+ return dataProvider().queryOne<{ archived: boolean }>("project_archive_set", {
+  projectId,
+  archived,
+ });
 }
 
 /** Rename a project; the response carries the new name. */
 export function renameProject(
-  projectId: string,
-  name: string,
+ projectId: string,
+ name: string,
 ): Promise<Envelope<{ id: string; name: string }>> {
-  return dataProvider().queryOne<{ id: string; name: string }>(
-    "project_rename",
-    { projectId, name },
-  );
+ return dataProvider().queryOne<{ id: string; name: string }>(
+  "project_rename",
+  { projectId, name },
+ );
 }

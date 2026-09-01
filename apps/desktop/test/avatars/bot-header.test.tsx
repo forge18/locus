@@ -8,7 +8,7 @@ describe("avatars/bot-header", () => {
     const header = view.getByTestId("bot-view-header");
 
     expect(header.textContent).toContain("Keeper");
-    expect(header.textContent).toContain("pi");
+    expect(header.textContent).toContain("unknown");
     expect(view.getByTestId("bot-header-avatar").getAttribute("alt")).toBe(
       "Keeper avatar",
     );

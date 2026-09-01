@@ -16,7 +16,7 @@ describe("nav/desktop-project-scope", () => {
   });
 
   it("formats page-owned routes with the all-project scope", () => {
-    expect(formatDesktopLocator("plan", "tapestry")).toThrow(/scope:/);
+    expect(() => formatDesktopLocator("plan", "tapestry")).toThrow(/scope:/);
     expect(formatDesktopLocator("plan")).toBe("locus://all/view/plan");
     expect(resolveDesktopLocator("locus://all/view/plan")).toEqual({
       route: "plan",

@@ -65,12 +65,8 @@ describe("planning-workspace navigation inventory", () => {
   });
 
   it("uses page-owned all, app, and project locators", () => {
-    expect(destinationDesktop("projects")).toBe(
-      "locus://all/view/projects",
-    );
-    expect(destinationDesktop("workers")).toBe(
-      "locus://all/view/workers",
-    );
+    expect(destinationDesktop("projects")).toBe("locus://all/view/projects");
+    expect(destinationDesktop("workers")).toBe("locus://all/view/workers");
     expect(destinationDesktop("status")).toBe("locus://all/view/status");
     expect(destinationDesktop("settings")).toBe("locus://app/view/settings");
     expect(navigateDesktop("locus://all/view/qa")).toEqual({

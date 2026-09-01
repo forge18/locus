@@ -432,7 +432,7 @@ export default function BotsView(props: BotsViewProps) {
             when={bots().length > 0}
             fallback={
               <p class="bots-empty-state" data-testid="bots-empty-state">
-                No workers yet. Create one to have a standing agent you can message
+                No bots yet. Create one to have a standing agent you can message
                 any time and hand recurring work to.
               </p>
             }
@@ -472,7 +472,7 @@ export default function BotsView(props: BotsViewProps) {
           </Show>
         </div>
         <footer class="bots-list-footer">
-          A Worker is a named teammate with one conversation and one workspace. It
+          A bot is a named teammate with one conversation and one workspace. It
           is not a task and never touches the board.
         </footer>
       </aside>

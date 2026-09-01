@@ -11,9 +11,7 @@ use std::{
 use locus_core::{
     core::Core,
     harness::materialize::report::{reports_for_registry, MaterializationReport},
-    ids::{
-        ArtifactId, BotId, PlanningWorkspaceId, ProjectId, RoutineId, RunId, TaskId,
-    },
+    ids::{ArtifactId, BotId, PlanningWorkspaceId, ProjectId, RoutineId, RunId, TaskId},
     lsp::{DescriptorPin, LspDiagnostic},
     plugin::{builtin_manifests, PluginKind, PluginProcess, WorkItemProviderDescriptor},
     repo::{GitState, RepoManager},
@@ -2095,6 +2093,7 @@ async fn planning_workspace_specs_list(
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 async fn planning_workspace_spec_save(
     core: State<'_, Arc<Core>>,
     project_id: String,
@@ -2109,14 +2108,14 @@ async fn planning_workspace_spec_save(
     let project_id = resolve_setup_project(store, &project_id).await?;
     let spec_id = spec_id
         .map(|value| {
-            value
-                .parse()
-                .map_err(|_| IpcError::invalid_argument("planning workspace spec id must be a UUID"))
+            value.parse().map_err(|_| {
+                IpcError::invalid_argument("planning workspace spec id must be a UUID")
+            })
         })
         .transpose()?;
-    let repo_id = repo_id
-        .parse()
-        .map_err(|_| IpcError::invalid_argument("planning workspace repository id must be a UUID"))?;
+    let repo_id = repo_id.parse().map_err(|_| {
+        IpcError::invalid_argument("planning workspace repository id must be a UUID")
+    })?;
     let workspace_id = parse_planning_workspace_id(&workspace_id)?;
     let spec_id = store
         .save_planning_workspace_spec(
@@ -2149,10 +2148,7 @@ async fn planning_workspace_task_provenance_list(
     let store = connected_store(&core).await?;
     let project_id = resolve_setup_project(store, &project_id).await?;
     store
-        .planning_workspace_task_provenance(
-            project_id,
-            parse_planning_workspace_id(&workspace_id)?,
-        )
+        .planning_workspace_task_provenance(project_id, parse_planning_workspace_id(&workspace_id)?)
         .await
         .map_err(IpcError::internal)
         .map(|rows| {
@@ -2223,9 +2219,9 @@ async fn planning_workspace_session_link(
     let project_id = resolve_setup_project(store, &project_id).await?;
     let spec_id = spec_id
         .map(|value| {
-            value
-                .parse()
-                .map_err(|_| IpcError::invalid_argument("planning workspace spec id must be a UUID"))
+            value.parse().map_err(|_| {
+                IpcError::invalid_argument("planning workspace spec id must be a UUID")
+            })
         })
         .transpose()?;
     let session_id = session_id

@@ -12,11 +12,7 @@ use serde_json::Value;
 use crate::{
     harness::materialize::extensions::ProjectExtensionScope,
     lsp::DescriptorPin,
-    services::{
-        bots::BotSettings,
-        capabilities::CapabilityPolicies,
-        tools::ProjectToolScope,
-    },
+    services::{bots::BotSettings, capabilities::CapabilityPolicies, tools::ProjectToolScope},
 };
 
 const SETTINGS_VERSION: u16 = 1;

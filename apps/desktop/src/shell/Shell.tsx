@@ -47,9 +47,7 @@ export interface ShellProps {
     nav: NavStore;
     children: JSX.Element;
     /** Unified search_all results supplied by the command surface. */
-    searchAll?: (
-        query: string,
-    ) => PaletteResult[] | Promise<PaletteResult[]>;
+    searchAll?: (query: string) => PaletteResult[] | Promise<PaletteResult[]>;
 }
 
 const desktopViews: Record<DesktopRouteId, View> = Object.fromEntries(
@@ -235,9 +233,7 @@ export function Shell(props: ShellProps) {
                 onNavigate={(view) => props.nav.go(view)}
             />
             <div class="body">
-                <ProjectRail
-                    onNavigate={openDesktopLocator}
-                />
+                <ProjectRail onNavigate={openDesktopLocator} />
                 <div class="main">
                     {/* A drill-down's way out is the view it was entered from,
                         so the back link rides above the screen, shell-owned. It

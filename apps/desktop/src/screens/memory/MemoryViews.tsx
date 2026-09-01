@@ -191,7 +191,9 @@ export function MemoryLongTermView(props: { projectId?: string } = {}) {
             value={selectedProjectId()}
             onChange={(projectId) => setSelectedProjectId(projectId)}
           />
-          <small>All projects by default; choose a project to adjudicate.</small>
+          <small>
+            All projects by default; choose a project to adjudicate.
+          </small>
         </section>
         <div data-testid="memory-facts-state" data-state={facts().status}>
           <Switch>

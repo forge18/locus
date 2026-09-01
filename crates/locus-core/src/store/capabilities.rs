@@ -13,10 +13,7 @@ use crate::{
 };
 
 impl Store {
-    pub async fn project_capability_policy_revision(
-        &self,
-        project_id: ProjectId,
-    ) -> Result<i32> {
+    pub async fn project_capability_policy_revision(&self, project_id: ProjectId) -> Result<i32> {
         query(
             "INSERT INTO core.project_capability_policies (project_id)
              VALUES ($1)
@@ -94,10 +91,7 @@ impl Store {
             .await
     }
 
-    pub async fn workflow_capability_policies(
-        &self,
-        run_id: RunId,
-    ) -> Result<CapabilityPolicies> {
+    pub async fn workflow_capability_policies(&self, run_id: RunId) -> Result<CapabilityPolicies> {
         let graph = query_scalar::<_, Value>(
             "SELECT d.graph
              FROM agents.runs r
@@ -148,9 +142,7 @@ impl Store {
             }
         }
         let policy = |values: Option<BTreeSet<String>>| {
-            values
-                .map(CapabilityPolicy::AllowOnly)
-                .unwrap_or_default()
+            values.map(CapabilityPolicy::AllowOnly).unwrap_or_default()
         };
         Ok(CapabilityPolicies {
             cli_tools: policy(cli_tools),

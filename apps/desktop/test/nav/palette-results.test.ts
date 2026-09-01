@@ -38,7 +38,7 @@ describe("nav/palette-results", () => {
     });
     expect(destinations).toContainEqual({
       label: "Sessions",
-      locator: "locus://locus/view/sessions",
+      locator: "locus://all/view/sessions",
       section: "Needs you",
     });
   });

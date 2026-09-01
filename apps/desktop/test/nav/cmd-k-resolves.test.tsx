@@ -71,14 +71,17 @@ describe("nav/cmd-k-resolves", () => {
     const input = document.querySelector(
       '[data-testid="locator-palette-input"]',
     ) as HTMLInputElement;
-    input.value = "locus://loom-db/view/sessions";
+    input.value = "locus://loom-db/session/8f21";
     input.dispatchEvent(new Event("input", { bubbles: true }));
     input.dispatchEvent(
       new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
     );
 
     await waitFor(() => expect(nav.view()).toBe("sessions"));
-    expect(nav.params()).toEqual({ project: "loom-db" });
+    expect(nav.params()).toEqual({
+      project: "loom-db",
+      sessionId: "8f21",
+    });
   });
 
   it("reports a bad locator by naming the segment, and stays put", async () => {

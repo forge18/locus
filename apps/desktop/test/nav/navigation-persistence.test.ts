@@ -1,9 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createNavStore } from "../../src/nav";
-import {
-  NAV_HISTORY_STORAGE_KEY,
-  NAV_STORAGE_KEY,
-} from "../../src/nav/store";
+import { NAV_HISTORY_STORAGE_KEY, NAV_STORAGE_KEY } from "../../src/nav/store";
 
 const resetNavigationStorage = () => {
   localStorage.removeItem(NAV_STORAGE_KEY);
@@ -52,9 +49,7 @@ describe("nav/navigation-persistence", () => {
     nav.go("sessions");
     const sessionsState = history.state;
 
-    window.dispatchEvent(
-      new PopStateEvent("popstate", { state: planState }),
-    );
+    window.dispatchEvent(new PopStateEvent("popstate", { state: planState }));
     expect(nav.view()).toBe("plan");
     expect(nav.canForward()).toBe(true);
 

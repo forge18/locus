@@ -38,6 +38,7 @@ const LIVE_DATA_SETS = [
   "health",
   "inbox",
   "runs",
+  "search",
   "sessions",
   "strip",
 ];

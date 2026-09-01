@@ -25,7 +25,7 @@ describe("nav/current-view-context", () => {
     expect(getByTestId("title-category").textContent).toBe("Inbox");
     expect(getByTestId("title-view").textContent).toBe("runs");
     nav.go("artifact");
-    expect(getByTestId("title-category").textContent).toBe("Memory");
+    expect(getByTestId("title-category").textContent).toBe("Knowledge");
     expect(getByTestId("title-view").textContent).toBe("artifact");
   });
 
