@@ -599,11 +599,14 @@ impl Core {
             commands: definition.frontmatter.commands.iter().cloned().collect(),
             skills: definition.frontmatter.skills.iter().cloned().collect(),
         };
+        let workflow_policies = store
+            .workflow_capability_policies(dispatch.run_id.into())
+            .await?;
         let effective_capabilities = resolve_capabilities(
             &capability_catalog,
             project_settings.capability_policies(),
             Some(&definition.frontmatter.capabilities),
-            None,
+            Some(&workflow_policies),
         );
         let tools = effective_capabilities
             .cli_tools
