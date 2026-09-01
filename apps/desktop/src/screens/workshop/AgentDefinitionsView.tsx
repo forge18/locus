@@ -3,6 +3,9 @@ import {
   fetchAgentDefFromCore,
   fetchAgentDefsFromCore,
 } from "../../data/agent-defs";
+import { dataProvider } from "../../data/provider";
+import { CapabilityPolicyPanel } from "./CapabilityPolicyPanel";
+import "./capability-policy.css";
 import type {
   CoreAgentDefinition,
   AgentDefSummary,
@@ -91,6 +94,9 @@ export function AgentDefinitionsView() {
             )}
           </For>
         </div>
+      </Show>
+      <Show when={dataProvider().kind === "live"}>
+        <CapabilityPolicyPanel />
       </Show>
       <Show when={selected()}>
         <Match when={selected()?.status === "loading"}>
