@@ -27,6 +27,7 @@ import {
 } from "../../data/dispatch";
 import { DISPATCH_PROJECTS } from "../../data/dispatch";
 import { dataProvider } from "../../data/provider";
+import { PageProjectFilter } from "../PageProjectFilter";
 import type { NavStore } from "../../nav";
 import { fetchRunningCount } from "../../data/strip";
 import type { Envelope } from "../../data/envelope";
@@ -373,6 +374,9 @@ function SchedulesView(props: {
   onSwitch?: (tab: DispatchTab) => void;
   nav?: NavStore;
 }) {
+  const [selectedProjectId, setSelectedProjectId] = createSignal(
+    props.nav?.params().project,
+  );
   const [schedules, setSchedules] = createSignal<Envelope<DispatchSchedule[]>>({
     status: "loading",
   });
@@ -380,10 +384,11 @@ function SchedulesView(props: {
     Envelope<DispatchScheduleExecution[]>
   >({ status: "loading" });
 
-  onMount(() => {
+  createEffect(() => {
+    const projectId = selectedProjectId();
     void Promise.all([
       fetchDispatchSchedules(),
-      fetchScheduleExecutions(),
+      fetchScheduleExecutions(projectId),
     ]).then(([s, e]) => {
       setSchedules(s);
       setExecutions(e);
@@ -406,6 +411,10 @@ function SchedulesView(props: {
     <div class="dispatch-view" data-testid="dispatch-schedules">
       <header class="dispatch-header">
         <DispatchTabs active="schedules" onSwitch={props.onSwitch} />
+        <PageProjectFilter
+          value={selectedProjectId()}
+          onChange={(projectId) => setSelectedProjectId(projectId)}
+        />
         <span class="dispatch-header-note">
           {scheduleRows().length} schedules · {executionRows().length} recent
           executions
@@ -601,6 +610,9 @@ function RunsView(props: {
   onSwitch?: (tab: DispatchTab) => void;
   nav?: NavStore;
 }) {
+  const [selectedProjectId, setSelectedProjectId] = createSignal(
+    props.nav?.params().project,
+  );
   const [runs, setRuns] = createSignal<Envelope<DispatchRunRow[]>>({
     status: "loading",
   });
@@ -609,7 +621,7 @@ function RunsView(props: {
   });
 
   async function refreshRuns() {
-    const projectId = props.nav?.params().project;
+    const projectId = selectedProjectId();
     const [page, total] = await Promise.all([
       fetchRunsPage(0, PAGE_SIZE, projectId),
       fetchRunsCount(projectId),
@@ -659,6 +671,10 @@ function RunsView(props: {
     <div class="dispatch-view" data-testid="dispatch-runs">
       <header class="dispatch-header">
         <DispatchTabs active="runs" onSwitch={props.onSwitch} />
+        <PageProjectFilter
+          value={selectedProjectId()}
+          onChange={(projectId) => setSelectedProjectId(projectId)}
+        />
         <span class="dispatch-header-note">
           Every run, scheduled or not · a schedule is just one way a run starts
         </span>
