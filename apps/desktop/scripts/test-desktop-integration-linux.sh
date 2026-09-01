@@ -18,6 +18,7 @@ docker run --rm --init --network host \
   --volume /var/run/docker.sock:/var/run/docker.sock \
   --volume "$volume_prefix-node-modules:/workspace/apps/desktop/node_modules" \
   --volume "$volume_prefix-dist:/workspace/apps/desktop/dist" \
+  --volume "$volume_prefix-tauri-permissions:/workspace/apps/desktop/src-tauri/permissions" \
   --volume "$volume_prefix-target:/workspace/target" \
   --volume "$volume_prefix-cargo-registry:/root/.cargo/registry" \
   --volume "$volume_prefix-cargo-git:/root/.cargo/git" \
