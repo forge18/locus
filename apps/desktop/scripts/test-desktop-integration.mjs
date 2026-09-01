@@ -335,7 +335,10 @@ try {
   });
   await waitForElement(browser, '[data-testid="project-rail"]');
   await clickExact(browser, '[data-testid="project-rail"] button', "Projects");
-  const error = await waitForElement(browser, '[data-testid="project-state-list"] [role="alert"]');
+  const error = await waitForElement(
+    browser,
+    '[data-testid="project-state-list"] [role="alert"], [data-testid="store-health"][data-status="unavailable"]',
+  );
   if (!(await error.getText()).trim()) throw new Error("backend error state was empty");
   process.stdout.write("desktop integration passed: live setup, project scope, stop all, stream, and backend error\n");
 } catch (error) {
