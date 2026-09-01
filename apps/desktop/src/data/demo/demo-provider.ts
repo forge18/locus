@@ -7,9 +7,11 @@ import * as agentDefs from "../../fixtures/agent-defs";
 import * as analytics from "../../fixtures/analytics";
 import * as artifacts from "../../fixtures/artifacts";
 import * as board from "../../fixtures/board";
+import * as bots from "./fixtures/bots";
 import * as core from "../../fixtures/core";
 import * as extensions from "../../fixtures/extensions";
 import * as guardrails from "../../fixtures/settings-guardrails";
+import * as interact from "./fixtures/interact";
 import * as harnesses from "../../fixtures/generated/harnesses";
 import * as knowledge from "../../fixtures/knowledge";
 import * as mail from "../../fixtures/mail";
@@ -46,6 +48,21 @@ const FIXTURES: Record<string, FixtureValue> = {
   ],
   board_tasks: () => board.TASKS,
   board_dependencies: () => board.DEPENDENCIES,
+  interact_sessions_list: (args) => {
+    const projectId = args?.projectId;
+    return typeof projectId === "string"
+      ? interact.SESSIONS.filter((session) => session.projectId === projectId)
+      : interact.SESSIONS;
+  },
+  bots_list: (args) => {
+    const projectId = args?.projectId;
+    return typeof projectId === "string"
+      ? bots.BOTS.filter((bot) => bot.projectId === projectId)
+      : bots.BOTS;
+  },
+  bot_routines: (args) =>
+    bots.ROUTINES.filter((routine) => routine.botId === args?.botId),
+  bot_routine_executions: () => [],
   task_evidence: () => board.EVIDENCE,
   memory_facts: () => knowledge.LONG_TERM_FACTS,
   analytics_at_a_glance: () => analytics.AT_A_GLANCE_METRICS,

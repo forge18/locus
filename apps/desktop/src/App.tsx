@@ -130,7 +130,12 @@ function App() {
                                                 <MailView />
                                         </Match>
                                         <Match when={nav.view() === "interact"}>
-                                                <InteractView />
+                                                <InteractView
+                                                        projectId={
+                                                                nav.params()
+                                                                        .project
+                                                        }
+                                                />
                                         </Match>
                                         <Match when={nav.view() === "bots"}>
                                                 <BotsView

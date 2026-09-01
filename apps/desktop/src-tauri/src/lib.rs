@@ -14,7 +14,7 @@ use locus_core::{
     ids::{ArtifactId, BotId, ProjectId, RoutineId, RunId, TaskId},
     lsp::{DescriptorPin, LspDiagnostic},
     plugin::{builtin_manifests, PluginKind, PluginProcess, WorkItemProviderDescriptor},
-    repo::GitState,
+    repo::{GitState, RepoManager},
     services::{
         artifact::{ArtifactComment, ArtifactContent, ArtifactKind, ArtifactRow},
         board::{BoardActor, BoardCommentOrigin, BoardEvidenceLink},
@@ -22,6 +22,7 @@ use locus_core::{
             Bot, BotContainerState, BotRoutine, RoutineAttribution, RoutineExecution,
             RoutineExecutionStatus,
         },
+        interact::InteractState,
         lint::discover as discover_linters,
         manage::TaskColumn,
         task::TaskDetailSummary,
@@ -940,7 +941,303 @@ async fn runs_for_session(
     runs_for_session_inner(store, &session_id).await
 }
 
-/// Dispatch schedules and their execution history (slice 7).
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct InteractChangedFileResponse {
+    path: String,
+    marker: String,
+    additions: u32,
+    removals: u32,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct InteractSessionResponse {
+    id: String,
+    project_id: String,
+    project: String,
+    name: String,
+    agent: String,
+    harness: String,
+    branch: String,
+    status: String,
+    state: InteractState,
+    board_task_id: Option<String>,
+    run_id: Option<String>,
+    run_status: Option<String>,
+    model: Option<String>,
+    permission_posture: String,
+    created_at: Option<String>,
+    repo: Option<String>,
+    base_commit: Option<String>,
+    changed_files: Vec<InteractChangedFileResponse>,
+    cost: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct InteractMutationResponse {
+    session: InteractSessionResponse,
+    branch: Option<String>,
+}
+
+fn interact_session_response(
+    row: locus_core::store::interact::InteractSessionRow,
+) -> InteractSessionResponse {
+    InteractSessionResponse {
+        id: row.id.to_string(),
+        project_id: row.project_id.to_string(),
+        project: row.project,
+        name: row.name,
+        agent: row.agent,
+        harness: row.harness,
+        branch: row.branch,
+        status: row.status,
+        state: row.state,
+        board_task_id: row.board_task_id.map(|id| id.to_string()),
+        run_id: row.run_id.map(|id| id.to_string()),
+        run_status: row.run_status,
+        model: row.model,
+        permission_posture: row.permission_posture,
+        created_at: row.created_at,
+        repo: row.repo,
+        base_commit: None,
+        changed_files: Vec::new(),
+        cost: Some("unknown".into()),
+    }
+}
+
+fn interact_session_response_with_changes(
+    row: locus_core::store::interact::InteractSessionRow,
+) -> Result<InteractSessionResponse, String> {
+    let remote = row.workspace_remote.clone();
+    let branch = row.branch.clone();
+    let mut response = interact_session_response(row);
+    if let Some(remote) = remote {
+        let repo = RepoManager::default();
+        response.base_commit = repo.primary_commit_at_remote(&remote).ok();
+        response.changed_files = repo
+            .branch_changes_at_remote(&remote, &branch)
+            .map_err(|error| error.to_string())?
+            .into_iter()
+            .map(|change| InteractChangedFileResponse {
+                path: change.path,
+                marker: "M".into(),
+                additions: change.additions,
+                removals: change.removals,
+            })
+            .collect();
+    }
+    Ok(response)
+}
+
+fn parse_interact_session_id(value: &str) -> Result<locus_core::ids::SessionId, IpcError> {
+    value
+        .parse()
+        .map_err(|_| IpcError::invalid_argument("Interact session id must be a UUID"))
+}
+
+#[tauri::command]
+async fn interact_sessions_list(
+    core: State<'_, Arc<Core>>,
+    project_id: Option<String>,
+) -> Result<Vec<InteractSessionResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = match project_id.as_deref() {
+        Some(identifier) => Some(resolve_project_id(store, identifier).await?),
+        None => None,
+    };
+    let rows = store
+        .interact_sessions(project_id)
+        .await
+        .map_err(IpcError::internal)?;
+    rows.into_iter()
+        .map(interact_session_response_with_changes)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(IpcError::internal)
+}
+
+#[tauri::command]
+async fn interact_session_create(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    name: String,
+    model: Option<String>,
+    repo_id: Option<String>,
+) -> Result<InteractSessionResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = resolve_project_id(store, &project_id).await?;
+    let model = model
+        .filter(|model| !model.trim().is_empty())
+        .or_else(|| std::env::var("LOCUS_DEFAULT_MODEL_ID").ok())
+        .unwrap_or_else(|| "unconfigured-model".into());
+    let repo_id = repo_id
+        .filter(|value| !value.trim().is_empty())
+        .map(|value| {
+            value
+                .parse()
+                .map_err(|_| IpcError::invalid_argument("repository id must be a UUID"))
+        })
+        .transpose()?;
+    let session_id = store
+        .create_interact_session(project_id, repo_id, &name, &model)
+        .await
+        .map_err(IpcError::internal)?;
+    store
+        .interact_session_for_project(project_id, session_id)
+        .await
+        .map_err(IpcError::internal)?
+        .map(interact_session_response_with_changes)
+        .transpose()
+        .map_err(IpcError::internal)?
+        .ok_or_else(|| IpcError::internal("created Interact session disappeared"))
+}
+
+#[tauri::command]
+async fn interact_session_promote(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    session_id: String,
+    task_id: Option<String>,
+) -> Result<InteractSessionResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = resolve_project_id(store, &project_id).await?;
+    let session_id = parse_interact_session_id(&session_id)?;
+    let task_id = task_id
+        .filter(|value| !value.trim().is_empty())
+        .map(|value| {
+            value
+                .parse()
+                .map_err(|_| IpcError::invalid_argument("board task id must be a UUID"))
+        })
+        .transpose()?;
+    store
+        .promote_interact_session(project_id, session_id, task_id)
+        .await
+        .map_err(IpcError::internal)?;
+    store
+        .interact_session_for_project(project_id, session_id)
+        .await
+        .map_err(IpcError::internal)?
+        .map(interact_session_response_with_changes)
+        .transpose()
+        .map_err(IpcError::internal)?
+        .ok_or_else(|| IpcError::not_found("Interact session was not found"))
+}
+
+#[tauri::command]
+async fn interact_session_discard(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    session_id: String,
+) -> Result<InteractMutationResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = resolve_project_id(store, &project_id).await?;
+    let session_id = parse_interact_session_id(&session_id)?;
+    let target = store
+        .discard_interact_session(project_id, session_id)
+        .await
+        .map_err(IpcError::internal)?;
+    let mut cleanup_errors = Vec::new();
+    if let Some(container_id) = target.container_id.as_deref() {
+        let mut runtime = core
+            .connect_container_runtime()
+            .map_err(IpcError::internal)?;
+        if let Err(error) = runtime.stop_container(container_id) {
+            cleanup_errors.push(format!("stop container: {error}"));
+        }
+        if let Err(error) = runtime.remove_container(container_id) {
+            cleanup_errors.push(format!("remove container: {error}"));
+        }
+    }
+    if let Some(remote) = target.workspace_remote.as_deref() {
+        if let Err(error) = RepoManager::default().delete_interact_branch(remote, &target.branch) {
+            cleanup_errors.push(format!("delete branch: {error}"));
+        }
+    }
+    if !cleanup_errors.is_empty() {
+        return Err(IpcError::internal(format!(
+            "discard cleanup failed: {}",
+            cleanup_errors.join("; ")
+        )));
+    }
+    let session = store
+        .interact_session_for_project(project_id, session_id)
+        .await
+        .map_err(IpcError::internal)?
+        .ok_or_else(|| IpcError::not_found("discarded Interact session was not found"))?;
+    Ok(InteractMutationResponse {
+        session: interact_session_response_with_changes(session).map_err(IpcError::internal)?,
+        branch: Some(target.branch),
+    })
+}
+
+#[tauri::command]
+async fn interact_session_commit(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    session_id: String,
+) -> Result<InteractMutationResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = resolve_project_id(store, &project_id).await?;
+    let session_id = parse_interact_session_id(&session_id)?;
+    let session = store
+        .commit_interact_session(project_id, session_id)
+        .await
+        .map_err(IpcError::internal)?;
+    let container_id = session
+        .container_id
+        .as_deref()
+        .ok_or_else(|| IpcError::invalid_argument("the Interact workspace is not running"))?;
+    let branch = session.branch.clone();
+    let command = vec![
+        "git".into(),
+        "push".into(),
+        "locus".into(),
+        format!("HEAD:refs/heads/{branch}"),
+    ];
+    let mut runtime = core
+        .connect_container_runtime()
+        .map_err(IpcError::internal)?;
+    let result = runtime
+        .exec(container_id, &command)
+        .map_err(IpcError::internal)?;
+    if result.status_code != 0 {
+        return Err(IpcError::internal(format!(
+            "push Interact branch failed: {}",
+            String::from_utf8_lossy(&result.stderr)
+        )));
+    }
+    Ok(InteractMutationResponse {
+        session: interact_session_response_with_changes(session).map_err(IpcError::internal)?,
+        branch: Some(branch),
+    })
+}
+
+#[tauri::command]
+async fn interact_session_prompt(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    session_id: String,
+    prompt: String,
+) -> Result<(), IpcError> {
+    if prompt.trim().is_empty() {
+        return Err(IpcError::invalid_argument("prompt must not be empty"));
+    }
+    let store = connected_store(&core).await?;
+    let project_id = resolve_project_id(store, &project_id).await?;
+    let session_id = parse_interact_session_id(&session_id)?;
+    let run_id = store
+        .active_interact_run(project_id, session_id)
+        .await
+        .map_err(IpcError::internal)?
+        .ok_or_else(|| IpcError::invalid_argument("the Interact session is not running"))?;
+    core.prompt_run(run_id, prompt)
+        .await
+        .map_err(IpcError::internal)
+}
+
+/// Dispatch schedules and their execution history (slice 7)."}]} hab=functions.edit  时时彩?jsonikwembu? 天天众ьақә? Wait tool call malformed? Let's inspect result.}
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ScheduleResponse {
@@ -3407,6 +3704,8 @@ struct BotResponse {
     name: String,
     agent_def_id: String,
     home_session_id: String,
+    active_run_id: Option<String>,
+    harness: Option<String>,
     branch: String,
     container_id: Option<String>,
     container_state: BotContainerState,
@@ -3423,6 +3722,8 @@ impl From<Bot> for BotResponse {
             name: bot.name,
             agent_def_id: bot.agent_def_id.to_string(),
             home_session_id: bot.home_session_id.to_string(),
+            active_run_id: None,
+            harness: None,
             branch: bot.branch,
             container_id: bot.container_id,
             container_state: bot.container_state,
@@ -3497,6 +3798,41 @@ fn parse_routine_id(value: &str) -> Result<RoutineId, IpcError> {
         .map_err(|error| IpcError::invalid_argument(format!("invalid routine id: {error}")))
 }
 
+async fn require_bot_project(
+    store: &Store,
+    bot_id: BotId,
+    project_id: ProjectId,
+) -> Result<(), IpcError> {
+    let bot = store
+        .bot(bot_id)
+        .await
+        .map_err(IpcError::internal)?
+        .ok_or_else(|| IpcError::not_found("bot was not found in the active project"))?;
+    if bot.project_id != project_id {
+        return Err(IpcError::not_found(
+            "bot was not found in the active project",
+        ));
+    }
+    Ok(())
+}
+
+async fn require_routine_project(
+    store: &Store,
+    routine_id: RoutineId,
+    project_id: ProjectId,
+) -> Result<(), IpcError> {
+    if !store
+        .bot_routine_belongs_to_project(routine_id, project_id)
+        .await
+        .map_err(IpcError::internal)?
+    {
+        return Err(IpcError::not_found(
+            "bot routine was not found in the active project",
+        ));
+    }
+    Ok(())
+}
+
 #[tauri::command]
 async fn bots_list(
     core: State<'_, Arc<Core>>,
@@ -3504,11 +3840,24 @@ async fn bots_list(
 ) -> Result<Vec<BotResponse>, IpcError> {
     let store = connected_store(&core).await?;
     let project_id = resolve_project_id(store, &project_id).await?;
-    store
-        .bots(project_id)
-        .await
-        .map(|bots| bots.into_iter().map(BotResponse::from).collect())
-        .map_err(IpcError::internal)
+    let bots = store.bots(project_id).await.map_err(IpcError::internal)?;
+    let mut responses = Vec::with_capacity(bots.len());
+    for bot in bots {
+        let bot_id = bot.id;
+        let active_run_id = store
+            .active_bot_run(bot_id)
+            .await
+            .map_err(IpcError::internal)?
+            .map(|id| id.to_string());
+        let mut response = BotResponse::from(bot);
+        response.active_run_id = active_run_id;
+        response.harness = store
+            .bot_harness(bot_id)
+            .await
+            .map_err(IpcError::internal)?;
+        responses.push(response);
+    }
+    Ok(responses)
 }
 
 #[tauri::command]
@@ -3529,11 +3878,15 @@ async fn bot_create(
 #[tauri::command]
 async fn bot_routines(
     core: State<'_, Arc<Core>>,
+    project_id: String,
     bot_id: String,
 ) -> Result<Vec<BotRoutineResponse>, IpcError> {
     let store = connected_store(&core).await?;
+    let project_id = resolve_project_id(store, &project_id).await?;
+    let bot_id = parse_bot_id(&bot_id)?;
+    require_bot_project(store, bot_id, project_id).await?;
     store
-        .bot_routines(parse_bot_id(&bot_id)?)
+        .bot_routines(bot_id)
         .await
         .map(|routines| routines.into_iter().map(BotRoutineResponse::from).collect())
         .map_err(IpcError::internal)
@@ -3542,11 +3895,15 @@ async fn bot_routines(
 #[tauri::command]
 async fn bot_routine_executions(
     core: State<'_, Arc<Core>>,
+    project_id: String,
     bot_id: String,
 ) -> Result<Vec<BotRoutineExecutionResponse>, IpcError> {
     let store = connected_store(&core).await?;
+    let project_id = resolve_project_id(store, &project_id).await?;
+    let bot_id = parse_bot_id(&bot_id)?;
+    require_bot_project(store, bot_id, project_id).await?;
     store
-        .bot_routine_executions(parse_bot_id(&bot_id)?)
+        .bot_routine_executions(bot_id)
         .await
         .map(|executions| {
             executions
@@ -3560,12 +3917,16 @@ async fn bot_routine_executions(
 #[tauri::command]
 async fn bot_routine_set_enabled(
     core: State<'_, Arc<Core>>,
+    project_id: String,
     routine_id: String,
     enabled: bool,
 ) -> Result<(), IpcError> {
     let store = connected_store(&core).await?;
+    let project_id = resolve_project_id(store, &project_id).await?;
+    let routine_id = parse_routine_id(&routine_id)?;
+    require_routine_project(store, routine_id, project_id).await?;
     store
-        .set_bot_routine_enabled(parse_routine_id(&routine_id)?, enabled)
+        .set_bot_routine_enabled(routine_id, enabled)
         .await
         .map_err(IpcError::internal)
 }
@@ -3573,13 +3934,17 @@ async fn bot_routine_set_enabled(
 #[tauri::command]
 async fn bot_routine_update(
     core: State<'_, Arc<Core>>,
+    project_id: String,
     routine_id: String,
     prompt: String,
     cron_expression: String,
 ) -> Result<BotRoutineResponse, IpcError> {
     let store = connected_store(&core).await?;
+    let project_id = resolve_project_id(store, &project_id).await?;
+    let routine_id = parse_routine_id(&routine_id)?;
+    require_routine_project(store, routine_id, project_id).await?;
     store
-        .update_bot_routine(parse_routine_id(&routine_id)?, &prompt, &cron_expression)
+        .update_bot_routine(routine_id, &prompt, &cron_expression)
         .await
         .map(BotRoutineResponse::from)
         .map_err(IpcError::internal)
@@ -3588,11 +3953,111 @@ async fn bot_routine_update(
 #[tauri::command]
 async fn bot_routine_delete(
     core: State<'_, Arc<Core>>,
+    project_id: String,
     routine_id: String,
 ) -> Result<(), IpcError> {
     let store = connected_store(&core).await?;
+    let project_id = resolve_project_id(store, &project_id).await?;
+    let routine_id = parse_routine_id(&routine_id)?;
+    require_routine_project(store, routine_id, project_id).await?;
     store
-        .delete_bot_routine(parse_routine_id(&routine_id)?)
+        .delete_bot_routine(routine_id)
+        .await
+        .map_err(IpcError::internal)
+}
+
+#[tauri::command]
+async fn bot_routine_test(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    routine_id: String,
+) -> Result<BotRoutineExecutionResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = resolve_project_id(store, &project_id).await?;
+    let routine_id = parse_routine_id(&routine_id)?;
+    require_routine_project(store, routine_id, project_id).await?;
+    let model =
+        std::env::var("LOCUS_DEFAULT_MODEL_ID").unwrap_or_else(|_| "unconfigured-model".into());
+    let (execution_id, bot_id, run_id) = store
+        .test_bot_routine(routine_id, &model)
+        .await
+        .map_err(IpcError::internal)?;
+    let dispatch = store
+        .dispatch_run(run_id)
+        .await
+        .map_err(IpcError::internal)?
+        .ok_or_else(|| IpcError::internal("test routine run disappeared"))?;
+    let mut runtime = core
+        .connect_container_runtime()
+        .map_err(IpcError::internal)?;
+    if let Err(error) = core
+        .spawn_dispatch_run(store, dispatch, &mut *runtime)
+        .await
+    {
+        let _ = store.finish_bot_run(bot_id, run_id, false, None).await;
+        let _ = store
+            .complete_bot_routine_execution(
+                execution_id,
+                locus_core::services::bots::RoutineResult::failed(error.to_string()),
+                Some(run_id),
+            )
+            .await;
+        return Err(IpcError::internal(error));
+    }
+    store
+        .bot_routine_execution(execution_id)
+        .await
+        .map_err(IpcError::internal)?
+        .map(BotRoutineExecutionResponse::from)
+        .ok_or_else(|| IpcError::not_found("test routine execution was not found"))
+}
+
+#[tauri::command]
+async fn bot_prompt(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    bot_id: String,
+    prompt: String,
+) -> Result<(), IpcError> {
+    if prompt.trim().is_empty() {
+        return Err(IpcError::invalid_argument("prompt must not be empty"));
+    }
+    let store = connected_store(&core).await?;
+    let project_id = resolve_project_id(store, &project_id).await?;
+    let bot_id = parse_bot_id(&bot_id)?;
+    require_bot_project(store, bot_id, project_id).await?;
+    let run_id = if let Some(run_id) = store
+        .active_bot_run(bot_id)
+        .await
+        .map_err(IpcError::internal)?
+    {
+        run_id
+    } else {
+        let run_id = RunId::generate();
+        let model =
+            std::env::var("LOCUS_DEFAULT_MODEL_ID").unwrap_or_else(|_| "unconfigured-model".into());
+        store
+            .start_bot_run(bot_id, run_id, &model)
+            .await
+            .map_err(IpcError::internal)?;
+        let dispatch = store
+            .dispatch_run(run_id)
+            .await
+            .map_err(IpcError::internal)?
+            .ok_or_else(|| IpcError::internal("started bot run disappeared"))?;
+        let mut runtime = core
+            .connect_container_runtime()
+            .map_err(IpcError::internal)?;
+        if let Err(error) = core
+            .spawn_dispatch_run(store, dispatch, &mut *runtime)
+            .await
+        {
+            let _ = store.finish_bot_run(bot_id, run_id, false, None).await;
+            return Err(IpcError::internal(error));
+        }
+        run_id
+    };
+    core.prompt_run(run_id, prompt)
         .await
         .map_err(IpcError::internal)
 }
@@ -4047,6 +4512,12 @@ pub fn run() {
             dispatch_runs_count,
             sessions_list,
             runs_for_session,
+            interact_sessions_list,
+            interact_session_create,
+            interact_session_promote,
+            interact_session_discard,
+            interact_session_commit,
+            interact_session_prompt,
             plans_list,
             plan_create,
             plan_stage_set,
@@ -4095,6 +4566,8 @@ pub fn run() {
             bot_routine_set_enabled,
             bot_routine_update,
             bot_routine_delete,
+            bot_routine_test,
+            bot_prompt,
             dispatch_stop_all,
             store_health,
             external_work_item_providers,

@@ -592,11 +592,12 @@ impl MemoryRouter {
                 "memory promote requires a JSON memory candidate",
             ));
         }
-        let candidate: MemoryEntry = serde_json::from_str(&positional.join(" ")).map_err(|error| {
-            AgentSocketError::unavailable(format!(
-                "memory promote candidate must be one JSON memory entry: {error}"
-            ))
-        })?;
+        let candidate: MemoryEntry =
+            serde_json::from_str(&positional.join(" ")).map_err(|error| {
+                AgentSocketError::unavailable(format!(
+                    "memory promote candidate must be one JSON memory entry: {error}"
+                ))
+            })?;
         candidate
             .validate()
             .map_err(|error| AgentSocketError::unavailable(error.to_string()))?;
@@ -1278,7 +1279,10 @@ mod tests {
             .unwrap();
 
         assert_eq!(receipt["metadata"]["reverified"], true);
-        assert_eq!(memory.lock().unwrap().get("fact-1").unwrap().subject, "Stable auth flow");
+        assert_eq!(
+            memory.lock().unwrap().get("fact-1").unwrap().subject,
+            "Stable auth flow"
+        );
     }
 
     #[test]

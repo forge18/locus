@@ -1,108 +1,247 @@
-import { For, Show, createSignal } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
+import { AgentPane, type AgentPaneSession } from "../../panes/AgentPane";
+import {
+  commitInteractSession,
+  createInteractSession,
+  discardInteractSession,
+  fetchInteractSessions,
+  promoteInteractSession,
+  sendInteractPrompt,
+  type InteractSessionRow,
+} from "../../data/interact";
+import { dataProvider } from "../../data/provider";
+import { ready, type Envelope } from "../../data/envelope";
+import { MergeModal } from "../../shell/MergeModal";
 import { Button } from "../../ui/Button";
 import { FixtureNotice } from "../../ui/FixtureNotice";
+import { InlineError } from "../../ui/InlineError";
 import { Tag } from "../../ui/Tag";
-import { MergeModal } from "../../shell/MergeModal";
-import { AgentPane, type AgentPaneSession } from "../../panes/AgentPane";
-import type { AgentEvent } from "../../types/event";
 
-type InteractState = "open" | "promoted" | "discarded";
-interface InteractSession {
-  id: string;
-  name: string;
-  harness: string;
-  age: string;
-  state: InteractState;
-  changed: number;
-  task?: string;
+const OPEN_NOTE =
+  "This session has no card, so no approval gate and nothing in your Inbox. This panel is the only account of what it touched.";
+const PROMOTED_NOTE =
+  "This session was promoted to a card, so its diff now takes the normal gate. What you see here is the record of what it touched before that.";
+const DISCARDED_NOTE =
+  "This session was discarded. The container and branch are gone; the transcript stays for the record.";
+
+function noteFor(state: InteractSessionRow["state"]): string {
+  if (state === "open") return OPEN_NOTE;
+  if (state === "promoted") return PROMOTED_NOTE;
+  return DISCARDED_NOTE;
 }
 
-const SESSIONS: InteractSession[] = [
-  {
-    id: "r-9f21",
-    name: "Try the notification path",
-    harness: "claude",
-    age: "4m",
-    state: "open",
-    changed: 2,
-  },
-  {
-    id: "r-9c02",
-    name: "Review parser behavior",
-    harness: "codex",
-    age: "18m",
-    state: "promoted",
-    changed: 4,
-    task: "1184",
-  },
-  {
-    id: "r-8a11",
-    name: "Discarded experiment",
-    harness: "pi",
-    age: "2h",
-    state: "discarded",
-    changed: 1,
-  },
-];
+function ageFor(createdAt: string | null): string {
+  if (!createdAt) return "age unknown";
+  const elapsed = Math.max(0, Date.now() - Date.parse(createdAt));
+  const minutes = Math.floor(elapsed / 60_000);
+  if (minutes < 60) return `${minutes}m`;
+  return `${Math.floor(minutes / 60)}h`;
+}
 
-const noteFor = (state: InteractState) =>
-  state === "open"
-    ? "This session has no card, so no approval gate and nothing in your Inbox. This panel is the only account of what it touched."
-    : state === "promoted"
-      ? "This session was promoted to a card, so its diff now takes the normal gate. What you see here is the record of what it touched before that."
-      : "This session was discarded. The container and branch are gone; the transcript stays for the record.";
+function panelStatus(session: InteractSessionRow): AgentPaneSession["status"] {
+  if (session.runStatus === "running") return "working";
+  if (session.runStatus === "queued" || session.runStatus === "paused")
+    return "waiting";
+  if (session.runStatus === "completed") return "done";
+  return "idle";
+}
 
-const panelSession = (session: InteractSession): AgentPaneSession => ({
-  project: "tapestry",
-  task: session.task ?? session.name,
-  agent: `${session.harness}@1`,
-  model: "session-model",
-  harness: session.harness,
-  effort: "high",
-  name: session.name,
-  context: { used: 12_400, total: 200_000 },
-  cost: "$0.42",
-  permissionPosture: "bypass",
-  status: session.state === "open" ? "working" : session.state === "promoted" ? "done" : "idle",
-});
+function panelSession(session: InteractSessionRow): AgentPaneSession {
+  return {
+    project: session.project,
+    task: session.boardTaskId ? `#${session.boardTaskId}` : undefined,
+    agent: session.agent,
+    model: session.model ?? "unavailable",
+    harness: session.harness,
+    effort: "unavailable",
+    name: session.name,
+    cost: session.cost ?? undefined,
+    permissionPosture: session.permissionPosture,
+    status: panelStatus(session),
+  };
+}
 
-const panelEvents = (runId: string): AgentEvent[] => [
-  {
-    id: `${runId}-user`,
-    runId,
-    seq: 0,
-    ts: "now",
-    verb: "user",
-    text: "Try this without putting it on the board.",
-    raw: { source: "interact" },
-  },
-  {
-    id: `${runId}-assistant`,
-    runId,
-    seq: 1,
-    ts: "now",
-    verb: "assistant",
-    text: "I am reading the repository and will leave a compact change summary.",
-    raw: { source: "interact" },
-  },
-];
+function localMutation(
+  rows: InteractSessionRow[],
+  sessionId: string,
+  update: (session: InteractSessionRow) => InteractSessionRow,
+): InteractSessionRow[] {
+  return rows.map((session) =>
+    session.id === sessionId ? update(session) : session,
+  );
+}
 
-export function InteractView() {
-  const [sessions, setSessions] = createSignal(SESSIONS);
-  const [selectedId, setSelectedId] = createSignal(SESSIONS[0].id);
+export interface InteractViewProps {
+  projectId?: string;
+}
+
+export function InteractView(props: InteractViewProps = {}) {
+  const liveMode = dataProvider().kind === "live";
+  const demoRows =
+    dataProvider().read?.<InteractSessionRow[]>("interact_sessions_list", {
+      projectId: props.projectId,
+    }) ?? [];
+  const [sessionsEnvelope, setSessionsEnvelope] = createSignal<
+    Envelope<InteractSessionRow[]>
+  >(liveMode ? { status: "loading" } : ready(demoRows));
+  const [selectedId, setSelectedId] = createSignal(demoRows[0]?.id);
   const [collapsed, setCollapsed] = createSignal(false);
   const [research, setResearch] = createSignal(false);
   const [mergeOpen, setMergeOpen] = createSignal(false);
-  const selected = () =>
-    sessions().find((session) => session.id === selectedId()) ?? sessions()[0];
-  const discard = (id: string) =>
-    setSessions((current) =>
-      current.map((session) =>
-        session.id === id && session.state === "open"
-          ? { ...session, state: "discarded" }
-          : session,
-      ),
+  const [mutationError, setMutationError] = createSignal<string | null>(null);
+
+  const sessions = createMemo(() => {
+    const envelope = sessionsEnvelope();
+    return envelope.status === "ready" ? envelope.data : [];
+  });
+  const selected = createMemo(
+    () =>
+      sessions().find((session) => session.id === selectedId()) ??
+      sessions()[0],
+  );
+  const load = () => {
+    if (liveMode)
+      void fetchInteractSessions(props.projectId).then(setSessionsEnvelope);
+  };
+
+  createEffect(() => {
+    const projectId = props.projectId;
+    if (liveMode)
+      void fetchInteractSessions(projectId).then(setSessionsEnvelope);
+  });
+
+  createEffect(() => {
+    const rows = sessions();
+    if (!rows.some((session) => session.id === selectedId())) {
+      setSelectedId(rows[0]?.id);
+    }
+  });
+
+  const updateDemo = (
+    update: (rows: InteractSessionRow[]) => InteractSessionRow[],
+  ) => {
+    if (liveMode) return;
+    const current = sessions();
+    setSessionsEnvelope(
+      current.length
+        ? { status: "ready", data: update(current) }
+        : { status: "empty" },
     );
+  };
+
+  const discard = (sessionId: string) => {
+    setMutationError(null);
+    if (!liveMode) {
+      updateDemo((rows) =>
+        localMutation(rows, sessionId, (session) => ({
+          ...session,
+          state: "discarded",
+          status: "closed",
+          runStatus: "cancelled",
+        })),
+      );
+      return;
+    }
+    void discardInteractSession(props.projectId ?? "", sessionId).then(
+      (result) => {
+        if (result.status === "failed")
+          return setMutationError(result.error.message);
+        load();
+      },
+    );
+  };
+
+  const promote = (sessionId: string) => {
+    setMutationError(null);
+    if (!liveMode) {
+      updateDemo((rows) =>
+        localMutation(rows, sessionId, (session) => ({
+          ...session,
+          state: "promoted",
+          status: "closed",
+          boardTaskId: session.boardTaskId ?? "new",
+        })),
+      );
+      return;
+    }
+    void promoteInteractSession(props.projectId ?? "", sessionId).then(
+      (result) => {
+        if (result.status === "failed")
+          return setMutationError(result.error.message);
+        load();
+      },
+    );
+  };
+
+  const sendPrompt = (session: InteractSessionRow, prompt: string) => {
+    if (!liveMode) return;
+    void sendInteractPrompt(props.projectId ?? "", session.id, prompt).then(
+      (result) => {
+        if (result.status === "failed") setMutationError(result.error.message);
+      },
+    );
+  };
+
+  const commit = (session: InteractSessionRow) => {
+    setMutationError(null);
+    if (!liveMode) {
+      setMergeOpen(true);
+      return;
+    }
+    void commitInteractSession(props.projectId ?? "", session.id).then(
+      (result) => {
+        if (result.status === "failed")
+          return setMutationError(result.error.message);
+        setMergeOpen(true);
+      },
+    );
+  };
+
+  const create = () => {
+    setMutationError(null);
+    if (!liveMode) {
+      const id = `demo-${Date.now()}`;
+      const session: InteractSessionRow = {
+        id,
+        projectId: props.projectId ?? "tapestry",
+        project: props.projectId ?? "tapestry",
+        name: "New Interact session",
+        agent: "pi@1",
+        harness: "pi",
+        branch: `interact/${id}`,
+        status: "active",
+        state: "open",
+        boardTaskId: null,
+        runId: null,
+        runStatus: null,
+        model: null,
+        permissionPosture: "bypass",
+        createdAt: new Date().toISOString(),
+        repo: null,
+        baseCommit: null,
+        changedFiles: [],
+        cost: null,
+        events: [],
+      };
+      setSessionsEnvelope({ status: "ready", data: [session, ...sessions()] });
+      setSelectedId(id);
+      return;
+    }
+    void createInteractSession(
+      props.projectId ?? "",
+      "New Interact session",
+    ).then((result) => {
+      if (result.status === "failed")
+        return setMutationError(result.error.message);
+      if (result.status === "ready") {
+        setSessionsEnvelope((current) => {
+          const rows = current.status === "ready" ? current.data : [];
+          return { status: "ready", data: [result.data, ...rows] };
+        });
+        setSelectedId(result.data.id);
+      }
+    });
+  };
 
   return (
     <div
@@ -117,15 +256,20 @@ export function InteractView() {
         <header>
           <div>
             <h1>Sessions</h1>
-            <small>{sessions().length} open records</small>
+            <small>{sessions().length} records</small>
           </div>
-          <button
-            type="button"
-            aria-label="Collapse sessions"
-            onClick={() => setCollapsed((value) => !value)}
-          >
-            ◂
-          </button>
+          <div>
+            <button type="button" data-testid="interact-new" onClick={create}>
+              +
+            </button>
+            <button
+              type="button"
+              aria-label={collapsed() ? "Expand sessions" : "Collapse sessions"}
+              onClick={() => setCollapsed((value) => !value)}
+            >
+              {collapsed() ? "→" : "◂"}
+            </button>
+          </div>
         </header>
         <Show
           when={!collapsed()}
@@ -133,14 +277,27 @@ export function InteractView() {
             <div class="interact-dot-strip">
               <For each={sessions()}>
                 {(session) => (
-                  <button
-                    type="button"
-                    data-selected={
-                      selectedId() === session.id ? "true" : undefined
-                    }
-                    onClick={() => setSelectedId(session.id)}
-                    aria-label={session.name}
-                  />
+                  <div class="interact-dot-item">
+                    <button
+                      type="button"
+                      class="interact-session-dot"
+                      data-selected={
+                        selectedId() === session.id ? "true" : undefined
+                      }
+                      onClick={() => setSelectedId(session.id)}
+                      aria-label={session.name}
+                    />
+                    <Show when={session.state === "open"}>
+                      <button
+                        type="button"
+                        class="interact-dot-discard"
+                        aria-label={`Discard ${session.name}`}
+                        onClick={() => discard(session.id)}
+                      >
+                        ×
+                      </button>
+                    </Show>
+                  </div>
                 )}
               </For>
             </div>
@@ -174,7 +331,7 @@ export function InteractView() {
                     </Show>
                   </div>
                   <small>
-                    {session.harness} · {session.age}
+                    {session.harness} · {ageFor(session.createdAt)}
                   </small>
                   <Tag
                     variant={
@@ -182,11 +339,11 @@ export function InteractView() {
                     }
                   >
                     {session.state === "open"
-                      ? session.changed
-                        ? `${session.changed} changed`
+                      ? session.changedFiles.length
+                        ? `${session.changedFiles.length} changed`
                         : "clean"
                       : session.state === "promoted"
-                        ? `→ #${session.task}`
+                        ? `→ #${session.boardTaskId}`
                         : "discarded"}
                   </Tag>
                 </article>
@@ -200,56 +357,123 @@ export function InteractView() {
         </footer>
       </aside>
       <main class="interact-center">
-        <FixtureNotice
-          surface="Interact sessions"
-          command='invoke("sessions_list")'
-        />
-        <header>
-          <div>
-            <Tag variant="outline">Interact</Tag>
-            <h1>{selected().name}</h1>
-            <small>{selected().harness} · token/cost shown</small>
-          </div>
-          <button
-            type="button"
-            aria-pressed={research()}
-            onClick={() => setResearch((value) => !value)}
-          >
-            {research() ? "Close research" : "Research"}
-          </button>
-        </header>
-        <section
-          class="interact-agent-panel"
-          data-testid="interact-agent-panel"
-        >
-          <AgentPane
-            runId={selected().id}
-            live={false}
-            session={panelSession(selected())}
-            events={panelEvents(selected().id)}
-            researchOpen={research()}
-            showResearchControl={false}
-            showResearchPane={false}
+        <Show when={!liveMode}>
+          <FixtureNotice
+            surface="Interact sessions"
+            command='invoke("interact_sessions_list")'
           />
-        </section>
-        <Show when={selected().state === "open"}>
-          <footer class="interact-actions">
-            <Button
-              variant="secondary"
-              data-testid="interact-commit"
-              onClick={() => setMergeOpen(true)}
-            >
-              Commit to branch
-            </Button>
-            <Button variant="secondary" onClick={() => discard(selected().id)}>
-              Discard
-            </Button>
-          </footer>
+        </Show>
+        <Show when={sessionsEnvelope().status === "loading"}>
+          <p data-testid="interact-loading">Loading sessions…</p>
+        </Show>
+        <Show when={sessionsEnvelope().status === "failed"}>
+          <InlineError
+            cause={
+              (
+                sessionsEnvelope() as {
+                  status: "failed";
+                  error: { message: string };
+                }
+              ).error.message
+            }
+            next="Reconnect to the Locus store and reopen Interact."
+          />
+        </Show>
+        <Show
+          when={sessionsEnvelope().status === "ready" && selected()}
+          fallback={
+            <Show when={sessionsEnvelope().status === "empty"}>
+              <p data-testid="interact-empty">
+                A session is a container, a branch and an agent you talk to
+                directly. Start one to try something without putting it on the
+                board.
+              </p>
+            </Show>
+          }
+        >
+          {(session) => (
+            <>
+              <header>
+                <div>
+                  <Tag variant="outline">Interact</Tag>
+                  <h1>{session().name}</h1>
+                  <small>{session().harness} · token/cost shown</small>
+                </div>
+                <button
+                  type="button"
+                  aria-pressed={research()}
+                  onClick={() => setResearch((value) => !value)}
+                >
+                  {research() ? "Close research" : "Research"}
+                </button>
+              </header>
+              <Show when={mutationError()}>
+                {(error) => (
+                  <InlineError
+                    cause={error()}
+                    next="The Interact action was not applied."
+                  />
+                )}
+              </Show>
+              <section
+                class="interact-agent-panel"
+                data-testid="interact-agent-panel"
+              >
+                <AgentPane
+                  runId={session().runId ?? session().id}
+                  live={liveMode && Boolean(session().runId)}
+                  session={panelSession(session())}
+                  events={liveMode ? undefined : session().events}
+                  researchOpen={research()}
+                  showResearchControl={false}
+                  showResearchPane={false}
+                  showCost
+                  permissionPosture={session().permissionPosture}
+                  onSend={(prompt) => sendPrompt(session(), prompt)}
+                />
+              </section>
+              <Show when={session().state === "open"}>
+                <footer class="interact-actions">
+                  <span class="interact-commit-action">
+                    <Button
+                      variant="secondary"
+                      data-testid="interact-commit"
+                      onClick={() => commit(session())}
+                    >
+                      Commit to branch
+                    </Button>
+                    <button
+                      type="button"
+                      data-testid="interact-commit-caret"
+                      aria-label="Open merge options"
+                      onClick={() => setMergeOpen(true)}
+                    >
+                      ▾
+                    </button>
+                  </span>
+                  <Button
+                    variant="secondary"
+                    data-testid="interact-promote"
+                    onClick={() => promote(session().id)}
+                  >
+                    Promote to card
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => discard(session().id)}
+                  >
+                    Discard
+                  </Button>
+                </footer>
+              </Show>
+            </>
+          )}
         </Show>
       </main>
       <MergeModal
         open={mergeOpen()}
-        branch={`interact/${selected().id}`}
+        branch={selected()?.branch}
+        repo={selected()?.repo ?? undefined}
         onClose={() => setMergeOpen(false)}
       />
       <aside class="interact-right" data-testid="interact-right-rail">
@@ -259,52 +483,49 @@ export function InteractView() {
             <>
               <header>
                 <h2>Changed this session</h2>
-                <small>repo · tapestry · base 6da8e0b</small>
+                <small>
+                  repo · {selected()?.repo ?? "unknown"} · base{" "}
+                  {selected()?.baseCommit ?? "unknown"}
+                </small>
               </header>
               <div class="interact-branch">
-                <code>interact/{selected().id}</code>
-                <span>{selected().changed} files</span>
+                <code>{selected()?.branch ?? "interact/unknown"}</code>
+                <span>{selected()?.changedFiles.length ?? 0} files</span>
               </div>
-              <For
-                each={
-                  selected().changed
-                    ? [
-                        "crates/locus-core/src/notify.rs",
-                        "apps/desktop/src/screens/interact/InteractView.tsx",
-                      ].slice(0, selected().changed)
-                    : []
-                }
-              >
-                {(path) => (
+              <For each={selected()?.changedFiles ?? []}>
+                {(file) => (
                   <div class="interact-file">
-                    <i>M</i>
-                    <span>{path}</span>
-                    <small>+12 −3</small>
+                    <i>{file.marker}</i>
+                    <span>{file.path}</span>
+                    <small>
+                      +{file.additions} −{file.removals}
+                    </small>
                   </div>
                 )}
               </For>
-              <Show when={!selected().changed}>
+              <Show when={(selected()?.changedFiles.length ?? 0) === 0}>
                 <p>
                   Nothing written yet — this session has only read and run
                   commands.
                 </p>
               </Show>
-              <p class="interact-state-note">{noteFor(selected().state)}</p>
+              <Show when={selected()}>
+                {(session) => (
+                  <p class="interact-state-note">{noteFor(session().state)}</p>
+                )}
+              </Show>
             </>
           }
         >
           <header>
             <h2>Research</h2>
-            <small>2 of 4 came from the plan</small>
+            <small>Live research is not yet available</small>
           </header>
-          <p>Findings replace Changed this session while research is open.</p>
-          <ul>
-            <li>seed · source citation</li>
-            <li>this run · claim → source</li>
-          </ul>
+          <p>Research replaces Changed this session while research is open.</p>
         </Show>
       </aside>
     </div>
   );
 }
+
 export default InteractView;

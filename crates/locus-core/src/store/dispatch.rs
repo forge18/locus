@@ -59,6 +59,7 @@ pub struct DispatchRun {
     pub agent_def_id: Uuid,
     pub resolved_model_id: String,
     pub status: String,
+    pub permission_posture: String,
     pub branch: String,
     pub board_task_id: Option<Uuid>,
     pub memory_base: Value,
@@ -77,6 +78,7 @@ struct DispatchRunRow {
     agent_def_id: Uuid,
     resolved_model_id: String,
     status: String,
+    permission_posture: String,
     branch: String,
     board_task_id: Option<Uuid>,
     memory_base: Value,
@@ -96,6 +98,7 @@ impl From<DispatchRunRow> for DispatchRun {
             agent_def_id: row.agent_def_id,
             resolved_model_id: row.resolved_model_id,
             status: row.status,
+            permission_posture: row.permission_posture,
             branch: row.branch,
             board_task_id: row.board_task_id,
             memory_base: row.memory_base,
@@ -114,7 +117,7 @@ impl Store {
         query_as::<_, DispatchRunRow>(
             "SELECT runs.id AS run_id, runs.session_id, sessions.project_id,
                     COALESCE(runs.agent_def_id, sessions.agent_def_id) AS agent_def_id,
-                    runs.resolved_model_id, runs.status, sessions.branch,
+                    runs.resolved_model_id, runs.status, runs.permission_posture, sessions.branch,
                     sessions.board_task_id, sessions.memory_base,
                     definitions.name AS agent_name, definitions.frontmatter AS agent_frontmatter,
                     definitions.body AS agent_body,
@@ -138,6 +141,23 @@ impl Store {
         .await
         .map(|row| row.map(Into::into))
         .context("load dispatch run")
+    }
+
+    /// Record the host runtime's stable container identity for discard and reconciliation.
+    pub async fn record_run_container(&self, run_id: RunId, container_id: &str) -> Result<()> {
+        let updated = query(
+            "UPDATE agents.runs SET container_id = $2
+             WHERE id = $1 AND status = 'running'",
+        )
+        .bind(run_id)
+        .bind(container_id)
+        .execute(self.pool())
+        .await
+        .context("record run container")?;
+        if updated.rows_affected() != 1 {
+            bail!("run `{run_id}` is not running")
+        }
+        Ok(())
     }
 
     /// Persist the terminal result and remove the run from the dispatch queue.

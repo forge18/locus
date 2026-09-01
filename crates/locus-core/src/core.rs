@@ -29,6 +29,7 @@ use crate::{
     ipc::{EventChannel, PtyChannel},
     lsp::{LanguageCatalog, LspHost},
     plugin::{builtin_manifests, PluginKind, PluginProcess, WorkItemProviderDescriptor},
+    repo::RepoManager,
     runtime::{
         backend::{RuntimeBackend, RuntimeConfig},
         container::{ContainerRuntime, DockerContainerRuntime},
@@ -464,6 +465,11 @@ impl Core {
         self.daemon.as_ref()
     }
 
+    /// Deliver a prompt to an already-running ACP conversation.
+    pub async fn prompt_run(&self, run_id: RunId, prompt: impl Into<String>) -> Result<()> {
+        self.daemon.lock().await.prompt_run(run_id, prompt)
+    }
+
     /// Launch one queue-claimed run from durable state. All inputs that affect
     /// the container are resolved by the host from the run, its session, and
     /// the project settings; no queue caller can substitute them.
@@ -510,7 +516,19 @@ impl Core {
                     .dispatch_run(run_id)
                     .await?
                     .ok_or_else(|| anyhow!("bot routine run disappeared before launch"))?;
-                self.spawn_dispatch_run(store, dispatch, runtime).await?;
+                if let Err(error) = self.spawn_dispatch_run(store, dispatch, runtime).await {
+                    let _ = store
+                        .finish_bot_run(start.bot_id, run_id, false, None)
+                        .await;
+                    let _ = store
+                        .complete_bot_routine_execution(
+                            start.execution_id,
+                            crate::services::bots::RoutineResult::failed(error.to_string()),
+                            Some(run_id),
+                        )
+                        .await;
+                    return Err(error);
+                }
                 started += 1;
             }
         }
@@ -597,7 +615,8 @@ impl Core {
                 "running" => RunStatus::Running,
                 status => bail!("dispatch run `{run_id}` has non-launchable status `{status}`"),
             },
-            permission_posture: PermissionPosture::default(),
+            permission_posture: PermissionPosture::parse(&dispatch.permission_posture)
+                .context("parse persisted run permission posture")?,
             events: Vec::new(),
             usage: None,
             exit_code: None,
@@ -618,6 +637,11 @@ impl Core {
         let socket_source = std::env::var_os("LOCUS_SOCKET_PATH")
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from("/run/locus.sock"));
+        if dispatch.branch.starts_with("interact/") {
+            RepoManager::default().ensure_interact_branch(&workspace_remote, &dispatch.branch)?;
+        } else if let Some(bot_id) = dispatch.branch.strip_prefix("bots/") {
+            RepoManager::default().ensure_bot_branch(&workspace_remote, bot_id)?;
+        }
         let request = SpawnRequest {
             project_id: &project_id,
             harness,
@@ -625,6 +649,9 @@ impl Core {
             config_root,
             socket_source,
             workspace_remote,
+            workspace_branch: (dispatch.branch.starts_with("bots/")
+                || dispatch.branch.starts_with("interact/"))
+            .then_some(dispatch.branch.as_str()),
             credential_proxy: run::CredentialProxyConfig::new(
                 "http://host.docker.internal:44000/",
             )?,
@@ -661,9 +688,27 @@ impl Core {
         if let Some(session) = spawned.acp_session.clone() {
             let store = store.clone();
             let daemon = self.daemon.clone();
+            let bot_context = store.bot_run_context(run_id).await?;
             tokio::spawn(async move {
                 session.wait_closed().await;
-                if let Err(error) = store.complete_dispatch_run(run_id, 0).await {
+                if let Some(context) = bot_context {
+                    if let Err(error) = store
+                        .finish_bot_run(context.bot_id, run_id, true, None)
+                        .await
+                    {
+                        tracing::warn!(%run_id, %error, "persist completed bot run");
+                    }
+                    if let Some(execution_id) = context.routine_execution_id {
+                        let result =
+                            crate::services::bots::RoutineResult::passed("ACP session completed");
+                        if let Err(error) = store
+                            .complete_bot_routine_execution(execution_id, result, Some(run_id))
+                            .await
+                        {
+                            tracing::warn!(%run_id, %error, "persisted bot routine completion failed");
+                        }
+                    }
+                } else if let Err(error) = store.complete_dispatch_run(run_id, 0).await {
                     tracing::warn!(%run_id, %error, "persist completed dispatch run");
                 }
                 daemon.lock().await.finish_run(run_id);

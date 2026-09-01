@@ -1,4 +1,4 @@
-import type { AgentEvent } from "../types/event";
+import type { AgentEvent } from "../types/event.ts";
 
 export type AgentPermissionPosture = "bypass" | "gated";
 export type AgentGateMode = "manual" | "auto";
@@ -28,7 +28,7 @@ export interface AgentPaneSession {
   harness: string;
   effort: string;
   name: string;
-  context: { used: number; total: number };
+  context?: { used: number; total: number };
   harnessOptions?: string[];
   modelOptions?: string[];
   effortOptions?: string[];
