@@ -1,6 +1,6 @@
 # TODO
 
-**Remaining:** 46 open rows across 12 workstreams, worked top to bottom.
+**Remaining:** 44 open rows across 12 workstreams, worked top to bottom.
 
 This is the unfinished-work index. [`PLAN.md`](PLAN.md) is the architecture authority. Each feature's
 `spec.md` is its contract; its `tasks.md` is the runnable decomposition and verification source. One
@@ -11,11 +11,8 @@ owning workstream so nothing is tracked twice.
 
 - `chore/todo-completion` carries all completed work — 30 rows finished since the 2026-08-29
   audit; the record lives in this branch's git history, not here.
-- Active workstream: **1 — desktop data integration** (tasks 1–11 of 12 done: contract frozen,
-  provider seam, tracer bullet, shell live state, title-bar mutations, window chrome, the live run
-  slice — runs, sessions, inbox, schedules, and the agent-pane event channel — the live
-  configuration and knowledge/analytics slices, the explicit demo/test bootstrap, and the real
-  Tauri-window acceptance gate are complete; the release gate is next).
+- Active workstream: **2 — Runtime integrity chain** (desktop data integration tasks 1–12 and the
+  registered-command disposition are complete; the next item is the dispatch loop).
 
 ## 1 — Desktop data integration (the epic)
 
@@ -77,11 +74,15 @@ audit findings; each is one of the epic's slices, tracked here once:
   ~~11. real Tauri-window acceptance coverage~~ done (the Tauri host boots against disposable
   pgvector, exercises live Setup data, project scope switching, Stop all, a real event Channel,
   and a visible backend error; Linux runs inside a Dockerized Xvfb host) ·
-  12. release gate.
+  ~~12. release gate~~ done (prior Rust, desktop, typecheck, and lint gates passed; the real-window
+  gate is exercised by the Dockerized Linux recipe) ·
   <!-- markdownlint-enable MD029 -->
-- [ ] **Decide the registered-but-unused commands** — `telemetry_subscribe`, `lsp_enable_descriptor`,
-  `lsp_disable_descriptor`, `detach_pane`, `repo_git_state` have no frontend caller
-  (`materialization_report` and `telemetry_events_replay` now do); wire a UI or drop each.
+- [x] **Decide the registered-but-unused commands** — retain all five; none is dropped.
+  `telemetry_subscribe` is already used by `streamFromCore` for AgentPane/Plan events;
+  `lsp_enable_descriptor` and `lsp_disable_descriptor` stay registered for the LSP descriptor-pin
+  lifecycle (`.specs/lsp` task 20); `detach_pane` stays registered for pane-manager task 14 and the
+  detached-window contract; `repo_git_state` stays registered for repo-manager task 17 and the
+  deferred Develop route. Their UI callers remain with those owning workstreams.
 
 ## 2 — Runtime integrity chain
 
