@@ -2,6 +2,7 @@ import { createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
 import type { JSX } from "solid-js";
 import { AppTitleBar } from "./AppTitleBar";
 import { ProjectRail } from "./ProjectRail";
+import { TabBar } from "./TabBar";
 import {
     LocatorPalette,
     type PaletteMode,
@@ -227,6 +228,11 @@ export function Shell(props: ShellProps) {
                 }
                 onDispatchOpenChange={setDispatchOpen}
                 storeHealth={storeHealth()}
+            />
+            <TabBar
+                view={props.nav.view()}
+                locator={props.nav.locatorPath()}
+                onNavigate={(view) => props.nav.go(view)}
             />
             <div class="body">
                 <ProjectRail
