@@ -131,6 +131,31 @@
 .planning-workspace-actions { display: flex; flex-wrap: wrap; align-content: flex-start; justify-content: flex-end; gap: var(--g-2); }
 .planning-workspace-state { width: 100%; min-height: 360px; margin-top: 16px; box-sizing: border-box; padding: 14px; border: 1px solid var(--border-subtle); border-radius: var(--r-sm); background: var(--surface-ground); color: var(--text-primary); font-family: var(--fm); font-size: var(--t-body); line-height: 1.5; resize: vertical; }
 .planning-workspace-message { margin: 12px 0 0; color: var(--text-secondary); font-size: var(--t-body); }
+.planning-room-tabs { display: flex; flex-wrap: wrap; gap: 0; margin: 16px 0 0; border-bottom: 1px solid var(--border-subtle); }
+.planning-room-tabs button { padding: 8px 12px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--text-muted); font: inherit; text-transform: capitalize; cursor: default; }
+.planning-room-tabs button:hover,
+.planning-room-tabs button[aria-selected='true'] { border-bottom-color: var(--action-attention); color: var(--text-primary); }
+.planning-room-panel { max-width: 900px; padding: 20px 0; }
+.planning-room-panel h2 { margin: 0 0 12px; color: var(--text-primary); font-size: var(--t-title); font-weight: 500; }
+.planning-room-lead { max-width: 760px; margin: 0 0 18px; color: var(--text-secondary); font-size: var(--t-row); line-height: 1.6; white-space: pre-wrap; }
+.planning-room-list { margin-top: 20px; }
+.planning-room-list h3 { margin: 0 0 8px; color: var(--text-muted); font-size: var(--t-label); font-weight: 500; letter-spacing: .12em; text-transform: uppercase; }
+.planning-room-list p { margin: 0; color: var(--text-muted); font-size: var(--t-body); }
+.planning-room-list ul { display: flex; flex-direction: column; gap: 6px; margin: 0; padding-left: 20px; color: var(--text-secondary); font-size: var(--t-body); line-height: 1.5; }
+.planning-room-facts { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 8px 16px; max-width: 600px; margin: 0 0 20px; font-size: var(--t-body); }
+.planning-room-facts dt { color: var(--text-muted); }
+.planning-room-facts dd { margin: 0; color: var(--text-primary); }
+.planning-room-card,
+.planning-room-coverage { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; padding: 12px; border: 1px solid var(--border-subtle); border-radius: var(--r-card); background: var(--surface-raised); }
+.planning-room-card strong,
+.planning-room-coverage strong { color: var(--text-primary); font-size: var(--t-row); font-weight: 500; }
+.planning-room-card span,
+.planning-room-coverage span { color: var(--text-secondary); font-size: var(--t-body); }
+.planning-room-card small,
+.planning-room-coverage small { color: var(--text-muted); font-size: var(--t-meta); }
+.planning-room-raw { display: flex; flex-direction: column; gap: 8px; margin-top: 24px; color: var(--text-muted); font-size: var(--t-label); }
+.planning-room-raw textarea { min-height: 300px; padding: 12px; border: 1px solid var(--border-subtle); border-radius: var(--r-sm); background: var(--surface-ground); color: var(--text-primary); font-family: var(--fm); font-size: var(--t-body); line-height: 1.5; resize: vertical; }
+
 @media (max-width: 800px) {
   .planning-workspace-grid { grid-template-columns: 1fr; }
   .planning-workspace-list { max-height: 45%; border-right: 0; border-bottom: 1px solid var(--border-subtle); }
