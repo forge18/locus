@@ -81,6 +81,7 @@ export function PlanningWorkspaceView(props: Props) {
   }
 
   async function loadRevisions(id: string) {
+    setRevisionEnvelope({ status: "loading" });
     const workspace = workspaces().find((row) => row.id === id);
     if (!workspace) {
       setRevisionEnvelope({ status: "empty" });
@@ -141,8 +142,10 @@ export function PlanningWorkspaceView(props: Props) {
       lifecycle,
       state,
     );
-    if (envelope.status === "ready") await load();
-    else if (envelope.status === "failed") setMessage(envelope.error.message);
+    if (envelope.status === "ready") {
+      await load();
+      await loadRevisions(workspace.id);
+    } else if (envelope.status === "failed") setMessage(envelope.error.message);
     setBusy(false);
   }
 
