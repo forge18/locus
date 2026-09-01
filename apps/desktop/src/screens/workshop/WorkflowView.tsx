@@ -1,6 +1,7 @@
-import { createSignal, For, Show, onMount } from "solid-js";
+import { createEffect, createSignal, For, Show } from "solid-js";
 import { dataProvider } from "../../data/provider";
 import { InlineError } from "../../ui/InlineError";
+import { PageProjectFilter } from "../PageProjectFilter";
 import { FixtureNotice } from "../../ui/FixtureNotice";
 import { Icon } from "../../ui/Icon";
 import {
@@ -23,6 +24,9 @@ import type { Envelope } from "../../data/envelope";
 import { WorkflowCanvas } from "../../workflow-canvas/WorkflowCanvas";
 
 function LiveWorkflowList(props: { projectId?: string }) {
+  const [selectedProjectId, setSelectedProjectId] = createSignal(
+    props.projectId,
+  );
   const [definitions, setDefinitions] = createSignal<
     Envelope<WorkflowDefinitionSummary[]>
   >({
@@ -37,24 +41,31 @@ function LiveWorkflowList(props: { projectId?: string }) {
     return envelope.status === "failed" ? envelope.error : undefined;
   };
 
-  onMount(() => {
-    if (!props.projectId) {
+  createEffect(() => {
+    const projectId = selectedProjectId();
+    setDefinitions({ status: "loading" });
+    if (!projectId) {
       setDefinitions({
         status: "failed",
         error: {
           command: "workflow_definitions",
-          message: "no project is selected",
+          message: "a project is required to read workflows",
         },
       });
       return;
     }
-    void fetchWorkflowDefinitions(props.projectId).then(setDefinitions);
+    void fetchWorkflowDefinitions(projectId).then(setDefinitions);
   });
 
   return (
     <div class="wf" data-testid="workflow" data-live-state="ready">
       <header class="ws-head">
         <span class="ws-title">Workflow definitions</span>
+        <PageProjectFilter
+          value={selectedProjectId()}
+          required
+          onChange={setSelectedProjectId}
+        />
         <span class="ws-note">Immutable project-owned versions</span>
       </header>
       <Show when={definitions().status === "loading"}>
