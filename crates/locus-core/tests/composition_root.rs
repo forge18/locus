@@ -40,26 +40,14 @@ fn the_store_is_absent_until_connected() {
     assert!(core.store().is_none());
 }
 
-#[test]
-fn the_daemon_is_owned_by_the_root_not_by_a_window() {
+#[tokio::test]
+async fn the_daemon_is_owned_by_the_root_not_by_a_window() {
     let core = Core::load(harnesses()).expect("core loads");
-    core.daemon().lock().expect("daemon lock").attach_window();
-    assert_eq!(
-        core.daemon()
-            .lock()
-            .expect("daemon lock")
-            .attached_windows(),
-        1
-    );
+    core.daemon().lock().await.attach_window();
+    assert_eq!(core.daemon().lock().await.attached_windows(), 1);
 
-    core.daemon().lock().expect("daemon lock").detach_window();
+    core.daemon().lock().await.detach_window();
     // Closing the window detaches the UI and nothing else — PLAN.md §Process topology.
-    assert_eq!(
-        core.daemon()
-            .lock()
-            .expect("daemon lock")
-            .attached_windows(),
-        0
-    );
+    assert_eq!(core.daemon().lock().await.attached_windows(), 0);
     assert_eq!(core.registry().len(), 11);
 }

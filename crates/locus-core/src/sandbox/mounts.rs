@@ -62,19 +62,13 @@ pub fn validate_agent_mounts(mounts: &[Mount]) -> Result<()> {
     Ok(())
 }
 
-/// The Docker exec attachment required to stream one terminal session through a host PTY.
+/// Output attachment options for a non-agent command executed in a container.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PtyAttachment {
     pub tty: bool,
     pub stdout: bool,
     pub stderr: bool,
 }
-
-pub const AGENT_PTY: PtyAttachment = PtyAttachment {
-    tty: true,
-    stdout: true,
-    stderr: true,
-};
 
 #[cfg(test)]
 mod tests {
@@ -105,17 +99,5 @@ mod tests {
         let mounts = agent_mounts("/tmp/socket", "/tmp/config");
         assert!(mounts.iter().all(|mount| mount.destination != "/workspace"));
         assert!(refuse_primary_branch("main").is_err());
-    }
-
-    #[test]
-    fn pty_attaches() {
-        assert_eq!(
-            AGENT_PTY,
-            PtyAttachment {
-                tty: true,
-                stdout: true,
-                stderr: true,
-            }
-        );
     }
 }

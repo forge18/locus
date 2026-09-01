@@ -225,6 +225,7 @@ impl std::error::Error for AgentSocketError {}
 #[derive(Default)]
 pub struct Daemon {
     active_runs: BTreeSet<RunId>,
+    active_spawns: BTreeMap<RunId, SpawnedRun>,
     attached_windows: usize,
     debug: DebugSessionRegistry,
 }
@@ -233,6 +234,7 @@ impl Daemon {
     pub fn with_debug(debug: DebugSessionRegistry) -> Self {
         Self {
             active_runs: BTreeSet::new(),
+            active_spawns: BTreeMap::new(),
             attached_windows: 0,
             debug,
         }
@@ -249,6 +251,7 @@ impl Daemon {
     }
     pub fn finish_run(&mut self, run_id: RunId) {
         self.active_runs.remove(&run_id);
+        self.active_spawns.remove(&run_id);
         self.debug.end_run(run_id);
     }
     pub fn tracks(&self, run_id: RunId) -> bool {
@@ -283,10 +286,11 @@ impl Daemon {
         store: &Store,
         run: &mut Run,
         request: SpawnRequest<'_>,
-        runtime: &mut impl ContainerRuntime,
+        runtime: &mut dyn ContainerRuntime,
     ) -> Result<SpawnedRun> {
         let spawned = run::spawn_persisted(store, run, request, runtime).await?;
         self.begin_run(run.id);
+        self.active_spawns.insert(run.id, spawned.clone());
         Ok(spawned)
     }
 }
@@ -898,8 +902,7 @@ mod bot_stop {
     use super::{stop_expired_bot, WarmStopAction};
     use crate::{
         ids::BotId,
-        runtime::container::{ContainerLaunch, ContainerRuntime, ImageDisposition, PtyStream},
-        sandbox::mounts::PtyAttachment,
+        runtime::container::{ContainerLaunch, ContainerRuntime, ImageDisposition},
     };
     use anyhow::Result;
 
@@ -914,10 +917,6 @@ mod bot_stop {
         }
 
         fn start_container(&mut self, _: &ContainerLaunch) -> Result<()> {
-            Ok(())
-        }
-
-        fn attach_pty(&mut self, _: &str, _: PtyAttachment, _: PtyStream) -> Result<()> {
             Ok(())
         }
 

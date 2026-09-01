@@ -4,6 +4,7 @@
 
 use crate::ids::{ProjectId, RunId};
 use anyhow::{bail, Context, Result};
+use serde_json::Value;
 use sqlx::{query, query_as, Row};
 use uuid::Uuid;
 
@@ -47,7 +48,145 @@ pub struct AutorunStateRow {
     pub state: String,
 }
 
+/// The durable inputs needed to launch one claimed queue entry. The supervisor
+/// resolves all remaining runtime policy from this row and the project settings;
+/// it never trusts a caller-supplied project or agent definition.
+#[derive(Clone, Debug)]
+pub struct DispatchRun {
+    pub run_id: Uuid,
+    pub session_id: Uuid,
+    pub project_id: Uuid,
+    pub agent_def_id: Uuid,
+    pub resolved_model_id: String,
+    pub status: String,
+    pub branch: String,
+    pub board_task_id: Option<Uuid>,
+    pub memory_base: Value,
+    pub agent_name: String,
+    pub agent_frontmatter: Value,
+    pub agent_body: String,
+    pub harness: Option<String>,
+    pub workspace_remote: Option<String>,
+}
+
+#[derive(sqlx::FromRow)]
+struct DispatchRunRow {
+    run_id: Uuid,
+    session_id: Uuid,
+    project_id: Uuid,
+    agent_def_id: Uuid,
+    resolved_model_id: String,
+    status: String,
+    branch: String,
+    board_task_id: Option<Uuid>,
+    memory_base: Value,
+    agent_name: String,
+    agent_frontmatter: Value,
+    agent_body: String,
+    harness: Option<String>,
+    workspace_remote: Option<String>,
+}
+
+impl From<DispatchRunRow> for DispatchRun {
+    fn from(row: DispatchRunRow) -> Self {
+        Self {
+            run_id: row.run_id,
+            session_id: row.session_id,
+            project_id: row.project_id,
+            agent_def_id: row.agent_def_id,
+            resolved_model_id: row.resolved_model_id,
+            status: row.status,
+            branch: row.branch,
+            board_task_id: row.board_task_id,
+            memory_base: row.memory_base,
+            agent_name: row.agent_name,
+            agent_frontmatter: row.agent_frontmatter,
+            agent_body: row.agent_body,
+            harness: row.harness,
+            workspace_remote: row.workspace_remote,
+        }
+    }
+}
+
 impl Store {
+    /// Load the complete host-owned launch context for one claimed run.
+    pub async fn dispatch_run(&self, run_id: RunId) -> Result<Option<DispatchRun>> {
+        query_as::<_, DispatchRunRow>(
+            "SELECT runs.id AS run_id, runs.session_id, sessions.project_id,
+                    COALESCE(runs.agent_def_id, sessions.agent_def_id) AS agent_def_id,
+                    runs.resolved_model_id, runs.status, sessions.branch,
+                    sessions.board_task_id, sessions.memory_base,
+                    definitions.name AS agent_name, definitions.frontmatter AS agent_frontmatter,
+                    definitions.body AS agent_body,
+                    NULLIF(definitions.frontmatter ->> 'harness', '') AS harness,
+                    (
+                        SELECT remotes.bare_path
+                        FROM core.local_remotes remotes
+                        JOIN core.repos repos ON repos.id = remotes.repo_id
+                        WHERE repos.project_id = sessions.project_id
+                        ORDER BY remotes.bare_path
+                        LIMIT 1
+                    ) AS workspace_remote
+             FROM agents.runs runs
+             JOIN agents.sessions sessions ON sessions.id = runs.session_id
+             JOIN agents.agent_defs definitions
+               ON definitions.id = COALESCE(runs.agent_def_id, sessions.agent_def_id)
+             WHERE runs.id = $1",
+        )
+        .bind(run_id)
+        .fetch_optional(self.pool())
+        .await
+        .map(|row| row.map(Into::into))
+        .context("load dispatch run")
+    }
+
+    /// Persist the terminal result and remove the run from the dispatch queue.
+    pub async fn complete_dispatch_run(&self, run_id: RunId, exit_code: i32) -> Result<()> {
+        query(
+            "UPDATE agents.runs
+             SET status = CASE WHEN $2 = 0 THEN 'completed' ELSE 'aborted' END,
+                 exit_code = $2, ended_at = now()
+             WHERE id = $1 AND status = 'running'",
+        )
+        .bind(run_id)
+        .bind(exit_code)
+        .execute(self.pool())
+        .await
+        .context("complete dispatch run")?;
+        query("DELETE FROM agents.dispatch_queue WHERE run_id = $1")
+            .bind(run_id)
+            .execute(self.pool())
+            .await
+            .context("remove completed dispatch run")?;
+        Ok(())
+    }
+
+    /// Mark a claimed run as aborted when the host cannot launch it. The queue
+    /// entry is removed so a malformed request cannot retry forever.
+    pub async fn abort_dispatch_run(&self, run_id: RunId, reason: &str) -> Result<()> {
+        let mut transaction = self.pool().begin().await.context("begin dispatch abort")?;
+        query(
+            "UPDATE agents.runs
+             SET status = 'aborted', ended_at = now(), cancel_reason = $2
+             WHERE id = $1 AND status = 'running'",
+        )
+        .bind(run_id)
+        .bind(reason)
+        .execute(&mut *transaction)
+        .await
+        .context("abort dispatch run")?;
+        query("DELETE FROM agents.dispatch_queue WHERE run_id = $1")
+            .bind(run_id)
+            .execute(&mut *transaction)
+            .await
+            .context("remove aborted dispatch run")?;
+        transaction
+            .commit()
+            .await
+            .context("commit dispatch abort")?;
+        Ok(())
+    }
+
     /// Read the durable, machine-wide dispatch policy.
     pub async fn dispatch_policy(&self) -> Result<DispatchPolicy> {
         let row = query(

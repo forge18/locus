@@ -25,13 +25,13 @@ use url::Url;
 use crate::{
     runtime::{
         backend::RuntimeBackend,
-        container::{ContainerLaunch, ContainerRuntime, ImageDisposition, PtyStream},
+        container::{ContainerLaunch, ContainerRuntime, ImageDisposition},
     },
     sandbox::{
         egress::{AuditSink, EgressTarget, EgressTier},
         forward_proxy::{ForwardProxyLaunch, ForwardProxyPolicy},
         image::shell_quote,
-        mounts::{validate_agent_mounts, PtyAttachment, AGENT_PTY},
+        mounts::{validate_agent_mounts, PtyAttachment},
         workspace::refuse_primary_branch,
         CONFIG_SOURCE,
     },
@@ -479,7 +479,6 @@ pub struct SbxContainerRuntime {
     config: SbxConfig,
     runner: Box<dyn SbxCommandRunner>,
     prepared: BTreeMap<String, PreparedLaunch>,
-    agent_processes: BTreeMap<String, Child>,
     git_daemons: BTreeMap<String, Child>,
     audit_sink: Option<Arc<dyn AuditSink>>,
     next_git_port: u16,
@@ -506,7 +505,6 @@ impl SbxContainerRuntime {
             config,
             runner,
             prepared: BTreeMap::new(),
-            agent_processes: BTreeMap::new(),
             git_daemons: BTreeMap::new(),
             audit_sink: None,
         })
@@ -858,12 +856,6 @@ impl SbxContainerRuntime {
             .map(|_| ())
     }
 
-    fn stop_agent_process(&mut self, name: &str) {
-        if let Some(mut child) = self.agent_processes.remove(name) {
-            terminate_child(&mut child);
-        }
-    }
-
     fn prepared_launch(&mut self, launch: &ContainerLaunch) -> Result<PreparedLaunch> {
         if !self.prepared.contains_key(&launch.name) {
             let mut copy = launch.clone();
@@ -873,25 +865,6 @@ impl SbxContainerRuntime {
             .get(&launch.name)
             .cloned()
             .ok_or_else(|| anyhow::anyhow!("sbx launch was not prepared"))
-    }
-
-    pub fn reattach_pty(&mut self, container: &str, stream: PtyStream) -> Result<()> {
-        validate_sbx_name(container)?;
-        if !self.prepared.contains_key(container) {
-            let prepared = load_persisted_launch(&self.config.scratch_root, container)?;
-            self.prepared.insert(container.into(), prepared);
-        }
-        let prepared = self
-            .prepared
-            .get(container)
-            .cloned()
-            .ok_or_else(|| anyhow::anyhow!("sbx launch metadata is missing"))?;
-        if let (Some(remote), Some(port)) = (&prepared.remote, prepared.git_port) {
-            if !self.git_daemons.contains_key(container) {
-                self.launch_git_daemon(container, remote, port)?;
-            }
-        }
-        <Self as ContainerRuntime>::attach_pty(self, container, AGENT_PTY, stream)
     }
 
     fn run_verify(
@@ -1077,20 +1050,6 @@ impl ContainerRuntime for SbxContainerRuntime {
                 "start stopped sbx agent sandbox",
             )?;
         }
-        Ok(())
-    }
-
-    fn attach_pty(
-        &mut self,
-        container: &str,
-        attachment: PtyAttachment,
-        stream: PtyStream,
-    ) -> Result<()> {
-        let prepared = self
-            .prepared
-            .get(container)
-            .cloned()
-            .ok_or_else(|| anyhow::anyhow!("sbx container `{container}` was not prepared"))?;
         let remote = prepared
             .git_port
             .map(|port| {
@@ -1102,41 +1061,28 @@ impl ContainerRuntime for SbxContainerRuntime {
             })
             .transpose()?
             .or(prepared.remote.clone());
-        let script = workspace_setup_command(&prepared.scratch, remote.as_ref(), &prepared.branch)?;
-        let args = Self::exec_args(
-            container,
-            PtyAttachment {
-                tty: false,
-                stdout: attachment.stdout,
-                stderr: attachment.stderr,
-            },
-            &script,
-            &prepared.launch.command,
-        )?;
-        let mut command = Command::new(&self.config.binary);
-        command
-            .args(&args)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-        #[cfg(unix)]
-        std::os::unix::process::CommandExt::process_group(&mut command, 0);
-        let mut child = command
-            .spawn()
-            .with_context(|| format!("spawn sbx exec for `{container}`"))?;
-        let stdout = child.stdout.take().context("capture sbx stdout")?;
-        let stderr = child.stderr.take().context("capture sbx stderr")?;
-        let first = stream.clone();
-        thread::spawn(move || forward_output(stdout, first));
-        let second = stream.clone();
-        thread::spawn(move || forward_output(stderr, second));
-        self.agent_processes.insert(container.into(), child);
+        if remote.is_some() {
+            let setup =
+                workspace_setup_command(&prepared.scratch, remote.as_ref(), &prepared.branch)?;
+            self.checked_sbx(
+                Self::exec_args(
+                    &launch.name,
+                    PtyAttachment {
+                        tty: false,
+                        stdout: false,
+                        stderr: false,
+                    },
+                    &setup,
+                    &["/bin/true".into()],
+                )?,
+                "prepare sbx agent workspace",
+            )?;
+        }
         Ok(())
     }
 
     fn stop_container(&mut self, container: &str) -> Result<()> {
         let audit = self.audit_container_policy(container);
-        self.stop_agent_process(container);
         let stopped = self.checked_sbx(
             vec!["stop".into(), container.into()],
             "stop sbx agent sandbox",
@@ -1150,7 +1096,6 @@ impl ContainerRuntime for SbxContainerRuntime {
     }
 
     fn remove_container(&mut self, container: &str) -> Result<()> {
-        self.stop_agent_process(container);
         let state = self.sandbox_state(container)?;
         let result = if state == SbxSandboxState::Missing {
             Ok(())
@@ -1200,9 +1145,6 @@ impl ContainerRuntime for SbxContainerRuntime {
 
 impl Drop for SbxContainerRuntime {
     fn drop(&mut self) {
-        for (_, mut child) in std::mem::take(&mut self.agent_processes) {
-            terminate_child(&mut child);
-        }
         for (_, mut child) in std::mem::take(&mut self.git_daemons) {
             terminate_child(&mut child);
         }
@@ -1214,8 +1156,11 @@ impl crate::runtime::boot::BootRuntime for SbxContainerRuntime {
         <Self as ContainerRuntime>::container_is_alive(self, container)
     }
 
-    fn reattach_pty(&mut self, container: &str, stream: PtyStream) -> Result<()> {
-        SbxContainerRuntime::reattach_pty(self, container, stream)
+    fn reattach_agent(&mut self, container: &str) -> Result<()> {
+        if !<Self as ContainerRuntime>::container_is_alive(self, container)? {
+            bail!("agent sandbox `{container}` is not running")
+        }
+        Ok(())
     }
 }
 
@@ -1405,6 +1350,7 @@ fn persist_launch(scratch_root: &Path, prepared: &PreparedLaunch) -> Result<()> 
     Ok(())
 }
 
+#[cfg(test)]
 fn load_persisted_launch(scratch_root: &Path, name: &str) -> Result<PreparedLaunch> {
     let scratch = scratch_root.join(name);
     reject_symlink(&scratch, "sbx scratch path")?;
@@ -1469,6 +1415,7 @@ fn reject_symlink(path: &Path, label: &str) -> Result<()> {
     }
 }
 
+#[cfg(test)]
 fn validate_scratch_layout(scratch: &Path) -> Result<()> {
     reject_symlink(&scratch.join(".locus"), "sbx scratch Locus directory")?;
     reject_symlink(
@@ -1613,18 +1560,6 @@ fn read_command_output<R: Read>(mut reader: R) -> io::Result<Vec<u8>> {
         ));
     }
     Ok(bytes)
-}
-
-fn forward_output<R: Read>(mut reader: R, stream: PtyStream) {
-    let mut buffer = [0_u8; 16 * 1024];
-    loop {
-        match reader.read(&mut buffer) {
-            Ok(0) | Err(_) => break,
-            Ok(count) => {
-                stream.write(&buffer[..count]);
-            }
-        }
-    }
 }
 
 fn display_stderr(stderr: &[u8]) -> String {

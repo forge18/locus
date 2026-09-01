@@ -19,7 +19,7 @@ use std::{
 use anyhow::{Context, Result};
 use locus_core::{
     core::Core,
-    ids::{RunId, SessionId, TaskId},
+    ids::{RoutineId, RunId, SessionId, TaskId},
     lsp::{parse_cli_request, LanguageCatalog},
     runtime::{
         backend::RuntimeBackend,
@@ -682,6 +682,27 @@ impl AgentSocketRouter for DaemonRouter {
     }
 }
 
+async fn dispatch_loop(core: Arc<Core>) -> Result<()> {
+    let mut runtime = core.connect_container_runtime()?;
+    let mut seen_bot_routine_minutes = BTreeMap::<RoutineId, i64>::new();
+    loop {
+        if let Err(error) = core
+            .fire_due_bot_routines(&mut seen_bot_routine_minutes, &mut *runtime)
+            .await
+        {
+            eprintln!("bot routine poll failed: {error}");
+        }
+        match core.dispatch_once(&mut *runtime).await {
+            Ok(started) if !started.is_empty() => {
+                eprintln!("started {} queued agent runs", started.len());
+            }
+            Ok(_) => {}
+            Err(error) => eprintln!("dispatch poll failed: {error}"),
+        }
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
+}
+
 fn main() -> Result<()> {
     let registry = env::var("LOCUS_HARNESS_REGISTRY")
         .map(PathBuf::from)
@@ -770,6 +791,12 @@ fn main() -> Result<()> {
                             );
                         }
                     }
+                }
+            });
+            let dispatch_core = core.clone();
+            tokio::spawn(async move {
+                if let Err(error) = dispatch_loop(dispatch_core).await {
+                    eprintln!("dispatch loop stopped: {error}");
                 }
             });
         }
@@ -977,15 +1004,6 @@ mod tests {
         fn start_container(
             &mut self,
             _container: &locus_core::runtime::container::ContainerLaunch,
-        ) -> anyhow::Result<()> {
-            Ok(())
-        }
-
-        fn attach_pty(
-            &mut self,
-            _container: &str,
-            _attachment: locus_core::sandbox::mounts::PtyAttachment,
-            _stream: locus_core::runtime::container::PtyStream,
         ) -> anyhow::Result<()> {
             Ok(())
         }

@@ -3,20 +3,21 @@
 use crate::ids::{ProjectId, RunId, SessionId};
 use std::{path::PathBuf, sync::Arc};
 
+use crate::ipc::PtyChannel;
+
 use anyhow::{bail, Context, Result};
 
 use crate::runtime::{
     acp::{AgentSession, UpdateStream},
     backend::RuntimeBackend,
-    container::{
-        ContainerLaunch, ContainerRuntime, ImageDisposition, PtyStream, PTY_STREAM_CAPACITY,
-    },
+    container::{ContainerLaunch, ContainerRuntime, ImageDisposition},
 };
 use crate::{
     harness::{
         materialize::{
-            extensions::ExtensionSet, extensions::ProjectExtensionScope, materialize,
-            plugin::PluginHost, report::MaterializationReport, tree::MaterializedTree,
+            context::assemble_frozen_head, extensions::ExtensionSet,
+            extensions::ProjectExtensionScope, materialize, plugin::PluginHost,
+            report::MaterializationReport, tree::MaterializedTree,
         },
         registry::HarnessDefinition,
     },
@@ -28,13 +29,16 @@ use crate::{
         image::agent_image_tag,
         image::ToolPin,
         mounts::agent_mounts,
-        mounts::AGENT_PTY,
         ports::project_network,
         ports::PortAllocator,
     },
     services::telemetry::EventCollector,
     services::{
         handoff::HandoffContext,
+        memory::{
+            recall_with_settings, ContextBudget, DurableMemoryStore, FrozenCatalog, RecallSettings,
+            TaskClass,
+        },
         project::ProjectSettings,
         tools::{ProjectToolScope, RoleToolScope},
     },
@@ -151,6 +155,75 @@ pub fn append_recitation_tail(head: &str, block: Option<&RecitationBlock>) -> St
     }
 }
 
+/// The run-local context assembled from the frozen head, bounded recall, and
+/// mutable recitation tail. The head and tail are kept separate so callers can
+/// cache the former without rebuilding it on every turn.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RunContextAssembly {
+    pub frozen_head: String,
+    pub mutable_tail: String,
+    pub recitation: Option<RecitationBlock>,
+    pub recalled_ids: Vec<String>,
+}
+
+pub struct RunContextRequest<'a> {
+    pub base_context: &'a str,
+    pub memory: &'a mut DurableMemoryStore,
+    pub project_id: ProjectId,
+    pub query: &'a str,
+    pub embedding: &'a [f32],
+    pub task_class: TaskClass,
+    pub effective_window_tokens: usize,
+    pub state: RecitationState,
+}
+
+pub fn assemble_run_context(request: RunContextRequest<'_>) -> RunContextAssembly {
+    let RunContextRequest {
+        base_context,
+        memory,
+        project_id,
+        query,
+        embedding,
+        task_class,
+        effective_window_tokens,
+        state,
+    } = request;
+    let recalled_ids = recall_with_settings(
+        memory,
+        project_id,
+        None,
+        query,
+        embedding,
+        task_class,
+        RecallSettings::default(),
+    )
+    .into_iter()
+    .map(|(id, _)| id)
+    .collect::<Vec<_>>();
+    let entries = memory.entries().cloned().collect::<Vec<_>>();
+    let frozen = FrozenCatalog::start(&entries);
+    let budget = ContextBudget::from_effective_window(effective_window_tokens);
+    let mut tail = frozen.tail(budget);
+    for id in &recalled_ids {
+        if let Some(entry) = memory.get(id) {
+            tail.append(entry);
+        }
+    }
+    let frozen_head = assemble_frozen_head([
+        ("base-context", base_context),
+        ("memory-catalog", frozen.snapshot().text.as_str()),
+    ]);
+    let mut emitter = RecitationEmitter::default();
+    let recitation = emitter.on_task_state_change(state);
+    let mutable_tail = append_recitation_tail(tail.text(), recitation.as_ref());
+    RunContextAssembly {
+        frozen_head,
+        mutable_tail,
+        recitation,
+        recalled_ids,
+    }
+}
+
 /// Read boundary for the state that a connected run may observe.
 pub trait RunStateStore {
     fn read_run(&self, run_id: RunId) -> Result<Run>;
@@ -224,15 +297,15 @@ pub trait Inbox {
 }
 
 /// A human-owned shell shares the pane plumbing but deliberately has no run identity.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct HumanTerminal {
-    pub pty: PtyStream,
+    pub pty: PtyChannel,
 }
 
 impl HumanTerminal {
     pub fn open() -> Self {
         Self {
-            pty: PtyStream::new(PTY_STREAM_CAPACITY),
+            pty: PtyChannel::new(1_024),
         }
     }
 }
@@ -339,11 +412,11 @@ struct AgentRunRegistrationGuard(Arc<RegistrationLease>);
 pub struct SpawnedRun {
     pub container: ContainerLaunch,
     pub config: MaterializedTree,
+    pub context: RunContextAssembly,
     pub materialization: MaterializationReport,
     pub image: String,
     pub image_disposition: ImageDisposition,
     pub port: u16,
-    pub pty_stream: PtyStream,
     /// Bus carrying the run's streamed ACP `session/update` notifications. The
     /// conversation itself is established by `start_acp_session` on the persisted
     /// spawn path and stored in `acp_session`.
@@ -355,12 +428,12 @@ pub struct SpawnedRun {
     registration: AgentRunRegistrationGuard,
 }
 
-/// Materialize the run configuration, ensure its agent image, then start and attach its PTY.
+/// Materialize the run configuration, ensure its agent image, then start its ACP container.
 pub fn spawn(
     run: &mut Run,
     request: SpawnRequest<'_>,
     ports: &PortAllocator,
-    runtime: &mut impl ContainerRuntime,
+    runtime: &mut dyn ContainerRuntime,
 ) -> Result<SpawnedRun> {
     let forwarding =
         ForwardProxyLaunch::for_project(request.project_id, request.egress_policy_root.clone())?;
@@ -383,15 +456,30 @@ fn spawn_at_port(
     run: &mut Run,
     request: SpawnRequest<'_>,
     port: u16,
-    runtime: &mut impl ContainerRuntime,
+    runtime: &mut dyn ContainerRuntime,
 ) -> Result<SpawnedRun> {
-    if run.status != RunStatus::Queued {
-        bail!("only queued runs may be spawned")
+    if !matches!(run.status, RunStatus::Queued | RunStatus::Running) {
+        bail!("only queued or claimed runs may be spawned")
     }
 
     let extensions = request
         .extensions
         .project_scoped(&request.project_extension_scope);
+    let mut memory = DurableMemoryStore::default();
+    let context = assemble_run_context(RunContextRequest {
+        base_context: request.project_settings.base_context().unwrap_or_default(),
+        memory: &mut memory,
+        project_id: request.project_id.parse().unwrap_or_default(),
+        query: "",
+        embedding: &[],
+        task_class: TaskClass::Code,
+        effective_window_tokens: request
+            .project_settings
+            .base_context_token_budget()
+            .map(|value| value as usize)
+            .unwrap_or(128_000),
+        state: RecitationState::without_plan(),
+    });
     let (config, materialization) = materialize(
         request.harness,
         &extensions,
@@ -571,25 +659,17 @@ fn spawn_at_port(
     runtime
         .start_container(&container)
         .context("start agent container")?;
-    let pty_stream = PtyStream::new(PTY_STREAM_CAPACITY);
-    if let Err(attach_error) = runtime.attach_pty(&container.name, AGENT_PTY, pty_stream.clone()) {
-        if let Err(stop_error) = runtime.stop_container(&container.name) {
-            return Err(attach_error).context(format!(
-                "attach agent PTY; failed to stop partially started container: {stop_error}"
-            ));
-        }
-        return Err(attach_error).context("attach agent PTY");
-    }
-
+    // ACP owns the agent's only I/O path. The container is intentionally started
+    // without a TTY; `start_acp_session` opens its stdin/stdout transport explicitly.
     run.status = RunStatus::Running;
     Ok(SpawnedRun {
         container,
         config,
+        context,
         materialization,
         image,
         image_disposition,
         port,
-        pty_stream,
         acp_updates: UpdateStream::new(ACP_UPDATE_CAPACITY),
         acp_session: None,
         registration,
@@ -602,7 +682,7 @@ pub async fn spawn_persisted(
     store: &Store,
     run: &mut Run,
     mut request: SpawnRequest<'_>,
-    runtime: &mut impl ContainerRuntime,
+    runtime: &mut dyn ContainerRuntime,
 ) -> Result<SpawnedRun> {
     let project_id: ProjectId = request
         .project_id
@@ -666,8 +746,8 @@ pub async fn spawn_persisted(
 /// Establish the run's ACP conversation inside its container: exec the harness
 /// binary over the container runtime's stdio transport and answer `session/new`
 /// with the workspace cwd, storing the session on the spawned run. Streamed
-/// `session/update` notifications flow on the run's `acp_updates` bus. The PTY
-/// stays attached; its retirement is a separate TODO row.
+/// `session/update` notifications flow on the run's `acp_updates` bus. ACP is the
+/// agent's only I/O path; no terminal stream is attached.
 async fn start_acp_session(
     spawned: &mut SpawnedRun,
     backend: RuntimeBackend,
@@ -831,7 +911,7 @@ mod human_terminal_is_not_a_session {
         let terminal = HumanTerminal::open();
         let mut ui = terminal.pty.subscribe();
 
-        terminal.pty.write(b"human command output");
+        terminal.pty.send(b"human command output");
 
         assert_eq!(
             ui.recv().await.expect("terminal bytes"),
@@ -1015,11 +1095,8 @@ mod cancels {
     use crate::ids::{RunId, SessionId};
     use anyhow::Result;
 
-    use super::{cancel, ContainerLaunch, ContainerRuntime, ImageDisposition, PtyStream};
-    use crate::{
-        runtime::session::{Artifact, Run, RunStatus},
-        sandbox::mounts::PtyAttachment,
-    };
+    use super::{cancel, ContainerLaunch, ContainerRuntime, ImageDisposition};
+    use crate::runtime::session::{Artifact, Run, RunStatus};
 
     #[derive(Default)]
     struct RecordingRuntime {
@@ -1033,10 +1110,6 @@ mod cancels {
 
         fn start_container(&mut self, _: &ContainerLaunch) -> Result<()> {
             unreachable!("cancel does not start containers")
-        }
-
-        fn attach_pty(&mut self, _: &str, _: PtyAttachment, _: PtyStream) -> Result<()> {
-            unreachable!("cancel does not attach PTYs")
         }
 
         fn stop_container(&mut self, container: &str) -> Result<()> {
@@ -1085,7 +1158,7 @@ mod spawns {
         path::{Path, PathBuf},
     };
 
-    use anyhow::{bail, Result};
+    use anyhow::Result;
     use serde_json::json;
     use uuid::Uuid;
 
@@ -1096,19 +1169,13 @@ mod spawns {
             registry::{load_from_directory, HarnessDefinition},
         },
         runtime::session::{Run, RunStatus},
-        sandbox::{
-            image::agent_image_tag, image::ToolPin, mounts::Mount, mounts::PtyAttachment,
-            mounts::AGENT_PTY, CONFIG_SOURCE,
-        },
+        sandbox::{image::agent_image_tag, image::ToolPin, mounts::Mount, CONFIG_SOURCE},
     };
 
     #[derive(Default)]
     struct RecordingRuntime {
         calls: Vec<String>,
         started: Option<ContainerLaunch>,
-        attached: Option<(String, PtyAttachment)>,
-        pty_stream: Option<PtyStream>,
-        fail_attach: bool,
     }
 
     impl ContainerRuntime for RecordingRuntime {
@@ -1120,21 +1187,6 @@ mod spawns {
         fn start_container(&mut self, container: &ContainerLaunch) -> Result<()> {
             self.calls.push(format!("start:{}", container.name));
             self.started = Some(container.clone());
-            Ok(())
-        }
-
-        fn attach_pty(
-            &mut self,
-            container: &str,
-            attachment: PtyAttachment,
-            stream: PtyStream,
-        ) -> Result<()> {
-            self.calls.push(format!("pty:{container}"));
-            if self.fail_attach {
-                bail!("attach fails")
-            }
-            self.attached = Some((container.into(), attachment));
-            self.pty_stream = Some(stream);
             Ok(())
         }
 
@@ -1284,8 +1336,7 @@ mod spawns {
                 "network:locus-project-1-internal".into(),
                 "proxy:locus-egress-proxy-project-1".into(),
                 format!("image:{image}"),
-                format!("start:locus-agent-{run_id}"),
-                format!("pty:locus-agent-{run_id}")
+                format!("start:locus-agent-{run_id}")
             ]
         );
         assert_eq!(spawned.image_disposition, ImageDisposition::Built);
@@ -1361,91 +1412,7 @@ mod spawns {
             .iter()
             .any(|value| value.contains("test-secret")));
         assert!(credential_proxy_authorizer.audit_rows().is_empty());
-        assert_eq!(
-            runtime.attached,
-            Some((spawned.container.name.clone(), AGENT_PTY))
-        );
-        let mut ui = spawned.pty_stream.subscribe();
-        assert_eq!(
-            runtime
-                .pty_stream
-                .as_ref()
-                .expect("runtime received PTY stream")
-                .write(b"agent output"),
-            1
-        );
-        assert_eq!(
-            ui.try_recv().expect("UI receives PTY bytes"),
-            b"agent output"
-        );
 
-        let _ = fs::remove_dir_all(config_root);
-    }
-
-    #[tokio::test]
-    async fn stops_the_container_when_pty_attachment_fails() {
-        let registry =
-            load_from_directory(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../harnesses"))
-                .expect("registry loads");
-        let mut extensions = ExtensionSet::default();
-        extensions.insert(
-            "context",
-            vec![ExtensionEntry::new("base.md", json!({}), "base context")],
-        );
-        let config_root = root();
-        let run_id = RunId::generate();
-        let mut run = Run {
-            id: run_id,
-            session_id: SessionId::generate(),
-            resolved_model_id: "test-model".into(),
-            status: RunStatus::Queued,
-            permission_posture: Default::default(),
-            events: vec![],
-            usage: None,
-            exit_code: None,
-            cancel_reason: None,
-            native_session_id: None,
-            artifacts: vec![],
-        };
-        let credential_proxy_authorizer = CredentialProxy::new("test-secret", "api_key");
-        let collector = EventCollector::new(1024);
-        let request = spawn_request(
-            registry.by_name("claude").expect("claude harness"),
-            &extensions,
-            config_root.clone(),
-            &credential_proxy_authorizer,
-            ProjectSettings::default(),
-            &collector,
-        );
-        let mut runtime = RecordingRuntime {
-            fail_attach: true,
-            ..Default::default()
-        };
-
-        let _fixed_port = crate::testkit::postgres::serialize_fixed_port();
-        let error = spawn_at_port(&mut run, request, 43_210, &mut runtime)
-            .expect_err("failed attachment rolls back the container");
-
-        assert!(error.to_string().contains("attach agent PTY"));
-        assert_eq!(run.status, RunStatus::Queued);
-        let image = agent_image_tag(
-            "sha256:base",
-            &[ToolPin {
-                name: "rg".into(),
-                version: "14".into(),
-            }],
-        );
-        assert_eq!(
-            runtime.calls,
-            [
-                "network:locus-project-1-internal".into(),
-                "proxy:locus-egress-proxy-project-1".into(),
-                format!("image:{image}"),
-                format!("start:locus-agent-{run_id}"),
-                format!("pty:locus-agent-{run_id}"),
-                format!("stop:locus-agent-{run_id}"),
-            ]
-        );
         let _ = fs::remove_dir_all(config_root);
     }
 }

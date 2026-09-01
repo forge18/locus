@@ -201,6 +201,23 @@ impl Store {
             .ok_or_else(|| anyhow::anyhow!("bot `{bot_id}` was not found"))
     }
 
+    /// Return the one active run created for a bot's home session.
+    pub async fn active_bot_run(&self, bot_id: BotId) -> Result<Option<RunId>> {
+        query_scalar::<_, Uuid>(
+            "SELECT runs.id
+             FROM agents.runs runs
+             JOIN bots.bots bots ON bots.home_session_id = runs.session_id
+             WHERE bots.id = $1 AND runs.status = 'running'
+             ORDER BY runs.created_at DESC
+             LIMIT 1",
+        )
+        .bind(bot_id)
+        .fetch_optional(self.pool())
+        .await
+        .map(|run_id| run_id.map(Into::into))
+        .context("read active bot run")
+    }
+
     pub async fn set_bot_warm_window(
         &self,
         project_id: ProjectId,
@@ -599,6 +616,19 @@ impl Store {
         .fetch_all(self.pool())
         .await
         .context("list bot routines")?;
+        rows.into_iter().map(RoutineRow::into_routine).collect()
+    }
+
+    /// All routines for the headless scheduler. The bot id remains on each
+    /// row so the scheduler can claim overlap atomically in the store.
+    pub async fn all_bot_routines(&self) -> Result<Vec<BotRoutine>> {
+        let rows = query_as::<_, RoutineRow>(
+            "SELECT id, bot_id, prompt, cron_expression, enabled, skipped_count, schedule_id
+             FROM bots.routines ORDER BY created_at, id",
+        )
+        .fetch_all(self.pool())
+        .await
+        .context("list all bot routines")?;
         rows.into_iter().map(RoutineRow::into_routine).collect()
     }
 
