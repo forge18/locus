@@ -1,4 +1,4 @@
-import { createSignal, For, Show } from "solid-js";
+import { createMemo, createSignal, For, Show } from "solid-js";
 import { Button } from "../../ui/Button";
 import { Input } from "../../ui/Input";
 import { Tag } from "../../ui/Tag";
@@ -288,7 +288,11 @@ function Materialization(props: { type: ExtensionEditorType }) {
     );
 }
 
-function Frontmatter(props: { type: ExtensionEditorType }) {
+function Frontmatter(props: {
+    type: ExtensionEditorType;
+    values: Record<string, string>;
+    onChange: (name: string, value: string) => void;
+}) {
     return (
         <section class="extension-frontmatter" data-testid="frontmatter">
             <header>
@@ -308,11 +312,21 @@ function Frontmatter(props: { type: ExtensionEditorType }) {
                             <code>{name}</code>
                             <Show
                                 when={name === "default_effort"}
-                                fallback={<Input value={value} readOnly />}
+                                fallback={
+                                    <Input
+                                        value={props.values[name] ?? value}
+                                        onInput={(event) =>
+                                            props.onChange(name, event.currentTarget.value)
+                                        }
+                                    />
+                                }
                             >
                                 <select
                                     aria-label="Default effort"
-                                    value={value}
+                                    value={props.values[name] ?? value}
+                                    onChange={(event) =>
+                                        props.onChange(name, event.currentTarget.value)
+                                    }
                                 >
                                     {EFFORTS.map((effort) => (
                                         <option value={effort}>{effort}</option>
@@ -333,7 +347,7 @@ function Frontmatter(props: { type: ExtensionEditorType }) {
     );
 }
 
-function HarnessDetails() {
+function HarnessDetails(props: { onAddConfigKey: () => void }) {
     const [autorouting, setAutorouting] = createSignal(true);
     return (
         <>
@@ -425,7 +439,7 @@ function HarnessDetails() {
                     <span>bypass</span>
                     <Tag variant="neutral">string</Tag>
                 </div>
-                <Button variant="ghost">Add config key</Button>
+                <Button variant="ghost" onClick={props.onAddConfigKey}>Add config key</Button>
             </section>
         </>
     );
@@ -433,6 +447,33 @@ function HarnessDetails() {
 
 export function ExtensionEditor(props: { type: ExtensionEditorType }) {
     const label = LABELS[props.type];
+    const [items, setItems] = createSignal([...ITEMS[props.type]]);
+    const [selectedItem, setSelectedItem] = createSignal(items()[0] ?? "");
+    const [sortByName, setSortByName] = createSignal(false);
+    const [historyOpen, setHistoryOpen] = createSignal(false);
+    const [saved, setSaved] = createSignal(true);
+    const [values, setValues] = createSignal<Record<string, string>>(
+        Object.fromEntries(FIELDS[props.type]),
+    );
+    const [configKeys, setConfigKeys] = createSignal<string[]>([]);
+    const displayedItems = createMemo(() =>
+        sortByName() ? [...items()].sort() : items(),
+    );
+    const updateField = (name: string, value: string) => {
+        setValues((current) => ({ ...current, [name]: value }));
+        setSaved(false);
+    };
+    const addItem = () => {
+        const name = `${SINGULAR[props.type]}-${items().length + 1}`;
+        setItems((current) => [...current, name]);
+        setSelectedItem(name);
+        setSaved(false);
+    };
+    const addConfigKey = () => {
+        const name = `config-${configKeys().length + 1}`;
+        setConfigKeys((current) => [...current, name]);
+        setSaved(false);
+    };
     return (
         <div
             class="extension-editor"
@@ -452,24 +493,34 @@ export function ExtensionEditor(props: { type: ExtensionEditorType }) {
                         {ITEMS[props.type].length}
                     </span>
                     <p>{BLURBS[props.type]}</p>
-                    <Button variant="primary" data-testid="extension-new">
+                    <Button
+                        variant="primary"
+                        data-testid="extension-new"
+                        onClick={addItem}
+                    >
                         New {SINGULAR[props.type]}
                     </Button>
                 </header>
                 <div class="extension-sort">
                     <span>Items</span>
-                    <button type="button">Sort: recently edited</button>
+                    <button
+                        type="button"
+                        onClick={() => setSortByName((current) => !current)}
+                    >
+                        Sort: {sortByName() ? "name" : "recently edited"}
+                    </button>
                 </div>
-                <For each={ITEMS[props.type]}>
-                    {(item, index) => (
+                <For each={displayedItems()}>
+                    {(item) => (
                         <button
                             type="button"
                             class="extension-item"
                             data-testid={`extension-item-${item}`}
-                            aria-selected={index() === 0 ? "true" : "false"}
+                            aria-selected={selectedItem() === item ? "true" : "false"}
+                            onClick={() => setSelectedItem(item)}
                         >
                             <span>{item}</span>
-                            <small>v{4 - index()}</small>
+                            <small>v{4 - items().indexOf(item)}</small>
                         </button>
                     )}
                 </For>
@@ -484,24 +535,38 @@ export function ExtensionEditor(props: { type: ExtensionEditorType }) {
             <main class="extension-editor-main">
                 <header class="extension-editor-head">
                     <div>
-                        <h1>{ITEMS[props.type][0]}</h1>
-                        <p>{label} · version 4 · last edited 2h ago</p>
+                        <h1>{selectedItem()}</h1>
+                        <p>{label} · version 4 · {saved() ? "saved" : "unsaved changes"}</p>
                     </div>
                     <div class="ws-actions">
                         <Button
                             variant="secondary"
                             data-testid="extension-history"
+                            onClick={() => setHistoryOpen((current) => !current)}
                         >
                             History
                         </Button>
-                        <Button variant="primary" data-testid="extension-save">
+                        <Button
+                            variant="primary"
+                            data-testid="extension-save"
+                            onClick={() => setSaved(true)}
+                        >
                             Save
                         </Button>
                     </div>
                 </header>
-                <Frontmatter type={props.type} />
+                <Frontmatter
+                    type={props.type}
+                    values={values()}
+                    onChange={updateField}
+                />
+                <Show when={historyOpen()}>
+                    <section class="extension-history" data-testid="extension-history-panel">
+                        v4 · current draft<br />v3 · edited yesterday
+                    </section>
+                </Show>
                 <Show when={props.type === "harnesses"}>
-                    <HarnessDetails />
+                    <HarnessDetails onAddConfigKey={addConfigKey} />
                 </Show>
                 <Show
                     when={
@@ -529,6 +594,12 @@ export function ExtensionEditor(props: { type: ExtensionEditorType }) {
                         <label>
                             <input type="checkbox" checked /> rg
                         </label>
+                    </section>
+                </Show>
+                <Show when={configKeys().length > 0}>
+                    <section class="extension-config-keys" data-testid="extension-config-keys">
+                        <h2>Added config keys</h2>
+                        <For each={configKeys()}>{(key) => <code>{key}</code>}</For>
                     </section>
                 </Show>
                 <section class="extension-body" data-testid="extension-body">
