@@ -160,7 +160,14 @@ export function Shell(props: ShellProps) {
     );
     const storeHealth = createMemo<StoreHealth | undefined>(() => {
         const envelope = healthEnvelope();
-        return envelope.status === "ready" ? envelope.data : undefined;
+        if (envelope.status === "ready") return envelope.data;
+        if (envelope.status === "failed") {
+            return {
+                status: "unavailable",
+                message: envelope.error.message,
+            };
+        }
+        return undefined;
     });
     const openDesktopTarget = (target: DesktopNavTarget) => {
         const params =
