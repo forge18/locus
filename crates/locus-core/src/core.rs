@@ -45,8 +45,12 @@ use crate::{
         sbx::SbxContainerRuntime,
     },
     services::{
-        agents::AgentDefinition, bots::RoutineClaimResult, handoff::HandoffRegistry,
-        telemetry::EventCollector, tools::RoleToolScope,
+        agents::AgentDefinition,
+        bots::RoutineClaimResult,
+        capabilities::{resolve_capabilities, CapabilityCatalog},
+        handoff::HandoffRegistry,
+        telemetry::EventCollector,
+        tools::RoleToolScope,
     },
     store::Store,
     work_item::{
@@ -590,9 +594,19 @@ impl Core {
                 )],
             );
         }
-        let tools = definition
-            .frontmatter
-            .tools
+        let capability_catalog = CapabilityCatalog {
+            cli_tools: definition.frontmatter.tools.iter().cloned().collect(),
+            commands: definition.frontmatter.commands.iter().cloned().collect(),
+            skills: definition.frontmatter.skills.iter().cloned().collect(),
+        };
+        let effective_capabilities = resolve_capabilities(
+            &capability_catalog,
+            project_settings.capability_policies(),
+            Some(&definition.frontmatter.capabilities),
+            None,
+        );
+        let tools = effective_capabilities
+            .cli_tools
             .iter()
             .map(|name| ToolPin {
                 name: name.clone(),
@@ -606,6 +620,16 @@ impl Core {
             crate::runtime::dispatch::NetworkTier::Open => EgressTier::Open,
         };
         let run_id: RunId = dispatch.run_id.into();
+        let policy_revision = store
+            .project_capability_policy_revision(dispatch.project_id.into())
+            .await?;
+        store
+            .record_run_capability_snapshot(
+                run_id,
+                policy_revision,
+                serde_json::to_value(&effective_capabilities)?,
+            )
+            .await?;
         let mut run = Run {
             id: run_id,
             session_id: dispatch.session_id.into(),
@@ -664,11 +688,7 @@ impl Core {
             ),
             egress_policy_root: policy_root,
             run_nonce: uuid::Uuid::new_v4().to_string(),
-            lsp_enabled: definition
-                .frontmatter
-                .tools
-                .iter()
-                .any(|tool| tool == "lsp"),
+            lsp_enabled: effective_capabilities.cli_tools.contains("lsp"),
             base_image_digest: format!("{}:{}", harness.image.base, harness.image.version),
             tools,
             project_extension_scope: project_settings.extension_overrides().clone(),

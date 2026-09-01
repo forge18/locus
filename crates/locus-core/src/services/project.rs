@@ -12,7 +12,11 @@ use serde_json::Value;
 use crate::{
     harness::materialize::extensions::ProjectExtensionScope,
     lsp::DescriptorPin,
-    services::{bots::BotSettings, tools::ProjectToolScope},
+    services::{
+        bots::BotSettings,
+        capabilities::CapabilityPolicies,
+        tools::ProjectToolScope,
+    },
 };
 
 const SETTINGS_VERSION: u16 = 1;
@@ -217,6 +221,8 @@ pub struct ProjectSettings {
     #[serde(default)]
     tool_scope: ProjectToolScope,
     #[serde(default)]
+    capability_policies: CapabilityPolicies,
+    #[serde(default)]
     lsp_descriptors: BTreeMap<String, DescriptorPin>,
     #[serde(default)]
     debug_configs: BTreeMap<String, DebugRunConfig>,
@@ -234,6 +240,7 @@ impl ProjectSettings {
             base_context_token_budget: None,
             extension_overrides: ProjectExtensionScope::default(),
             tool_scope: ProjectToolScope::default(),
+            capability_policies: CapabilityPolicies::default(),
             lsp_descriptors: BTreeMap::new(),
             debug_configs: BTreeMap::new(),
             bots: BotSettings::default(),
@@ -309,6 +316,15 @@ impl ProjectSettings {
 
     pub fn tool_scope(&self) -> &ProjectToolScope {
         &self.tool_scope
+    }
+
+    pub fn with_capability_policies(mut self, policies: CapabilityPolicies) -> Self {
+        self.capability_policies = policies;
+        self
+    }
+
+    pub fn capability_policies(&self) -> &CapabilityPolicies {
+        &self.capability_policies
     }
 
     pub fn with_lsp_descriptors(

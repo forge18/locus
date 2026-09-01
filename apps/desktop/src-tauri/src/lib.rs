@@ -24,6 +24,7 @@ use locus_core::{
             Bot, BotContainerState, BotRoutine, RoutineAttribution, RoutineExecution,
             RoutineExecutionStatus,
         },
+        capabilities::CapabilityPolicies,
         interact::InteractState,
         lint::discover as discover_linters,
         manage::TaskColumn,
@@ -2658,6 +2659,42 @@ async fn inbox_resolve(
     inbox_resolve_inner(store, &delivery_id, &comment).await
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProjectCapabilityPolicyResponse {
+    revision: i32,
+    policies: CapabilityPolicies,
+}
+
+#[tauri::command]
+async fn project_capability_policy(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+) -> Result<ProjectCapabilityPolicyResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = resolve_setup_project(store, &project_id).await?;
+    let (revision, policies) = store
+        .project_capability_policies(project_id)
+        .await
+        .map_err(IpcError::internal)?;
+    Ok(ProjectCapabilityPolicyResponse { revision, policies })
+}
+
+#[tauri::command]
+async fn project_capability_policy_set(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    policies: CapabilityPolicies,
+) -> Result<ProjectCapabilityPolicyResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = resolve_setup_project(store, &project_id).await?;
+    let revision = store
+        .save_project_capability_policies(project_id, policies.clone())
+        .await
+        .map_err(IpcError::internal)?;
+    Ok(ProjectCapabilityPolicyResponse { revision, policies })
+}
+
 /// Setup's settings mutations (slice 5): base context, archive, rename.
 async fn project_base_context_set_inner(
     store: &Store,
@@ -4953,6 +4990,8 @@ pub fn run() {
             repos_list,
             local_remotes_list,
             project_setup,
+            project_capability_policy,
+            project_capability_policy_set,
             project_base_context_set,
             project_archive_set,
             project_rename,

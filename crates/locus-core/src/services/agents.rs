@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
+use crate::services::capabilities::CapabilityPolicies;
 use crate::harness::{
     materialize::{
         extensions::ExtensionEntry, extensions::ExtensionSet, materialize, plugin::PluginHost,
@@ -94,6 +95,10 @@ pub struct Frontmatter {
     pub tools: Vec<String>,
     #[serde(default)]
     pub skills: Vec<String>,
+    #[serde(default)]
+    pub commands: Vec<String>,
+    #[serde(default)]
+    pub capabilities: CapabilityPolicies,
     #[serde(default)]
     pub rules: Vec<String>,
     #[serde(default)]

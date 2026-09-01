@@ -10,6 +10,7 @@ pub mod backup;
 pub mod board;
 pub mod bots;
 pub mod bus;
+pub mod capabilities;
 pub mod dispatch;
 pub mod guardrails;
 pub mod handoff;
