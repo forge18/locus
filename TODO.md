@@ -11,7 +11,7 @@ owning workstream so nothing is tracked twice.
 
 - `feat/planning-workspace` carries the completed work checked off below; this file is the
   current progress record, not a claim that every open row is complete.
-- Active workstream: **6 — Workshop & canvas**. Workstream 4 is complete; its persistence, navigation,
+- Active workstream: **7 — Panes & editor**. Workstream 4 is complete; its persistence, navigation,
   Planning Room, Workers, capability, and secondary-surface rows are done.
 
 ## 1 — Desktop data integration (the epic)
@@ -160,15 +160,16 @@ The accepted contract is implemented in dependency order.
 
 ## 7 — Panes & editor
 
-- [ ] **Expose pane split/detach/close/promote in the UI** — `manager.ts`/`detach.ts` are implemented
-  and tested but imported by nothing outside tests; [pane-manager](.specs/pane-manager/spec.md)
-  acceptance 3 and 5 describe user-facing detach and strip promotion. (The ShellPane/PTY half of this
-  row is done.)
-- [ ] **React to file changes in EditorSurface** — view, LSP client, and extensions are built once in
-  `onMount` over `props.file`; a new `file` prop leaves stale content on screen.
-- [ ] **Degrade to plain text when LSP attach fails** — on rejection the host `<div>` stays empty
-  ([EditorSurface.tsx:50-142](apps/desktop/src/editor/EditorSurface.tsx#L50-L142));
-  [lsp](.specs/lsp/spec.md) acceptance 14 promises plain-text fallback. No dirty/save concept exists.
+- [x] **Expose pane split/detach/close/promote in the UI** — Workers now mounts the shared
+  `PaneManager` with split/resize/focus, minimize-to-strip, promotion, close, and detach controls;
+  detached windows carry the run identity and render the same live Agent Pane without adding a
+  webview to the source window. (The ShellPane/PTY half of this row is done.)
+- [x] **React to file changes in EditorSurface** — `EditorSurface` tracks file identity and
+  configuration, rebuilds the CodeMirror/LSP surface for a new file, and synchronizes content-only
+  updates without leaving stale text or stale language-service state.
+- [x] **Degrade to plain text when LSP attach fails** — attach or initialization failures show the
+  error state while mounting the real file content in an editable CodeMirror plain-text surface;
+  regression coverage verifies editing continues and reports changes.
 
 ## 8 — Styling
 

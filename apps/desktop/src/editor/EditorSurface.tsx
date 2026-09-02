@@ -1,4 +1,4 @@
-import { createSignal, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createSignal, onCleanup, Show } from "solid-js";
 import { history } from "@codemirror/commands";
 import {
   lineNumbers,
@@ -6,7 +6,11 @@ import {
   drawSelection,
   EditorView,
 } from "@codemirror/view";
-import { EditorState, type Extension } from "@codemirror/state";
+import {
+  Annotation,
+  EditorState,
+  type Extension,
+} from "@codemirror/state";
 import type { HostLspSupervisor, LspDiagnostics } from "./lsp";
 import { createLspClient, languageExtensions } from "./lsp";
 import { attachTauriLsp } from "./tauriLsp";
@@ -23,6 +27,8 @@ import { InlineError } from "../ui/InlineError";
 import type { EditorFile, LanguageDescriptor } from "./types";
 
 export type EditorSurfaceState = "loading" | "empty" | "error" | "loaded";
+
+const externalContentChange = Annotation.define<boolean>();
 
 function failureMessage(cause: unknown): string {
   if (cause instanceof Error && cause.message) return cause.message;
@@ -49,142 +55,267 @@ export function EditorSurface(props: EditorSurfaceProps) {
     createSignal<EditorSurfaceState>("loading");
   const [error, setError] = createSignal<string>();
 
-  onMount(() => {
-    let disposed = false;
-    let cleanup = () => {};
+  let disposed = false;
+  let activeConfig: string | undefined;
+  let setupGeneration = 0;
+  let cleanup: () => Promise<void> = async () => {};
+  let cancelSetup: () => void = () => {};
+  let lifecycle = Promise.resolve();
+  let activeView: EditorView | undefined;
+  let activeFallback = false;
+
+  const syncFileContent = (file: EditorFile) => {
+    const view = activeView;
+    if (!view) return;
+    if (view.state.doc.toString() !== file.content) {
+      view.dispatch({
+        changes: {
+          from: 0,
+          to: view.state.doc.length,
+          insert: file.content,
+        },
+        annotations: externalContentChange.of(true),
+      });
+    }
+    if (!activeFallback) {
+      setSurfaceState(file.content.length === 0 ? "empty" : "loaded");
+    }
+  };
+
+  const setupFile = async (
+    file: EditorFile,
+    language: LanguageDescriptor,
+    supervisor: HostLspSupervisor | undefined,
+    rootUri: string,
+    projectRoot: string | undefined,
+    projectId: string | undefined,
+    paneId: string | undefined,
+    generation: number,
+  ) => {
     let managedSupervisor:
       | (HostLspSupervisor & { dispose?: () => Promise<void> })
       | undefined;
-    onCleanup(() => {
-      disposed = true;
-      cleanup();
-    });
+    let client: ReturnType<typeof createLspClient> | null = null;
+    const isCurrent = () => !disposed && generation === setupGeneration;
 
-    const setup = async () => {
-      let supervisor = props.lsp;
-      let client: ReturnType<typeof createLspClient> | null = null;
-
-      const disposeManagedSupervisor = () => {
-        const pendingDispose = managedSupervisor?.dispose?.();
-        managedSupervisor = undefined;
-        void pendingDispose?.catch(() => undefined);
-      };
-
-      const mountEditor = (editorClient: typeof client, plainText: boolean) => {
-        let view!: EditorView;
-        let semanticResult: SemanticTokenResult | undefined;
-        let semanticRequest = 0;
-        let semanticTimer: ReturnType<typeof setTimeout> | undefined;
-        const refreshSemanticTokens = async () => {
-          if (!editorClient) return;
-          const requestNumber = ++semanticRequest;
-          try {
-            editorClient.sync();
-            const result = await requestSemanticTokens(
-              editorClient,
-              props.file.uri,
-              semanticResult,
-            );
-            if (!result || disposed || requestNumber !== semanticRequest) return;
-            semanticResult = result;
-            applySemanticTokens(view, decodeSemanticTokens(result.data));
-          } catch {
-            // Servers without semantic-token support degrade to ordinary editable text.
-          }
-        };
-        const queueSemanticRefresh = () => {
-          if (semanticTimer) clearTimeout(semanticTimer);
-          semanticTimer = setTimeout(() => void refreshSemanticTokens(), 150);
-        };
-        const surfaceExtensions: Extension[] = [
-          editorKeymap,
-          history(),
-          lineNumbers(),
-          drawSelection(),
-          highlightActiveLine(),
-          editorTheme,
-          // A failed LSP setup must not prevent the file from being edited.
-          ...(plainText
-            ? []
-            : (languageExtensions(
-                props.language,
-                editorClient,
-                props.file.uri,
-              ) as Extension[])),
-          ...(editorClient ? [semanticTokensExtension()] : []),
-          EditorView.updateListener.of((update) => {
-            if (update.docChanged) {
-              props.onChange?.(update.state.doc.toString());
-              queueSemanticRefresh();
-            }
-          }),
-        ];
-        const state = EditorState.create({
-          doc: props.file.content,
-          extensions: surfaceExtensions,
-        });
-        view = new EditorView({ state, parent: host });
-        cleanup = () => {
-          if (semanticTimer) clearTimeout(semanticTimer);
-          view.destroy();
-          editorClient?.disconnect();
-          disposeManagedSupervisor();
-        };
-        if (editorClient) void editorClient.initializing.then(refreshSemanticTokens);
-      };
-
-      try {
-        if (!supervisor && props.projectRoot && props.paneId) {
-          managedSupervisor = await attachTauriLsp({
-            projectRoot: props.projectRoot,
-            projectId: props.projectId,
-            paneId: props.paneId,
-            filePath: props.file.path,
-            onDiagnostics: props.onDiagnostics,
-          });
-          supervisor = managedSupervisor;
-        }
-        if (disposed) {
-          disposeManagedSupervisor();
-          return;
-        }
-        client = supervisor
-          ? createLspClient(
-              props.rootUri ?? "file:///workspace",
-              {
-                send: (message) => supervisor!.send(message),
-                subscribe: (handler) => supervisor!.subscribe(handler),
-                unsubscribe: (handler) => supervisor!.unsubscribe(handler),
-              },
-              { onDiagnostics: props.onDiagnostics },
-            )
-          : null;
-        // Keep the loading state visible until the host confirms that its LSP
-        // connection is ready. A rejected setup takes the plain-text path below.
-        if (client) await client.initializing;
-        if (disposed) {
-          client?.disconnect();
-          disposeManagedSupervisor();
-          return;
-        }
-        mountEditor(client, false);
-        setSurfaceState(props.file.content.length === 0 ? "empty" : "loaded");
-      } catch (cause) {
-        if (disposed) {
-          client?.disconnect();
-          disposeManagedSupervisor();
-          return;
-        }
-        client?.disconnect();
-        disposeManagedSupervisor();
-        // Use the real file content, but remove all language/LSP extensions so
-        // an unavailable server cannot leave an empty or unusable host.
-        mountEditor(null, true);
-        setError(failureMessage(cause));
-        setSurfaceState("error");
-      }
+    const disposeManagedSupervisor = async () => {
+      const supervisorToDispose = managedSupervisor;
+      managedSupervisor = undefined;
+      const pendingDispose = supervisorToDispose?.dispose?.();
+      if (pendingDispose) await pendingDispose.catch(() => undefined);
     };
-    void setup();
+
+    let cancelled = false;
+    let resolveCancellation!: () => void;
+    const cancellation = new Promise<void>((resolve) => {
+      resolveCancellation = resolve;
+    });
+    cancelSetup = () => {
+      if (cancelled) return;
+      cancelled = true;
+      resolveCancellation();
+      client?.disconnect();
+    };
+
+    const mountEditor = (editorClient: typeof client, plainText: boolean) => {
+      let view!: EditorView;
+      let semanticResult: SemanticTokenResult | undefined;
+      let semanticRequest = 0;
+      let semanticTimer: ReturnType<typeof setTimeout> | undefined;
+      const refreshSemanticTokens = async () => {
+        if (!editorClient || !isCurrent()) return;
+        const requestNumber = ++semanticRequest;
+        try {
+          editorClient.sync();
+          const result = await requestSemanticTokens(
+            editorClient,
+            file.uri,
+            semanticResult,
+          );
+          if (!result || !isCurrent() || requestNumber !== semanticRequest) {
+            return;
+          }
+          semanticResult = result;
+          applySemanticTokens(view, decodeSemanticTokens(result.data));
+        } catch {
+          // Servers without semantic-token support degrade to ordinary editable text.
+        }
+      };
+      const queueSemanticRefresh = () => {
+        if (semanticTimer) clearTimeout(semanticTimer);
+        semanticTimer = setTimeout(() => void refreshSemanticTokens(), 150);
+      };
+      const surfaceExtensions: Extension[] = [
+        editorKeymap,
+        history(),
+        lineNumbers(),
+        drawSelection(),
+        highlightActiveLine(),
+        editorTheme,
+        // A failed LSP setup must not prevent the file from being edited.
+        ...(plainText
+          ? []
+          : (languageExtensions(language, editorClient, file.uri) as Extension[])),
+        ...(editorClient ? [semanticTokensExtension()] : []),
+        EditorView.updateListener.of((update) => {
+          const external = update.transactions.some((transaction) =>
+            transaction.annotation(externalContentChange),
+          );
+          if (!update.docChanged) return;
+          if (!external) props.onChange?.(update.state.doc.toString());
+          queueSemanticRefresh();
+        }),
+      ];
+      const state = EditorState.create({
+        doc: file.content,
+        extensions: surfaceExtensions,
+      });
+      view = new EditorView({ state, parent: host });
+      const dispose = async () => {
+        if (semanticTimer) clearTimeout(semanticTimer);
+        view.destroy();
+        editorClient?.disconnect();
+        await disposeManagedSupervisor();
+      };
+      if (!isCurrent()) {
+        void dispose();
+        return;
+      }
+      activeView = view;
+      cleanup = async () => {
+        await dispose();
+        if (activeView === view) activeView = undefined;
+      };
+      if (editorClient) void editorClient.initializing.then(refreshSemanticTokens);
+    };
+
+    try {
+      if (!supervisor && projectRoot && paneId) {
+        managedSupervisor = await attachTauriLsp({
+          projectRoot,
+          projectId,
+          paneId,
+          filePath: file.path,
+          onDiagnostics: props.onDiagnostics,
+        });
+        supervisor = managedSupervisor;
+      }
+      if (!isCurrent()) {
+        await disposeManagedSupervisor();
+        return;
+      }
+      client = supervisor
+        ? createLspClient(
+            rootUri,
+            {
+              send: (message) => supervisor!.send(message),
+              subscribe: (handler) => supervisor!.subscribe(handler),
+              unsubscribe: (handler) => supervisor!.unsubscribe(handler),
+            },
+            { onDiagnostics: props.onDiagnostics },
+          )
+        : null;
+      // Keep the loading state visible until the host confirms that its LSP
+      // connection is ready. A rejected setup takes the plain-text path below.
+      if (client) await Promise.race([client.initializing, cancellation]);
+      if (!isCurrent() || cancelled) {
+        client?.disconnect();
+        await disposeManagedSupervisor();
+        return;
+      }
+      mountEditor(client, false);
+      const currentFile = props.file;
+      syncFileContent(currentFile);
+      setError(undefined);
+      setSurfaceState(
+        currentFile.content.length === 0 ? "empty" : "loaded",
+      );
+    } catch (cause) {
+      if (!isCurrent()) {
+        client?.disconnect();
+        await disposeManagedSupervisor();
+        return;
+      }
+      client?.disconnect();
+      await disposeManagedSupervisor();
+      // Use the real file content, but remove all language/LSP extensions so
+      // an unavailable server cannot leave an empty or unusable host.
+      activeFallback = true;
+      mountEditor(null, true);
+      syncFileContent(props.file);
+      setError(failureMessage(cause));
+      setSurfaceState("error");
+    }
+  };
+
+  createEffect(() => {
+    const file = props.file;
+    const language = props.language;
+    const rootUri = props.rootUri ?? "file:///workspace";
+    const projectRoot = props.projectRoot;
+    const projectId = props.projectId;
+    const paneId = props.paneId;
+    const supervisor = props.lsp;
+    const config = [
+      file.uri,
+      file.path,
+      file.languageId,
+      language.id,
+      language.grammar ?? "",
+      language.extensions.join(","),
+      rootUri,
+      projectRoot ?? "",
+      projectId ?? "",
+      paneId ?? "",
+      supervisor ? "provided" : "managed",
+    ].join("\u0000");
+    if (activeConfig === config) {
+      syncFileContent(file);
+      return;
+    }
+
+    const initialSetup = activeConfig === undefined;
+    activeConfig = config;
+    setupGeneration += 1;
+    cancelSetup();
+    cancelSetup = () => {};
+    const pendingCleanup = cleanup();
+    cleanup = async () => {};
+    activeView = undefined;
+    activeFallback = false;
+    setError(undefined);
+    setSurfaceState("loading");
+    const generation = setupGeneration;
+    const startSetup = () =>
+      setupFile(
+        { ...file },
+        language,
+        supervisor,
+        rootUri,
+        projectRoot,
+        projectId,
+        paneId,
+        generation,
+      );
+    lifecycle = initialSetup
+      ? startSetup().catch(() => undefined)
+      : lifecycle
+          .then(() => pendingCleanup)
+          .then(startSetup)
+          .catch(() => undefined);
+  });
+
+  onCleanup(() => {
+    disposed = true;
+    setupGeneration += 1;
+    cancelSetup();
+    cancelSetup = () => {};
+    const pendingCleanup = cleanup();
+    cleanup = async () => {};
+    activeView = undefined;
+    lifecycle = lifecycle
+      .then(() => pendingCleanup)
+      .catch(() => undefined);
   });
   return (
     <div

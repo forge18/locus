@@ -17,6 +17,13 @@ describe("bots/panel", () => {
     expect(view.getByTestId("agent-cost-toggle").textContent).toContain(
       "$0.42",
     );
+    expect(view.getByTestId("pane-manager")).toBeTruthy();
+    await fireEvent.click(view.getByTestId("pane-split-keeper"));
+    expect(view.getAllByTestId("agent-pane")).toHaveLength(2);
+    await fireEvent.click(view.getByTestId("pane-minimize-keeper"));
+    expect(view.getByTestId("pane-promote-keeper")).toBeTruthy();
+    await fireEvent.click(view.getByTestId("pane-promote-keeper"));
+    expect(view.getAllByTestId("agent-pane")).toHaveLength(2);
 
     await fireEvent.click(view.getByTestId("bot-row-night-watch"));
     expect(view.getByTestId("agent-pane").getAttribute("data-run-id")).toBe(

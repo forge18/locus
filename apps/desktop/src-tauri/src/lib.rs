@@ -5764,17 +5764,29 @@ fn harness_tier_grid(request: HarnessTierGridRequest) -> Result<HarnessTierGridR
 }
 
 #[tauri::command]
-fn detach_pane(app: tauri::AppHandle, pane_id: String) -> Result<(), IpcError> {
+fn detach_pane(
+    app: tauri::AppHandle,
+    pane_id: String,
+    run_id: Option<String>,
+) -> Result<(), IpcError> {
+    if pane_id.trim().is_empty() {
+        return Err(IpcError::invalid_argument("pane id must not be empty"));
+    }
+    let run_id = run_id
+        .as_deref()
+        .map(str::parse::<RunId>)
+        .transpose()
+        .map_err(|_| IpcError::invalid_argument("run id must be a UUID"))?;
     let label = format!("pane-{pane_id}");
     if app.get_webview_window(&label).is_none() {
-        WebviewWindowBuilder::new(
-            &app,
-            label,
-            WebviewUrl::App("index.html?detached=true".into()),
-        )
-        .title("Locus pane")
-        .build()
-        .map_err(IpcError::internal)?;
+        let url = run_id.map_or_else(
+            || "index.html?detached=true".to_owned(),
+            |run_id| format!("index.html?detached=true&run={run_id}"),
+        );
+        WebviewWindowBuilder::new(&app, label, WebviewUrl::App(url.into()))
+            .title("Locus pane")
+            .build()
+            .map_err(IpcError::internal)?;
     }
     Ok(())
 }

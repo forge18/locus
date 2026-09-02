@@ -1,11 +1,14 @@
 import { Match, Suspense, Switch, lazy, onMount } from "solid-js";
 import { Shell } from "./shell/Shell";
 import { EmptyPane } from "./ui/EmptyPane";
+import { AgentPane } from "./panes/AgentPane";
+import "./panes/pane-manager.css";
 import { SkeletonRows } from "./ui/SkeletonRows";
 import { mountIconSprite } from "./ui/sprite";
 import { createNavStore } from "./nav";
 import { applyTheme, savedTheme } from "./styles/theme";
 import { configureDataProvider, liveProvider } from "./data/provider";
+import { detachedMode, detachedPaneRunId } from "./panes/detach";
 import { searchAll as searchAllResults } from "./data/search";
 import { MailView } from "./screens/mail/MailView";
 import { AnalyticsView } from "./screens/analytics/AnalyticsView";
@@ -38,7 +41,25 @@ const PlanView = lazy(() => import("./screens/plan/PlanView"));
 import { ProjectsView } from "./screens/projects/ProjectsView";
 const TelemetryView = lazy(() => import("./screens/review/TelemetryView"));
 
+function DetachedPaneView() {
+        onMount(() => mountIconSprite());
+        const runId = detachedPaneRunId();
+        return (
+                <main class="detached-pane" data-testid="detached-pane">
+                        {runId ? (
+                                <AgentPane runId={runId} live />
+                        ) : (
+                                <EmptyPane
+                                        icon="signpost"
+                                        reason="No pane run was provided."
+                                />
+                        )}
+                </main>
+        );
+}
+
 function App() {
+        if (detachedMode()) return <DetachedPaneView />;
         const nav = createNavStore();
         onMount(() => {
                 applyTheme(
