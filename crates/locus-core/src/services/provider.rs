@@ -73,10 +73,11 @@ pub struct ProviderConnectionConfig {
 impl ProviderConnectionConfig {
     pub fn new(authentication_method: impl Into<String>, base_url: Option<String>) -> Result<Self> {
         let authentication_method = authentication_method.into();
-        if authentication_method.trim().is_empty()
-            || base_url.as_deref().is_some_and(|url| url.trim().is_empty())
-        {
-            bail!("provider connection configuration must not contain empty values")
+        if !matches!(authentication_method.as_str(), "oauth" | "api-key" | "none") {
+            bail!("provider authentication method must be oauth, api-key, or none")
+        }
+        if base_url.as_deref().is_some_and(|url| url.trim().is_empty()) {
+            bail!("provider connection base URL must not be empty")
         }
         Ok(Self {
             authentication_method,
@@ -379,6 +380,16 @@ fn status_projection() {
 
 #[cfg(test)]
 #[test]
+fn connection_methods_are_closed_and_secret_free() {
+    assert!(ProviderConnectionConfig::new("oauth", None).is_ok());
+    assert!(ProviderConnectionConfig::new("api-key", None).is_ok());
+    assert!(ProviderConnectionConfig::new("none", None).is_ok());
+    assert!(ProviderConnectionConfig::new("password", None).is_err());
+    assert!(ProviderConnectionConfig::new("api-key", Some(" ".into())).is_err());
+}
+
+#[cfg(test)]
+#[test]
 fn selector_aliases() {
     let provider_id = Uuid::nil();
     let aliased = ProviderModel::new(provider_id, "claude-opus-4-6")
@@ -497,7 +508,7 @@ async fn never_persists_secret() {
     let suffix = format!("{}-{port}", std::process::id());
     let container_name = format!("locus-provider-test-{suffix}");
     let volume_name = format!("locus-provider-test-data-{suffix}");
-    let _cleanup = DockerCleanup::new(container_name.clone(), volume_name.clone());
+    let _cleanup = DockerCleanup::new(container_name.clone(), volume_name.clone()).await;
     let container = crate::store::PostgresContainer::new(crate::store::PostgresConfig::for_test(
         container_name,
         volume_name,
@@ -557,7 +568,7 @@ async fn catalog_and_verification_metadata_persist() {
     let suffix = format!("{}-{port}", std::process::id());
     let container_name = format!("locus-provider-catalog-test-{suffix}");
     let volume_name = format!("locus-provider-catalog-test-data-{suffix}");
-    let _cleanup = DockerCleanup::new(container_name.clone(), volume_name.clone());
+    let _cleanup = DockerCleanup::new(container_name.clone(), volume_name.clone()).await;
     let container = crate::store::PostgresContainer::new(crate::store::PostgresConfig::for_test(
         container_name,
         volume_name,

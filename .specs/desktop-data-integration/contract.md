@@ -46,6 +46,7 @@ run agents (workstream 2), not a data-integration change.
 | --- | --- | --- |
 | `bots.ts` | `bots_list`, `bot_create`, `bot_routines`, `bot_routine_executions`, `bot_routine_set_enabled`, `bot_routine_update`, `bot_routine_delete` — **live** | project (bot rows are project-scoped) |
 | `work-items.ts` | `external_work_item_*` (13) — **live** | project |
+| `providers.ts` | `providers_list`, `provider_save`, `provider_models_set`, `provider_secret_replace` — **live**; credentials remain OS-keychain references | global |
 | `core.ts` | `projects_list`, `repos_list`, `local_remotes_list` — **live** (slice 3) | `projects_list` global; `repos_list`/`local_remotes_list` project |
 | `sessions.ts` | `sessions_list`, `session`, `runs_for_session` — **missing** | project |
 | `runs.ts` | `runs_list`, `runs_page`, `runs_count`, `run_stats` — **missing** | project |
@@ -58,11 +59,12 @@ run agents (workstream 2), not a data-integration change.
 | `qa.ts` | `qa_snapshot` — **live** (slice 9); `qa_sources`, `qa_checks` — **missing** | project |
 | `inbox.ts` | `inbox_list`, `inbox_resolved_today`, `inbox_throughput` — **missing** | project |
 | `dispatch.ts` | `dispatch_autorun`, `dispatch_runs`, `dispatch_schedules`, `dispatch_schedule_executions` — **missing** (mutation `dispatch_stop_all` **live**) | project |
-| `workflow.ts` | `workflow_definitions` — **live** (slice 8); `workflow_presets`, `workflow_def`, `workflow_graph`, `workflow_guardrails`, `workflow_node_vocabulary`, `condition_operands`, `condition_expression` — **unavailable** until their live authoring contract exists | project |
+| `workflow.ts` | `workflow_definitions`, `workflow_definition_detail`, `workflow_definition_save`, `workflow_node_vocabulary`, `workflow_presets`, `condition_operands` — **live**; legacy `use*` reads remain demo-only | project |
 | `workflow-events.ts` | re-exports the fixture literal; becomes a `Channel` subscription of `workflow.*` log events | project |
 | `artifacts.ts` | `artifacts_list`, `artifact_comments` **live**; `artifact`, `artifact_diff`, `artifact_kinds` **missing** | project |
-| `harnesses.ts` | `harness_tier_grid` **live**; `harness_registry_list`, `harness_registry_summary`, `extension_types` **missing** | global |
-| `extensions.ts` | `extension_inventory` **missing** (shared with harnesses), `recently_edited` **missing** | global |
+| `harnesses.ts` | `harness_tier_grid`, `harness_registry_list`, `harness_registry_summary`, `extension_types`, `extension_counts` **live** (registry-backed); `harness_registry_*` reads the startup-loaded `harnesses/*.toml` registry | global |
+| `extensions.ts` | `extensions_list`, `extension_save`, `extension_history` — **live**; legacy inventory/recently-edited reads remain demo-only | global |
+| `cli-tools.ts` | `cli_tools_list`, `cli_tool_enabled_set`, `cli_tool_upload` — **live**; uploads require host-side Minisign admission | global |
 | `settings.ts` | `harness_tier_grid` **live**; `settings_model_tiers`, `resolve_model_tier`, `settings_tier_fallback` **missing** | global |
 | `guardrails.ts` | `settings_guardrails`, `settings_guardrails_set` — **live** (slice 8) | global |
 | `agent-defs.ts` | `agent_defs_list`, `agent_def` — **live from `agents.agent_defs`**; `materialization_report` **live** | global (defs are host-level) |

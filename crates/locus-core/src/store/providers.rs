@@ -8,13 +8,89 @@ use uuid::Uuid;
 
 use crate::{
     services::provider::{
-        selector_projection, ModelSelectorOption, ProviderModel, ProviderReference,
-        ProviderVerificationMetadata,
+        selector_projection, ModelSelectorOption, ProviderConnectionConfig, ProviderModel,
+        ProviderReference, ProviderVerificationMetadata,
     },
     store::Store,
 };
 
+#[derive(Clone, Debug, sqlx::FromRow)]
+pub struct ProviderReferenceRow {
+    pub id: Uuid,
+    pub identifier: String,
+    pub keychain_reference: String,
+    pub verification_at: Option<String>,
+    pub verification_model_count: Option<i32>,
+    pub verification_status: Option<String>,
+    pub verification_expires_at: Option<String>,
+    pub authentication_method: String,
+    pub base_url: Option<String>,
+}
+
 impl Store {
+    /// Load provider references and secret-free verification metadata in stable order.
+    pub async fn provider_references(&self) -> Result<Vec<ProviderReferenceRow>> {
+        sqlx::query_as::<_, ProviderReferenceRow>(
+            "SELECT id, identifier, keychain_reference,
+                    verification_at::text AS verification_at,
+                    verification_model_count, verification_status,
+                    verification_expires_at::text AS verification_expires_at,
+                    authentication_method, base_url
+             FROM core.providers
+             ORDER BY identifier",
+        )
+        .fetch_all(self.pool())
+        .await
+        .map_err(Into::into)
+    }
+
+    /// Load one provider's curated models in deterministic model-id order.
+    pub async fn provider_models(&self, provider_id: Uuid) -> Result<Vec<ProviderModel>> {
+        use sqlx::Row;
+
+        sqlx::query(
+            "SELECT provider_id, model_id, alias, selector_included
+             FROM core.provider_models
+             WHERE provider_id = $1
+             ORDER BY model_id",
+        )
+        .bind(provider_id)
+        .fetch_all(self.pool())
+        .await?
+        .into_iter()
+        .map(|row| {
+            Ok(ProviderModel {
+                provider_id: row.try_get("provider_id")?,
+                model_id: row.try_get("model_id")?,
+                alias: row.try_get("alias")?,
+                selector_included: row.try_get("selector_included")?,
+            })
+        })
+        .collect()
+    }
+
+    /// Persist secret-free connection settings beside a provider reference.
+    pub async fn persist_provider_connection(
+        &self,
+        provider_id: Uuid,
+        config: &ProviderConnectionConfig,
+    ) -> Result<()> {
+        let updated = sqlx::query(
+            "UPDATE core.providers
+             SET authentication_method = $2, base_url = $3, updated_at = now()
+             WHERE id = $1",
+        )
+        .bind(provider_id)
+        .bind(config.authentication_method())
+        .bind(config.base_url())
+        .execute(self.pool())
+        .await?;
+        if updated.rows_affected() != 1 {
+            bail!("provider `{provider_id}` does not exist")
+        }
+        Ok(())
+    }
+
     /// Persist only the provider identity and OS-keychain locator.
     pub async fn persist_provider_reference(&self, provider: &ProviderReference) -> Result<()> {
         sqlx::query(

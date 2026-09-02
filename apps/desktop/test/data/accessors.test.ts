@@ -31,7 +31,7 @@ const FIXTURE_DATA_SETS = [
   "workflow",
   "workflow-events",
 ];
-const NON_FIXTURE_DATA_SETS = ["bots", "work-items"];
+const NON_FIXTURE_DATA_SETS = ["bots", "cli-tools", "providers", "work-items"];
 /** Slices that migrated to the live provider leave the fixture list here. */
 const LIVE_DATA_SETS = [
   "core",
@@ -115,6 +115,16 @@ describe("data/accessors", () => {
       "utf8",
     );
     expect(demo).toMatch(/from ["']\.\.\/\.\.\/fixtures\//);
+  });
+
+  it("keeps the Workshop fixture host out of production", () => {
+    const app = readFileSync(resolve(SRC, "App.tsx"), "utf8");
+    const fixture = readFileSync(
+      resolve(SRC, "demo/WorkshopFixtureView.tsx"),
+      "utf8",
+    );
+    expect(app).not.toContain("WorkshopFixtureView");
+    expect(fixture).toContain('dataProvider().kind === "live"');
   });
 
   it("keeps the normalized event literal in fixtures, re-exported by data", async () => {

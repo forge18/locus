@@ -6,7 +6,9 @@
 //! test run.
 
 use std::{
+    fs::{File, OpenOptions},
     net::TcpListener,
+    os::fd::AsRawFd,
     process::{Command, Stdio},
     sync::{Arc, Mutex, MutexGuard, OnceLock},
 };
@@ -24,6 +26,40 @@ use crate::store::{
 /// Async-aware: the guard is held across the container start `await`, which a
 /// `std::sync::Mutex` cannot do without risking a deadlock on a multi-threaded runtime.
 static TEST_POSTGRES_LOCK: OnceLock<Arc<tokio::sync::Mutex<()>>> = OnceLock::new();
+
+/// Cargo starts separate test binaries concurrently, so the in-process lock alone cannot
+/// serialize containers across those processes. The advisory file lock closes that gap.
+struct ProcessPostgresLock(File);
+
+impl ProcessPostgresLock {
+    async fn acquire() -> Self {
+        let path = std::env::temp_dir().join("locus-postgres-test.lock");
+        let file = OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .read(true)
+            .write(true)
+            .open(path)
+            .expect("create the Postgres test lock");
+        loop {
+            let result = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
+            if result == 0 {
+                return Self(file);
+            }
+            let error = std::io::Error::last_os_error();
+            if error.raw_os_error() != Some(libc::EAGAIN) {
+                panic!("acquire the Postgres test lock: {error}");
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+    }
+}
+
+impl Drop for ProcessPostgresLock {
+    fn drop(&mut self) {
+        let _ = unsafe { libc::flock(self.0.as_raw_fd(), libc::LOCK_UN) };
+    }
+}
 
 /// The credential proxy listens on a fixed host port (PLAN.md §Credentials), so two tests
 /// that each build their own proxy collide when run in parallel. Hold this for the length
@@ -53,17 +89,19 @@ pub fn serialize_fixed_port() -> MutexGuard<'static, ()> {
 pub struct DockerCleanup {
     container_name: String,
     volume_name: String,
-    _serialized: Option<tokio::sync::OwnedMutexGuard<()>>,
+    _process_serialized: ProcessPostgresLock,
+    _serialized: tokio::sync::OwnedMutexGuard<()>,
 }
 
 impl DockerCleanup {
     /// For a test that drives the container lifecycle itself and cannot use
     /// [`start_postgres`].
-    pub fn new(container_name: impl Into<String>, volume_name: impl Into<String>) -> Self {
+    pub async fn new(container_name: impl Into<String>, volume_name: impl Into<String>) -> Self {
         Self {
             container_name: container_name.into(),
             volume_name: volume_name.into(),
-            _serialized: None,
+            _process_serialized: ProcessPostgresLock::acquire().await,
+            _serialized: serialize_postgres().await,
         }
     }
 }
@@ -118,11 +156,7 @@ pub async fn start_postgres_named(prefix: &str) -> (PostgresContainer, DockerCle
     let suffix = format!("{}-{port}", std::process::id());
     let container_name = format!("{prefix}-{suffix}");
     let volume_name = format!("{prefix}-data-{suffix}");
-    let cleanup = DockerCleanup {
-        container_name: container_name.clone(),
-        volume_name: volume_name.clone(),
-        _serialized: Some(serialize_postgres().await),
-    };
+    let cleanup = DockerCleanup::new(container_name.clone(), volume_name.clone()).await;
     let container =
         PostgresContainer::new(PostgresConfig::for_test(container_name, volume_name, port));
     container

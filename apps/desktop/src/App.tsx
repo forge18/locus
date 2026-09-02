@@ -17,7 +17,8 @@ import ManageView from "./screens/manage/ManageView";
 import { AgentDefinitionsView } from "./screens/workshop/AgentDefinitionsView";
 import { HarnessesView } from "./screens/workshop/HarnessesView";
 import { ProvidersView } from "./screens/workshop/ProvidersView";
-import { UnavailableWorkshopView } from "./screens/workshop/UnavailableWorkshopView";
+import { ExtensionEditor } from "./screens/workshop/ExtensionEditor";
+import { CliToolsView } from "./screens/workshop/CliToolsView";
 import { WorkflowView } from "./screens/workshop/WorkflowView";
 import {
         MemoryArtifactsView,
@@ -202,39 +203,19 @@ function App() {
                                                 <GuardrailsView />
                                         </Match>
                                         <Match when={nav.view() === "cli"}>
-                                                <UnavailableWorkshopView
-                                                        route="cli"
-                                                        label="CLI tools"
-                                                        command="extension_inventory"
-                                                />
+                                                <CliToolsView />
                                         </Match>
                                         <Match when={nav.view() === "commands"}>
-                                                <UnavailableWorkshopView
-                                                        route="commands"
-                                                        label="Commands"
-                                                        command="extension_inventory"
-                                                />
+                                                <ExtensionEditor type="commands" />
                                         </Match>
                                         <Match when={nav.view() === "hooks"}>
-                                                <UnavailableWorkshopView
-                                                        route="hooks"
-                                                        label="Hooks"
-                                                        command="extension_inventory"
-                                                />
+                                                <ExtensionEditor type="hooks" />
                                         </Match>
                                         <Match when={nav.view() === "linters"}>
-                                                <UnavailableWorkshopView
-                                                        route="linters"
-                                                        label="Linters"
-                                                        command="extension_inventory"
-                                                />
+                                                <ExtensionEditor type="linters" />
                                         </Match>
                                         <Match when={nav.view() === "styles"}>
-                                                <UnavailableWorkshopView
-                                                        route="styles"
-                                                        label="Output styles"
-                                                        command="extension_inventory"
-                                                />
+                                                <ExtensionEditor type="styles" />
                                         </Match>
                                         <Match
                                                 when={
@@ -245,18 +226,10 @@ function App() {
                                                 <ProvidersView />
                                         </Match>
                                         <Match when={nav.view() === "rules"}>
-                                                <UnavailableWorkshopView
-                                                        route="rules"
-                                                        label="Rules"
-                                                        command="extension_inventory"
-                                                />
+                                                <ExtensionEditor type="rules" />
                                         </Match>
                                         <Match when={nav.view() === "skills"}>
-                                                <UnavailableWorkshopView
-                                                        route="skills"
-                                                        label="Skills"
-                                                        command="extension_inventory"
-                                                />
+                                                <ExtensionEditor type="skills" />
                                         </Match>
                                         <Match when={nav.view() === "canvas"}>
                                                 <WorkflowView

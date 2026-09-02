@@ -1,16 +1,31 @@
-import { createMemo, createSignal, For, Show } from "solid-js";
+import { createMemo, createSignal, For, onMount, Show } from "solid-js";
 import { Button } from "../../ui/Button";
+import { InlineError } from "../../ui/InlineError";
 import { Input } from "../../ui/Input";
+import { dataProvider } from "../../data/provider";
 import { Tag } from "../../ui/Tag";
 import {
+    fetchHarnesses,
     useExtensionCounts,
     useHarnesses,
     useHarnessSummary,
 } from "../../data/harnesses";
-import type { ExtensionType } from "../../data/harnesses";
+import type { ExtensionType, HarnessEntry } from "../../data/harnesses";
+import {
+    fetchExtensionHistory,
+    fetchExtensions,
+    saveExtension,
+    type ExtensionRevision,
+    type PersistedExtension,
+} from "../../data/extensions";
+import type { Envelope } from "../../data/envelope";
 import "./workshop-fixtures.css";
 import "./ExtensionEditor.css";
 
+/**
+ * Shared editor for all eight authored extension types. The explicit demo/test
+ * host retains fixture-local behavior; the live host reads and saves Postgres rows.
+ */
 export type ExtensionEditorType =
     | Exclude<ExtensionType, "output-styles">
     | "styles"
@@ -212,6 +227,11 @@ function registryType(type: ExtensionEditorType): ExtensionType {
     return type;
 }
 
+function storageType(type: ExtensionEditorType): string {
+    if (type === "harnesses") return "agents";
+    return type;
+}
+
 function Materialization(props: { type: ExtensionEditorType }) {
     const summary = useHarnessSummary();
     const counts = useExtensionCounts();
@@ -288,6 +308,66 @@ function Materialization(props: { type: ExtensionEditorType }) {
     );
 }
 
+function FieldControl(props: {
+    name: string;
+    value: string;
+    onChange: (value: string) => void;
+}) {
+    const kind = inferFrontmatterFieldKind(props.name);
+    if (kind === "toggle") {
+        const enabled = () => props.value === "true";
+        return (
+            <button
+                type="button"
+                role="switch"
+                aria-checked={enabled()}
+                aria-label={props.name}
+                data-testid={`frontmatter-control-${props.name}`}
+                class="ws-toggle"
+                data-on={enabled() ? "true" : "false"}
+                onClick={() => props.onChange(enabled() ? "false" : "true")}
+            >
+                <span />
+            </button>
+        );
+    }
+    if (kind === "select") {
+        const options = Array.from(
+            new Set([
+                props.value,
+                ...(props.name === "default_effort"
+                    ? EFFORTS
+                    : props.name === "harness"
+                      ? ["claude", "codex", "pi"]
+                      : props.name === "provider"
+                        ? ["anthropic", "openai", "openrouter"]
+                        : []),
+            ]),
+        );
+        return (
+            <select
+                aria-label={props.name}
+                data-testid={`frontmatter-control-${props.name}`}
+                value={props.value}
+                onChange={(event) => props.onChange(event.currentTarget.value)}
+            >
+                <For each={options}>
+                    {(option) => <option value={option}>{option}</option>}
+                </For>
+            </select>
+        );
+    }
+    return (
+        <Input
+            type={kind === "number" ? "number" : "text"}
+            value={props.value}
+            aria-label={props.name}
+            data-testid={`frontmatter-control-${props.name}`}
+            onInput={(event) => props.onChange(event.currentTarget.value)}
+        />
+    );
+}
+
 function Frontmatter(props: {
     type: ExtensionEditorType;
     values: Record<string, string>;
@@ -310,35 +390,11 @@ function Frontmatter(props: {
                             data-testid={`frontmatter-field-${name}`}
                         >
                             <code>{name}</code>
-                            <Show
-                                when={name === "default_effort"}
-                                fallback={
-                                    <Input
-                                        value={props.values[name] ?? value}
-                                        onInput={(event) =>
-                                            props.onChange(
-                                                name,
-                                                event.currentTarget.value,
-                                            )
-                                        }
-                                    />
-                                }
-                            >
-                                <select
-                                    aria-label="Default effort"
-                                    value={props.values[name] ?? value}
-                                    onChange={(event) =>
-                                        props.onChange(
-                                            name,
-                                            event.currentTarget.value,
-                                        )
-                                    }
-                                >
-                                    {EFFORTS.map((effort) => (
-                                        <option value={effort}>{effort}</option>
-                                    ))}
-                                </select>
-                            </Show>
+                            <FieldControl
+                                name={name}
+                                value={props.values[name] ?? value}
+                                onChange={(next) => props.onChange(name, next)}
+                            />
                             <Tag
                                 variant="neutral"
                                 data-testid={`frontmatter-kind-${name}`}
@@ -355,6 +411,9 @@ function Frontmatter(props: {
 
 function HarnessDetails(props: { onAddConfigKey: () => void }) {
     const [autorouting, setAutorouting] = createSignal(true);
+    const [routingEfforts, setRoutingEfforts] = createSignal<string[]>(
+        BANDS.map((_, index) => EFFORTS[Math.min(index, EFFORTS.length - 1)]),
+    );
     return (
         <>
             <section
@@ -414,7 +473,19 @@ function HarnessDetails(props: { onAddConfigKey: () => void }) {
                                     </span>
                                     <select
                                         aria-label={`${band} effort`}
-                                        value={EFFORTS[Math.min(index(), 3)]}
+                                        value={routingEfforts()[index()]}
+                                        onChange={(event) =>
+                                            setRoutingEfforts((current) =>
+                                                current.map(
+                                                    (effort, effortIndex) =>
+                                                        effortIndex === index()
+                                                            ? event
+                                                                  .currentTarget
+                                                                  .value
+                                                            : effort,
+                                                ),
+                                            )
+                                        }
                                     >
                                         <For each={EFFORTS}>
                                             {(effort) => (
@@ -453,7 +524,450 @@ function HarnessDetails(props: { onAddConfigKey: () => void }) {
     );
 }
 
+function valueToString(value: unknown, fallback: string): string {
+    if (value === undefined || value === null) return fallback;
+    if (Array.isArray(value)) return value.map(String).join(", ");
+    return String(value);
+}
+
+function draftValues(
+    type: ExtensionEditorType,
+    extension?: PersistedExtension,
+): Record<string, string> {
+    return Object.fromEntries(
+        FIELDS[type].map(([name, fallback]) => [
+            name,
+            valueToString(extension?.frontmatter[name], fallback),
+        ]),
+    );
+}
+
+function LiveMaterialization(props: { type: ExtensionEditorType }) {
+    const [registry, setRegistry] = createSignal<Envelope<HarnessEntry[]>>({
+        status: "loading",
+    });
+    const registryTypeName = registryType(props.type);
+    onMount(() => void fetchHarnesses().then(setRegistry));
+    const harnesses = () => {
+        const state = registry();
+        return state.status === "ready" ? state.data : [];
+    };
+    const registryError = () => {
+        const state = registry();
+        return state.status === "failed" ? state.error.message : "";
+    };
+    const entries = () =>
+        harnesses().flatMap((harness) =>
+            harness.extensions.filter(
+                (extension) => extension.type === registryTypeName,
+            ),
+        );
+    return (
+        <aside class="extension-materialization" data-testid="materialization">
+            <header>
+                <h2>Materialization</h2>
+                <Tag variant="neutral">registry-derived</Tag>
+            </header>
+            <Show when={registry().status === "loading"}>
+                <p data-testid="materialization-loading">Loading registry…</p>
+            </Show>
+            <Show when={registry().status === "failed"}>
+                <p data-testid="materialization-error">{registryError()}</p>
+            </Show>
+            <Show when={registry().status === "ready"}>
+                <div class="materialization-figures">
+                    <div data-testid="materialization-native">
+                        <strong>
+                            {
+                                entries().filter(
+                                    (entry) => !entry.weakerThanNative,
+                                ).length
+                            }
+                        </strong>
+                        <span>native</span>
+                    </div>
+                    <div data-testid="materialization-downgraded">
+                        <strong>
+                            {
+                                entries().filter(
+                                    (entry) => entry.weakerThanNative,
+                                ).length
+                            }
+                        </strong>
+                        <span>downgraded</span>
+                    </div>
+                </div>
+                <div
+                    class="materialization-harnesses"
+                    data-testid="materialization-harnesses"
+                >
+                    <For each={harnesses()}>
+                        {(harness) => {
+                            const entry = harness.extensions.find(
+                                (item) => item.type === registryTypeName,
+                            );
+                            return (
+                                <div class="materialization-harness">
+                                    <span>{harness.name}</span>
+                                    <i
+                                        data-native={
+                                            entry?.weakerThanNative
+                                                ? "false"
+                                                : "true"
+                                        }
+                                        title={
+                                            entry?.weakerThanNative ?? "native"
+                                        }
+                                    />
+                                </div>
+                            );
+                        }}
+                    </For>
+                </div>
+            </Show>
+            <p
+                class="materialization-explanation"
+                data-testid="materialization-explanation"
+            >
+                {props.type === "skills"
+                    ? "Downgraded skills inline their description into base context and lose lazy loading."
+                    : props.type === "rules"
+                      ? "Downgraded rules concatenate into base context and lose path scoping."
+                      : "Downgrades name the mechanism loss; the registry decides the count."}
+            </p>
+            <p class="determinism-note" data-testid="determinism-note">
+                Sorted order, no timestamps, no run id. The materialized tree is
+                the prompt prefix, so an unstable one costs cache on every run
+                that follows it.
+            </p>
+            <small>{harnesses().length} registered harnesses</small>
+        </aside>
+    );
+}
+
+function LiveExtensionEditor(props: { type: ExtensionEditorType }) {
+    const type = storageType(props.type);
+    const label = LABELS[props.type];
+    const [extensions, setExtensions] = createSignal<
+        Envelope<PersistedExtension[]>
+    >({
+        status: "loading",
+    });
+    const [selectedId, setSelectedId] = createSignal<string>();
+    const [draft, setDraft] = createSignal<{
+        id?: string;
+        name: string;
+        frontmatter: Record<string, unknown>;
+        body: string;
+    }>();
+    const [sortByName, setSortByName] = createSignal(false);
+    const [historyOpen, setHistoryOpen] = createSignal(false);
+    const [history, setHistory] = createSignal<Envelope<ExtensionRevision[]>>({
+        status: "empty",
+    });
+    const [saved, setSaved] = createSignal(true);
+    const [saveError, setSaveError] = createSignal<string>();
+    const rows = () => {
+        const state = extensions();
+        return state.status === "ready" ? state.data : [];
+    };
+    const extensionError = () => {
+        const state = extensions();
+        return state.status === "failed" ? state.error.message : "";
+    };
+    const historyRows = () => {
+        const state = history();
+        return state.status === "ready" ? state.data : [];
+    };
+    const historyError = () => {
+        const state = history();
+        return state.status === "failed" ? state.error.message : "";
+    };
+    const displayedRows = createMemo(() =>
+        sortByName()
+            ? [...rows()].sort((left, right) =>
+                  left.name.localeCompare(right.name),
+              )
+            : rows(),
+    );
+
+    const choose = (extension: PersistedExtension) => {
+        setSelectedId(extension.id);
+        setDraft({
+            id: extension.id,
+            name: extension.name,
+            frontmatter: { ...extension.frontmatter },
+            body: extension.body,
+        });
+        setHistoryOpen(false);
+        setSaved(true);
+        setSaveError(undefined);
+    };
+
+    onMount(() => {
+        void fetchExtensions(type).then((result) => {
+            setExtensions(result);
+            if (result.status === "ready" && result.data[0])
+                choose(result.data[0]);
+        });
+    });
+
+    const add = () => {
+        setSelectedId(undefined);
+        setDraft({
+            name: `${SINGULAR[props.type]}-${rows().length + 1}`,
+            frontmatter: draftValues(props.type),
+            body: "",
+        });
+        setHistoryOpen(false);
+        setSaved(false);
+        setSaveError(undefined);
+    };
+    const updateDraft = (
+        patch: Partial<NonNullable<ReturnType<typeof draft>>>,
+    ) => {
+        setDraft((current) => (current ? { ...current, ...patch } : current));
+        setSaved(false);
+    };
+    const updateField = (name: string, value: string) => {
+        updateDraft({
+            frontmatter: {
+                ...(draft()?.frontmatter ?? {}),
+                [name]: value,
+            },
+        });
+    };
+    const save = async () => {
+        const current = draft();
+        if (!current?.name.trim()) {
+            setSaveError("Extension name is required.");
+            return;
+        }
+        setSaveError(undefined);
+        const result = await saveExtension({
+            id: current.id,
+            extensionType: type,
+            name: current.name,
+            frontmatter: current.frontmatter,
+            body: current.body,
+        });
+        if (result.status !== "ready") {
+            setSaveError(
+                result.status === "failed"
+                    ? result.error.message
+                    : "Extension was not saved.",
+            );
+            return;
+        }
+        setExtensions({
+            status: "ready",
+            data: [
+                ...rows().filter(
+                    (extension) => extension.id !== result.data.id,
+                ),
+                result.data,
+            ],
+        });
+        choose(result.data);
+    };
+    const toggleHistory = async () => {
+        const id = selectedId();
+        setHistoryOpen((open) => !open);
+        if (!id || historyOpen()) return;
+        setHistory({ status: "loading" });
+        setHistory(await fetchExtensionHistory(id));
+    };
+
+    return (
+        <div
+            class="extension-editor"
+            data-testid="extension-editor"
+            data-extension-type={props.type}
+            data-live-state="ready"
+        >
+            <aside
+                class="extension-list-rail"
+                data-testid="extension-list-rail"
+            >
+                <header>
+                    <div class="extension-rail-icon" aria-hidden="true">
+                        ✦
+                    </div>
+                    <h1>{label}</h1>
+                    <span data-testid="extension-total">{rows().length}</span>
+                    <p>{BLURBS[props.type]}</p>
+                    <Button
+                        variant="primary"
+                        data-testid="extension-new"
+                        onClick={add}
+                    >
+                        New {SINGULAR[props.type]}
+                    </Button>
+                </header>
+                <div class="extension-sort">
+                    <span>Items</span>
+                    <button
+                        type="button"
+                        onClick={() => setSortByName((value) => !value)}
+                    >
+                        Sort: {sortByName() ? "name" : "recently edited"}
+                    </button>
+                </div>
+                <Show when={extensions().status === "loading"}>
+                    <p data-testid="extension-loading">Loading extensions…</p>
+                </Show>
+                <Show when={extensions().status === "failed"}>
+                    <InlineError
+                        cause={extensionError()}
+                        next="Retry the extension store connection."
+                    />
+                </Show>
+                <Show when={extensions().status === "empty"}>
+                    <p data-testid="extension-empty">
+                        No {label.toLowerCase()} are persisted.
+                    </p>
+                </Show>
+                <For each={displayedRows()}>
+                    {(extension) => (
+                        <button
+                            type="button"
+                            class="extension-item"
+                            data-testid={`extension-item-${extension.name}`}
+                            aria-selected={
+                                selectedId() === extension.id ? "true" : "false"
+                            }
+                            onClick={() => choose(extension)}
+                        >
+                            <span>{extension.name}</span>
+                            <small>v{extension.version}</small>
+                        </button>
+                    )}
+                </For>
+                <footer>
+                    Persisted in Postgres; revisions are retained for History.
+                </footer>
+            </aside>
+            <Show
+                when={draft()}
+                fallback={
+                    <main class="extension-editor-main">
+                        <p>Select an extension or create a new one.</p>
+                    </main>
+                }
+            >
+                {(current) => (
+                    <main class="extension-editor-main">
+                        <header class="extension-editor-head">
+                            <div>
+                                <Input
+                                    value={current().name}
+                                    aria-label="Extension name"
+                                    data-testid="extension-name"
+                                    onInput={(event) =>
+                                        updateDraft({
+                                            name: event.currentTarget.value,
+                                        })
+                                    }
+                                />
+                                <p>
+                                    {label} ·{" "}
+                                    {selectedId()
+                                        ? `version ${rows().find((extension) => extension.id === selectedId())?.version ?? 1}`
+                                        : "new"}{" "}
+                                    · {saved() ? "saved" : "unsaved changes"}
+                                </p>
+                            </div>
+                            <div class="ws-actions">
+                                <Button
+                                    variant="secondary"
+                                    data-testid="extension-history"
+                                    onClick={toggleHistory}
+                                >
+                                    History
+                                </Button>
+                                <Button
+                                    variant="primary"
+                                    data-testid="extension-save"
+                                    onClick={save}
+                                >
+                                    Save
+                                </Button>
+                            </div>
+                        </header>
+                        <Show when={saveError()}>
+                            <InlineError
+                                cause={saveError()!}
+                                next="Correct the extension and save again."
+                            />
+                        </Show>
+                        <Frontmatter
+                            type={props.type}
+                            values={draftValues(props.type, {
+                                ...current(),
+                                id: current().id ?? "",
+                                extensionType: type,
+                                version: 1,
+                                updatedAt: "",
+                            })}
+                            onChange={updateField}
+                        />
+                        <Show when={historyOpen()}>
+                            <section
+                                class="extension-history"
+                                data-testid="extension-history-panel"
+                            >
+                                <Show when={history().status === "loading"}>
+                                    Loading history…
+                                </Show>
+                                <Show when={history().status === "failed"}>
+                                    {historyError()}
+                                </Show>
+                                <For each={historyRows()}>
+                                    {(revision) => (
+                                        <p>
+                                            v{revision.version} ·{" "}
+                                            {revision.createdAt}
+                                        </p>
+                                    )}
+                                </For>
+                                <Show when={history().status === "empty"}>
+                                    No revisions yet.
+                                </Show>
+                            </section>
+                        </Show>
+                        <section
+                            class="extension-body"
+                            data-testid="extension-body"
+                        >
+                            <header>
+                                <h2>Rendered file body</h2>
+                                <Tag variant="neutral">markdown</Tag>
+                            </header>
+                            <textarea
+                                value={current().body}
+                                aria-label="Extension body"
+                                data-testid="extension-body-input"
+                                onInput={(event) =>
+                                    updateDraft({
+                                        body: event.currentTarget.value,
+                                    })
+                                }
+                            />
+                        </section>
+                    </main>
+                )}
+            </Show>
+            <LiveMaterialization type={props.type} />
+        </div>
+    );
+}
+
 export function ExtensionEditor(props: { type: ExtensionEditorType }) {
+    if (dataProvider().kind === "live") {
+        if (props.type === "harnesses")
+            return <LiveExtensionEditor type="agents" />;
+        return <LiveExtensionEditor type={props.type} />;
+    }
     const label = LABELS[props.type];
     const [items, setItems] = createSignal([...ITEMS[props.type]]);
     const [selectedItem, setSelectedItem] = createSignal(items()[0] ?? "");
@@ -497,9 +1011,7 @@ export function ExtensionEditor(props: { type: ExtensionEditorType }) {
                         ✦
                     </div>
                     <h1>{label}</h1>
-                    <span data-testid="extension-total">
-                        {ITEMS[props.type].length}
-                    </span>
+                    <span data-testid="extension-total">{items().length}</span>
                     <p>{BLURBS[props.type]}</p>
                     <Button
                         variant="primary"
@@ -530,7 +1042,9 @@ export function ExtensionEditor(props: { type: ExtensionEditorType }) {
                             onClick={() => setSelectedItem(item)}
                         >
                             <span>{item}</span>
-                            <small>v{4 - items().indexOf(item)}</small>
+                            <small>
+                                v{Math.max(1, 4 - items().indexOf(item))}
+                            </small>
                         </button>
                     )}
                 </For>

@@ -26,6 +26,7 @@ use locus_core::{
         interact::InteractState,
         lint::discover as discover_linters,
         manage::TaskColumn,
+        provider::{KeychainReference, ProviderConnectionConfig, ProviderModel, ProviderReference},
         task::TaskDetailSummary,
         telemetry::{now_timestamp, CapturedEvent, Event, EventVerb},
     },
@@ -127,6 +128,467 @@ impl IpcError {
 
 fn webviews_per_window() -> usize {
     1
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProviderModelResponse {
+    model_id: String,
+    alias: Option<String>,
+    selector_included: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProviderResponse {
+    id: String,
+    identifier: String,
+    keychain_reference: String,
+    verification_at: Option<String>,
+    verification_model_count: Option<i32>,
+    verification_status: Option<String>,
+    verification_expires_at: Option<String>,
+    authentication_method: String,
+    base_url: Option<String>,
+    models: Vec<ProviderModelResponse>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ProviderSaveRequest {
+    id: Option<String>,
+    identifier: String,
+    keychain_reference: String,
+    #[serde(default = "default_authentication_method")]
+    authentication_method: String,
+    base_url: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ProviderModelRequest {
+    model_id: String,
+    alias: Option<String>,
+    selector_included: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ProviderModelsSetRequest {
+    provider_id: String,
+    models: Vec<ProviderModelRequest>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProviderSecretReplaceResponse {
+    replaced: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ProviderSecretReplaceRequest {
+    provider_id: String,
+    secret: String,
+}
+
+fn default_authentication_method() -> String {
+    "api-key".into()
+}
+
+fn provider_response(
+    row: locus_core::store::providers::ProviderReferenceRow,
+    models: Vec<ProviderModel>,
+) -> ProviderResponse {
+    ProviderResponse {
+        id: row.id.to_string(),
+        identifier: row.identifier,
+        keychain_reference: row.keychain_reference,
+        verification_at: row.verification_at,
+        verification_model_count: row.verification_model_count,
+        verification_status: row.verification_status,
+        verification_expires_at: row.verification_expires_at,
+        authentication_method: row.authentication_method,
+        base_url: row.base_url,
+        models: models
+            .into_iter()
+            .map(|model| ProviderModelResponse {
+                model_id: model.model_id,
+                alias: model.alias,
+                selector_included: model.selector_included,
+            })
+            .collect(),
+    }
+}
+
+#[tauri::command]
+async fn providers_list(core: State<'_, Arc<Core>>) -> Result<Vec<ProviderResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    let rows = store
+        .provider_references()
+        .await
+        .map_err(IpcError::internal)?;
+    let mut providers = Vec::with_capacity(rows.len());
+    for row in rows {
+        let models = store
+            .provider_models(row.id)
+            .await
+            .map_err(IpcError::internal)?;
+        providers.push(provider_response(row, models));
+    }
+    Ok(providers)
+}
+
+#[tauri::command]
+async fn provider_save(
+    core: State<'_, Arc<Core>>,
+    request: ProviderSaveRequest,
+) -> Result<ProviderResponse, IpcError> {
+    let id = request
+        .id
+        .as_deref()
+        .map(str::parse)
+        .transpose()
+        .map_err(|_| IpcError::invalid_argument("provider id must be a UUID"))?
+        .unwrap_or_else(uuid::Uuid::new_v4);
+    let keychain_reference = KeychainReference::new(request.keychain_reference)
+        .map_err(|error| IpcError::invalid_argument(error.to_string()))?;
+    let provider = ProviderReference::new(id, request.identifier, keychain_reference)
+        .map_err(|error| IpcError::invalid_argument(error.to_string()))?;
+    let connection = ProviderConnectionConfig::new(request.authentication_method, request.base_url)
+        .map_err(|error| IpcError::invalid_argument(error.to_string()))?;
+    let store = connected_store(&core).await?;
+    store
+        .persist_provider_reference(&provider)
+        .await
+        .map_err(IpcError::internal)?;
+    store
+        .persist_provider_connection(id, &connection)
+        .await
+        .map_err(IpcError::internal)?;
+    let row = store
+        .provider_references()
+        .await
+        .map_err(IpcError::internal)?
+        .into_iter()
+        .find(|row| row.id == id)
+        .ok_or_else(|| IpcError::internal("saved provider disappeared"))?;
+    let models = store
+        .provider_models(id)
+        .await
+        .map_err(IpcError::internal)?;
+    Ok(provider_response(row, models))
+}
+
+#[tauri::command]
+async fn provider_secret_replace(
+    core: State<'_, Arc<Core>>,
+    request: ProviderSecretReplaceRequest,
+) -> Result<ProviderSecretReplaceResponse, IpcError> {
+    if request.secret.is_empty() {
+        return Err(IpcError::invalid_argument(
+            "provider secret must not be empty",
+        ));
+    }
+    let provider_id: uuid::Uuid = request
+        .provider_id
+        .parse()
+        .map_err(|_| IpcError::invalid_argument("provider id must be a UUID"))?;
+    let store = connected_store(&core).await?;
+    let row = store
+        .provider_references()
+        .await
+        .map_err(IpcError::internal)?
+        .into_iter()
+        .find(|row| row.id == provider_id)
+        .ok_or_else(|| IpcError::not_found("provider was not found"))?;
+    let reference = KeychainReference::new(row.keychain_reference)
+        .map_err(|error| IpcError::invalid_argument(error.to_string()))?;
+    locus_core::services::provider::OsKeychain::write_secret(
+        &locus_core::services::provider::KeyringKeychain,
+        &reference,
+        &request.secret,
+    )
+    .map_err(IpcError::internal)?;
+    Ok(ProviderSecretReplaceResponse { replaced: true })
+}
+
+#[tauri::command]
+async fn provider_models_set(
+    core: State<'_, Arc<Core>>,
+    request: ProviderModelsSetRequest,
+) -> Result<Vec<ProviderModelResponse>, IpcError> {
+    let provider_id = request
+        .provider_id
+        .parse()
+        .map_err(|_| IpcError::invalid_argument("provider id must be a UUID"))?;
+    let models = request
+        .models
+        .into_iter()
+        .map(|model| {
+            let mut value = ProviderModel::new(provider_id, model.model_id)
+                .map_err(|error| IpcError::invalid_argument(error.to_string()))?;
+            if let Some(alias) = model.alias {
+                value = value
+                    .with_alias(alias)
+                    .map_err(|error| IpcError::invalid_argument(error.to_string()))?;
+            }
+            if !model.selector_included {
+                value = value.exclude_from_selector();
+            }
+            Ok(value)
+        })
+        .collect::<Result<Vec<_>, IpcError>>()?;
+    let store = connected_store(&core).await?;
+    store
+        .persist_provider_models(provider_id, &models)
+        .await
+        .map_err(IpcError::internal)?;
+    Ok(models
+        .into_iter()
+        .map(|model| ProviderModelResponse {
+            model_id: model.model_id,
+            alias: model.alias,
+            selector_included: model.selector_included,
+        })
+        .collect())
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ExtensionResponse {
+    id: String,
+    extension_type: String,
+    name: String,
+    version: i32,
+    frontmatter: Value,
+    body: String,
+    updated_at: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ExtensionRevisionResponse {
+    id: String,
+    extension_id: String,
+    version: i32,
+    frontmatter: Value,
+    body: String,
+    created_at: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ExtensionSaveRequest {
+    id: Option<String>,
+    extension_type: String,
+    name: String,
+    frontmatter: Value,
+    body: String,
+}
+
+fn extension_response(row: locus_core::store::extensions::ExtensionRow) -> ExtensionResponse {
+    ExtensionResponse {
+        id: row.id.to_string(),
+        extension_type: row.extension_type,
+        name: row.name,
+        version: row.version,
+        frontmatter: row.frontmatter,
+        body: row.body,
+        updated_at: row.updated_at,
+    }
+}
+
+fn extension_revision_response(
+    row: locus_core::store::extensions::ExtensionRevisionRow,
+) -> ExtensionRevisionResponse {
+    ExtensionRevisionResponse {
+        id: row.id.to_string(),
+        extension_id: row.extension_id.to_string(),
+        version: row.version,
+        frontmatter: row.frontmatter,
+        body: row.body,
+        created_at: row.created_at,
+    }
+}
+
+#[tauri::command]
+async fn extensions_list(
+    core: State<'_, Arc<Core>>,
+    extension_type: String,
+) -> Result<Vec<ExtensionResponse>, IpcError> {
+    connected_store(&core)
+        .await?
+        .extensions(&extension_type)
+        .await
+        .map(|rows| rows.into_iter().map(extension_response).collect())
+        .map_err(IpcError::internal)
+}
+
+#[tauri::command]
+async fn extension_history(
+    core: State<'_, Arc<Core>>,
+    extension_id: String,
+) -> Result<Vec<ExtensionRevisionResponse>, IpcError> {
+    let extension_id = extension_id
+        .parse()
+        .map_err(|_| IpcError::invalid_argument("extension id must be a UUID"))?;
+    connected_store(&core)
+        .await?
+        .extension_history(extension_id)
+        .await
+        .map(|rows| rows.into_iter().map(extension_revision_response).collect())
+        .map_err(IpcError::internal)
+}
+
+#[tauri::command]
+async fn extension_save(
+    core: State<'_, Arc<Core>>,
+    request: ExtensionSaveRequest,
+) -> Result<ExtensionResponse, IpcError> {
+    let id = request
+        .id
+        .as_deref()
+        .map(str::parse)
+        .transpose()
+        .map_err(|_| IpcError::invalid_argument("extension id must be a UUID"))?;
+    connected_store(&core)
+        .await?
+        .persist_extension(
+            id,
+            &request.extension_type,
+            &request.name,
+            &request.frontmatter,
+            &request.body,
+        )
+        .await
+        .map(extension_response)
+        .map_err(|error| {
+            if error.to_string().starts_with("unknown extension type")
+                || error.to_string().contains(" is required")
+                || error
+                    .to_string()
+                    .contains("frontmatter must be a JSON object")
+            {
+                IpcError::invalid_argument(error.to_string())
+            } else {
+                IpcError::internal(error)
+            }
+        })
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CliToolResponse {
+    id: String,
+    name: String,
+    version: String,
+    category: String,
+    enabled: bool,
+    source: String,
+    binary_sha256: Option<String>,
+    install_command: String,
+    verify_command: String,
+    documentation_url: Option<String>,
+    last_rebuilt_at: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CliToolEnableRequest {
+    id: String,
+    enabled: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CliToolUploadRequest {
+    manifest: Vec<u8>,
+    manifest_signature: String,
+    binary: Vec<u8>,
+    binary_signature: String,
+}
+
+fn cli_tool_response(row: locus_core::store::cli_tools::CliToolRow) -> CliToolResponse {
+    CliToolResponse {
+        id: row.id.to_string(),
+        name: row.name,
+        version: row.version,
+        category: row.category,
+        enabled: row.enabled,
+        source: row.source,
+        binary_sha256: row.binary_sha256,
+        install_command: row.install_command,
+        verify_command: row.verify_command,
+        documentation_url: row.documentation_url,
+        last_rebuilt_at: row.last_rebuilt_at,
+    }
+}
+
+#[tauri::command]
+async fn cli_tools_list(core: State<'_, Arc<Core>>) -> Result<Vec<CliToolResponse>, IpcError> {
+    connected_store(&core)
+        .await?
+        .cli_tools()
+        .await
+        .map(|rows| rows.into_iter().map(cli_tool_response).collect())
+        .map_err(IpcError::internal)
+}
+
+#[tauri::command]
+async fn cli_tool_enabled_set(
+    core: State<'_, Arc<Core>>,
+    request: CliToolEnableRequest,
+) -> Result<CliToolResponse, IpcError> {
+    let id = request
+        .id
+        .parse()
+        .map_err(|_| IpcError::invalid_argument("CLI tool id must be a UUID"))?;
+    connected_store(&core)
+        .await?
+        .set_cli_tool_enabled(id, request.enabled)
+        .await
+        .map(cli_tool_response)
+        .map_err(IpcError::internal)
+}
+
+#[tauri::command]
+async fn cli_tool_upload(
+    core: State<'_, Arc<Core>>,
+    request: CliToolUploadRequest,
+) -> Result<CliToolResponse, IpcError> {
+    let manifest_text = std::str::from_utf8(&request.manifest)
+        .map_err(|_| IpcError::invalid_argument("CLI tool manifest must be UTF-8 TOML"))?;
+    let manifest: locus_core::services::tools::ToolManifest = toml::from_str(manifest_text)
+        .map_err(|_| IpcError::invalid_argument("CLI tool manifest is invalid TOML"))?;
+    let trusted_key_text = std::env::var("LOCUS_TRUSTED_TOOL_KEYS").unwrap_or_default();
+    let trusted_keys = trusted_key_text.lines().map(str::to_owned);
+    let trusted_keys = locus_core::services::tools::TrustedKeyStore::from_public_keys(trusted_keys)
+        .map_err(|error| IpcError::invalid_argument(error.to_string()))?;
+    let mut catalog = locus_core::services::tools::ToolCatalog::new(trusted_keys);
+    catalog
+        .admit_user_tool(locus_core::services::tools::SignedToolUpload {
+            manifest: request.manifest,
+            manifest_signature: request.manifest_signature,
+            binary: request.binary,
+            binary_signature: request.binary_signature,
+        })
+        .map_err(|error| IpcError::invalid_argument(error.to_string()))?;
+    let upload = locus_core::store::cli_tools::CliToolUpload {
+        name: manifest.name,
+        version: manifest.version,
+        category: manifest.category,
+        binary_sha256: manifest.binary_sha256,
+        install_command: manifest.install_command,
+        verify_command: manifest.verify_command,
+        documentation_url: manifest.documentation_url,
+    };
+    connected_store(&core)
+        .await?
+        .persist_uploaded_cli_tool(&upload)
+        .await
+        .map(cli_tool_response)
+        .map_err(IpcError::internal)
 }
 
 #[derive(Debug, Deserialize)]
@@ -2880,6 +3342,103 @@ struct ExternalWorkItemWorkflowResponse {
     version: i32,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WorkflowNodeVocabularyResponse {
+    kind: String,
+    label: String,
+    icon: String,
+    tone: String,
+    required: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WorkflowPresetResponse {
+    name: String,
+    note: String,
+}
+
+#[tauri::command]
+fn workflow_node_vocabulary() -> Vec<WorkflowNodeVocabularyResponse> {
+    [
+        ("agent", "Agent", "robot", "default", false),
+        ("task", "Task", "check-square", "default", false),
+        ("loop", "Loop", "infinity", "default", false),
+        ("condition", "Condition", "arrows-split", "condition", false),
+        ("gate", "Gate", "hand-palm", "default", false),
+        ("verify", "Verify", "flag-checkered", "default", true),
+    ]
+    .into_iter()
+    .map(
+        |(kind, label, icon, tone, required)| WorkflowNodeVocabularyResponse {
+            kind: kind.into(),
+            label: label.into(),
+            icon: icon.into(),
+            tone: tone.into(),
+            required,
+        },
+    )
+    .collect()
+}
+
+#[tauri::command]
+fn workflow_presets() -> Vec<WorkflowPresetResponse> {
+    vec![
+        WorkflowPresetResponse {
+            name: "Ralph loop".into(),
+            note: "pick · act · validate · commit · reset".into(),
+        },
+        WorkflowPresetResponse {
+            name: "Review pass".into(),
+            note: "read-only tools, one reviewer, one gate".into(),
+        },
+    ]
+}
+
+#[tauri::command]
+fn condition_operands() -> Vec<String> {
+    locus_core::services::workflow::ConditionOperand::ALL
+        .into_iter()
+        .map(|operand| operand.as_str().into())
+        .collect()
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WorkflowDefinitionResponse {
+    id: String,
+    project_id: String,
+    name: String,
+    version: i32,
+    graph: Value,
+    spec: Value,
+    verify_command: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WorkflowDefinitionSaveRequest {
+    project_id: String,
+    name: String,
+    graph: Value,
+    governance: Value,
+}
+
+fn workflow_definition_response(
+    row: locus_core::store::workflows::PersistedWorkflowDefinition,
+) -> WorkflowDefinitionResponse {
+    WorkflowDefinitionResponse {
+        id: row.id.to_string(),
+        project_id: row.project_id.to_string(),
+        name: row.name,
+        version: row.version,
+        graph: row.graph,
+        spec: row.spec,
+        verify_command: row.verify_command,
+    }
+}
+
 async fn workflow_definitions_inner(
     store: &Store,
     project_id: &str,
@@ -2907,6 +3466,48 @@ async fn workflow_definitions(
     project_id: String,
 ) -> Result<Vec<ExternalWorkItemWorkflowResponse>, IpcError> {
     workflow_definitions_inner(connected_store(&core).await?, &project_id).await
+}
+
+#[tauri::command]
+async fn workflow_definition_detail(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    workflow_id: String,
+) -> Result<WorkflowDefinitionResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = resolve_project_id(store, &project_id).await?;
+    let workflow_id = workflow_id
+        .parse()
+        .map_err(|_| IpcError::invalid_argument("workflow id must be a UUID"))?;
+    let row = store
+        .workflow_definition(workflow_id)
+        .await
+        .map_err(IpcError::internal)?
+        .ok_or_else(|| IpcError::not_found("workflow definition was not found"))?;
+    if row.project_id != project_id.as_uuid() {
+        return Err(IpcError::not_found("workflow definition was not found"));
+    }
+    Ok(workflow_definition_response(row))
+}
+
+#[tauri::command]
+async fn workflow_definition_save(
+    core: State<'_, Arc<Core>>,
+    request: WorkflowDefinitionSaveRequest,
+) -> Result<WorkflowDefinitionResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = resolve_project_id(store, &request.project_id).await?;
+    let governance = serde_json::from_value::<locus_core::services::workflow::WorkflowGovernance>(
+        request.governance,
+    )
+    .map_err(|error| IpcError::invalid_argument(format!("invalid workflow governance: {error}")))?;
+    let compiled = locus_core::services::workflow::compile_workflow(request.graph, governance)
+        .map_err(|error| IpcError::invalid_argument(error.to_string()))?;
+    let row = store
+        .save_workflow_definition(project_id.as_uuid(), &request.name, &compiled)
+        .await
+        .map_err(IpcError::internal)?;
+    Ok(workflow_definition_response(row))
 }
 
 #[tauri::command]
@@ -4917,6 +5518,202 @@ fn repo_git_state(path: String) -> Result<GitState, IpcError> {
         .map_err(IpcError::internal)
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct HarnessMechanismBadgeResponse {
+    variant: String,
+    label: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct HarnessExtensionResponse {
+    #[serde(rename = "type")]
+    extension_type: String,
+    via: String,
+    weaker_than_native: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct HarnessRegistryEntryResponse {
+    name: String,
+    binary: String,
+    badge: HarnessMechanismBadgeResponse,
+    injection: String,
+    mechanism: String,
+    emits: Vec<String>,
+    model_flag: Option<String>,
+    can_enumerate_models: bool,
+    extensions: Vec<HarnessExtensionResponse>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct HarnessRegistrySummaryResponse {
+    harnesses: usize,
+    entries: usize,
+    downgrades: usize,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ExtensionTypeCountResponse {
+    #[serde(rename = "type")]
+    extension_type: String,
+    native: usize,
+    downgraded: usize,
+}
+
+const WORKSHOP_EXTENSION_TYPES: [&str; 8] = [
+    "agents",
+    "commands",
+    "context",
+    "hooks",
+    "linters",
+    "output-styles",
+    "rules",
+    "skills",
+];
+
+fn harness_mechanism_badge(
+    harness: &locus_core::harness::registry::HarnessDefinition,
+) -> HarnessMechanismBadgeResponse {
+    let source = harness.telemetry.source.as_str();
+    let (variant, label) = if source == "acp" {
+        ("acp", "ACP".to_owned())
+    } else if source == "hooks" {
+        let label = if harness
+            .hooks
+            .as_ref()
+            .and_then(|hooks| hooks.generated.as_ref())
+            .is_some()
+        {
+            "hooks · plugin"
+        } else if harness
+            .hooks
+            .as_ref()
+            .and_then(|hooks| hooks.config.as_ref())
+            .is_some()
+        {
+            "hooks · config"
+        } else {
+            "hooks"
+        };
+        ("bridged", label.to_owned())
+    } else {
+        ("bridged", source.to_owned())
+    };
+    HarnessMechanismBadgeResponse {
+        variant: variant.to_owned(),
+        label,
+    }
+}
+
+fn harness_injection(harness: &locus_core::harness::registry::HarnessDefinition) -> String {
+    let hooks = &harness.layout.hooks;
+    match hooks.via {
+        locus_core::harness::registry::Via::Dir => "its own hook directory".into(),
+        locus_core::harness::registry::Via::EntriesIn => "entries in its own settings".into(),
+        locus_core::harness::registry::Via::CoreDriven => {
+            "no hook mechanism · core-driven at the boundary".into()
+        }
+        locus_core::harness::registry::Via::MergedInto => format!(
+            "merged into {}",
+            hooks.target.as_deref().unwrap_or("context")
+        ),
+        via => via.as_str().into(),
+    }
+}
+
+fn harness_registry_entry(
+    harness: &locus_core::harness::registry::HarnessDefinition,
+) -> HarnessRegistryEntryResponse {
+    let mut emits = harness.telemetry.emits.clone().unwrap_or_default();
+    emits.sort();
+    HarnessRegistryEntryResponse {
+        name: harness.name.clone(),
+        binary: harness.binary.clone(),
+        badge: harness_mechanism_badge(harness),
+        injection: harness_injection(harness),
+        mechanism: harness.telemetry.source.clone(),
+        emits,
+        model_flag: (!harness.models.flag.is_empty()).then(|| harness.models.flag.clone()),
+        can_enumerate_models: !harness.models.list_argv.is_empty(),
+        extensions: harness
+            .layout
+            .named_entries()
+            .into_iter()
+            .map(|(extension_type, entry)| HarnessExtensionResponse {
+                extension_type: extension_type.to_owned(),
+                via: entry.via.as_str().to_owned(),
+                weaker_than_native: entry.weaker_than_native.clone(),
+            })
+            .collect(),
+    }
+}
+
+#[tauri::command]
+fn harness_registry_list(
+    core: State<'_, Arc<Core>>,
+) -> Result<Vec<HarnessRegistryEntryResponse>, IpcError> {
+    // The registry is parsed once at startup. This is authoritative configuration, not fixture data.
+    Ok(core.registry().iter().map(harness_registry_entry).collect())
+}
+
+#[tauri::command]
+fn harness_registry_summary(
+    core: State<'_, Arc<Core>>,
+) -> Result<HarnessRegistrySummaryResponse, IpcError> {
+    let counts = core.registry().counts();
+    Ok(HarnessRegistrySummaryResponse {
+        harnesses: core.registry().len(),
+        entries: counts.entries,
+        downgrades: counts.downgrades,
+    })
+}
+
+#[tauri::command]
+fn extension_types() -> Vec<String> {
+    WORKSHOP_EXTENSION_TYPES
+        .iter()
+        .map(|value| (*value).into())
+        .collect()
+}
+
+fn extension_counts_for_registry(
+    registry: &locus_core::harness::registry::HarnessRegistry,
+) -> Vec<ExtensionTypeCountResponse> {
+    WORKSHOP_EXTENSION_TYPES
+        .iter()
+        .map(|extension_type| {
+            let mut entries = 0;
+            let mut downgraded = 0;
+            for harness in registry.iter() {
+                if let Some((_, entry)) = harness
+                    .layout
+                    .named_entries()
+                    .into_iter()
+                    .find(|(name, _)| name == extension_type)
+                {
+                    entries += 1;
+                    downgraded += usize::from(entry.weaker_than_native.is_some());
+                }
+            }
+            ExtensionTypeCountResponse {
+                extension_type: (*extension_type).into(),
+                native: entries - downgraded,
+                downgraded,
+            }
+        })
+        .collect()
+}
+
+#[tauri::command]
+fn extension_counts(core: State<'_, Arc<Core>>) -> Vec<ExtensionTypeCountResponse> {
+    extension_counts_for_registry(core.registry())
+}
+
 #[tauri::command]
 fn materialization_report(
     core: State<'_, Arc<Core>>,
@@ -5063,6 +5860,21 @@ pub fn run() {
             settings_guardrails,
             settings_guardrails_set,
             workflow_definitions,
+            workflow_node_vocabulary,
+            workflow_presets,
+            condition_operands,
+            workflow_definition_detail,
+            workflow_definition_save,
+            extensions_list,
+            extension_history,
+            extension_save,
+            cli_tools_list,
+            cli_tool_enabled_set,
+            cli_tool_upload,
+            providers_list,
+            provider_save,
+            provider_secret_replace,
+            provider_models_set,
             dispatch_schedules,
             dispatch_schedule_executions,
             session,
@@ -5073,6 +5885,10 @@ pub fn run() {
             inbox_throughput,
             inbox_resolve,
             harness_tier_grid,
+            harness_registry_list,
+            harness_registry_summary,
+            extension_types,
+            extension_counts,
             telemetry_subscribe,
             desktop_integration_emit_event,
             telemetry_events_replay,
@@ -5217,6 +6033,24 @@ mod tests {
             .iter()
             .flat_map(|report| &report.losses)
             .all(|loss| !loss.weaker_than_native.is_empty()));
+    }
+
+    #[test]
+    fn harness_registry_projection_uses_the_loaded_registry() {
+        let core = Core::load(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(HARNESS_REGISTRY))
+            .expect("core loads");
+        let entries: Vec<_> = core.registry().iter().map(harness_registry_entry).collect();
+        assert!(!entries.is_empty());
+        assert!(entries.iter().all(|entry| entry.extensions.len() == 8));
+        assert!(entries.iter().all(|entry| !entry.name.is_empty()));
+        assert_eq!(extension_types().len(), 8);
+        assert_eq!(
+            extension_counts_for_registry(core.registry())
+                .iter()
+                .map(|count| count.native + count.downgraded)
+                .sum::<usize>(),
+            entries.len() * 8
+        );
     }
 
     #[test]

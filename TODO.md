@@ -144,23 +144,19 @@ The accepted contract is implemented in dependency order.
 
 ## 6 — Workshop & canvas
 
-- [ ] **Wire the Workshop extension editor** — the demo editor now has local behavior for New, Sort,
-  selection, History, Save, config-key insertion, and effort edits. Production mutation-command wiring
-  remains open because the current routed live extension surface still exposes unavailable mutations.
-- [ ] **Wire the Workshop CLI/Providers/Workflows/Governance controls** — "Upload a CLI", "Add
-  provider", "Test connection"/"Save", "Reveal"/"Replace", catalogue search, model-alias toggle,
-  auth-method `Segmented`, "New workflow", "Add a guardrail"
-  ([WorkshopFixtureView.tsx:150-557](apps/desktop/src/screens/workshop/WorkshopFixtureView.tsx#L150-L151)).
-  These controls live on a screen epic slice 10 retires — re-scope each onto its live surface as
-  slice 8 lands instead of wiring the fixture view twice.
-- [ ] **Wire the workflow canvas editing loop** — palette drag has no `onDragStart`, canvas no
-  `onDrop`/`onDragOver`, `SolidFlow` never given `onConnect`, "+ add clause"/guardrail stepper/toggle
-  do nothing. [workflow-canvas](.specs/workflow-canvas/spec.md) acceptance 7.
-- [ ] **Drive the canvas Inspector from selection and render presets as nodes** — no `onSelect`
-  reaches `WorkflowCanvas`; picking the Ralph preset renders `<span>`s.
-- [ ] **Make the canvas reactive** — `flowNodes`/`flowEdges` computed once, store setters discarded
-  ([WorkflowCanvas.tsx:244-248](apps/desktop/src/workflow-canvas/WorkflowCanvas.tsx#L244-L248)); zoom
-  readout is the fixture constant `ZOOM = "100%"`.
+- [x] **Wire the Workshop extension editor** — production extension routes load and save authored
+  rows through `extensions_list`/`extension_save`, retain immutable revisions for History, and keep
+  the fixture editor behind the explicit demo provider.
+- [x] **Wire the Workshop CLI/Providers/Workflows/Governance controls** — the live CLI catalog,
+  provider references/model aliases/keychain replacement, and workflow definitions/governance now use
+  typed Store/Tauri contracts. Provider "Test connection" remains disabled because no provider-specific
+  network probe contract exists; it does not simulate success.
+- [x] **Wire the workflow canvas editing loop** — live palette drag, canvas drop/connect, node movement,
+  guardrail edits, autosave, and validated graph persistence now use the live workflow boundary.
+- [x] **Drive the canvas Inspector from selection and render presets as nodes** — live selection and
+  preset actions update the persisted canvas; the demo host retains the richer fixture inspector.
+- [x] **Make the canvas reactive** — `WorkflowCanvas` synchronizes Solid Flow stores from current
+  props and reports the live zoom percentage instead of a fixed fixture value.
 
 ## 7 — Panes & editor
 
