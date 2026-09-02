@@ -8,7 +8,8 @@ import { remote } from "webdriverio";
 const repo = resolve(import.meta.dirname, "../../..");
 const desktop = join(repo, "apps/desktop");
 const migrations = join(repo, "migrations");
-const postgresImage = process.env.LOCUS_DESKTOP_TEST_POSTGRES_IMAGE ?? "pgvector/pgvector:pg17";
+const postgresImage =
+  process.env.LOCUS_DESKTOP_TEST_POSTGRES_IMAGE ?? "pgvector/pgvector:pg17";
 const database = "locus";
 const password = `locus-desktop-integration-${process.pid}`;
 const container = `locus-desktop-integration-${process.pid}`;
@@ -60,7 +61,9 @@ function migrationSql() {
   return readdirSync(migrations)
     .filter((file) => file.endsWith(".up.sql"))
     .sort()
-    .map((file) => `-- ${file}\n${readFileSync(join(migrations, file), "utf8")}`)
+    .map(
+      (file) => `-- ${file}\n${readFileSync(join(migrations, file), "utf8")}`,
+    )
     .join("\n");
 }
 
@@ -132,7 +135,8 @@ function startDatabase() {
   ]);
   const published = docker(["port", container, "5432/tcp"]);
   const port = Number(published.slice(published.lastIndexOf(":") + 1));
-  if (!Number.isInteger(port) || port < 1) throw new Error(`invalid Postgres port: ${published}`);
+  if (!Number.isInteger(port) || port < 1)
+    throw new Error(`invalid Postgres port: ${published}`);
   return `postgres://locus:${password}@127.0.0.1:${port}/${database}?sslmode=disable`;
 }
 
@@ -149,10 +153,13 @@ INSERT INTO core.repos (id, project_id, name, working_copy_path) VALUES
 }
 
 async function waitForElement(browser, selector, timeout = 30_000) {
-  return browser.waitUntil(
-    async () => (await browser.$(selector)).isExisting(),
-    { timeout, interval: 250, timeoutMsg: `element did not appear: ${selector}` },
-  ).then(() => browser.$(selector));
+  return browser
+    .waitUntil(async () => (await browser.$(selector)).isExisting(), {
+      timeout,
+      interval: 250,
+      timeoutMsg: `element did not appear: ${selector}`,
+    })
+    .then(() => browser.$(selector));
 }
 
 async function waitForText(browser, selector, expected, timeout = 30_000) {
@@ -161,7 +168,11 @@ async function waitForText(browser, selector, expected, timeout = 30_000) {
       const element = await browser.$(selector);
       return (await element.getText()).includes(expected);
     },
-    { timeout, interval: 250, timeoutMsg: `text did not appear in ${selector}: ${expected}` },
+    {
+      timeout,
+      interval: 250,
+      timeoutMsg: `text did not appear in ${selector}: ${expected}`,
+    },
   );
 }
 
@@ -176,14 +187,18 @@ async function clickSelector(browser, selector) {
 }
 
 async function clickExact(browser, selector, expected) {
-  const result = await browser.execute((target, text) => {
-    const element = [...document.querySelectorAll(target)].find(
-      (candidate) => candidate.textContent?.trim() === text,
-    );
-    if (!(element instanceof HTMLElement)) return false;
-    element.click();
-    return true;
-  }, selector, expected);
+  const result = await browser.execute(
+    (target, text) => {
+      const element = [...document.querySelectorAll(target)].find(
+        (candidate) => candidate.textContent?.trim() === text,
+      );
+      if (!(element instanceof HTMLElement)) return false;
+      element.click();
+      return true;
+    },
+    selector,
+    expected,
+  );
   if (!result) throw new Error(`button not found: ${expected}`);
 }
 
@@ -192,7 +207,11 @@ async function installStreamProbe(browser) {
     const internals = window.__TAURI_INTERNALS__;
     window.__locusIntegrationEvents = [];
     const callbackId = internals.transformCallback((rawMessage) => {
-      if (rawMessage && typeof rawMessage === "object" && "message" in rawMessage) {
+      if (
+        rawMessage &&
+        typeof rawMessage === "object" &&
+        "message" in rawMessage
+      ) {
         window.__locusIntegrationEvents.push(rawMessage.message);
       }
     });
@@ -205,24 +224,36 @@ async function installStreamProbe(browser) {
 }
 
 async function emitIntegrationEvent(browser, runId, text) {
-  await browser.executeAsync((id, message, done) => {
-    window.__TAURI_INTERNALS__
-      .invoke("desktop_integration_emit_event", { runId: id, text: message })
-      .then(() => done(null))
-      .catch((error) => done(String(error)));
-  }, runId, text);
+  await browser.executeAsync(
+    (id, message, done) => {
+      window.__TAURI_INTERNALS__
+        .invoke("desktop_integration_emit_event", { runId: id, text: message })
+        .then(() => done(null))
+        .catch((error) => done(String(error)));
+    },
+    runId,
+    text,
+  );
 }
 
 async function streamMessages(browser) {
-  const result = await browser.execute(() => window.__locusIntegrationEvents ?? []);
+  const result = await browser.execute(
+    () => window.__locusIntegrationEvents ?? [],
+  );
   return result ?? [];
 }
 
 function cargoMetadata() {
   try {
-    return JSON.parse(run("cargo", ["metadata", "--no-deps", "--format-version", "1"], { cwd: repo }));
+    return JSON.parse(
+      run("cargo", ["metadata", "--no-deps", "--format-version", "1"], {
+        cwd: repo,
+      }),
+    );
   } catch (error) {
-    throw new Error("cargo metadata did not return valid JSON", { cause: error });
+    throw new Error("cargo metadata did not return valid JSON", {
+      cause: error,
+    });
   }
 }
 
@@ -239,14 +270,35 @@ function startHost(binary, databaseUrl, webdriverPort) {
 }
 
 async function buildApplication() {
-  runInherit("pnpm", ["-C", desktop, "exec", "tauri", "build", "--debug", "--no-bundle", "--features", "webdriver"]);
+  runInherit("pnpm", [
+    "-C",
+    desktop,
+    "exec",
+    "tauri",
+    "build",
+    "--debug",
+    "--no-bundle",
+    "--features",
+    "webdriver",
+  ]);
   const metadata = cargoMetadata();
   const candidates = [
-    join(metadata.target_directory, "debug", process.platform === "win32" ? "locus-tauri.exe" : "locus-tauri"),
-    join(desktop, "src-tauri", "target", "debug", process.platform === "win32" ? "locus-tauri.exe" : "locus-tauri"),
+    join(
+      metadata.target_directory,
+      "debug",
+      process.platform === "win32" ? "locus-tauri.exe" : "locus-tauri",
+    ),
+    join(
+      desktop,
+      "src-tauri",
+      "target",
+      "debug",
+      process.platform === "win32" ? "locus-tauri.exe" : "locus-tauri",
+    ),
   ];
   const binary = candidates.find(existsSync);
-  if (!binary) throw new Error(`Tauri binary not found; checked ${candidates.join(", ")}`);
+  if (!binary)
+    throw new Error(`Tauri binary not found; checked ${candidates.join(", ")}`);
   return binary;
 }
 
@@ -297,15 +349,27 @@ try {
   await clickExact(browser, '[data-testid="project-rail"] button', "Projects");
   await waitForElement(browser, '[data-testid="projects-view"]');
   await waitForText(browser, '[data-testid="project-state-list"]', "#tapestry");
-  await clickExact(browser, '[data-testid="project-state-list"] .project-list-item', "#tapestry");
+  await clickExact(
+    browser,
+    '[data-testid="project-state-list"] .project-list-item',
+    "#tapestry",
+  );
   await waitForText(browser, '[data-testid="project-repos"]', "locus");
   await waitForText(browser, '[data-testid="project-harnesses"]', "Harnesses");
 
-  await clickExact(browser, '[data-testid="project-state-list"] .project-list-item', "#loom-db");
+  await clickExact(
+    browser,
+    '[data-testid="project-state-list"] .project-list-item',
+    "#loom-db",
+  );
   await waitForText(browser, '[data-testid="project-repos"]', "loom");
 
   await clickSelector(browser, '[data-testid="dispatch-pill"]');
-  await clickExact(browser, '[data-testid="dispatch-popover"] button', "Stop all");
+  await clickExact(
+    browser,
+    '[data-testid="dispatch-popover"] button',
+    "Stop all",
+  );
   await waitForText(browser, "body", "Dispatch stopped");
 
   await installStreamProbe(browser);
@@ -313,11 +377,22 @@ try {
   const streamText = "real Tauri stream update";
   await emitIntegrationEvent(browser, streamRunId, streamText);
   await browser.waitUntil(
-    async () => (await streamMessages(browser)).some((event) => event.text === streamText),
-    { timeout: 30_000, interval: 250, timeoutMsg: "telemetry stream update was not observed" },
+    async () =>
+      (await streamMessages(browser)).some(
+        (event) => event.text === streamText,
+      ),
+    {
+      timeout: 30_000,
+      interval: 250,
+      timeoutMsg: "telemetry stream update was not observed",
+    },
   );
 
-  await clickExact(browser, '[data-testid="project-state-list"] .project-list-item', "#loom-db");
+  await clickExact(
+    browser,
+    '[data-testid="project-state-list"] .project-list-item',
+    "#loom-db",
+  );
   await waitForText(browser, '[data-testid="project-repos"]', "loom");
 
   await browser.deleteSession();
@@ -341,8 +416,11 @@ try {
     browser,
     '[data-testid="project-state-list"] [role="alert"], [data-testid="store-health"][data-status="unavailable"]',
   );
-  if (!(await error.getText()).trim()) throw new Error("backend error state was empty");
-  process.stdout.write("desktop integration passed: live setup, project scope, stop all, stream, and backend error\n");
+  if (!(await error.getText()).trim())
+    throw new Error("backend error state was empty");
+  process.stdout.write(
+    "desktop integration passed: live setup, project scope, stop all, stream, and backend error\n",
+  );
 } catch (error) {
   throw error;
 } finally {

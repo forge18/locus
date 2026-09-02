@@ -20,22 +20,15 @@ const tokenValue = (theme: string, token: string): string => {
   return value!;
 };
 
-const color = (
-  value: string,
-  theme?: string,
-): [number, number, number] => {
+const color = (value: string, theme?: string): [number, number, number] => {
   const hex = value.match(/^#([0-9a-f]{6})$/i);
   if (hex) {
-    return [0, 2, 4].map((offset) => parseInt(hex[1].slice(offset, offset + 2), 16)) as [
-      number,
-      number,
-      number,
-    ];
+    return [0, 2, 4].map((offset) =>
+      parseInt(hex[1].slice(offset, offset + 2), 16),
+    ) as [number, number, number];
   }
 
-  const mix = value.match(
-    /^color-mix\(in srgb, (.+) ([\d.]+)%, (.+)\)$/,
-  );
+  const mix = value.match(/^color-mix\(in srgb, (.+) ([\d.]+)%, (.+)\)$/);
   expect(mix, `supported color value: ${value}`).toBeDefined();
   const first = resolve(mix![1], theme);
   const second = resolve(mix![3], theme);
@@ -133,9 +126,7 @@ describe("design/undefined-style-tokens", () => {
     expect(screens).toContain("background: var(--status-danger-deep)");
     expect(screens).toContain("color: var(--status-danger-pale)");
     expect(manage).toContain(".edge-amber{color:var(--status-warning)}");
-    expect(manage).toContain(
-      "border-left:2px solid var(--status-warning)",
-    );
+    expect(manage).toContain("border-left:2px solid var(--status-warning)");
     expect(extensionEditor).toContain("color:var(--action-primary)");
     expect(extensionEditor).toContain(
       "border-left-color:var(--action-primary)",

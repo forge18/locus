@@ -444,7 +444,11 @@ export default function BotsView(props: BotsViewProps) {
                   class="bot-list-row"
                   data-testid={`bot-row-${bot.id}`}
                   data-selected={selectedId() === bot.id ? "true" : "false"}
-                  data-locator={destinationDesktop("workers", project(), bot.id)}
+                  data-locator={destinationDesktop(
+                    "workers",
+                    project(),
+                    bot.id,
+                  )}
                   onClick={() => setSelectedId(bot.id)}
                 >
                   <Avatar
@@ -504,7 +508,11 @@ export default function BotsView(props: BotsViewProps) {
           )}
         </Show>
       </main>
-      <Sheet open={newBotOpen()} onOpenChange={setNewBotOpen} title="New worker">
+      <Sheet
+        open={newBotOpen()}
+        onOpenChange={setNewBotOpen}
+        title="New worker"
+      >
         <form
           class="bots-new-bot-form"
           data-testid="new-bot-form"

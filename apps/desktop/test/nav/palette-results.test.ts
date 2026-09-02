@@ -22,9 +22,7 @@ describe("nav/palette-results", () => {
     const destinations = v2PaletteDestinations("locus", {
       current: "locus://all/view/status",
       history: ["locus://all/view/plan"],
-      sessions: [
-        { project: "locus", needsAttention: true },
-      ],
+      sessions: [{ project: "locus", needsAttention: true }],
     });
     expect(destinations).toContainEqual({
       label: "Status",
