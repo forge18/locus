@@ -42,6 +42,7 @@ import { ProjectsView } from "./screens/projects/ProjectsView";
 const TelemetryView = lazy(() => import("./screens/review/TelemetryView"));
 
 function DetachedPaneView() {
+        onMount(() => mountIconSprite());
         const runId = detachedPaneRunId();
         return (
                 <main class="detached-pane" data-testid="detached-pane">

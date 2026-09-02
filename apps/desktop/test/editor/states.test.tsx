@@ -45,11 +45,16 @@ describe("editor states", () => {
   });
 
   it("updates the mounted editor when the selected file changes", async () => {
+    const changes: string[] = [];
     const [selectedFile, setSelectedFile] = createSignal(
       file("const first = true;"),
     );
     const view = render(() => (
-      <EditorPane file={selectedFile()} language={language} />
+      <EditorPane
+        file={selectedFile()}
+        language={language}
+        onChange={(content) => changes.push(content)}
+      />
     ));
 
     expect(view.getByTestId("editor-surface").textContent).toContain(
@@ -65,6 +70,7 @@ describe("editor states", () => {
     expect(view.getByTestId("editor-surface").textContent).not.toContain(
       "const first = true;",
     );
+    expect(changes).toEqual([]);
     view.unmount();
   });
 

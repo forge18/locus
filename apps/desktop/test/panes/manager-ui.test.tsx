@@ -1,4 +1,4 @@
-import { fireEvent, render } from "@solidjs/testing-library";
+import { fireEvent, render, waitFor } from "@solidjs/testing-library";
 import { describe, expect, it } from "vitest";
 import { PaneManager } from "../../src/panes/PaneManager";
 import type { Pane } from "../../src/panes/manager";
@@ -14,12 +14,13 @@ function mount(
   onDetach: (pane: Pane) => Promise<unknown> | unknown = () => undefined,
 ) {
   let created = 0;
+  const generatedIds = ["two", "three", "four", "five", "six"];
   return render(() => (
     <PaneManager
       initialPane={initial}
       createPane={(source) => ({
         ...source,
-        id: created++ === 0 ? "two" : "three",
+        id: generatedIds[created++] ?? `extra-${created}`,
         focusedAt: 2,
       })}
       onDetach={onDetach}
@@ -62,5 +63,20 @@ describe("PaneManager UI", () => {
     await fireEvent.click(view.getByTestId("pane-detach-one"));
 
     expect(detached).toEqual([initial]);
+    await waitFor(() =>
+      expect(view.queryByTestId("pane-manager-error")).toBeNull(),
+    );
+  });
+
+  it("keeps four focused panes and demotes the least recent on split", async () => {
+    const view = mount();
+    for (const id of ["one", "two", "three", "four"]) {
+      await fireEvent.click(view.getByTestId(`pane-split-${id}`));
+    }
+
+    expect(view.getByTestId("pane-focused-count").textContent).toContain("4");
+    expect(view.getByTestId("pane-strip-count").textContent).toContain("1");
+    expect(view.getByTestId("pane-promote-one")).toBeTruthy();
+    expect(view.queryByTestId("managed-pane-one")).toBeNull();
   });
 });

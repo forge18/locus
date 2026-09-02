@@ -6,7 +6,11 @@ import {
   drawSelection,
   EditorView,
 } from "@codemirror/view";
-import { EditorState, type Extension } from "@codemirror/state";
+import {
+  Annotation,
+  EditorState,
+  type Extension,
+} from "@codemirror/state";
 import type { HostLspSupervisor, LspDiagnostics } from "./lsp";
 import { createLspClient, languageExtensions } from "./lsp";
 import { attachTauriLsp } from "./tauriLsp";
@@ -23,6 +27,8 @@ import { InlineError } from "../ui/InlineError";
 import type { EditorFile, LanguageDescriptor } from "./types";
 
 export type EditorSurfaceState = "loading" | "empty" | "error" | "loaded";
+
+const externalContentChange = Annotation.define<boolean>();
 
 function failureMessage(cause: unknown): string {
   if (cause instanceof Error && cause.message) return cause.message;
@@ -52,7 +58,9 @@ export function EditorSurface(props: EditorSurfaceProps) {
   let disposed = false;
   let activeConfig: string | undefined;
   let setupGeneration = 0;
-  let cleanup = () => {};
+  let cleanup: () => Promise<void> = async () => {};
+  let cancelSetup: () => void = () => {};
+  let lifecycle = Promise.resolve();
   let activeView: EditorView | undefined;
   let activeFallback = false;
 
@@ -66,6 +74,7 @@ export function EditorSurface(props: EditorSurfaceProps) {
           to: view.state.doc.length,
           insert: file.content,
         },
+        annotations: externalContentChange.of(true),
       });
     }
     if (!activeFallback) {
@@ -89,10 +98,23 @@ export function EditorSurface(props: EditorSurfaceProps) {
     let client: ReturnType<typeof createLspClient> | null = null;
     const isCurrent = () => !disposed && generation === setupGeneration;
 
-    const disposeManagedSupervisor = () => {
-      const pendingDispose = managedSupervisor?.dispose?.();
+    const disposeManagedSupervisor = async () => {
+      const supervisorToDispose = managedSupervisor;
       managedSupervisor = undefined;
-      void pendingDispose?.catch(() => undefined);
+      const pendingDispose = supervisorToDispose?.dispose?.();
+      if (pendingDispose) await pendingDispose.catch(() => undefined);
+    };
+
+    let cancelled = false;
+    let resolveCancellation!: () => void;
+    const cancellation = new Promise<void>((resolve) => {
+      resolveCancellation = resolve;
+    });
+    cancelSetup = () => {
+      if (cancelled) return;
+      cancelled = true;
+      resolveCancellation();
+      client?.disconnect();
     };
 
     const mountEditor = (editorClient: typeof client, plainText: boolean) => {
@@ -136,10 +158,12 @@ export function EditorSurface(props: EditorSurfaceProps) {
           : (languageExtensions(language, editorClient, file.uri) as Extension[])),
         ...(editorClient ? [semanticTokensExtension()] : []),
         EditorView.updateListener.of((update) => {
-          if (update.docChanged) {
-            props.onChange?.(update.state.doc.toString());
-            queueSemanticRefresh();
-          }
+          const external = update.transactions.some((transaction) =>
+            transaction.annotation(externalContentChange),
+          );
+          if (!update.docChanged) return;
+          if (!external) props.onChange?.(update.state.doc.toString());
+          queueSemanticRefresh();
         }),
       ];
       const state = EditorState.create({
@@ -147,19 +171,19 @@ export function EditorSurface(props: EditorSurfaceProps) {
         extensions: surfaceExtensions,
       });
       view = new EditorView({ state, parent: host });
-      const dispose = () => {
+      const dispose = async () => {
         if (semanticTimer) clearTimeout(semanticTimer);
         view.destroy();
         editorClient?.disconnect();
-        disposeManagedSupervisor();
+        await disposeManagedSupervisor();
       };
       if (!isCurrent()) {
-        dispose();
+        void dispose();
         return;
       }
       activeView = view;
-      cleanup = () => {
-        dispose();
+      cleanup = async () => {
+        await dispose();
         if (activeView === view) activeView = undefined;
       };
       if (editorClient) void editorClient.initializing.then(refreshSemanticTokens);
@@ -177,7 +201,7 @@ export function EditorSurface(props: EditorSurfaceProps) {
         supervisor = managedSupervisor;
       }
       if (!isCurrent()) {
-        disposeManagedSupervisor();
+        await disposeManagedSupervisor();
         return;
       }
       client = supervisor
@@ -193,10 +217,10 @@ export function EditorSurface(props: EditorSurfaceProps) {
         : null;
       // Keep the loading state visible until the host confirms that its LSP
       // connection is ready. A rejected setup takes the plain-text path below.
-      if (client) await client.initializing;
-      if (!isCurrent()) {
+      if (client) await Promise.race([client.initializing, cancellation]);
+      if (!isCurrent() || cancelled) {
         client?.disconnect();
-        disposeManagedSupervisor();
+        await disposeManagedSupervisor();
         return;
       }
       mountEditor(client, false);
@@ -209,11 +233,11 @@ export function EditorSurface(props: EditorSurfaceProps) {
     } catch (cause) {
       if (!isCurrent()) {
         client?.disconnect();
-        disposeManagedSupervisor();
+        await disposeManagedSupervisor();
         return;
       }
       client?.disconnect();
-      disposeManagedSupervisor();
+      await disposeManagedSupervisor();
       // Use the real file content, but remove all language/LSP extensions so
       // an unavailable server cannot leave an empty or unusable host.
       activeFallback = true;
@@ -231,6 +255,7 @@ export function EditorSurface(props: EditorSurfaceProps) {
     const projectRoot = props.projectRoot;
     const projectId = props.projectId;
     const paneId = props.paneId;
+    const supervisor = props.lsp;
     const config = [
       file.uri,
       file.path,
@@ -242,39 +267,55 @@ export function EditorSurface(props: EditorSurfaceProps) {
       projectRoot ?? "",
       projectId ?? "",
       paneId ?? "",
-      props.lsp ? "provided" : "managed",
+      supervisor ? "provided" : "managed",
     ].join("\u0000");
     if (activeConfig === config) {
       syncFileContent(file);
       return;
     }
 
+    const initialSetup = activeConfig === undefined;
     activeConfig = config;
     setupGeneration += 1;
-    cleanup();
-    cleanup = () => {};
+    cancelSetup();
+    cancelSetup = () => {};
+    const pendingCleanup = cleanup();
+    cleanup = async () => {};
     activeView = undefined;
     activeFallback = false;
     setError(undefined);
     setSurfaceState("loading");
-    void setupFile(
-      { ...file },
-      language,
-      props.lsp,
-      rootUri,
-      projectRoot,
-      projectId,
-      paneId,
-      setupGeneration,
-    );
+    const generation = setupGeneration;
+    const startSetup = () =>
+      setupFile(
+        { ...file },
+        language,
+        supervisor,
+        rootUri,
+        projectRoot,
+        projectId,
+        paneId,
+        generation,
+      );
+    lifecycle = initialSetup
+      ? startSetup().catch(() => undefined)
+      : lifecycle
+          .then(() => pendingCleanup)
+          .then(startSetup)
+          .catch(() => undefined);
   });
 
   onCleanup(() => {
     disposed = true;
     setupGeneration += 1;
-    cleanup();
-    cleanup = () => {};
+    cancelSetup();
+    cancelSetup = () => {};
+    const pendingCleanup = cleanup();
+    cleanup = async () => {};
     activeView = undefined;
+    lifecycle = lifecycle
+      .then(() => pendingCleanup)
+      .catch(() => undefined);
   });
   return (
     <div

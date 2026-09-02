@@ -58,6 +58,14 @@ function appendPane(
   return first ? split(tree, first.id, pane, direction) : { type: "leaf", pane };
 }
 
+function leastRecentlyFocused(items: readonly Pane[]): Pane | undefined {
+  return items.reduce<Pane | undefined>(
+    (least, item) =>
+      !least || item.focusedAt < least.focusedAt ? item : least,
+    undefined,
+  );
+}
+
 function PaneDivider(props: {
   direction: SplitDirection;
   onResize: (ratio: number) => void;
@@ -284,15 +292,28 @@ export function PaneManager(props: PaneManagerProps) {
         id: `${source.id}-split-${++generatedPane}`,
         focusedAt: Date.now(),
       };
-    if (focused().some((candidate) => candidate.id === pane.id)) {
-      setError(`Pane id \`${pane.id}\` is already focused.`);
+    if (
+      [...focused(), ...strip()].some((candidate) => candidate.id === pane.id)
+    ) {
+      setError(`Pane id \`${pane.id}\` is already open.`);
       return;
     }
     const current = tree();
-    const nextTree = current
-      ? split(current, id, pane, direction)
-      : { type: "leaf" as const, pane };
-    setTree(focus(nextTree, pane.id));
+    if (!current) return;
+    const nextTree = focus(split(current, id, pane, direction), pane.id);
+    const demoted =
+      panes(nextTree).length > 4
+        ? leastRecentlyFocused(panes(nextTree))
+        : undefined;
+    if (demoted) {
+      setTree(close(nextTree, demoted.id));
+      setStrip((currentStrip) => [
+        ...currentStrip.filter((candidate) => candidate.id !== demoted.id),
+        demoted,
+      ]);
+    } else {
+      setTree(nextTree);
+    }
     setMessage(undefined);
     setError(undefined);
   };
@@ -321,11 +342,7 @@ export function PaneManager(props: PaneManagerProps) {
     if (!promoted) return;
     const current = focused();
     const leastRecent =
-      current.length >= 4
-        ? current.reduce((least, pane) =>
-            pane.focusedAt < least.focusedAt ? pane : least,
-          )
-        : undefined;
+      current.length >= 4 ? leastRecentlyFocused(current) : undefined;
     const next = promote(layout(), id, Date.now());
     let nextTree = tree();
     if (leastRecent) nextTree = nextTree ? close(nextTree, leastRecent.id) : nextTree;
@@ -339,7 +356,8 @@ export function PaneManager(props: PaneManagerProps) {
   const detach = async (pane: Pane) => {
     setError(undefined);
     try {
-      await (props.onDetach?.(pane) ?? detachPane(pane.id, pane.runId));
+      if (props.onDetach) await props.onDetach(pane);
+      else await detachPane(pane.id, pane.runId);
       setMessage(`${pane.kind} pane detached.`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
