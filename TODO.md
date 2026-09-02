@@ -164,11 +164,12 @@ The accepted contract is implemented in dependency order.
   `PaneManager` with split/resize/focus, minimize-to-strip, promotion, close, and detach controls;
   detached windows carry the run identity and render the same live Agent Pane without adding a
   webview to the source window. (The ShellPane/PTY half of this row is done.)
-- [ ] **React to file changes in EditorSurface** — view, LSP client, and extensions are built once in
-  `onMount` over `props.file`; a new `file` prop leaves stale content on screen.
-- [ ] **Degrade to plain text when LSP attach fails** — on rejection the host `<div>` stays empty
-  ([EditorSurface.tsx:50-142](apps/desktop/src/editor/EditorSurface.tsx#L50-L142));
-  [lsp](.specs/lsp/spec.md) acceptance 14 promises plain-text fallback. No dirty/save concept exists.
+- [x] **React to file changes in EditorSurface** — `EditorSurface` tracks file identity and
+  configuration, rebuilds the CodeMirror/LSP surface for a new file, and synchronizes content-only
+  updates without leaving stale text or stale language-service state.
+- [x] **Degrade to plain text when LSP attach fails** — attach or initialization failures show the
+  error state while mounting the real file content in an editable CodeMirror plain-text surface;
+  regression coverage verifies editing continues and reports changes.
 
 ## 8 — Styling
 

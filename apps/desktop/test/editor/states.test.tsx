@@ -1,4 +1,6 @@
 import { render, waitFor } from "@solidjs/testing-library";
+import { createSignal } from "solid-js";
+import { EditorView } from "@codemirror/view";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ attachTauriLsp: vi.fn() }));
@@ -42,7 +44,72 @@ describe("editor states", () => {
     loaded.unmount();
   });
 
+  it("updates the mounted editor when the selected file changes", async () => {
+    const [selectedFile, setSelectedFile] = createSignal(
+      file("const first = true;"),
+    );
+    const view = render(() => (
+      <EditorPane file={selectedFile()} language={language} />
+    ));
+
+    expect(view.getByTestId("editor-surface").textContent).toContain(
+      "const first = true;",
+    );
+    setSelectedFile(file("const second = false;"));
+
+    await waitFor(() =>
+      expect(view.getByTestId("editor-surface").textContent).toContain(
+        "const second = false;",
+      ),
+    );
+    expect(view.getByTestId("editor-surface").textContent).not.toContain(
+      "const first = true;",
+    );
+    view.unmount();
+  });
+
+  it("reattaches LSP and replaces content when the file identity changes", async () => {
+    mocks.attachTauriLsp
+      .mockRejectedValueOnce(new Error("LSP unavailable"))
+      .mockRejectedValueOnce(new Error("LSP unavailable"));
+    const [selectedFile, setSelectedFile] = createSignal(
+      file("const first = true;"),
+    );
+    const view = render(() => (
+      <EditorPane
+        file={selectedFile()}
+        language={language}
+        projectRoot="/workspace"
+        paneId="pane-1"
+      />
+    ));
+    await waitFor(() =>
+      expect(view.getByTestId("editor-surface").getAttribute("data-state")).toBe(
+        "error",
+      ),
+    );
+
+    setSelectedFile({
+      ...file("const second = false;"),
+      uri: "file:///workspace/other.ts",
+      path: "other.ts",
+    });
+    await waitFor(() =>
+      expect(mocks.attachTauriLsp).toHaveBeenCalledTimes(2),
+    );
+    await waitFor(() =>
+      expect(view.getByTestId("editor-surface").textContent).toContain(
+        "const second = false;",
+      ),
+    );
+    expect(mocks.attachTauriLsp).toHaveBeenLastCalledWith(
+      expect.objectContaining({ filePath: "other.ts" }),
+    );
+    view.unmount();
+  });
+
   it("shows loading, then keeps the real file editable when LSP setup fails", async () => {
+    const changes: string[] = [];
     mocks.attachTauriLsp.mockRejectedValueOnce(new Error("LSP unavailable"));
     const view = render(() => (
       <EditorPane
@@ -50,6 +117,7 @@ describe("editor states", () => {
         language={language}
         projectRoot="/workspace"
         paneId="pane-1"
+        onChange={(content) => changes.push(content)}
       />
     ));
 
@@ -66,9 +134,24 @@ describe("editor states", () => {
     expect(view.getByTestId("inline-error-cause").textContent).toBe(
       "LSP unavailable",
     );
-    expect(view.getByTestId("editor-surface").querySelector(".cm-content")?.textContent).toContain(
-      "const actual = true;",
-    );
+    const content = view
+      .getByTestId("editor-surface")
+      .querySelector(".cm-content");
+    expect(content?.textContent).toContain("const actual = true;");
+    const editor = content
+      ? EditorView.findFromDOM(content as HTMLElement)
+      : undefined;
+    expect(editor).toBeTruthy();
+    if (editor) {
+      editor.dispatch({
+        changes: {
+          from: 0,
+          to: editor.state.doc.length,
+          insert: "const edited = true;",
+        },
+      });
+    }
+    expect(changes[changes.length - 1]).toBe("const edited = true;");
     view.unmount();
   });
 });
