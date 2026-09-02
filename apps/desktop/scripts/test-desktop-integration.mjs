@@ -325,10 +325,8 @@ try {
   await stopHost();
   docker(["stop", "--time", "1", container], { stdio: "ignore" });
   await sleep(1_000);
-  const unavailableDatabaseUrl = databaseUrl.replace(
-    /127\.0\.0\.1:\d+/,
-    "127.0.0.1:1",
-  );
+  const unavailableDatabaseUrl =
+    "postgres://locus:invalid@127.0.0.1:1/locus?sslmode=disable&connect_timeout=1";
   app = startHost(binary, unavailableDatabaseUrl, webdriverPort);
   await waitForWebdriver(webdriverPort);
   browser = await remote({
