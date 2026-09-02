@@ -50,14 +50,23 @@ pub struct ToolManifest {
     pub name: String,
     pub version: String,
     pub binary_sha256: String,
+    pub category: String,
+    pub install_command: String,
+    pub verify_command: String,
+    pub documentation_url: Option<String>,
 }
 
 impl ToolManifest {
     pub fn new(name: impl Into<String>, version: impl Into<String>, binary: &[u8]) -> Self {
+        let name = name.into();
         Self {
-            name: name.into(),
+            install_command: format!("install {name}"),
+            verify_command: format!("{name} --version"),
+            name,
             version: version.into(),
             binary_sha256: binary_digest(binary),
+            category: "rust".into(),
+            documentation_url: None,
         }
     }
 
@@ -216,6 +225,12 @@ impl ToolCatalog {
 
     /// Verify both signed payloads and the manifest's binary digest before catalog admission.
     pub fn admit_user_tool(&mut self, upload: SignedToolUpload) -> Result<(), ToolAdmissionError> {
+        if upload.manifest.len() > MAX_MANIFEST_BYTES {
+            return Err(ToolAdmissionError::ManifestTooLarge);
+        }
+        if upload.binary.len() > MAX_BINARY_BYTES {
+            return Err(ToolAdmissionError::BinaryTooLarge);
+        }
         verify_signature(
             &self.trusted_keys,
             &upload.manifest,
@@ -234,6 +249,7 @@ impl ToolCatalog {
                 .map_err(|_| ToolAdmissionError::InvalidManifest)?,
         )
         .map_err(|_| ToolAdmissionError::InvalidManifest)?;
+        manifest.validate_metadata()?;
         let tool = manifest.image_tool()?;
         if manifest.binary_sha256 != binary_digest(&upload.binary) {
             return Err(ToolAdmissionError::BinaryDigestMismatch);
@@ -287,6 +303,23 @@ impl ToolCatalog {
     }
 }
 
+const MAX_MANIFEST_BYTES: usize = 64 * 1024;
+const MAX_BINARY_BYTES: usize = 256 * 1024 * 1024;
+
+impl ToolManifest {
+    fn validate_metadata(&self) -> Result<(), ToolAdmissionError> {
+        if !matches!(
+            self.category.as_str(),
+            "source-control" | "search-files" | "rust" | "database" | "web-network"
+        ) || self.install_command.trim().is_empty()
+            || self.verify_command.trim().is_empty()
+        {
+            return Err(ToolAdmissionError::InvalidManifest);
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Error, Eq, PartialEq)]
 pub enum ToolAdmissionError {
     #[error("trusted Minisign public key is invalid")]
@@ -299,6 +332,10 @@ pub enum ToolAdmissionError {
     UntrustedSignature,
     #[error("tool manifest is invalid")]
     InvalidManifest,
+    #[error("tool manifest exceeds the 64 KiB limit")]
+    ManifestTooLarge,
+    #[error("tool binary exceeds the 256 MiB limit")]
+    BinaryTooLarge,
     #[error("tool binary does not match the signed manifest digest")]
     BinaryDigestMismatch,
     #[error("tool is already admitted")]
@@ -394,6 +431,25 @@ fn minisign_verification_rejects_unsigned_and_untrusted_uploads_before_admission
     assert_eq!(
         catalog.enabled_image_set(),
         vec![ImageTool::new("linty", "1.2.3")]
+    );
+}
+
+#[test]
+fn signed_manifest_covers_install_metadata() {
+    let trusted = KeyPair::generate_unencrypted_keypair().unwrap();
+    let trusted_key = trusted.pk.to_box().unwrap().into_string();
+    let binary = b"#!/bin/sh\necho lint\n".to_vec();
+    let manifest = ToolManifest::new("linty", "1.2.3", &binary);
+    let mut upload = signed_upload(&trusted, manifest, binary);
+    let mut tampered: ToolManifest =
+        toml::from_str(std::str::from_utf8(&upload.manifest).unwrap()).unwrap();
+    tampered.verify_command = "malicious --version".into();
+    upload.manifest = toml::to_string(&tampered).unwrap().into_bytes();
+
+    let mut catalog = ToolCatalog::new(TrustedKeyStore::from_public_keys([trusted_key]).unwrap());
+    assert_eq!(
+        catalog.admit_user_tool(upload).unwrap_err(),
+        ToolAdmissionError::UntrustedSignature
     );
 }
 

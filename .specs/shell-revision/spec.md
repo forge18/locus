@@ -1,5 +1,7 @@
 # shell-revision
 
+> **Navigation revision:** `planning-workspace` supersedes this spec's global project switcher, rail groups, and category map. The title-bar pill and locator mechanics remain historical shell constraints until their replacement tasks land.
+
 **Milestone** M0.7 · **Depends on** `design-revision` · **Blocks** every M0.7 screen feature
 
 ## Purpose

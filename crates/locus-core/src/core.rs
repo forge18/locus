@@ -29,6 +29,7 @@ use crate::{
     ipc::{EventChannel, PtyChannel},
     lsp::{LanguageCatalog, LspHost},
     plugin::{builtin_manifests, PluginKind, PluginProcess, WorkItemProviderDescriptor},
+    repo::RepoManager,
     runtime::{
         backend::{RuntimeBackend, RuntimeConfig},
         container::{ContainerRuntime, DockerContainerRuntime},
@@ -44,8 +45,12 @@ use crate::{
         sbx::SbxContainerRuntime,
     },
     services::{
-        agents::AgentDefinition, bots::RoutineClaimResult, handoff::HandoffRegistry,
-        telemetry::EventCollector, tools::RoleToolScope,
+        agents::AgentDefinition,
+        bots::RoutineClaimResult,
+        capabilities::{resolve_capabilities, CapabilityCatalog},
+        handoff::HandoffRegistry,
+        telemetry::EventCollector,
+        tools::RoleToolScope,
     },
     store::Store,
     work_item::{
@@ -464,6 +469,11 @@ impl Core {
         self.daemon.as_ref()
     }
 
+    /// Deliver a prompt to an already-running ACP conversation.
+    pub async fn prompt_run(&self, run_id: RunId, prompt: impl Into<String>) -> Result<()> {
+        self.daemon.lock().await.prompt_run(run_id, prompt)
+    }
+
     /// Launch one queue-claimed run from durable state. All inputs that affect
     /// the container are resolved by the host from the run, its session, and
     /// the project settings; no queue caller can substitute them.
@@ -510,7 +520,19 @@ impl Core {
                     .dispatch_run(run_id)
                     .await?
                     .ok_or_else(|| anyhow!("bot routine run disappeared before launch"))?;
-                self.spawn_dispatch_run(store, dispatch, runtime).await?;
+                if let Err(error) = self.spawn_dispatch_run(store, dispatch, runtime).await {
+                    let _ = store
+                        .finish_bot_run(start.bot_id, run_id, false, None)
+                        .await;
+                    let _ = store
+                        .complete_bot_routine_execution(
+                            start.execution_id,
+                            crate::services::bots::RoutineResult::failed(error.to_string()),
+                            Some(run_id),
+                        )
+                        .await;
+                    return Err(error);
+                }
                 started += 1;
             }
         }
@@ -572,9 +594,22 @@ impl Core {
                 )],
             );
         }
-        let tools = definition
-            .frontmatter
-            .tools
+        let capability_catalog = CapabilityCatalog {
+            cli_tools: definition.frontmatter.tools.iter().cloned().collect(),
+            commands: definition.frontmatter.commands.iter().cloned().collect(),
+            skills: definition.frontmatter.skills.iter().cloned().collect(),
+        };
+        let workflow_policies = store
+            .workflow_capability_policies(dispatch.run_id.into())
+            .await?;
+        let effective_capabilities = resolve_capabilities(
+            &capability_catalog,
+            project_settings.capability_policies(),
+            Some(&definition.frontmatter.capabilities),
+            Some(&workflow_policies),
+        );
+        let tools = effective_capabilities
+            .cli_tools
             .iter()
             .map(|name| ToolPin {
                 name: name.clone(),
@@ -588,6 +623,16 @@ impl Core {
             crate::runtime::dispatch::NetworkTier::Open => EgressTier::Open,
         };
         let run_id: RunId = dispatch.run_id.into();
+        let policy_revision = store
+            .project_capability_policy_revision(dispatch.project_id.into())
+            .await?;
+        store
+            .record_run_capability_snapshot(
+                run_id,
+                policy_revision,
+                serde_json::to_value(&effective_capabilities)?,
+            )
+            .await?;
         let mut run = Run {
             id: run_id,
             session_id: dispatch.session_id.into(),
@@ -597,7 +642,8 @@ impl Core {
                 "running" => RunStatus::Running,
                 status => bail!("dispatch run `{run_id}` has non-launchable status `{status}`"),
             },
-            permission_posture: PermissionPosture::default(),
+            permission_posture: PermissionPosture::parse(&dispatch.permission_posture)
+                .context("parse persisted run permission posture")?,
             events: Vec::new(),
             usage: None,
             exit_code: None,
@@ -618,6 +664,11 @@ impl Core {
         let socket_source = std::env::var_os("LOCUS_SOCKET_PATH")
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from("/run/locus.sock"));
+        if dispatch.branch.starts_with("interact/") {
+            RepoManager::default().ensure_interact_branch(&workspace_remote, &dispatch.branch)?;
+        } else if let Some(bot_id) = dispatch.branch.strip_prefix("bots/") {
+            RepoManager::default().ensure_bot_branch(&workspace_remote, bot_id)?;
+        }
         let request = SpawnRequest {
             project_id: &project_id,
             harness,
@@ -625,6 +676,9 @@ impl Core {
             config_root,
             socket_source,
             workspace_remote,
+            workspace_branch: (dispatch.branch.starts_with("bots/")
+                || dispatch.branch.starts_with("interact/"))
+            .then_some(dispatch.branch.as_str()),
             credential_proxy: run::CredentialProxyConfig::new(
                 "http://host.docker.internal:44000/",
             )?,
@@ -637,11 +691,7 @@ impl Core {
             ),
             egress_policy_root: policy_root,
             run_nonce: uuid::Uuid::new_v4().to_string(),
-            lsp_enabled: definition
-                .frontmatter
-                .tools
-                .iter()
-                .any(|tool| tool == "lsp"),
+            lsp_enabled: effective_capabilities.cli_tools.contains("lsp"),
             base_image_digest: format!("{}:{}", harness.image.base, harness.image.version),
             tools,
             project_extension_scope: project_settings.extension_overrides().clone(),
@@ -661,9 +711,27 @@ impl Core {
         if let Some(session) = spawned.acp_session.clone() {
             let store = store.clone();
             let daemon = self.daemon.clone();
+            let bot_context = store.bot_run_context(run_id).await?;
             tokio::spawn(async move {
                 session.wait_closed().await;
-                if let Err(error) = store.complete_dispatch_run(run_id, 0).await {
+                if let Some(context) = bot_context {
+                    if let Err(error) = store
+                        .finish_bot_run(context.bot_id, run_id, true, None)
+                        .await
+                    {
+                        tracing::warn!(%run_id, %error, "persist completed bot run");
+                    }
+                    if let Some(execution_id) = context.routine_execution_id {
+                        let result =
+                            crate::services::bots::RoutineResult::passed("ACP session completed");
+                        if let Err(error) = store
+                            .complete_bot_routine_execution(execution_id, result, Some(run_id))
+                            .await
+                        {
+                            tracing::warn!(%run_id, %error, "persisted bot routine completion failed");
+                        }
+                    }
+                } else if let Err(error) = store.complete_dispatch_run(run_id, 0).await {
                     tracing::warn!(%run_id, %error, "persist completed dispatch run");
                 }
                 daemon.lock().await.finish_run(run_id);

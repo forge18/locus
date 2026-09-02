@@ -20,7 +20,7 @@ function routeKind(route: DesktopRoute): DesktopRouteKind {
   });
 }
 
-/** The one current 30-view route inventory. */
+/** The one current route inventory. */
 export const Desktop_ROUTE_KINDS = Object.freeze(DESKTOP_ROUTES.map(routeKind));
 export const Desktop_ALL_ROUTE_KINDS = Object.freeze(
   Desktop_ROUTE_KINDS.filter((route) => route.scope === "all"),

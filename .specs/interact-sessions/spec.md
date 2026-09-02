@@ -1,5 +1,7 @@
 # interact-sessions
 
+> **Retired:** `planning-workspace` explicitly retires the Interact route and all disposable board-less session, branch, research, commit, promote, and discard capabilities. This file is preserved as the historical implementation contract only.
+
 **Milestone** M0.7 · **Depends on** `design-revision`, `shell-revision`, `agent-interface` · **Blocks** M2 workspace surfaces
 
 ## Purpose

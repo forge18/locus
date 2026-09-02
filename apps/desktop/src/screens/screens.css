@@ -1,7 +1,6 @@
 /* Screen layouts. Chrome lives in ui/, the four bands in shell/ — this is what
    renders between them. */
 @import "./memory/memory.css";
-@import "./interact/interact.css";
 @import "./manage/manage.css";
 @import "./mail/mail.css";
 
@@ -1176,7 +1175,7 @@
  background: var(--action-attention-wash);
 }
 
-/* --------------------------------------------------------------- Interact --- */
+/* ---------------------------------------------------------------- Develop --- */
 .develop {
  display: flex;
  height: 100%;

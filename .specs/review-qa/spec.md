@@ -1,5 +1,7 @@
 # review-qa
 
+> **Scope revision:** `planning-workspace` supersedes this spec's selected-project inheritance. Review remains project-owned but now always asks for its project before loading QA.
+
 **Milestone** M0.7 · **Depends on** `design-revision`, `shell-revision` · **Blocks** M6 automation surfaces
 
 ## Purpose

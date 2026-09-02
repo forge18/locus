@@ -8,14 +8,7 @@ use std::{error::Error, process::Command};
 fn acp_process_is_not_in_the_host_pid_namespace() -> Result<(), Box<dyn Error>> {
     let host_namespace = std::fs::read_link("/proc/self/ns/pid")?;
     let output = Command::new("docker")
-        .args([
-            "run",
-            "--rm",
-            "--pid=private",
-            "alpine:3.22",
-            "readlink",
-            "/proc/1/ns/pid",
-        ])
+        .args(["run", "--rm", "alpine:3.22", "readlink", "/proc/1/ns/pid"])
         .output()?;
     assert!(
         output.status.success(),

@@ -1,11 +1,16 @@
 import { render } from "@solidjs/testing-library";
 import { describe, expect, it } from "vitest";
-import { RunningPill } from "../../src/shell/RunningPill";
+import { AppTitleBar } from "../../src/shell/AppTitleBar";
 
 describe("a11y/shell-live-regions", () => {
   it("announces action-required counts assertively and run noise politely", () => {
     const { getByTestId } = render(() => (
-      <RunningPill running={2} needsYou={1} />
+      <AppTitleBar
+        categoryLabel="Telemetry"
+        viewLabel="Runs"
+        running={2}
+        needsYou={1}
+      />
     ));
     expect(getByTestId("running-count").getAttribute("aria-live")).toBe(
       "polite",

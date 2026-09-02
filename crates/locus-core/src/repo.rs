@@ -82,6 +82,13 @@ pub struct GitState {
     pub agent_branches: Vec<String>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BranchChange {
+    pub path: String,
+    pub additions: u32,
+    pub removals: u32,
+}
+
 pub struct RepoManager {
     root: PathBuf,
 }
@@ -429,6 +436,112 @@ impl RepoManager {
         Ok(())
     }
 
+    /// Ensure an Interact branch exists before its first workspace clone.
+    pub fn ensure_interact_branch(
+        &self,
+        bare_remote: impl AsRef<Path>,
+        branch: impl AsRef<str>,
+    ) -> Result<()> {
+        let bare_remote = bare_remote.as_ref();
+        let branch = branch.as_ref();
+        validate_interact_branch(branch)?;
+        let reference = format!("refs/heads/{branch}");
+        if git_output(bare_remote, ["show-ref", "--verify", &reference])?
+            .status
+            .success()
+        {
+            return Ok(());
+        }
+        let primary = symbolic_head(bare_remote)?;
+        run_git(bare_remote, ["branch", branch, &primary])
+    }
+
+    /// Ensure a persistent bot branch exists before its first workspace clone.
+    pub fn ensure_bot_branch(
+        &self,
+        bare_remote: impl AsRef<Path>,
+        bot_id: impl AsRef<str>,
+    ) -> Result<()> {
+        let bare_remote = bare_remote.as_ref();
+        let branch = bot_branch_name(bot_id.as_ref())?;
+        let reference = format!("refs/heads/{branch}");
+        if git_output(bare_remote, ["show-ref", "--verify", &reference])?
+            .status
+            .success()
+        {
+            return Ok(());
+        }
+        let primary = symbolic_head(bare_remote)?;
+        run_git(bare_remote, ["branch", branch.as_str(), &primary])
+    }
+
+    /// Return committed changes between the bare remote's primary branch and an Interact branch.
+    pub fn branch_changes_at_remote(
+        &self,
+        bare_remote: impl AsRef<Path>,
+        branch: impl AsRef<str>,
+    ) -> Result<Vec<BranchChange>> {
+        let bare_remote = bare_remote.as_ref();
+        let branch = branch.as_ref();
+        validate_interact_branch(branch)?;
+        let reference = format!("refs/heads/{branch}");
+        if !git_output(bare_remote, ["show-ref", "--verify", &reference])?
+            .status
+            .success()
+        {
+            return Ok(Vec::new());
+        }
+        let primary = symbolic_head(bare_remote)?;
+        let output = git_output(
+            bare_remote,
+            [
+                "diff",
+                "--numstat",
+                format!("{primary}...{branch}").as_str(),
+            ],
+        )?;
+        if !output.status.success() {
+            bail!("read Interact branch changes failed")
+        }
+        Ok(String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .filter_map(|line| {
+                let mut fields = line.splitn(3, '\t');
+                let additions = fields.next()?.parse().unwrap_or(0);
+                let removals = fields.next()?.parse().unwrap_or(0);
+                Some(BranchChange {
+                    path: fields.next()?.into(),
+                    additions,
+                    removals,
+                })
+            })
+            .collect())
+    }
+
+    /// Return the primary commit shown in an Interact session's changed-files rail.
+    pub fn primary_commit_at_remote(&self, bare_remote: impl AsRef<Path>) -> Result<String> {
+        let output = git_output(bare_remote.as_ref(), ["rev-parse", "HEAD"])?;
+        if !output.status.success() {
+            bail!("read repository base commit failed")
+        }
+        Ok(String::from_utf8_lossy(&output.stdout).trim().into())
+    }
+
+    /// Delete one Interact-owned branch from its bare remote after its session is discarded.
+    pub fn delete_interact_branch(
+        &self,
+        bare_remote: impl AsRef<Path>,
+        branch: impl AsRef<str>,
+    ) -> Result<()> {
+        let bare_remote = bare_remote.as_ref();
+        let branch = branch.as_ref();
+        validate_interact_branch(branch)?;
+        run_git(
+            bare_remote,
+            ["update-ref", "-d", format!("refs/heads/{branch}").as_str()],
+        )
+    }
+
     /// Fetch a pushed branch from Locus and merge it into a user's non-primary checkout.
     pub fn merge_back_from(
         &self,
@@ -582,6 +695,18 @@ pub fn refuse_primary_branch(branch: &str) -> Result<()> {
         "main" | "master" | "refs/heads/main" | "refs/heads/master"
     ) {
         bail!("Locus never writes to primary branch `{branch}`")
+    }
+    Ok(())
+}
+
+fn validate_interact_branch(branch: &str) -> Result<()> {
+    if !branch.starts_with("interact/")
+        || branch.len() <= "interact/".len()
+        || branch.contains(' ')
+        || branch.contains("..")
+        || branch.contains('\0')
+    {
+        bail!("only a valid Interact branch may be used")
     }
     Ok(())
 }

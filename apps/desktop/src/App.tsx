@@ -6,18 +6,19 @@ import { mountIconSprite } from "./ui/sprite";
 import { createNavStore } from "./nav";
 import { applyTheme, savedTheme } from "./styles/theme";
 import { configureDataProvider, liveProvider } from "./data/provider";
+import { searchAll as searchAllResults } from "./data/search";
 import { MailView } from "./screens/mail/MailView";
 import { AnalyticsView } from "./screens/analytics/AnalyticsView";
 import { QAView } from "./screens/review/QAView";
 import { DispatchView } from "./screens/dispatch/DispatchView";
 import { GuardrailsView } from "./screens/settings/GuardrailsView";
-import InteractView from "./screens/interact/InteractView";
-import { BotsView } from "./screens";
+import { WorkersView } from "./screens";
 import ManageView from "./screens/manage/ManageView";
 import { AgentDefinitionsView } from "./screens/workshop/AgentDefinitionsView";
 import { HarnessesView } from "./screens/workshop/HarnessesView";
 import { ProvidersView } from "./screens/workshop/ProvidersView";
-import { UnavailableWorkshopView } from "./screens/workshop/UnavailableWorkshopView";
+import { ExtensionEditor } from "./screens/workshop/ExtensionEditor";
+import { CliToolsView } from "./screens/workshop/CliToolsView";
 import { WorkflowView } from "./screens/workshop/WorkflowView";
 import {
         MemoryArtifactsView,
@@ -48,7 +49,18 @@ function App() {
         });
 
         return (
-                <Shell nav={nav}>
+                <Shell
+                        nav={nav}
+                        searchAll={async (query) => {
+                                const envelope = await searchAllResults(query);
+                                if (envelope.status === "failed") {
+                                        throw new Error(envelope.error.message);
+                                }
+                                return envelope.status === "ready"
+                                        ? envelope.data
+                                        : [];
+                        }}
+                >
                         <Suspense
                                 fallback={
                                         <SkeletonRows
@@ -113,7 +125,12 @@ function App() {
                                                 />
                                         </Match>
                                         <Match when={nav.view() === "wiki"}>
-                                                <MemoryWikiView />
+                                                <MemoryWikiView
+                                                        projectId={
+                                                                nav.params()
+                                                                        .project
+                                                        }
+                                                />
                                         </Match>
                                         <Match when={nav.view() === "agents"}>
                                                 <AgentDefinitionsView />
@@ -127,13 +144,15 @@ function App() {
                                                 <HarnessesView />
                                         </Match>
                                         <Match when={nav.view() === "mail"}>
-                                                <MailView />
+                                                <MailView
+                                                        projectId={
+                                                                nav.params()
+                                                                        .project
+                                                        }
+                                                />
                                         </Match>
-                                        <Match when={nav.view() === "interact"}>
-                                                <InteractView />
-                                        </Match>
-                                        <Match when={nav.view() === "bots"}>
-                                                <BotsView
+                                        <Match when={nav.view() === "workers"}>
+                                                <WorkersView
                                                         projectId={
                                                                 nav.params()
                                                                         .project
@@ -165,7 +184,12 @@ function App() {
                                                 />
                                         </Match>
                                         <Match when={nav.view() === "short"}>
-                                                <MemoryShortTermView />
+                                                <MemoryShortTermView
+                                                        projectId={
+                                                                nav.params()
+                                                                        .project
+                                                        }
+                                                />
                                         </Match>
                                         <Match when={nav.view() === "memory"}>
                                                 <MemoryLongTermView
@@ -179,39 +203,19 @@ function App() {
                                                 <GuardrailsView />
                                         </Match>
                                         <Match when={nav.view() === "cli"}>
-                                                <UnavailableWorkshopView
-                                                        route="cli"
-                                                        label="CLI tools"
-                                                        command="extension_inventory"
-                                                />
+                                                <CliToolsView />
                                         </Match>
                                         <Match when={nav.view() === "commands"}>
-                                                <UnavailableWorkshopView
-                                                        route="commands"
-                                                        label="Commands"
-                                                        command="extension_inventory"
-                                                />
+                                                <ExtensionEditor type="commands" />
                                         </Match>
                                         <Match when={nav.view() === "hooks"}>
-                                                <UnavailableWorkshopView
-                                                        route="hooks"
-                                                        label="Hooks"
-                                                        command="extension_inventory"
-                                                />
+                                                <ExtensionEditor type="hooks" />
                                         </Match>
                                         <Match when={nav.view() === "linters"}>
-                                                <UnavailableWorkshopView
-                                                        route="linters"
-                                                        label="Linters"
-                                                        command="extension_inventory"
-                                                />
+                                                <ExtensionEditor type="linters" />
                                         </Match>
                                         <Match when={nav.view() === "styles"}>
-                                                <UnavailableWorkshopView
-                                                        route="styles"
-                                                        label="Output styles"
-                                                        command="extension_inventory"
-                                                />
+                                                <ExtensionEditor type="styles" />
                                         </Match>
                                         <Match
                                                 when={
@@ -222,18 +226,10 @@ function App() {
                                                 <ProvidersView />
                                         </Match>
                                         <Match when={nav.view() === "rules"}>
-                                                <UnavailableWorkshopView
-                                                        route="rules"
-                                                        label="Rules"
-                                                        command="extension_inventory"
-                                                />
+                                                <ExtensionEditor type="rules" />
                                         </Match>
                                         <Match when={nav.view() === "skills"}>
-                                                <UnavailableWorkshopView
-                                                        route="skills"
-                                                        label="Skills"
-                                                        command="extension_inventory"
-                                                />
+                                                <ExtensionEditor type="skills" />
                                         </Match>
                                         <Match when={nav.view() === "canvas"}>
                                                 <WorkflowView

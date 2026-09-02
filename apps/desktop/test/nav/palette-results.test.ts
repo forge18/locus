@@ -13,18 +13,16 @@ describe("nav/palette-results", () => {
     });
     expect(destinations).toContainEqual({
       label: "Plan",
-      locator: "locus://locus/view/plan",
-      section: "Where you were",
+      locator: "locus://all/view/plan",
+      section: "Running now",
     });
   });
 
   it("moves the current and session destinations into live sections", () => {
     const destinations = v2PaletteDestinations("locus", {
       current: "locus://all/view/status",
-      history: ["locus://locus/view/plan"],
-      sessions: [
-        { project: "locus", needsAttention: true },
-      ],
+      history: ["locus://all/view/plan"],
+      sessions: [{ project: "locus", needsAttention: true }],
     });
     expect(destinations).toContainEqual({
       label: "Status",
@@ -33,12 +31,12 @@ describe("nav/palette-results", () => {
     });
     expect(destinations).toContainEqual({
       label: "Plan",
-      locator: "locus://locus/view/plan",
+      locator: "locus://all/view/plan",
       section: "Where you were",
     });
     expect(destinations).toContainEqual({
-      label: "Interact",
-      locator: "locus://locus/view/interact",
+      label: "Sessions",
+      locator: "locus://all/view/sessions",
       section: "Needs you",
     });
   });

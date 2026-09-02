@@ -1,5 +1,3 @@
-export { createRouteScope, resolveRouteScope } from './route-scope'
-export type { RouteScope, RouteScopeStore } from './route-scope'
 export { Desktop_ALL_ROUTE_KINDS, Desktop_APP_ROUTE_KINDS, Desktop_GLOBAL_ROUTE_KINDS, Desktop_PROJECT_ROUTE_KINDS, Desktop_ROUTE_KINDS } from './desktop-route-kinds'
 export type { DesktopRouteKind } from './desktop-route-kinds'
 export { formatDesktopLocator, resolveDesktopLocator } from './desktop-locator'

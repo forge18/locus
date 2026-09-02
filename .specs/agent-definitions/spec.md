@@ -1,5 +1,7 @@
 # agent-definitions
 
+> **Capability-policy extension:** `planning-workspace` adds project/agent/workflow capability inheritance and restriction above this definition contract. Existing frontmatter, versioning, and run-pinning rules remain.
+
 **Milestone** M1 · **Depends on** `store`, `materializers` · **Blocks** `run-supervisor`
 
 ## Purpose

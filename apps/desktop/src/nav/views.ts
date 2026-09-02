@@ -4,16 +4,16 @@ export const VIEWS = Object.freeze(DESKTOP_ROUTES.map((route) => route.id));
 export type View = (typeof DESKTOP_ROUTES)[number]["id"];
 
 export const CATEGORIES = Object.freeze([
-  "setup",
+  "projects",
+  "workers",
+  "telemetry",
   "plan",
   "manage",
-  "interact",
-  "bots",
   "review",
-  "analytics",
-  "memory",
+  "extensions",
+  "plugins",
+  "knowledge",
   "settings",
-  "workshop",
 ] as const);
 export type Category = (typeof CATEGORIES)[number] | "pill" | (string & {});
 
@@ -32,67 +32,32 @@ export interface RailItem {
   firstView: View;
 }
 
-/** Project and cross-project rail categories. Pill views intentionally have no rail item. */
+/** Production rail categories. Group headers are structural, not route items. */
 export const RAIL_ITEMS: readonly RailItem[] = Object.freeze(
   [
-    { category: "setup", label: "Setup", icon: "gear", firstView: "projects" },
+    { category: "projects", label: "Projects", icon: "folder", firstView: "projects" },
+    { category: "workers", label: "Workers", icon: "robot", firstView: "workers" },
+    { category: "telemetry", label: "Telemetry", icon: "chart-bar", firstView: "telemetry" },
     { category: "plan", label: "Plan", icon: "compass", firstView: "plan" },
-    {
-      category: "manage",
-      label: "Manage",
-      icon: "kanban",
-      firstView: "sessions",
-    },
-    {
-      category: "interact",
-      label: "Interact",
-      icon: "chat-circle",
-      firstView: "interact",
-    },
-    {
-      category: "bots",
-      label: "Bots",
-      icon: "robot",
-      firstView: "bots",
-    },
-    {
-      category: "review",
-      label: "Review",
-      icon: "check-square",
-      firstView: "qa",
-    },
-    {
-      category: "analytics",
-      label: "Analytics",
-      icon: "chart-bar",
-      firstView: "status",
-    },
-    { category: "memory", label: "Memory", icon: "brain", firstView: "short" },
-    {
-      category: "settings",
-      label: "Settings",
-      icon: "sliders",
-      firstView: "settings",
-    },
-    {
-      category: "workshop",
-      label: "Workshop",
-      icon: "wrench",
-      firstView: "agents",
-    },
+    { category: "manage", label: "Manage", icon: "kanban", firstView: "sessions" },
+    { category: "review", label: "Review", icon: "check-square", firstView: "qa" },
+    { category: "extensions", label: "Extensions", icon: "puzzle", firstView: "agents" },
+    { category: "plugins", label: "Plugins", icon: "plug", firstView: "cli" },
+    { category: "knowledge", label: "Knowledge", icon: "brain", firstView: "short" },
+    { category: "settings", label: "Settings", icon: "sliders", firstView: "settings" },
   ].map((item) => Object.freeze(item)) as RailItem[],
 );
 
 export const CATEGORY_LABELS: Record<Category, string> = {
-  setup: "Setup",
+  projects: "Projects",
+  workers: "Workers",
+  telemetry: "Telemetry",
   plan: "Plan",
   manage: "Manage",
-  interact: "Interact",
-  bots: "Bots",
   review: "Review",
-  analytics: "Analytics",
-  memory: "Memory",
+  extensions: "Extensions",
+  plugins: "Plugins",
+  knowledge: "Knowledge",
   settings: "Settings",
-  workshop: "Workshop",
   pill: "Inbox",
 };

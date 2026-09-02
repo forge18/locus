@@ -44,7 +44,7 @@ fn stage_name(stage: PlanningStage) -> &'static str {
 impl Store {
     /// List plans for one project. The project filter is part of the query so a
     /// caller cannot accidentally receive another project's planning work.
-    pub async fn plans_list(&self, project_id: ProjectId) -> Result<Vec<PlanSummaryRow>> {
+    pub async fn plans_list(&self, project_id: Option<ProjectId>) -> Result<Vec<PlanSummaryRow>> {
         sqlx::query_as(
             "SELECT p.id,
                     p.title,
@@ -56,7 +56,7 @@ impl Store {
                     p.updated_at::text AS updated_at
              FROM core.plans p
              JOIN core.projects project ON project.id = p.project_id
-             WHERE p.project_id = $1
+             WHERE ($1::uuid IS NULL OR p.project_id = $1)
              ORDER BY p.updated_at DESC, p.id",
         )
         .bind(project_id)

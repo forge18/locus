@@ -8,11 +8,16 @@ import {
 import { Shell } from "../../src/shell/Shell";
 
 describe("nav/desktop-locator", () => {
-  it("formats and resolves global and project scoped desktop locators", () => {
+  it("formats and resolves global and project-owned desktop locators", () => {
     expect(formatDesktopLocator("inbox")).toBe("locus://all/view/inbox");
-    expect(resolveDesktopLocator("locus://locus/view/plan")).toEqual({
+    expect(resolveDesktopLocator("locus://all/view/plan")).toEqual({
       route: "plan",
+      scope: { kind: "all" },
+    });
+    expect(resolveDesktopLocator("locus://locus/workers/keeper")).toEqual({
+      route: "workers",
       scope: { kind: "project", project: "locus" },
+      botId: "keeper",
     });
   });
 

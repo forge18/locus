@@ -1,5 +1,7 @@
 # workshop-revision
 
+> **Navigation revision:** `planning-workspace` supersedes this spec's Workshop rail placement and governs Extensions, Plugins, Knowledge, and Settings as page-owned subgroups. The editor/materialization rules remain.
+
 **Milestone** M0.7 · **Depends on** `design-revision`, `shell-revision`, `setup-revision` · **Blocks** M4 workflow canvas and M8 marketplace installer
 
 ## Purpose

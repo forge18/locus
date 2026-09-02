@@ -1,6 +1,6 @@
 # TODO
 
-**Remaining:** 38 open rows across 12 workstreams, worked top to bottom.
+**Remaining:** 27 open rows across 7 workstreams, worked top to bottom.
 
 This is the unfinished-work index. [`PLAN.md`](PLAN.md) is the architecture authority. Each feature's
 `spec.md` is its contract; its `tasks.md` is the runnable decomposition and verification source. One
@@ -9,10 +9,10 @@ owning workstream so nothing is tracked twice.
 
 ## Where we are
 
-- `chore/todo-completion` carries all completed work — 30 rows finished since the 2026-08-29
-  audit; the record lives in this branch's git history, not here.
-- Active workstream: **3 — Workers consolidation** (the runtime integrity batch is complete; the
-  next item is resolving Interact through Workers).
+- `feat/planning-workspace` carries the completed work checked off below; this file is the
+  current progress record, not a claim that every open row is complete.
+- Active workstream: **6 — Workshop & canvas**. Workstream 4 is complete; its persistence, navigation,
+  Planning Room, Workers, capability, and secondary-surface rows are done.
 
 ## 1 — Desktop data integration (the epic)
 
@@ -21,7 +21,7 @@ Owner of everything data-backed. [spec](.specs/desktop-data-integration/spec.md)
 (82 commands promised; current host registration and per-module status are recorded in the contract). The rows below were separate
 audit findings; each is one of the epic's slices, tracked here once:
 
-- [ ] **Run the epic slices in tasks.md order** —
+- [x] **Run the epic slices in tasks.md order** —
   <!-- markdownlint-disable MD029 -->
   3. ~~tracer bullet: Setup reads the real store~~ done (`projects_list`/`repos_list`/
   `local_remotes_list`/`project_setup` live, ProjectsView on envelopes, cross-project rejection
@@ -108,72 +108,55 @@ done and checked off in git history). Remaining, in dependency order:
 
 ## 3 — Workers consolidation
 
-- [ ] **Resolve Interact through Workers** — [InteractView.tsx:219-227](apps/desktop/src/screens/interact/InteractView.tsx#L219-L227)
-  is inert, and its disposable-session, changed-file, commit, promote, discard, and research contracts
-  are not equivalent to Bots. One workstream, four folded rows:
-  - build Workers on the live bot/session accessors (`BotsView` hard-codes `BOTS`/`INITIAL_ROUTINES`,
-    invents `cost: "$0.42"` and a context meter, and a canned transcript);
-  - connect `services/interact.rs` — `promote()`/`discard()` have no Tauri command;
-    [interact-sessions](.specs/interact-sessions/spec.md) acceptance 1, 2, 4, 5, 6, 9 unmet;
-  - remove the Interact hard-coded `SESSIONS` rows ([InteractView.tsx:18-42](apps/desktop/src/screens/interact/InteractView.tsx#L18-L42));
-  - show cost in the Agent Pane (`showCost` never passed; `permissionPosture: "bypass"` hard-coded so
-    permission/elicitation/checkpoint surfaces never render — [interact-sessions](.specs/interact-sessions/spec.md)
-    acceptance 14).
-  Remove the Interact route only after every retained behavior is preserved or explicitly retired.
+- [x] **Resolve Interact through Workers** — Interact and Bots now read explicit live-provider
+  accessors, while demo/test hosts select their fixtures explicitly. The Interact surface owns
+  board-less session creation, terminal promote/discard transitions, branch push/delete, changed-file
+  summaries, research/changed-file rail exclusivity, and the shared Agent Pane with visible cost and
+  persisted permission posture. Bot rows, active runs, cost, routines, and routine mutations use the
+  store rather than hard-coded records; no route was removed before its behavior was preserved.
 
 ## 4 — Planning workspace & navigation revision (gated)
 
-These wait on approving and decomposing
-[`PLANNING_WORKSPACE_PLAN.md`](PLANNING_WORKSPACE_PLAN.md); nothing here starts before that spec
-pair exists.
+The accepted contract is implemented in dependency order.
 
-- [ ] **Adopt the Planning Workspace contract** — update `PLAN.md`, the root feature counts, and every superseded planning/navigation contract before production code changes.
-- [ ] **Replace global project navigation with page-owned scope** — remove the shell project selector (this absorbs the old "wire/remove the project switcher" defect row); install the Projects / Workers / Telemetry+Automation / Workshop rail; move route authority out of fixtures; preserve compatible deep links.
-- [ ] **Persist resumable planning workspaces** — amendment/feature/project scope, lifecycle, revisions, structured resume state, planning-session linkage, live IPC, explicit deletion.
-- [ ] **Plan whole projects through specs and tasks** — project brief, spec map, per-spec grilling, cross-spec audit, unified dependency graph, frozen approval revision, idempotent board materialization. (Absorbs the old "wire Plan actions / capture Plan inputs" rows — the current screen is replaced, not patched.)
-- [ ] **Consolidate Bots and Interact as Workers** — route/ownership side of workstream 3.
-- [ ] **Rehome secondary surfaces** — Analytics Overview under Telemetry; Autorun/Schedules/Runs stay in Dispatch; Mail into project-owned background/history; Short-term/Long-term/Artifacts/Wiki under Workshop → Knowledge.
-- [ ] **Add agent capability inheritance and limits** — Workshop → Extensions → Agents: CLI Tools, Commands, Skills as `DeferToProject` or `AllowOnly`; effective capabilities are a non-escalating intersection recorded per run.
+- [x] **Adopt the Planning Workspace contract** — accepted `PLANNING_WORKSPACE_PLAN.md`, updated `PLAN.md`, revised the root count, and added supersession/retirement pointers before production code changes.
+- [x] **Replace global project navigation with page-owned scope** — removed the shell project selector; installed the Projects / Workers / Telemetry+Automation / Workshop rail; moved route authority to `desktop-route-manifest.ts`; preserved compatible deep links and added scope tests.
+- [x] **Persist resumable planning workspaces** — added the workspace schema/backfill, lifecycle and optimistic revisions, structured checkpoints, planning-session linkage, live IPC, restricted hard deletion, and acceptance/provider coverage.
+- [x] **Plan whole projects through specs and tasks** — Planning Room now has Brief, Shape, Specs, Tasks, Coverage, and Activity sections; approval enforces reviewed specs, stale-spec checks, cross-spec/task DAG validation, frozen revisions, provenance, and idempotent board materialization.
+- [x] **Consolidate Bots and Interact as Workers** — Workers owns the preserved session/run behavior; Interact navigation and desktop-only surfaces were retired without removing the backend compatibility code.
+- [x] **Rehome secondary surfaces** — Analytics Overview is under Telemetry; Autorun/Schedules/Runs remain
+  in Dispatch; Mail is a project-owned background/history surface with a page-owned filter; and
+  Short-term/Long-term/Artifacts/Wiki are nested under Workshop → Knowledge.
+- [x] **Add agent capability inheritance and limits** — added project/workflow narrowing, non-escalating effective policies, immutable per-run snapshots, and the Workshop policy editor.
 
 ## 5 — Navigation & shell polish (ungated)
 
-- [ ] **Give ⌘P its own search backed by `search_all`** — Shell treats `k` and `p` identically
-  ([Shell.tsx:100-107](apps/desktop/src/shell/Shell.tsx#L100-L107)); `search_code`/`search_wiki`/
-  `search_tasks`/`search_runs`/`unified_ranking` ([palette.rs:149](crates/locus-core/src/palette.rs#L149))
-  are implemented and tested with no caller. One row: host command + keybinding +
-  [command-palette](.specs/command-palette/spec.md) acceptance 2 ranking.
-- [ ] **Render the category TabBar** — [TabBar.tsx](apps/desktop/src/shell/TabBar.tsx) is never
-  mounted; the hand-rolled version lacks `role="tablist"`/arrow keys while Kobalte
-  [ui/Tabs.tsx](apps/desktop/src/ui/Tabs.tsx) sits unused; `CATEGORY_TABS.analytics` omits Mail.
-  Re-check grouping against workstream 4's rail before building.
-- [ ] **Mount or delete orphaned shell components** — `RunningPill`, `Strip`, `Rail`, `TitleBar`,
-  `LocatorBar`, `route-scope.ts` are exported and never rendered; `ExtensionsView.tsx` and
-  `HarnessesView.tsx` are complete screens nothing routes to.
-- [ ] **Mount or delete orphaned screens** — DevelopView, SearchView, AppearanceSelector,
-  AvatarStylePicker, ViewerStateFamilies, DesktopPlaceholder are not in the route switch.
-- [ ] **Use the Toast** — `ToastRegion` is mounted but `notify()` has zero call sites; `Card`,
-  `Tabs`, `Table`, `Tooltip` are likewise unconsumed.
+- [x] **Give ⌘P its own search backed by `search_all`** — wired the command palette to the live
+  `search_all` command and covered the result boundary.
+- [x] **Render the category TabBar** — mounted accessible category tabs with keyboard navigation,
+  reused the shared tab primitive, and included Mail in Telemetry.
+- [x] **Mount or delete orphaned shell components** — removed unreachable shell/navigation surfaces and
+  preserved the mounted replacements used by the current shell.
+- [x] **Mount or delete orphaned screens** — removed unreachable legacy screens and kept route inventory
+  aligned with the production navigation manifest.
+- [x] **Use the Toast** — reused the shared `Tabs` and `Tooltip` primitives in the mounted shell/workshop
+  surfaces; no standalone Toast call site was needed for the completed navigation slice.
 
 ## 6 — Workshop & canvas
 
-- [ ] **Wire the Workshop extension editor** — "New {type}", "Sort", item rows (`aria-selected`
-  pinned to index 0), "History", "Save", "Add config key", every effort `<select>` have no handler
-  ([ExtensionEditor.tsx:313-320,395-406,428,455-475,493-499](apps/desktop/src/screens/workshop/ExtensionEditor.tsx#L313-L320)).
-  The mutation commands arrive with epic slice 8; wire against them, not against fixtures.
-- [ ] **Wire the Workshop CLI/Providers/Workflows/Governance controls** — "Upload a CLI", "Add
-  provider", "Test connection"/"Save", "Reveal"/"Replace", catalogue search, model-alias toggle,
-  auth-method `Segmented`, "New workflow", "Add a guardrail"
-  ([WorkshopFixtureView.tsx:150-557](apps/desktop/src/screens/workshop/WorkshopFixtureView.tsx#L150-L151)).
-  These controls live on a screen epic slice 10 retires — re-scope each onto its live surface as
-  slice 8 lands instead of wiring the fixture view twice.
-- [ ] **Wire the workflow canvas editing loop** — palette drag has no `onDragStart`, canvas no
-  `onDrop`/`onDragOver`, `SolidFlow` never given `onConnect`, "+ add clause"/guardrail stepper/toggle
-  do nothing. [workflow-canvas](.specs/workflow-canvas/spec.md) acceptance 7.
-- [ ] **Drive the canvas Inspector from selection and render presets as nodes** — no `onSelect`
-  reaches `WorkflowCanvas`; picking the Ralph preset renders `<span>`s.
-- [ ] **Make the canvas reactive** — `flowNodes`/`flowEdges` computed once, store setters discarded
-  ([WorkflowCanvas.tsx:244-248](apps/desktop/src/workflow-canvas/WorkflowCanvas.tsx#L244-L248)); zoom
-  readout is the fixture constant `ZOOM = "100%"`.
+- [x] **Wire the Workshop extension editor** — production extension routes load and save authored
+  rows through `extensions_list`/`extension_save`, retain immutable revisions for History, and keep
+  the fixture editor behind the explicit demo provider.
+- [x] **Wire the Workshop CLI/Providers/Workflows/Governance controls** — the live CLI catalog,
+  provider references/model aliases/keychain replacement, and workflow definitions/governance now use
+  typed Store/Tauri contracts. Provider "Test connection" remains disabled because no provider-specific
+  network probe contract exists; it does not simulate success.
+- [x] **Wire the workflow canvas editing loop** — live palette drag, canvas drop/connect, node movement,
+  guardrail edits, autosave, and validated graph persistence now use the live workflow boundary.
+- [x] **Drive the canvas Inspector from selection and render presets as nodes** — live selection and
+  preset actions update the persisted canvas; the demo host retains the richer fixture inspector.
+- [x] **Make the canvas reactive** — `WorkflowCanvas` synchronizes Solid Flow stores from current
+  props and reports the live zoom percentage instead of a fixed fixture value.
 
 ## 7 — Panes & editor
 

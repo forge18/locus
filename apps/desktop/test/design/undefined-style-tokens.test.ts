@@ -3,7 +3,6 @@ import { read, rules } from "../css";
 
 const tokens = read("styles/tokens.css");
 const screens = read("screens/screens.css");
-const interact = read("screens/interact/interact.css");
 const manage = read("screens/manage/manage.css");
 const agentPane = read("panes/agent-pane.css");
 const extensionEditor = read("screens/workshop/ExtensionEditor.css");
@@ -21,22 +20,15 @@ const tokenValue = (theme: string, token: string): string => {
   return value!;
 };
 
-const color = (
-  value: string,
-  theme?: string,
-): [number, number, number] => {
+const color = (value: string, theme?: string): [number, number, number] => {
   const hex = value.match(/^#([0-9a-f]{6})$/i);
   if (hex) {
-    return [0, 2, 4].map((offset) => parseInt(hex[1].slice(offset, offset + 2), 16)) as [
-      number,
-      number,
-      number,
-    ];
+    return [0, 2, 4].map((offset) =>
+      parseInt(hex[1].slice(offset, offset + 2), 16),
+    ) as [number, number, number];
   }
 
-  const mix = value.match(
-    /^color-mix\(in srgb, (.+) ([\d.]+)%, (.+)\)$/,
-  );
+  const mix = value.match(/^color-mix\(in srgb, (.+) ([\d.]+)%, (.+)\)$/);
   expect(mix, `supported color value: ${value}`).toBeDefined();
   const first = resolve(mix![1], theme);
   const second = resolve(mix![3], theme);
@@ -101,7 +93,6 @@ describe("design/undefined-style-tokens", () => {
     expect(agentPane).not.toMatch(/--r-pill\s*:/);
     expect(screens).toContain(".inbox-throughput-meter {");
     expect(screens).toContain("border-radius: var(--r-pill)");
-    expect(interact).toContain("border-radius:var(--r-pill)");
   });
 
   it("keeps warning text and danger-chip text at AA contrast in both themes", () => {
@@ -135,9 +126,7 @@ describe("design/undefined-style-tokens", () => {
     expect(screens).toContain("background: var(--status-danger-deep)");
     expect(screens).toContain("color: var(--status-danger-pale)");
     expect(manage).toContain(".edge-amber{color:var(--status-warning)}");
-    expect(manage).toContain(
-      "border-left:2px solid var(--status-warning)",
-    );
+    expect(manage).toContain("border-left:2px solid var(--status-warning)");
     expect(extensionEditor).toContain("color:var(--action-primary)");
     expect(extensionEditor).toContain(
       "border-left-color:var(--action-primary)",

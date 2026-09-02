@@ -11,10 +11,10 @@ use std::{
 use locus_core::{
     core::Core,
     harness::materialize::report::{reports_for_registry, MaterializationReport},
-    ids::{ArtifactId, BotId, ProjectId, RoutineId, RunId, TaskId},
+    ids::{ArtifactId, BotId, PlanningWorkspaceId, ProjectId, RoutineId, RunId, TaskId},
     lsp::{DescriptorPin, LspDiagnostic},
     plugin::{builtin_manifests, PluginKind, PluginProcess, WorkItemProviderDescriptor},
-    repo::GitState,
+    repo::{GitState, RepoManager},
     services::{
         artifact::{ArtifactComment, ArtifactContent, ArtifactKind, ArtifactRow},
         board::{BoardActor, BoardCommentOrigin, BoardEvidenceLink},
@@ -22,8 +22,11 @@ use locus_core::{
             Bot, BotContainerState, BotRoutine, RoutineAttribution, RoutineExecution,
             RoutineExecutionStatus,
         },
+        capabilities::CapabilityPolicies,
+        interact::InteractState,
         lint::discover as discover_linters,
         manage::TaskColumn,
+        provider::{KeychainReference, ProviderConnectionConfig, ProviderModel, ProviderReference},
         task::TaskDetailSummary,
         telemetry::{now_timestamp, CapturedEvent, Event, EventVerb},
     },
@@ -40,6 +43,7 @@ use locus_core::{
     },
 };
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use tauri::{
     ipc::Channel,
     menu::{Menu, MenuItem},
@@ -124,6 +128,467 @@ impl IpcError {
 
 fn webviews_per_window() -> usize {
     1
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProviderModelResponse {
+    model_id: String,
+    alias: Option<String>,
+    selector_included: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProviderResponse {
+    id: String,
+    identifier: String,
+    keychain_reference: String,
+    verification_at: Option<String>,
+    verification_model_count: Option<i32>,
+    verification_status: Option<String>,
+    verification_expires_at: Option<String>,
+    authentication_method: String,
+    base_url: Option<String>,
+    models: Vec<ProviderModelResponse>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ProviderSaveRequest {
+    id: Option<String>,
+    identifier: String,
+    keychain_reference: String,
+    #[serde(default = "default_authentication_method")]
+    authentication_method: String,
+    base_url: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ProviderModelRequest {
+    model_id: String,
+    alias: Option<String>,
+    selector_included: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ProviderModelsSetRequest {
+    provider_id: String,
+    models: Vec<ProviderModelRequest>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProviderSecretReplaceResponse {
+    replaced: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ProviderSecretReplaceRequest {
+    provider_id: String,
+    secret: String,
+}
+
+fn default_authentication_method() -> String {
+    "api-key".into()
+}
+
+fn provider_response(
+    row: locus_core::store::providers::ProviderReferenceRow,
+    models: Vec<ProviderModel>,
+) -> ProviderResponse {
+    ProviderResponse {
+        id: row.id.to_string(),
+        identifier: row.identifier,
+        keychain_reference: row.keychain_reference,
+        verification_at: row.verification_at,
+        verification_model_count: row.verification_model_count,
+        verification_status: row.verification_status,
+        verification_expires_at: row.verification_expires_at,
+        authentication_method: row.authentication_method,
+        base_url: row.base_url,
+        models: models
+            .into_iter()
+            .map(|model| ProviderModelResponse {
+                model_id: model.model_id,
+                alias: model.alias,
+                selector_included: model.selector_included,
+            })
+            .collect(),
+    }
+}
+
+#[tauri::command]
+async fn providers_list(core: State<'_, Arc<Core>>) -> Result<Vec<ProviderResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    let rows = store
+        .provider_references()
+        .await
+        .map_err(IpcError::internal)?;
+    let mut providers = Vec::with_capacity(rows.len());
+    for row in rows {
+        let models = store
+            .provider_models(row.id)
+            .await
+            .map_err(IpcError::internal)?;
+        providers.push(provider_response(row, models));
+    }
+    Ok(providers)
+}
+
+#[tauri::command]
+async fn provider_save(
+    core: State<'_, Arc<Core>>,
+    request: ProviderSaveRequest,
+) -> Result<ProviderResponse, IpcError> {
+    let id = request
+        .id
+        .as_deref()
+        .map(str::parse)
+        .transpose()
+        .map_err(|_| IpcError::invalid_argument("provider id must be a UUID"))?
+        .unwrap_or_else(uuid::Uuid::new_v4);
+    let keychain_reference = KeychainReference::new(request.keychain_reference)
+        .map_err(|error| IpcError::invalid_argument(error.to_string()))?;
+    let provider = ProviderReference::new(id, request.identifier, keychain_reference)
+        .map_err(|error| IpcError::invalid_argument(error.to_string()))?;
+    let connection = ProviderConnectionConfig::new(request.authentication_method, request.base_url)
+        .map_err(|error| IpcError::invalid_argument(error.to_string()))?;
+    let store = connected_store(&core).await?;
+    store
+        .persist_provider_reference(&provider)
+        .await
+        .map_err(IpcError::internal)?;
+    store
+        .persist_provider_connection(id, &connection)
+        .await
+        .map_err(IpcError::internal)?;
+    let row = store
+        .provider_references()
+        .await
+        .map_err(IpcError::internal)?
+        .into_iter()
+        .find(|row| row.id == id)
+        .ok_or_else(|| IpcError::internal("saved provider disappeared"))?;
+    let models = store
+        .provider_models(id)
+        .await
+        .map_err(IpcError::internal)?;
+    Ok(provider_response(row, models))
+}
+
+#[tauri::command]
+async fn provider_secret_replace(
+    core: State<'_, Arc<Core>>,
+    request: ProviderSecretReplaceRequest,
+) -> Result<ProviderSecretReplaceResponse, IpcError> {
+    if request.secret.is_empty() {
+        return Err(IpcError::invalid_argument(
+            "provider secret must not be empty",
+        ));
+    }
+    let provider_id: uuid::Uuid = request
+        .provider_id
+        .parse()
+        .map_err(|_| IpcError::invalid_argument("provider id must be a UUID"))?;
+    let store = connected_store(&core).await?;
+    let row = store
+        .provider_references()
+        .await
+        .map_err(IpcError::internal)?
+        .into_iter()
+        .find(|row| row.id == provider_id)
+        .ok_or_else(|| IpcError::not_found("provider was not found"))?;
+    let reference = KeychainReference::new(row.keychain_reference)
+        .map_err(|error| IpcError::invalid_argument(error.to_string()))?;
+    locus_core::services::provider::OsKeychain::write_secret(
+        &locus_core::services::provider::KeyringKeychain,
+        &reference,
+        &request.secret,
+    )
+    .map_err(IpcError::internal)?;
+    Ok(ProviderSecretReplaceResponse { replaced: true })
+}
+
+#[tauri::command]
+async fn provider_models_set(
+    core: State<'_, Arc<Core>>,
+    request: ProviderModelsSetRequest,
+) -> Result<Vec<ProviderModelResponse>, IpcError> {
+    let provider_id = request
+        .provider_id
+        .parse()
+        .map_err(|_| IpcError::invalid_argument("provider id must be a UUID"))?;
+    let models = request
+        .models
+        .into_iter()
+        .map(|model| {
+            let mut value = ProviderModel::new(provider_id, model.model_id)
+                .map_err(|error| IpcError::invalid_argument(error.to_string()))?;
+            if let Some(alias) = model.alias {
+                value = value
+                    .with_alias(alias)
+                    .map_err(|error| IpcError::invalid_argument(error.to_string()))?;
+            }
+            if !model.selector_included {
+                value = value.exclude_from_selector();
+            }
+            Ok(value)
+        })
+        .collect::<Result<Vec<_>, IpcError>>()?;
+    let store = connected_store(&core).await?;
+    store
+        .persist_provider_models(provider_id, &models)
+        .await
+        .map_err(IpcError::internal)?;
+    Ok(models
+        .into_iter()
+        .map(|model| ProviderModelResponse {
+            model_id: model.model_id,
+            alias: model.alias,
+            selector_included: model.selector_included,
+        })
+        .collect())
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ExtensionResponse {
+    id: String,
+    extension_type: String,
+    name: String,
+    version: i32,
+    frontmatter: Value,
+    body: String,
+    updated_at: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ExtensionRevisionResponse {
+    id: String,
+    extension_id: String,
+    version: i32,
+    frontmatter: Value,
+    body: String,
+    created_at: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ExtensionSaveRequest {
+    id: Option<String>,
+    extension_type: String,
+    name: String,
+    frontmatter: Value,
+    body: String,
+}
+
+fn extension_response(row: locus_core::store::extensions::ExtensionRow) -> ExtensionResponse {
+    ExtensionResponse {
+        id: row.id.to_string(),
+        extension_type: row.extension_type,
+        name: row.name,
+        version: row.version,
+        frontmatter: row.frontmatter,
+        body: row.body,
+        updated_at: row.updated_at,
+    }
+}
+
+fn extension_revision_response(
+    row: locus_core::store::extensions::ExtensionRevisionRow,
+) -> ExtensionRevisionResponse {
+    ExtensionRevisionResponse {
+        id: row.id.to_string(),
+        extension_id: row.extension_id.to_string(),
+        version: row.version,
+        frontmatter: row.frontmatter,
+        body: row.body,
+        created_at: row.created_at,
+    }
+}
+
+#[tauri::command]
+async fn extensions_list(
+    core: State<'_, Arc<Core>>,
+    extension_type: String,
+) -> Result<Vec<ExtensionResponse>, IpcError> {
+    connected_store(&core)
+        .await?
+        .extensions(&extension_type)
+        .await
+        .map(|rows| rows.into_iter().map(extension_response).collect())
+        .map_err(IpcError::internal)
+}
+
+#[tauri::command]
+async fn extension_history(
+    core: State<'_, Arc<Core>>,
+    extension_id: String,
+) -> Result<Vec<ExtensionRevisionResponse>, IpcError> {
+    let extension_id = extension_id
+        .parse()
+        .map_err(|_| IpcError::invalid_argument("extension id must be a UUID"))?;
+    connected_store(&core)
+        .await?
+        .extension_history(extension_id)
+        .await
+        .map(|rows| rows.into_iter().map(extension_revision_response).collect())
+        .map_err(IpcError::internal)
+}
+
+#[tauri::command]
+async fn extension_save(
+    core: State<'_, Arc<Core>>,
+    request: ExtensionSaveRequest,
+) -> Result<ExtensionResponse, IpcError> {
+    let id = request
+        .id
+        .as_deref()
+        .map(str::parse)
+        .transpose()
+        .map_err(|_| IpcError::invalid_argument("extension id must be a UUID"))?;
+    connected_store(&core)
+        .await?
+        .persist_extension(
+            id,
+            &request.extension_type,
+            &request.name,
+            &request.frontmatter,
+            &request.body,
+        )
+        .await
+        .map(extension_response)
+        .map_err(|error| {
+            if error.to_string().starts_with("unknown extension type")
+                || error.to_string().contains(" is required")
+                || error
+                    .to_string()
+                    .contains("frontmatter must be a JSON object")
+            {
+                IpcError::invalid_argument(error.to_string())
+            } else {
+                IpcError::internal(error)
+            }
+        })
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CliToolResponse {
+    id: String,
+    name: String,
+    version: String,
+    category: String,
+    enabled: bool,
+    source: String,
+    binary_sha256: Option<String>,
+    install_command: String,
+    verify_command: String,
+    documentation_url: Option<String>,
+    last_rebuilt_at: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CliToolEnableRequest {
+    id: String,
+    enabled: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CliToolUploadRequest {
+    manifest: Vec<u8>,
+    manifest_signature: String,
+    binary: Vec<u8>,
+    binary_signature: String,
+}
+
+fn cli_tool_response(row: locus_core::store::cli_tools::CliToolRow) -> CliToolResponse {
+    CliToolResponse {
+        id: row.id.to_string(),
+        name: row.name,
+        version: row.version,
+        category: row.category,
+        enabled: row.enabled,
+        source: row.source,
+        binary_sha256: row.binary_sha256,
+        install_command: row.install_command,
+        verify_command: row.verify_command,
+        documentation_url: row.documentation_url,
+        last_rebuilt_at: row.last_rebuilt_at,
+    }
+}
+
+#[tauri::command]
+async fn cli_tools_list(core: State<'_, Arc<Core>>) -> Result<Vec<CliToolResponse>, IpcError> {
+    connected_store(&core)
+        .await?
+        .cli_tools()
+        .await
+        .map(|rows| rows.into_iter().map(cli_tool_response).collect())
+        .map_err(IpcError::internal)
+}
+
+#[tauri::command]
+async fn cli_tool_enabled_set(
+    core: State<'_, Arc<Core>>,
+    request: CliToolEnableRequest,
+) -> Result<CliToolResponse, IpcError> {
+    let id = request
+        .id
+        .parse()
+        .map_err(|_| IpcError::invalid_argument("CLI tool id must be a UUID"))?;
+    connected_store(&core)
+        .await?
+        .set_cli_tool_enabled(id, request.enabled)
+        .await
+        .map(cli_tool_response)
+        .map_err(IpcError::internal)
+}
+
+#[tauri::command]
+async fn cli_tool_upload(
+    core: State<'_, Arc<Core>>,
+    request: CliToolUploadRequest,
+) -> Result<CliToolResponse, IpcError> {
+    let manifest_text = std::str::from_utf8(&request.manifest)
+        .map_err(|_| IpcError::invalid_argument("CLI tool manifest must be UTF-8 TOML"))?;
+    let manifest: locus_core::services::tools::ToolManifest = toml::from_str(manifest_text)
+        .map_err(|_| IpcError::invalid_argument("CLI tool manifest is invalid TOML"))?;
+    let trusted_key_text = std::env::var("LOCUS_TRUSTED_TOOL_KEYS").unwrap_or_default();
+    let trusted_keys = trusted_key_text.lines().map(str::to_owned);
+    let trusted_keys = locus_core::services::tools::TrustedKeyStore::from_public_keys(trusted_keys)
+        .map_err(|error| IpcError::invalid_argument(error.to_string()))?;
+    let mut catalog = locus_core::services::tools::ToolCatalog::new(trusted_keys);
+    catalog
+        .admit_user_tool(locus_core::services::tools::SignedToolUpload {
+            manifest: request.manifest,
+            manifest_signature: request.manifest_signature,
+            binary: request.binary,
+            binary_signature: request.binary_signature,
+        })
+        .map_err(|error| IpcError::invalid_argument(error.to_string()))?;
+    let upload = locus_core::store::cli_tools::CliToolUpload {
+        name: manifest.name,
+        version: manifest.version,
+        category: manifest.category,
+        binary_sha256: manifest.binary_sha256,
+        install_command: manifest.install_command,
+        verify_command: manifest.verify_command,
+        documentation_url: manifest.documentation_url,
+    };
+    connected_store(&core)
+        .await?
+        .persist_uploaded_cli_tool(&upload)
+        .await
+        .map(cli_tool_response)
+        .map_err(IpcError::internal)
 }
 
 #[derive(Debug, Deserialize)]
@@ -940,7 +1405,303 @@ async fn runs_for_session(
     runs_for_session_inner(store, &session_id).await
 }
 
-/// Dispatch schedules and their execution history (slice 7).
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct InteractChangedFileResponse {
+    path: String,
+    marker: String,
+    additions: u32,
+    removals: u32,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct InteractSessionResponse {
+    id: String,
+    project_id: String,
+    project: String,
+    name: String,
+    agent: String,
+    harness: String,
+    branch: String,
+    status: String,
+    state: InteractState,
+    board_task_id: Option<String>,
+    run_id: Option<String>,
+    run_status: Option<String>,
+    model: Option<String>,
+    permission_posture: String,
+    created_at: Option<String>,
+    repo: Option<String>,
+    base_commit: Option<String>,
+    changed_files: Vec<InteractChangedFileResponse>,
+    cost: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct InteractMutationResponse {
+    session: InteractSessionResponse,
+    branch: Option<String>,
+}
+
+fn interact_session_response(
+    row: locus_core::store::interact::InteractSessionRow,
+) -> InteractSessionResponse {
+    InteractSessionResponse {
+        id: row.id.to_string(),
+        project_id: row.project_id.to_string(),
+        project: row.project,
+        name: row.name,
+        agent: row.agent,
+        harness: row.harness,
+        branch: row.branch,
+        status: row.status,
+        state: row.state,
+        board_task_id: row.board_task_id.map(|id| id.to_string()),
+        run_id: row.run_id.map(|id| id.to_string()),
+        run_status: row.run_status,
+        model: row.model,
+        permission_posture: row.permission_posture,
+        created_at: row.created_at,
+        repo: row.repo,
+        base_commit: None,
+        changed_files: Vec::new(),
+        cost: Some("unknown".into()),
+    }
+}
+
+fn interact_session_response_with_changes(
+    row: locus_core::store::interact::InteractSessionRow,
+) -> Result<InteractSessionResponse, String> {
+    let remote = row.workspace_remote.clone();
+    let branch = row.branch.clone();
+    let mut response = interact_session_response(row);
+    if let Some(remote) = remote {
+        let repo = RepoManager::default();
+        response.base_commit = repo.primary_commit_at_remote(&remote).ok();
+        response.changed_files = repo
+            .branch_changes_at_remote(&remote, &branch)
+            .map_err(|error| error.to_string())?
+            .into_iter()
+            .map(|change| InteractChangedFileResponse {
+                path: change.path,
+                marker: "M".into(),
+                additions: change.additions,
+                removals: change.removals,
+            })
+            .collect();
+    }
+    Ok(response)
+}
+
+fn parse_interact_session_id(value: &str) -> Result<locus_core::ids::SessionId, IpcError> {
+    value
+        .parse()
+        .map_err(|_| IpcError::invalid_argument("Interact session id must be a UUID"))
+}
+
+#[tauri::command]
+async fn interact_sessions_list(
+    core: State<'_, Arc<Core>>,
+    project_id: Option<String>,
+) -> Result<Vec<InteractSessionResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = match project_id.as_deref() {
+        Some(identifier) => Some(resolve_project_id(store, identifier).await?),
+        None => None,
+    };
+    let rows = store
+        .interact_sessions(project_id)
+        .await
+        .map_err(IpcError::internal)?;
+    rows.into_iter()
+        .map(interact_session_response_with_changes)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(IpcError::internal)
+}
+
+#[tauri::command]
+async fn interact_session_create(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    name: String,
+    model: Option<String>,
+    repo_id: Option<String>,
+) -> Result<InteractSessionResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = resolve_project_id(store, &project_id).await?;
+    let model = model
+        .filter(|model| !model.trim().is_empty())
+        .or_else(|| std::env::var("LOCUS_DEFAULT_MODEL_ID").ok())
+        .unwrap_or_else(|| "unconfigured-model".into());
+    let repo_id = repo_id
+        .filter(|value| !value.trim().is_empty())
+        .map(|value| {
+            value
+                .parse()
+                .map_err(|_| IpcError::invalid_argument("repository id must be a UUID"))
+        })
+        .transpose()?;
+    let session_id = store
+        .create_interact_session(project_id, repo_id, &name, &model)
+        .await
+        .map_err(IpcError::internal)?;
+    store
+        .interact_session_for_project(project_id, session_id)
+        .await
+        .map_err(IpcError::internal)?
+        .map(interact_session_response_with_changes)
+        .transpose()
+        .map_err(IpcError::internal)?
+        .ok_or_else(|| IpcError::internal("created Interact session disappeared"))
+}
+
+#[tauri::command]
+async fn interact_session_promote(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    session_id: String,
+    task_id: Option<String>,
+) -> Result<InteractSessionResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = resolve_project_id(store, &project_id).await?;
+    let session_id = parse_interact_session_id(&session_id)?;
+    let task_id = task_id
+        .filter(|value| !value.trim().is_empty())
+        .map(|value| {
+            value
+                .parse()
+                .map_err(|_| IpcError::invalid_argument("board task id must be a UUID"))
+        })
+        .transpose()?;
+    store
+        .promote_interact_session(project_id, session_id, task_id)
+        .await
+        .map_err(IpcError::internal)?;
+    store
+        .interact_session_for_project(project_id, session_id)
+        .await
+        .map_err(IpcError::internal)?
+        .map(interact_session_response_with_changes)
+        .transpose()
+        .map_err(IpcError::internal)?
+        .ok_or_else(|| IpcError::not_found("Interact session was not found"))
+}
+
+#[tauri::command]
+async fn interact_session_discard(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    session_id: String,
+) -> Result<InteractMutationResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = resolve_project_id(store, &project_id).await?;
+    let session_id = parse_interact_session_id(&session_id)?;
+    let target = store
+        .discard_interact_session(project_id, session_id)
+        .await
+        .map_err(IpcError::internal)?;
+    let mut cleanup_errors = Vec::new();
+    if let Some(container_id) = target.container_id.as_deref() {
+        let mut runtime = core
+            .connect_container_runtime()
+            .map_err(IpcError::internal)?;
+        if let Err(error) = runtime.stop_container(container_id) {
+            cleanup_errors.push(format!("stop container: {error}"));
+        }
+        if let Err(error) = runtime.remove_container(container_id) {
+            cleanup_errors.push(format!("remove container: {error}"));
+        }
+    }
+    if let Some(remote) = target.workspace_remote.as_deref() {
+        if let Err(error) = RepoManager::default().delete_interact_branch(remote, &target.branch) {
+            cleanup_errors.push(format!("delete branch: {error}"));
+        }
+    }
+    if !cleanup_errors.is_empty() {
+        return Err(IpcError::internal(format!(
+            "discard cleanup failed: {}",
+            cleanup_errors.join("; ")
+        )));
+    }
+    let session = store
+        .interact_session_for_project(project_id, session_id)
+        .await
+        .map_err(IpcError::internal)?
+        .ok_or_else(|| IpcError::not_found("discarded Interact session was not found"))?;
+    Ok(InteractMutationResponse {
+        session: interact_session_response_with_changes(session).map_err(IpcError::internal)?,
+        branch: Some(target.branch),
+    })
+}
+
+#[tauri::command]
+async fn interact_session_commit(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    session_id: String,
+) -> Result<InteractMutationResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = resolve_project_id(store, &project_id).await?;
+    let session_id = parse_interact_session_id(&session_id)?;
+    let session = store
+        .commit_interact_session(project_id, session_id)
+        .await
+        .map_err(IpcError::internal)?;
+    let container_id = session
+        .container_id
+        .as_deref()
+        .ok_or_else(|| IpcError::invalid_argument("the Interact workspace is not running"))?;
+    let branch = session.branch.clone();
+    let command = vec![
+        "git".into(),
+        "push".into(),
+        "locus".into(),
+        format!("HEAD:refs/heads/{branch}"),
+    ];
+    let mut runtime = core
+        .connect_container_runtime()
+        .map_err(IpcError::internal)?;
+    let result = runtime
+        .exec(container_id, &command)
+        .map_err(IpcError::internal)?;
+    if result.status_code != 0 {
+        return Err(IpcError::internal(format!(
+            "push Interact branch failed: {}",
+            String::from_utf8_lossy(&result.stderr)
+        )));
+    }
+    Ok(InteractMutationResponse {
+        session: interact_session_response_with_changes(session).map_err(IpcError::internal)?,
+        branch: Some(branch),
+    })
+}
+
+#[tauri::command]
+async fn interact_session_prompt(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    session_id: String,
+    prompt: String,
+) -> Result<(), IpcError> {
+    if prompt.trim().is_empty() {
+        return Err(IpcError::invalid_argument("prompt must not be empty"));
+    }
+    let store = connected_store(&core).await?;
+    let project_id = resolve_project_id(store, &project_id).await?;
+    let session_id = parse_interact_session_id(&session_id)?;
+    let run_id = store
+        .active_interact_run(project_id, session_id)
+        .await
+        .map_err(IpcError::internal)?
+        .ok_or_else(|| IpcError::invalid_argument("the Interact session is not running"))?;
+    core.prompt_run(run_id, prompt)
+        .await
+        .map_err(IpcError::internal)
+}
+
+/// Dispatch schedules and their execution history (slice 7)."}]} hab=functions.edit  时时彩?jsonikwembu? 天天众ьақә? Wait tool call malformed? Let's inspect result.}
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ScheduleResponse {
@@ -1347,9 +2108,12 @@ fn parse_plan_stage(
 
 async fn plans_list_inner(
     store: &Store,
-    project_id: &str,
+    project_id: Option<&str>,
 ) -> Result<Vec<PlanSummaryResponse>, IpcError> {
-    let project_id = resolve_setup_project(store, project_id).await?;
+    let project_id = match project_id {
+        Some(project_id) => Some(resolve_setup_project(store, project_id).await?),
+        None => None,
+    };
     let rows = store
         .plans_list(project_id)
         .await
@@ -1387,6 +2151,150 @@ struct PlanMutationResponse {
     updated: bool,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PaletteSearchResponse {
+    kind: String,
+    project: String,
+    label: String,
+    locator: String,
+    score: i32,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PlanningWorkspaceResponse {
+    id: String,
+    project_id: String,
+    scope: String,
+    lifecycle: String,
+    current_revision: i32,
+    updated_at: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PlanningWorkspaceApprovalResponse {
+    workspace_id: String,
+    revision: i32,
+    task_ids: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PlanningWorkspaceRevisionResponse {
+    id: String,
+    workspace_id: String,
+    revision: i32,
+    state: Value,
+    frozen_at: Option<String>,
+    approved_at: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PlanningWorkspaceSessionResponse {
+    workspace_id: String,
+    spec_id: Option<String>,
+    session_id: String,
+    linked_at: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PlanningWorkspaceSpecResponse {
+    id: String,
+    workspace_id: String,
+    repo_id: String,
+    name: String,
+    state: Value,
+    stale: bool,
+    updated_at: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PlanningWorkspaceTaskProvenanceResponse {
+    id: String,
+    materialization_id: String,
+    workspace_id: String,
+    revision_id: String,
+    board_task_id: String,
+    spec_id: String,
+    requirement_id: Option<String>,
+}
+
+fn planning_workspace_response(
+    row: locus_core::store::planning_workspace::PlanningWorkspaceRow,
+) -> PlanningWorkspaceResponse {
+    PlanningWorkspaceResponse {
+        id: row.id.to_string(),
+        project_id: row.project_id.to_string(),
+        scope: row.scope,
+        lifecycle: row.lifecycle,
+        current_revision: row.current_revision,
+        updated_at: row.updated_at,
+    }
+}
+
+fn planning_workspace_revision_response(
+    row: locus_core::store::planning_workspace::PlanningWorkspaceRevisionRow,
+) -> PlanningWorkspaceRevisionResponse {
+    PlanningWorkspaceRevisionResponse {
+        id: row.id.to_string(),
+        workspace_id: row.workspace_id.to_string(),
+        revision: row.revision,
+        state: row.state,
+        frozen_at: row.frozen_at,
+        approved_at: row.approved_at,
+    }
+}
+
+fn planning_workspace_session_response(
+    row: locus_core::store::planning_workspace::PlanningWorkspaceSessionRow,
+) -> PlanningWorkspaceSessionResponse {
+    PlanningWorkspaceSessionResponse {
+        workspace_id: row.workspace_id.to_string(),
+        spec_id: row.spec_id.map(|id| id.to_string()),
+        session_id: row.session_id.to_string(),
+        linked_at: row.linked_at,
+    }
+}
+
+fn planning_workspace_spec_response(
+    row: locus_core::store::planning_workspace::PlanningWorkspaceSpecRow,
+) -> PlanningWorkspaceSpecResponse {
+    PlanningWorkspaceSpecResponse {
+        id: row.id.to_string(),
+        workspace_id: row.workspace_id.to_string(),
+        repo_id: row.repo_id.to_string(),
+        name: row.name,
+        state: row.state,
+        stale: row.stale,
+        updated_at: row.updated_at,
+    }
+}
+
+fn planning_workspace_task_provenance_response(
+    row: locus_core::store::planning_workspace::PlanningWorkspaceTaskProvenanceRow,
+) -> PlanningWorkspaceTaskProvenanceResponse {
+    PlanningWorkspaceTaskProvenanceResponse {
+        id: row.id.to_string(),
+        materialization_id: row.materialization_id.to_string(),
+        workspace_id: row.workspace_id.to_string(),
+        revision_id: row.revision_id.to_string(),
+        board_task_id: row.board_task_id.to_string(),
+        spec_id: row.spec_id.to_string(),
+        requirement_id: row.requirement_id,
+    }
+}
+
+fn parse_planning_workspace_id(value: &str) -> Result<PlanningWorkspaceId, IpcError> {
+    value
+        .parse()
+        .map_err(|_| IpcError::invalid_argument("planning workspace id must be a UUID"))
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PlanRequirementRequest {
@@ -1406,7 +2314,7 @@ async fn plan_create_inner(
         .create_plan(id, project_id.into(), title, goal)
         .await
         .map_err(IpcError::internal)?;
-    plans_list_inner(store, &project_id.to_string())
+    plans_list_inner(store, Some(&project_id.to_string()))
         .await?
         .into_iter()
         .find(|plan| plan.id == id.to_string())
@@ -1480,12 +2388,38 @@ async fn plan_requirements_set_inner(
 }
 
 #[tauri::command]
+async fn search_all(
+    core: State<'_, Arc<Core>>,
+    query: String,
+) -> Result<Vec<PaletteSearchResponse>, IpcError> {
+    if query.trim().is_empty() {
+        return Ok(Vec::new());
+    }
+    connected_store(&core)
+        .await?
+        .palette_search(&query)
+        .await
+        .map_err(IpcError::internal)
+        .map(|rows| {
+            rows.into_iter()
+                .map(|row| PaletteSearchResponse {
+                    kind: row.kind,
+                    project: row.project,
+                    label: row.label,
+                    locator: row.locator,
+                    score: row.score,
+                })
+                .collect()
+        })
+}
+
+#[tauri::command]
 async fn plans_list(
     core: State<'_, Arc<Core>>,
-    project_id: String,
+    project_id: Option<String>,
 ) -> Result<Vec<PlanSummaryResponse>, IpcError> {
     let store = connected_store(&core).await?;
-    plans_list_inner(store, &project_id).await
+    plans_list_inner(store, project_id.as_deref()).await
 }
 
 #[tauri::command]
@@ -1531,6 +2465,306 @@ async fn plan_requirements_set(
     let store = connected_store(&core).await?;
     plan_requirements_set_inner(store, &project_id, &plan_id, requirements).await?;
     Ok(PlanMutationResponse { updated: true })
+}
+
+#[tauri::command]
+async fn planning_workspaces_list(
+    core: State<'_, Arc<Core>>,
+    project_id: Option<String>,
+) -> Result<Vec<PlanningWorkspaceResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = match project_id {
+        Some(project_id) => Some(resolve_setup_project(store, &project_id).await?),
+        None => None,
+    };
+    store
+        .planning_workspaces(project_id)
+        .await
+        .map_err(IpcError::internal)
+        .map(|rows| rows.into_iter().map(planning_workspace_response).collect())
+}
+
+#[tauri::command]
+async fn planning_workspace_create(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    scope: String,
+    brief: String,
+) -> Result<PlanningWorkspaceResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = resolve_setup_project(store, &project_id).await?;
+    let workspace_id = store
+        .create_planning_workspace(project_id, &scope, &brief)
+        .await
+        .map_err(IpcError::internal)?;
+    store
+        .planning_workspace(project_id, workspace_id)
+        .await
+        .map_err(IpcError::internal)?
+        .map(planning_workspace_response)
+        .ok_or_else(|| IpcError::internal("created planning workspace disappeared"))
+}
+
+#[tauri::command]
+async fn planning_workspace_revisions_list(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    workspace_id: String,
+) -> Result<Vec<PlanningWorkspaceRevisionResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = resolve_setup_project(store, &project_id).await?;
+    let workspace_id = parse_planning_workspace_id(&workspace_id)?;
+    if store
+        .planning_workspace(project_id, workspace_id)
+        .await
+        .map_err(IpcError::internal)?
+        .is_none()
+    {
+        return Err(IpcError::not_found(
+            "planning workspace was not found in the active project",
+        ));
+    }
+    store
+        .planning_workspace_revisions(project_id, workspace_id)
+        .await
+        .map_err(IpcError::internal)
+        .map(|rows| {
+            rows.into_iter()
+                .map(planning_workspace_revision_response)
+                .collect()
+        })
+}
+
+#[tauri::command]
+async fn planning_workspace_specs_list(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    workspace_id: String,
+) -> Result<Vec<PlanningWorkspaceSpecResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = resolve_setup_project(store, &project_id).await?;
+    store
+        .planning_workspace_specs(project_id, parse_planning_workspace_id(&workspace_id)?)
+        .await
+        .map_err(IpcError::internal)
+        .map(|rows| {
+            rows.into_iter()
+                .map(planning_workspace_spec_response)
+                .collect()
+        })
+}
+
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+async fn planning_workspace_spec_save(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    workspace_id: String,
+    spec_id: Option<String>,
+    repo_id: String,
+    name: String,
+    state: Value,
+    stale: bool,
+) -> Result<PlanningWorkspaceSpecResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = resolve_setup_project(store, &project_id).await?;
+    let spec_id = spec_id
+        .map(|value| {
+            value.parse().map_err(|_| {
+                IpcError::invalid_argument("planning workspace spec id must be a UUID")
+            })
+        })
+        .transpose()?;
+    let repo_id = repo_id.parse().map_err(|_| {
+        IpcError::invalid_argument("planning workspace repository id must be a UUID")
+    })?;
+    let workspace_id = parse_planning_workspace_id(&workspace_id)?;
+    let spec_id = store
+        .save_planning_workspace_spec(
+            project_id,
+            workspace_id,
+            spec_id,
+            repo_id,
+            &name,
+            state,
+            stale,
+        )
+        .await
+        .map_err(IpcError::internal)?;
+    store
+        .planning_workspace_specs(project_id, workspace_id)
+        .await
+        .map_err(IpcError::internal)?
+        .into_iter()
+        .find(|spec| spec.id == spec_id)
+        .map(planning_workspace_spec_response)
+        .ok_or_else(|| IpcError::internal("saved planning workspace spec disappeared"))
+}
+
+#[tauri::command]
+async fn planning_workspace_task_provenance_list(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    workspace_id: String,
+) -> Result<Vec<PlanningWorkspaceTaskProvenanceResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = resolve_setup_project(store, &project_id).await?;
+    store
+        .planning_workspace_task_provenance(project_id, parse_planning_workspace_id(&workspace_id)?)
+        .await
+        .map_err(IpcError::internal)
+        .map(|rows| {
+            rows.into_iter()
+                .map(planning_workspace_task_provenance_response)
+                .collect()
+        })
+}
+
+#[tauri::command]
+async fn planning_workspace_decision_record(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    workspace_id: String,
+    affected_spec_ids: Vec<String>,
+    decision: Value,
+) -> Result<PlanMutationResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = resolve_setup_project(store, &project_id).await?;
+    let spec_ids = affected_spec_ids
+        .into_iter()
+        .map(|value| {
+            value
+                .parse()
+                .map_err(|_| IpcError::invalid_argument("affected planning spec id must be a UUID"))
+        })
+        .collect::<Result<Vec<uuid::Uuid>, _>>()?;
+    store
+        .mark_planning_workspace_specs_stale(
+            project_id,
+            parse_planning_workspace_id(&workspace_id)?,
+            &spec_ids,
+            decision,
+        )
+        .await
+        .map_err(IpcError::internal)?;
+    Ok(PlanMutationResponse { updated: true })
+}
+
+#[tauri::command]
+async fn planning_workspace_sessions_list(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    workspace_id: String,
+) -> Result<Vec<PlanningWorkspaceSessionResponse>, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = resolve_setup_project(store, &project_id).await?;
+    store
+        .planning_workspace_sessions(project_id, parse_planning_workspace_id(&workspace_id)?)
+        .await
+        .map_err(IpcError::internal)
+        .map(|rows| {
+            rows.into_iter()
+                .map(planning_workspace_session_response)
+                .collect()
+        })
+}
+
+#[tauri::command]
+async fn planning_workspace_session_link(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    workspace_id: String,
+    spec_id: Option<String>,
+    session_id: String,
+) -> Result<bool, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = resolve_setup_project(store, &project_id).await?;
+    let spec_id = spec_id
+        .map(|value| {
+            value.parse().map_err(|_| {
+                IpcError::invalid_argument("planning workspace spec id must be a UUID")
+            })
+        })
+        .transpose()?;
+    let session_id = session_id
+        .parse()
+        .map_err(|_| IpcError::invalid_argument("planning session id must be a UUID"))?;
+    store
+        .link_planning_workspace_session(
+            project_id,
+            parse_planning_workspace_id(&workspace_id)?,
+            spec_id,
+            session_id,
+        )
+        .await
+        .map_err(IpcError::internal)?;
+    Ok(true)
+}
+
+#[tauri::command]
+async fn planning_workspace_checkpoint_save(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    workspace_id: String,
+    expected_revision: i32,
+    lifecycle: String,
+    state: Value,
+) -> Result<PlanningWorkspaceResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = resolve_setup_project(store, &project_id).await?;
+    let workspace_id = parse_planning_workspace_id(&workspace_id)?;
+    store
+        .save_planning_workspace_checkpoint(
+            project_id,
+            workspace_id,
+            expected_revision,
+            &lifecycle,
+            state,
+        )
+        .await
+        .map_err(IpcError::internal)?;
+    store
+        .planning_workspace(project_id, workspace_id)
+        .await
+        .map_err(IpcError::internal)?
+        .map(planning_workspace_response)
+        .ok_or_else(|| IpcError::internal("planning workspace disappeared after checkpoint"))
+}
+
+#[tauri::command]
+async fn planning_workspace_approve(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    workspace_id: String,
+    expected_revision: i32,
+) -> Result<PlanningWorkspaceApprovalResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = resolve_setup_project(store, &project_id).await?;
+    let workspace_id = parse_planning_workspace_id(&workspace_id)?;
+    let task_ids = store
+        .approve_planning_workspace(project_id, workspace_id, expected_revision)
+        .await
+        .map_err(IpcError::internal)?;
+    Ok(PlanningWorkspaceApprovalResponse {
+        workspace_id: workspace_id.to_string(),
+        revision: expected_revision,
+        task_ids: task_ids.into_iter().map(|id| id.to_string()).collect(),
+    })
+}
+
+#[tauri::command]
+async fn planning_workspace_delete(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    workspace_id: String,
+) -> Result<bool, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = resolve_setup_project(store, &project_id).await?;
+    store
+        .delete_planning_workspace(project_id, parse_planning_workspace_id(&workspace_id)?)
+        .await
+        .map_err(IpcError::internal)?;
+    Ok(true)
 }
 
 #[derive(Debug, Serialize)]
@@ -1610,9 +2844,12 @@ fn board_task_response(
 
 async fn board_tasks_inner(
     store: &Store,
-    project_id: &str,
+    project_id: Option<&str>,
 ) -> Result<Vec<BoardTaskResponse>, IpcError> {
-    let project_id = resolve_setup_project(store, project_id).await?;
+    let project_id = match project_id {
+        Some(project_id) => Some(resolve_setup_project(store, project_id).await?),
+        None => None,
+    };
     store
         .board_tasks(project_id)
         .await
@@ -1642,10 +2879,10 @@ async fn task_detail_inner(
 #[tauri::command]
 async fn board_tasks(
     core: State<'_, Arc<Core>>,
-    project_id: String,
+    project_id: Option<String>,
 ) -> Result<Vec<BoardTaskResponse>, IpcError> {
     let store = connected_store(&core).await?;
-    board_tasks_inner(store, &project_id).await
+    board_tasks_inner(store, project_id.as_deref()).await
 }
 
 #[tauri::command]
@@ -1916,6 +3153,42 @@ async fn inbox_resolve(
     inbox_resolve_inner(store, &delivery_id, &comment).await
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProjectCapabilityPolicyResponse {
+    revision: i32,
+    policies: CapabilityPolicies,
+}
+
+#[tauri::command]
+async fn project_capability_policy(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+) -> Result<ProjectCapabilityPolicyResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = resolve_setup_project(store, &project_id).await?;
+    let (revision, policies) = store
+        .project_capability_policies(project_id)
+        .await
+        .map_err(IpcError::internal)?;
+    Ok(ProjectCapabilityPolicyResponse { revision, policies })
+}
+
+#[tauri::command]
+async fn project_capability_policy_set(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    policies: CapabilityPolicies,
+) -> Result<ProjectCapabilityPolicyResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = resolve_setup_project(store, &project_id).await?;
+    let revision = store
+        .save_project_capability_policies(project_id, policies.clone())
+        .await
+        .map_err(IpcError::internal)?;
+    Ok(ProjectCapabilityPolicyResponse { revision, policies })
+}
+
 /// Setup's settings mutations (slice 5): base context, archive, rename.
 async fn project_base_context_set_inner(
     store: &Store,
@@ -2069,6 +3342,103 @@ struct ExternalWorkItemWorkflowResponse {
     version: i32,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WorkflowNodeVocabularyResponse {
+    kind: String,
+    label: String,
+    icon: String,
+    tone: String,
+    required: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WorkflowPresetResponse {
+    name: String,
+    note: String,
+}
+
+#[tauri::command]
+fn workflow_node_vocabulary() -> Vec<WorkflowNodeVocabularyResponse> {
+    [
+        ("agent", "Agent", "robot", "default", false),
+        ("task", "Task", "check-square", "default", false),
+        ("loop", "Loop", "infinity", "default", false),
+        ("condition", "Condition", "arrows-split", "condition", false),
+        ("gate", "Gate", "hand-palm", "default", false),
+        ("verify", "Verify", "flag-checkered", "default", true),
+    ]
+    .into_iter()
+    .map(
+        |(kind, label, icon, tone, required)| WorkflowNodeVocabularyResponse {
+            kind: kind.into(),
+            label: label.into(),
+            icon: icon.into(),
+            tone: tone.into(),
+            required,
+        },
+    )
+    .collect()
+}
+
+#[tauri::command]
+fn workflow_presets() -> Vec<WorkflowPresetResponse> {
+    vec![
+        WorkflowPresetResponse {
+            name: "Ralph loop".into(),
+            note: "pick · act · validate · commit · reset".into(),
+        },
+        WorkflowPresetResponse {
+            name: "Review pass".into(),
+            note: "read-only tools, one reviewer, one gate".into(),
+        },
+    ]
+}
+
+#[tauri::command]
+fn condition_operands() -> Vec<String> {
+    locus_core::services::workflow::ConditionOperand::ALL
+        .into_iter()
+        .map(|operand| operand.as_str().into())
+        .collect()
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WorkflowDefinitionResponse {
+    id: String,
+    project_id: String,
+    name: String,
+    version: i32,
+    graph: Value,
+    spec: Value,
+    verify_command: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WorkflowDefinitionSaveRequest {
+    project_id: String,
+    name: String,
+    graph: Value,
+    governance: Value,
+}
+
+fn workflow_definition_response(
+    row: locus_core::store::workflows::PersistedWorkflowDefinition,
+) -> WorkflowDefinitionResponse {
+    WorkflowDefinitionResponse {
+        id: row.id.to_string(),
+        project_id: row.project_id.to_string(),
+        name: row.name,
+        version: row.version,
+        graph: row.graph,
+        spec: row.spec,
+        verify_command: row.verify_command,
+    }
+}
+
 async fn workflow_definitions_inner(
     store: &Store,
     project_id: &str,
@@ -2096,6 +3466,48 @@ async fn workflow_definitions(
     project_id: String,
 ) -> Result<Vec<ExternalWorkItemWorkflowResponse>, IpcError> {
     workflow_definitions_inner(connected_store(&core).await?, &project_id).await
+}
+
+#[tauri::command]
+async fn workflow_definition_detail(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    workflow_id: String,
+) -> Result<WorkflowDefinitionResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = resolve_project_id(store, &project_id).await?;
+    let workflow_id = workflow_id
+        .parse()
+        .map_err(|_| IpcError::invalid_argument("workflow id must be a UUID"))?;
+    let row = store
+        .workflow_definition(workflow_id)
+        .await
+        .map_err(IpcError::internal)?
+        .ok_or_else(|| IpcError::not_found("workflow definition was not found"))?;
+    if row.project_id != project_id.as_uuid() {
+        return Err(IpcError::not_found("workflow definition was not found"));
+    }
+    Ok(workflow_definition_response(row))
+}
+
+#[tauri::command]
+async fn workflow_definition_save(
+    core: State<'_, Arc<Core>>,
+    request: WorkflowDefinitionSaveRequest,
+) -> Result<WorkflowDefinitionResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = resolve_project_id(store, &request.project_id).await?;
+    let governance = serde_json::from_value::<locus_core::services::workflow::WorkflowGovernance>(
+        request.governance,
+    )
+    .map_err(|error| IpcError::invalid_argument(format!("invalid workflow governance: {error}")))?;
+    let compiled = locus_core::services::workflow::compile_workflow(request.graph, governance)
+        .map_err(|error| IpcError::invalid_argument(error.to_string()))?;
+    let row = store
+        .save_workflow_definition(project_id.as_uuid(), &request.name, &compiled)
+        .await
+        .map_err(IpcError::internal)?;
+    Ok(workflow_definition_response(row))
 }
 
 #[tauri::command]
@@ -3090,10 +4502,13 @@ fn artifact_comment_response(comment: &ArtifactComment) -> ArtifactCommentRespon
 #[tauri::command]
 async fn artifacts_list(
     core: State<'_, Arc<Core>>,
-    project_id: String,
+    project_id: Option<String>,
 ) -> Result<Vec<ArtifactResponse>, IpcError> {
     let store = connected_store(&core).await?;
-    let project_id = Some(resolve_setup_project(store, &project_id).await?);
+    let project_id = match project_id {
+        Some(project_id) => Some(resolve_setup_project(store, &project_id).await?),
+        None => None,
+    };
     let artifacts = store
         .review_artifacts(project_id)
         .await
@@ -3307,9 +4722,12 @@ struct MemoryFactResponse {
 
 async fn memory_facts_inner(
     store: &Store,
-    project_id: &str,
+    project_id: Option<&str>,
 ) -> Result<Vec<MemoryFactResponse>, IpcError> {
-    let project_id = resolve_setup_project(store, project_id).await?;
+    let project_id = match project_id {
+        Some(project_id) => Some(resolve_setup_project(store, project_id).await?),
+        None => None,
+    };
     store
         .memory_facts(project_id)
         .await
@@ -3334,9 +4752,9 @@ async fn memory_facts_inner(
 #[tauri::command]
 async fn memory_facts(
     core: State<'_, Arc<Core>>,
-    project_id: String,
+    project_id: Option<String>,
 ) -> Result<Vec<MemoryFactResponse>, IpcError> {
-    memory_facts_inner(connected_store(&core).await?, &project_id).await
+    memory_facts_inner(connected_store(&core).await?, project_id.as_deref()).await
 }
 
 #[derive(Debug, Deserialize)]
@@ -3407,6 +4825,8 @@ struct BotResponse {
     name: String,
     agent_def_id: String,
     home_session_id: String,
+    active_run_id: Option<String>,
+    harness: Option<String>,
     branch: String,
     container_id: Option<String>,
     container_state: BotContainerState,
@@ -3423,6 +4843,8 @@ impl From<Bot> for BotResponse {
             name: bot.name,
             agent_def_id: bot.agent_def_id.to_string(),
             home_session_id: bot.home_session_id.to_string(),
+            active_run_id: None,
+            harness: None,
             branch: bot.branch,
             container_id: bot.container_id,
             container_state: bot.container_state,
@@ -3497,6 +4919,41 @@ fn parse_routine_id(value: &str) -> Result<RoutineId, IpcError> {
         .map_err(|error| IpcError::invalid_argument(format!("invalid routine id: {error}")))
 }
 
+async fn require_bot_project(
+    store: &Store,
+    bot_id: BotId,
+    project_id: ProjectId,
+) -> Result<(), IpcError> {
+    let bot = store
+        .bot(bot_id)
+        .await
+        .map_err(IpcError::internal)?
+        .ok_or_else(|| IpcError::not_found("bot was not found in the active project"))?;
+    if bot.project_id != project_id {
+        return Err(IpcError::not_found(
+            "bot was not found in the active project",
+        ));
+    }
+    Ok(())
+}
+
+async fn require_routine_project(
+    store: &Store,
+    routine_id: RoutineId,
+    project_id: ProjectId,
+) -> Result<(), IpcError> {
+    if !store
+        .bot_routine_belongs_to_project(routine_id, project_id)
+        .await
+        .map_err(IpcError::internal)?
+    {
+        return Err(IpcError::not_found(
+            "bot routine was not found in the active project",
+        ));
+    }
+    Ok(())
+}
+
 #[tauri::command]
 async fn bots_list(
     core: State<'_, Arc<Core>>,
@@ -3504,11 +4961,24 @@ async fn bots_list(
 ) -> Result<Vec<BotResponse>, IpcError> {
     let store = connected_store(&core).await?;
     let project_id = resolve_project_id(store, &project_id).await?;
-    store
-        .bots(project_id)
-        .await
-        .map(|bots| bots.into_iter().map(BotResponse::from).collect())
-        .map_err(IpcError::internal)
+    let bots = store.bots(project_id).await.map_err(IpcError::internal)?;
+    let mut responses = Vec::with_capacity(bots.len());
+    for bot in bots {
+        let bot_id = bot.id;
+        let active_run_id = store
+            .active_bot_run(bot_id)
+            .await
+            .map_err(IpcError::internal)?
+            .map(|id| id.to_string());
+        let mut response = BotResponse::from(bot);
+        response.active_run_id = active_run_id;
+        response.harness = store
+            .bot_harness(bot_id)
+            .await
+            .map_err(IpcError::internal)?;
+        responses.push(response);
+    }
+    Ok(responses)
 }
 
 #[tauri::command]
@@ -3529,11 +4999,15 @@ async fn bot_create(
 #[tauri::command]
 async fn bot_routines(
     core: State<'_, Arc<Core>>,
+    project_id: String,
     bot_id: String,
 ) -> Result<Vec<BotRoutineResponse>, IpcError> {
     let store = connected_store(&core).await?;
+    let project_id = resolve_project_id(store, &project_id).await?;
+    let bot_id = parse_bot_id(&bot_id)?;
+    require_bot_project(store, bot_id, project_id).await?;
     store
-        .bot_routines(parse_bot_id(&bot_id)?)
+        .bot_routines(bot_id)
         .await
         .map(|routines| routines.into_iter().map(BotRoutineResponse::from).collect())
         .map_err(IpcError::internal)
@@ -3542,11 +5016,15 @@ async fn bot_routines(
 #[tauri::command]
 async fn bot_routine_executions(
     core: State<'_, Arc<Core>>,
+    project_id: String,
     bot_id: String,
 ) -> Result<Vec<BotRoutineExecutionResponse>, IpcError> {
     let store = connected_store(&core).await?;
+    let project_id = resolve_project_id(store, &project_id).await?;
+    let bot_id = parse_bot_id(&bot_id)?;
+    require_bot_project(store, bot_id, project_id).await?;
     store
-        .bot_routine_executions(parse_bot_id(&bot_id)?)
+        .bot_routine_executions(bot_id)
         .await
         .map(|executions| {
             executions
@@ -3560,12 +5038,16 @@ async fn bot_routine_executions(
 #[tauri::command]
 async fn bot_routine_set_enabled(
     core: State<'_, Arc<Core>>,
+    project_id: String,
     routine_id: String,
     enabled: bool,
 ) -> Result<(), IpcError> {
     let store = connected_store(&core).await?;
+    let project_id = resolve_project_id(store, &project_id).await?;
+    let routine_id = parse_routine_id(&routine_id)?;
+    require_routine_project(store, routine_id, project_id).await?;
     store
-        .set_bot_routine_enabled(parse_routine_id(&routine_id)?, enabled)
+        .set_bot_routine_enabled(routine_id, enabled)
         .await
         .map_err(IpcError::internal)
 }
@@ -3573,13 +5055,17 @@ async fn bot_routine_set_enabled(
 #[tauri::command]
 async fn bot_routine_update(
     core: State<'_, Arc<Core>>,
+    project_id: String,
     routine_id: String,
     prompt: String,
     cron_expression: String,
 ) -> Result<BotRoutineResponse, IpcError> {
     let store = connected_store(&core).await?;
+    let project_id = resolve_project_id(store, &project_id).await?;
+    let routine_id = parse_routine_id(&routine_id)?;
+    require_routine_project(store, routine_id, project_id).await?;
     store
-        .update_bot_routine(parse_routine_id(&routine_id)?, &prompt, &cron_expression)
+        .update_bot_routine(routine_id, &prompt, &cron_expression)
         .await
         .map(BotRoutineResponse::from)
         .map_err(IpcError::internal)
@@ -3588,11 +5074,111 @@ async fn bot_routine_update(
 #[tauri::command]
 async fn bot_routine_delete(
     core: State<'_, Arc<Core>>,
+    project_id: String,
     routine_id: String,
 ) -> Result<(), IpcError> {
     let store = connected_store(&core).await?;
+    let project_id = resolve_project_id(store, &project_id).await?;
+    let routine_id = parse_routine_id(&routine_id)?;
+    require_routine_project(store, routine_id, project_id).await?;
     store
-        .delete_bot_routine(parse_routine_id(&routine_id)?)
+        .delete_bot_routine(routine_id)
+        .await
+        .map_err(IpcError::internal)
+}
+
+#[tauri::command]
+async fn bot_routine_test(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    routine_id: String,
+) -> Result<BotRoutineExecutionResponse, IpcError> {
+    let store = connected_store(&core).await?;
+    let project_id = resolve_project_id(store, &project_id).await?;
+    let routine_id = parse_routine_id(&routine_id)?;
+    require_routine_project(store, routine_id, project_id).await?;
+    let model =
+        std::env::var("LOCUS_DEFAULT_MODEL_ID").unwrap_or_else(|_| "unconfigured-model".into());
+    let (execution_id, bot_id, run_id) = store
+        .test_bot_routine(routine_id, &model)
+        .await
+        .map_err(IpcError::internal)?;
+    let dispatch = store
+        .dispatch_run(run_id)
+        .await
+        .map_err(IpcError::internal)?
+        .ok_or_else(|| IpcError::internal("test routine run disappeared"))?;
+    let mut runtime = core
+        .connect_container_runtime()
+        .map_err(IpcError::internal)?;
+    if let Err(error) = core
+        .spawn_dispatch_run(store, dispatch, &mut *runtime)
+        .await
+    {
+        let _ = store.finish_bot_run(bot_id, run_id, false, None).await;
+        let _ = store
+            .complete_bot_routine_execution(
+                execution_id,
+                locus_core::services::bots::RoutineResult::failed(error.to_string()),
+                Some(run_id),
+            )
+            .await;
+        return Err(IpcError::internal(error));
+    }
+    store
+        .bot_routine_execution(execution_id)
+        .await
+        .map_err(IpcError::internal)?
+        .map(BotRoutineExecutionResponse::from)
+        .ok_or_else(|| IpcError::not_found("test routine execution was not found"))
+}
+
+#[tauri::command]
+async fn bot_prompt(
+    core: State<'_, Arc<Core>>,
+    project_id: String,
+    bot_id: String,
+    prompt: String,
+) -> Result<(), IpcError> {
+    if prompt.trim().is_empty() {
+        return Err(IpcError::invalid_argument("prompt must not be empty"));
+    }
+    let store = connected_store(&core).await?;
+    let project_id = resolve_project_id(store, &project_id).await?;
+    let bot_id = parse_bot_id(&bot_id)?;
+    require_bot_project(store, bot_id, project_id).await?;
+    let run_id = if let Some(run_id) = store
+        .active_bot_run(bot_id)
+        .await
+        .map_err(IpcError::internal)?
+    {
+        run_id
+    } else {
+        let run_id = RunId::generate();
+        let model =
+            std::env::var("LOCUS_DEFAULT_MODEL_ID").unwrap_or_else(|_| "unconfigured-model".into());
+        store
+            .start_bot_run(bot_id, run_id, &model)
+            .await
+            .map_err(IpcError::internal)?;
+        let dispatch = store
+            .dispatch_run(run_id)
+            .await
+            .map_err(IpcError::internal)?
+            .ok_or_else(|| IpcError::internal("started bot run disappeared"))?;
+        let mut runtime = core
+            .connect_container_runtime()
+            .map_err(IpcError::internal)?;
+        if let Err(error) = core
+            .spawn_dispatch_run(store, dispatch, &mut *runtime)
+            .await
+        {
+            let _ = store.finish_bot_run(bot_id, run_id, false, None).await;
+            return Err(IpcError::internal(error));
+        }
+        run_id
+    };
+    core.prompt_run(run_id, prompt)
         .await
         .map_err(IpcError::internal)
 }
@@ -3932,6 +5518,202 @@ fn repo_git_state(path: String) -> Result<GitState, IpcError> {
         .map_err(IpcError::internal)
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct HarnessMechanismBadgeResponse {
+    variant: String,
+    label: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct HarnessExtensionResponse {
+    #[serde(rename = "type")]
+    extension_type: String,
+    via: String,
+    weaker_than_native: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct HarnessRegistryEntryResponse {
+    name: String,
+    binary: String,
+    badge: HarnessMechanismBadgeResponse,
+    injection: String,
+    mechanism: String,
+    emits: Vec<String>,
+    model_flag: Option<String>,
+    can_enumerate_models: bool,
+    extensions: Vec<HarnessExtensionResponse>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct HarnessRegistrySummaryResponse {
+    harnesses: usize,
+    entries: usize,
+    downgrades: usize,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ExtensionTypeCountResponse {
+    #[serde(rename = "type")]
+    extension_type: String,
+    native: usize,
+    downgraded: usize,
+}
+
+const WORKSHOP_EXTENSION_TYPES: [&str; 8] = [
+    "agents",
+    "commands",
+    "context",
+    "hooks",
+    "linters",
+    "output-styles",
+    "rules",
+    "skills",
+];
+
+fn harness_mechanism_badge(
+    harness: &locus_core::harness::registry::HarnessDefinition,
+) -> HarnessMechanismBadgeResponse {
+    let source = harness.telemetry.source.as_str();
+    let (variant, label) = if source == "acp" {
+        ("acp", "ACP".to_owned())
+    } else if source == "hooks" {
+        let label = if harness
+            .hooks
+            .as_ref()
+            .and_then(|hooks| hooks.generated.as_ref())
+            .is_some()
+        {
+            "hooks · plugin"
+        } else if harness
+            .hooks
+            .as_ref()
+            .and_then(|hooks| hooks.config.as_ref())
+            .is_some()
+        {
+            "hooks · config"
+        } else {
+            "hooks"
+        };
+        ("bridged", label.to_owned())
+    } else {
+        ("bridged", source.to_owned())
+    };
+    HarnessMechanismBadgeResponse {
+        variant: variant.to_owned(),
+        label,
+    }
+}
+
+fn harness_injection(harness: &locus_core::harness::registry::HarnessDefinition) -> String {
+    let hooks = &harness.layout.hooks;
+    match hooks.via {
+        locus_core::harness::registry::Via::Dir => "its own hook directory".into(),
+        locus_core::harness::registry::Via::EntriesIn => "entries in its own settings".into(),
+        locus_core::harness::registry::Via::CoreDriven => {
+            "no hook mechanism · core-driven at the boundary".into()
+        }
+        locus_core::harness::registry::Via::MergedInto => format!(
+            "merged into {}",
+            hooks.target.as_deref().unwrap_or("context")
+        ),
+        via => via.as_str().into(),
+    }
+}
+
+fn harness_registry_entry(
+    harness: &locus_core::harness::registry::HarnessDefinition,
+) -> HarnessRegistryEntryResponse {
+    let mut emits = harness.telemetry.emits.clone().unwrap_or_default();
+    emits.sort();
+    HarnessRegistryEntryResponse {
+        name: harness.name.clone(),
+        binary: harness.binary.clone(),
+        badge: harness_mechanism_badge(harness),
+        injection: harness_injection(harness),
+        mechanism: harness.telemetry.source.clone(),
+        emits,
+        model_flag: (!harness.models.flag.is_empty()).then(|| harness.models.flag.clone()),
+        can_enumerate_models: !harness.models.list_argv.is_empty(),
+        extensions: harness
+            .layout
+            .named_entries()
+            .into_iter()
+            .map(|(extension_type, entry)| HarnessExtensionResponse {
+                extension_type: extension_type.to_owned(),
+                via: entry.via.as_str().to_owned(),
+                weaker_than_native: entry.weaker_than_native.clone(),
+            })
+            .collect(),
+    }
+}
+
+#[tauri::command]
+fn harness_registry_list(
+    core: State<'_, Arc<Core>>,
+) -> Result<Vec<HarnessRegistryEntryResponse>, IpcError> {
+    // The registry is parsed once at startup. This is authoritative configuration, not fixture data.
+    Ok(core.registry().iter().map(harness_registry_entry).collect())
+}
+
+#[tauri::command]
+fn harness_registry_summary(
+    core: State<'_, Arc<Core>>,
+) -> Result<HarnessRegistrySummaryResponse, IpcError> {
+    let counts = core.registry().counts();
+    Ok(HarnessRegistrySummaryResponse {
+        harnesses: core.registry().len(),
+        entries: counts.entries,
+        downgrades: counts.downgrades,
+    })
+}
+
+#[tauri::command]
+fn extension_types() -> Vec<String> {
+    WORKSHOP_EXTENSION_TYPES
+        .iter()
+        .map(|value| (*value).into())
+        .collect()
+}
+
+fn extension_counts_for_registry(
+    registry: &locus_core::harness::registry::HarnessRegistry,
+) -> Vec<ExtensionTypeCountResponse> {
+    WORKSHOP_EXTENSION_TYPES
+        .iter()
+        .map(|extension_type| {
+            let mut entries = 0;
+            let mut downgraded = 0;
+            for harness in registry.iter() {
+                if let Some((_, entry)) = harness
+                    .layout
+                    .named_entries()
+                    .into_iter()
+                    .find(|(name, _)| name == extension_type)
+                {
+                    entries += 1;
+                    downgraded += usize::from(entry.weaker_than_native.is_some());
+                }
+            }
+            ExtensionTypeCountResponse {
+                extension_type: (*extension_type).into(),
+                native: entries - downgraded,
+                downgraded,
+            }
+        })
+        .collect()
+}
+
+#[tauri::command]
+fn extension_counts(core: State<'_, Arc<Core>>) -> Vec<ExtensionTypeCountResponse> {
+    extension_counts_for_registry(core.registry())
+}
+
 #[tauri::command]
 fn materialization_report(
     core: State<'_, Arc<Core>>,
@@ -4037,6 +5819,8 @@ pub fn run() {
             repos_list,
             local_remotes_list,
             project_setup,
+            project_capability_policy,
+            project_capability_policy_set,
             project_base_context_set,
             project_archive_set,
             project_rename,
@@ -4047,16 +5831,50 @@ pub fn run() {
             dispatch_runs_count,
             sessions_list,
             runs_for_session,
+            interact_sessions_list,
+            interact_session_create,
+            interact_session_promote,
+            interact_session_discard,
+            interact_session_commit,
+            interact_session_prompt,
             plans_list,
             plan_create,
             plan_stage_set,
             plan_requirements_set,
+            search_all,
+            planning_workspaces_list,
+            planning_workspace_create,
+            planning_workspace_revisions_list,
+            planning_workspace_specs_list,
+            planning_workspace_spec_save,
+            planning_workspace_task_provenance_list,
+            planning_workspace_decision_record,
+            planning_workspace_sessions_list,
+            planning_workspace_session_link,
+            planning_workspace_checkpoint_save,
+            planning_workspace_approve,
+            planning_workspace_delete,
             board_tasks,
             task_detail,
             task_create,
             settings_guardrails,
             settings_guardrails_set,
             workflow_definitions,
+            workflow_node_vocabulary,
+            workflow_presets,
+            condition_operands,
+            workflow_definition_detail,
+            workflow_definition_save,
+            extensions_list,
+            extension_history,
+            extension_save,
+            cli_tools_list,
+            cli_tool_enabled_set,
+            cli_tool_upload,
+            providers_list,
+            provider_save,
+            provider_secret_replace,
+            provider_models_set,
             dispatch_schedules,
             dispatch_schedule_executions,
             session,
@@ -4067,6 +5885,10 @@ pub fn run() {
             inbox_throughput,
             inbox_resolve,
             harness_tier_grid,
+            harness_registry_list,
+            harness_registry_summary,
+            extension_types,
+            extension_counts,
             telemetry_subscribe,
             desktop_integration_emit_event,
             telemetry_events_replay,
@@ -4095,6 +5917,8 @@ pub fn run() {
             bot_routine_set_enabled,
             bot_routine_update,
             bot_routine_delete,
+            bot_routine_test,
+            bot_prompt,
             dispatch_stop_all,
             store_health,
             external_work_item_providers,
@@ -4209,6 +6033,24 @@ mod tests {
             .iter()
             .flat_map(|report| &report.losses)
             .all(|loss| !loss.weaker_than_native.is_empty()));
+    }
+
+    #[test]
+    fn harness_registry_projection_uses_the_loaded_registry() {
+        let core = Core::load(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(HARNESS_REGISTRY))
+            .expect("core loads");
+        let entries: Vec<_> = core.registry().iter().map(harness_registry_entry).collect();
+        assert!(!entries.is_empty());
+        assert!(entries.iter().all(|entry| entry.extensions.len() == 8));
+        assert!(entries.iter().all(|entry| !entry.name.is_empty()));
+        assert_eq!(extension_types().len(), 8);
+        assert_eq!(
+            extension_counts_for_registry(core.registry())
+                .iter()
+                .map(|count| count.native + count.downgraded)
+                .sum::<usize>(),
+            entries.len() * 8
+        );
     }
 
     #[test]
@@ -5667,7 +7509,7 @@ mod configuration_commands {
         .await
         .expect("seed plans");
 
-        let plans = plans_list_inner(&store, "tapestry")
+        let plans = plans_list_inner(&store, Some("tapestry"))
             .await
             .expect("list tapestry plans");
         assert_eq!(plans.len(), 1);
@@ -5680,7 +7522,7 @@ mod configuration_commands {
         assert!(plans[0].landed.is_none());
         assert!(!plans[0].age.is_empty());
 
-        let unknown = plans_list_inner(&store, "00000000-0000-0000-0000-000000000aff")
+        let unknown = plans_list_inner(&store, Some("00000000-0000-0000-0000-000000000aff"))
             .await
             .expect_err("unknown project rejected");
         assert!(matches!(unknown.kind, IpcErrorKind::NotFound));
@@ -5820,7 +7662,7 @@ mod configuration_commands {
         .await
         .expect("seed board task");
 
-        let tasks = board_tasks_inner(&store, "tapestry")
+        let tasks = board_tasks_inner(&store, Some("tapestry"))
             .await
             .expect("list tapestry tasks");
         assert_eq!(tasks.len(), 1);
@@ -6005,7 +7847,7 @@ mod analytics_memory_queries {
         .await
         .expect("seed memory facts");
 
-        let facts = memory_facts_inner(&store, "tapestry")
+        let facts = memory_facts_inner(&store, Some("tapestry"))
             .await
             .expect("list project memory facts");
         assert_eq!(facts.len(), 1);
@@ -6014,7 +7856,7 @@ mod analytics_memory_queries {
         assert_eq!(facts[0].score, Some(0.94));
         assert_eq!(facts[0].recall, "recalled 31×");
 
-        let foreign = memory_facts_inner(&store, "loom-db")
+        let foreign = memory_facts_inner(&store, Some("loom-db"))
             .await
             .expect("list the other project memory facts");
         assert_eq!(foreign.len(), 1);
@@ -6044,7 +7886,7 @@ mod analytics_memory_queries {
         .expect_err("cross-project adjudication rejected");
         assert!(matches!(foreign_update.kind, IpcErrorKind::NotFound));
 
-        let unknown = memory_facts_inner(&store, "missing")
+        let unknown = memory_facts_inner(&store, Some("missing"))
             .await
             .expect_err("unknown project rejected");
         assert!(matches!(unknown.kind, IpcErrorKind::NotFound));

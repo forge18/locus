@@ -18,7 +18,7 @@ use agent_client_protocol::{
     AcpAgent, AcpAgentConfig, Client, ConnectTo,
 };
 use anyhow::Context as _;
-use tokio::sync::{broadcast, Notify};
+use tokio::sync::{broadcast, mpsc, Notify};
 use tokio::task::AbortHandle;
 
 pub use super::controls::{
@@ -171,6 +171,7 @@ impl AgentSessionCompletion {
 pub struct AgentSession {
     pub session_id: SessionId,
     pub updates: UpdateStream,
+    prompt_tx: mpsc::UnboundedSender<String>,
     connection: AbortHandle,
     completion: Arc<AgentSessionCompletion>,
 }
@@ -184,6 +185,17 @@ impl std::fmt::Debug for AgentSession {
 }
 
 impl AgentSession {
+    /// Send a prompt through the run-owned ACP conversation.
+    pub fn prompt(&self, prompt: impl Into<String>) -> anyhow::Result<()> {
+        let prompt = prompt.into();
+        if prompt.trim().is_empty() {
+            anyhow::bail!("ACP prompt must not be empty")
+        }
+        self.prompt_tx
+            .send(prompt)
+            .map_err(|_| anyhow::anyhow!("ACP session is closed"))
+    }
+
     /// Wait until the ACP transport reaches EOF after the run's session ends.
     pub async fn wait_closed(&self) {
         self.completion.wait().await;
@@ -210,6 +222,7 @@ where
     T: ConnectTo<Client> + 'static,
 {
     let (session_tx, session_rx) = tokio::sync::oneshot::channel();
+    let (prompt_tx, mut prompt_rx) = mpsc::unbounded_channel();
     let cwd: PathBuf = cwd.into();
     let handler_updates = updates.clone();
     let completion = Arc::new(AgentSessionCompletion {
@@ -235,10 +248,24 @@ where
                 .block_task()
                 .await
                 .context("agent refused session/new")?;
-            let _ = session_tx.send(response.session_id);
+            let session_id = response.session_id;
+            let _ = session_tx.send(session_id.clone());
             // The session lives until the run ends: hold the connection open on
-            // incoming EOF rather than closing it after the handshake.
-            cx.incoming_closed().await;
+            // incoming EOF while accepting prompts from the host.
+            loop {
+                tokio::select! {
+                    _ = cx.incoming_closed() => break,
+                    prompt = prompt_rx.recv() => match prompt {
+                        Some(prompt) => {
+                            cx.send_request(session_prompt(session_id.clone(), prompt))
+                                .block_task()
+                                .await
+                                .context("agent refused session/prompt")?;
+                        }
+                        None => break,
+                    },
+                }
+            }
             completion_for_task.close();
             Ok(())
         });
@@ -249,6 +276,7 @@ where
     Ok(AgentSession {
         session_id,
         updates,
+        prompt_tx,
         connection: connection.abort_handle(),
         completion,
     })

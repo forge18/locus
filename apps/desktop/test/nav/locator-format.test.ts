@@ -9,9 +9,7 @@ describe("nav/locator-format", () => {
     expect(format("telemetry", { project: "weaver" })).toBe(
       "locus://all/view/telemetry",
     );
-    expect(format("plan", { project: "weaver" })).toBe(
-      "locus://weaver/view/plan",
-    );
+    expect(format("plan", { project: "weaver" })).toBe("locus://all/view/plan");
   });
 
   it("formats each object kind from its view and params", () => {
@@ -73,7 +71,7 @@ describe("nav/locator-format", () => {
 
   it("falls back to the view form when the object id is absent", () => {
     expect(format("sessions", { project: "tapestry" })).toBe(
-      "locus://tapestry/view/sessions",
+      "locus://all/view/sessions",
     );
   });
 });

@@ -44,14 +44,14 @@ describe("nav/locator-parse", () => {
     });
   });
 
-  it("parses a bot list and a bot detail locator", () => {
-    expect(parse("locus://tapestry/bots")).toEqual({
-      project: "tapestry",
+  it("parses the Workers view and a worker detail locator", () => {
+    expect(parse("locus://all/view/workers")).toEqual({
+      project: "all",
       kind: null,
-      id: "bots",
+      id: "workers",
       subId: null,
     });
-    expect(parse("locus://tapestry/bots/keeper")).toEqual({
+    expect(parse("locus://tapestry/workers/keeper")).toEqual({
       project: "tapestry",
       kind: "bot",
       id: "keeper",

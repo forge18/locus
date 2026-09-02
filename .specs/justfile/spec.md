@@ -18,8 +18,9 @@ source each surface calls, without rewriting the 1,700 existing `verify:` comman
 ## Contract
 
 **Thin recipes, verbatim commands.** Each recipe wraps the exact command it replaces — `just lint` is
-`cargo clippy --all-targets -- -D warnings`, nothing more. The raw command stays readable in the
-recipe line; the justfile adds naming and discoverability, never behavior.
+`cargo clippy --all-targets -- -D warnings`, nothing more. Docker-backed test recipes first run
+`scripts/check-docker.sh`; this is a prerequisite gate, not a test flag or a changed test command. The
+raw command stays readable in the recipe line; the justfile adds naming and discoverability.
 
 **The recipe set.** `setup`, `build`, `test`, `test-node`, `lint`, `typecheck`, `dev`, and `ci` (the
 full CI sequence). `test-named` delegates to `scripts/run-named-test.sh` and preserves its
@@ -44,13 +45,15 @@ that the ordinary suite does not run.
 
 **No product behavior change.** Recipes change how commands are named and remove duplicate build work,
 not what the checks assert: no new flags, no new defaults, no reordering of the remaining checks.
-Byte-determinism is untouched — the justfile is static text with no timestamps, run ids, or environment
-reads.
+Docker-backed tests now fail before Cargo starts when the daemon is unavailable, with a platform-specific
+recovery hint. Byte-determinism is untouched — the justfile is static text with no timestamps, run ids,
+or environment reads.
 
 ## Acceptance
 
 1. `just --list` shows the full recipe set with one-line descriptions.
-2. Every recipe runs the command it wraps with identical flags and exit codes.
+2. Every recipe runs the command it wraps with identical flags and exit codes after any documented
+   prerequisite gate.
 3. `just test-named <pkg> <path>` fails non-zero when the filter matches nothing — never a silent
    green.
 4. CI runs one step per check through recipes and stays green, with `just` version-pinned.

@@ -1,0 +1,10 @@
+.capability-policy-panel { display: flex; flex-direction: column; gap: 14px; margin-top: 18px; padding: 16px; border: 1px solid var(--border-subtle); border-radius: var(--r-card); background: var(--surface-raised); }
+.capability-policy-panel header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.capability-policy-panel h2 { margin: 0; color: var(--text-primary); font-size: var(--t-row); font-weight: 500; }
+.capability-policy-panel p { margin: 5px 0 0; color: var(--text-muted); font-size: var(--t-meta); }
+.capability-policy-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.capability-policy-fields label { display: flex; flex-direction: column; gap: 6px; color: var(--text-secondary); font-size: var(--t-meta); }
+.capability-policy-fields select,
+.capability-policy-fields textarea { padding: 7px 8px; border: 1px solid var(--border-subtle); border-radius: var(--r-sm); background: var(--surface-ground); color: var(--text-primary); font: inherit; }
+.capability-policy-fields textarea { min-height: 78px; resize: vertical; }
+@media (max-width: 800px) { .capability-policy-panel header { flex-direction: column; } .capability-policy-fields { grid-template-columns: 1fr; } }

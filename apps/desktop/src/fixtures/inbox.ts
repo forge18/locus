@@ -52,7 +52,7 @@ export const INBOX_ITEMS: InboxItem[] = [
     agent: "builder@4",
     role: "builder",
     branch: "agent/3c04-index",
-    opensAt: "locus://loom-db/view/interact",
+    opensAt: "locus://loom-db/view/sessions",
     ageMinutes: 12,
     artifactKind: null,
     body: [

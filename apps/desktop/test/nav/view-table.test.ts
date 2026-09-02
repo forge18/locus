@@ -7,42 +7,40 @@ import {
   categoryOf,
 } from "../../src/nav";
 
-/** The table exactly as .specs/navigation/spec.md writes it. */
 const TABLE: Array<[string, string, string]> = [
   ["inbox", "pill", "Inbox"],
-  ["status", "analytics", "Analytics"],
-  ["telemetry", "analytics", "Analytics"],
-  ["mail", "analytics", "Analytics"],
-  ["projects", "setup", "Setup"],
+  ["status", "telemetry", "Telemetry"],
+  ["telemetry", "telemetry", "Telemetry"],
+  ["mail", "telemetry", "Telemetry"],
+  ["projects", "projects", "Projects"],
+  ["workers", "workers", "Workers"],
   ["plan", "plan", "Plan"],
   ["sessions", "manage", "Manage"],
-  ["interact", "interact", "Interact"],
-  ["bots", "bots", "Bots"],
   ["qa", "review", "Review"],
   ["autorun", "pill", "Inbox"],
   ["schedule", "pill", "Inbox"],
   ["runs", "pill", "Inbox"],
-  ["short", "memory", "Memory"],
-  ["memory", "memory", "Memory"],
-  ["artifact", "memory", "Memory"],
-  ["wiki", "memory", "Memory"],
+  ["short", "knowledge", "Knowledge"],
+  ["memory", "knowledge", "Knowledge"],
+  ["artifact", "knowledge", "Knowledge"],
+  ["wiki", "knowledge", "Knowledge"],
   ["settings", "settings", "Settings"],
-  ["agents", "workshop", "Workshop"],
-  ["cli", "workshop", "Workshop"],
-  ["commands", "workshop", "Workshop"],
-  ["harnesses", "workshop", "Workshop"],
-  ["hooks", "workshop", "Workshop"],
-  ["linters", "workshop", "Workshop"],
-  ["styles", "workshop", "Workshop"],
-  ["providers", "workshop", "Workshop"],
-  ["rules", "workshop", "Workshop"],
-  ["skills", "workshop", "Workshop"],
-  ["canvas", "workshop", "Workshop"],
-  ["workflows", "workshop", "Workshop"],
+  ["agents", "extensions", "Extensions"],
+  ["cli", "plugins", "Plugins"],
+  ["commands", "extensions", "Extensions"],
+  ["harnesses", "plugins", "Plugins"],
+  ["hooks", "extensions", "Extensions"],
+  ["linters", "extensions", "Extensions"],
+  ["styles", "extensions", "Extensions"],
+  ["providers", "plugins", "Plugins"],
+  ["rules", "extensions", "Extensions"],
+  ["skills", "extensions", "Extensions"],
+  ["canvas", "extensions", "Extensions"],
+  ["workflows", "extensions", "Extensions"],
 ];
 
 describe("nav/view-table", () => {
-  it("holds the 30 views", () => {
+  it("holds every production view", () => {
     expect([...VIEWS].sort()).toEqual(TABLE.map(([v]) => v).sort());
   });
 
@@ -65,7 +63,6 @@ describe("nav/view-table", () => {
   });
 
   it("is one exported constant, not a per-component copy", () => {
-    // Every category is reachable from the one list, and the list is the rail.
     expect(new Set(RAIL_ITEMS.map((r) => r.category)).size).toBe(
       CATEGORIES.length,
     );

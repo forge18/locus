@@ -12,9 +12,9 @@ import {
     useViewport,
 } from "@dschz/solid-flow";
 import type { NodeProps, NodeTypes } from "@dschz/solid-flow";
-import { For, Show } from "solid-js";
+import { createEffect, createSignal, For, Show } from "solid-js";
 import type { CanvasEdge, CanvasNode } from "../data/workflow";
-import { NO_MODEL_NOTE, ZOOM } from "../data/workflow";
+import { NO_MODEL_NOTE } from "../data/workflow";
 import type { NormalizedWorkflowEvent } from "../data/workflow-events";
 
 const NODE_W = 168;
@@ -29,7 +29,7 @@ interface FlowNodeData extends Record<string, unknown> {
     outputs: string[];
 }
 
-interface WorkflowCanvasProps {
+export interface WorkflowCanvasProps {
     nodes: CanvasNode[];
     edges: CanvasEdge[];
     loop: {
@@ -40,6 +40,13 @@ interface WorkflowCanvasProps {
         label: string;
     };
     events: NormalizedWorkflowEvent[];
+    onSelect?: (id: string) => void;
+    onDrop?: (kind: string, position: { x: number; y: number }) => void;
+    onConnect?: (edge: CanvasEdge) => void;
+    onNodePositionChange?: (
+        id: string,
+        position: { x: number; y: number },
+    ) => void;
 }
 
 export const NODE_HANDLES = {
@@ -242,21 +249,59 @@ function LoopGroup(props: { loop: WorkflowCanvasProps["loop"] }) {
 }
 
 export function WorkflowCanvas(props: WorkflowCanvasProps) {
-    const nodes = flowNodes(props.nodes, props.events);
-    const edges = flowEdges(props.edges);
-    const [flowNodesStore] = createNodeStore(nodes as never[]);
-    const [flowEdgesStore] = createEdgeStore(edges as never[]);
-    const byId = new Map(props.nodes.map((node) => [node.id, node]));
+    const [flowNodesStore, setFlowNodesStore] = createNodeStore(
+        flowNodes(props.nodes, props.events) as never[],
+    );
+    const [flowEdgesStore, setFlowEdgesStore] = createEdgeStore(
+        flowEdges(props.edges) as never[],
+    );
+    const [zoom, setZoom] = createSignal(1);
+
+    // Solid Flow owns the interactive stores. Keep them synchronized with the
+    // authored graph so a drop, selection, event update, or parent refresh is
+    // reflected without remounting the canvas.
+    createEffect(() => {
+        setFlowNodesStore(flowNodes(props.nodes, props.events) as never[]);
+        setFlowEdgesStore(flowEdges(props.edges) as never[]);
+    });
+
+    const byId = () => new Map(props.nodes.map((node) => [node.id, node]));
     const centre = (id: string) => {
-        const node = byId.get(id);
+        const node = byId().get(id);
         return {
             x: (node?.x ?? 0) + NODE_W / 2,
             y: (node?.y ?? 0) + NODE_H / 2,
         };
     };
+    const onDrop = (event: DragEvent) => {
+        event.preventDefault();
+        const kind =
+            event.dataTransfer?.getData("application/x-locus-node") ||
+            event.dataTransfer?.getData("text/plain");
+        if (!kind || !props.onDrop) return;
+        const target = event.currentTarget as HTMLElement;
+        const bounds = target.getBoundingClientRect();
+        props.onDrop(kind, {
+            x: Math.max(0, event.clientX - bounds.left),
+            y: Math.max(0, event.clientY - bounds.top),
+        });
+    };
+    const onConnect = (connection: { source: string; target: string }) => {
+        props.onConnect?.({
+            from: connection.source,
+            to: connection.target,
+            label: null,
+            dashed: false,
+        });
+    };
 
     return (
-        <div class="wf-canvas" data-testid="wf-canvas">
+        <div
+            class="wf-canvas"
+            data-testid="wf-canvas"
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={onDrop}
+        >
             <div class="wf-flow-engine" data-testid="wf-solid-flow">
                 <SolidFlow
                     nodes={flowNodesStore as never}
@@ -265,6 +310,25 @@ export function WorkflowCanvas(props: WorkflowCanvasProps) {
                     fitView={false}
                     panOnScroll
                     selectionKey="Shift"
+                    onNodeClick={(params) => {
+                        // solid-flow's click declaration uses targetNode while
+                        // its runtime callback supplies node.
+                        const event = params as unknown as {
+                            node?: { id: string };
+                            targetNode?: { id: string } | null;
+                        };
+                        const node = event.node ?? event.targetNode;
+                        if (node) props.onSelect?.(node.id);
+                    }}
+                    onNodeDragStop={({ targetNode }) => {
+                        if (targetNode)
+                            props.onNodePositionChange?.(
+                                targetNode.id,
+                                targetNode.position,
+                            );
+                    }}
+                    onConnect={onConnect}
+                    onMove={(_, viewport) => setZoom(viewport.zoom)}
                 >
                     <Background />
                     <Controls />
@@ -343,7 +407,7 @@ export function WorkflowCanvas(props: WorkflowCanvasProps) {
             </For>
             <div class="wf-canvas-foot">
                 <span class="wf-zoom" data-testid="wf-zoom">
-                    {ZOOM}
+                    {`${Math.round(zoom() * 100)}%`}
                 </span>
                 <span class="wf-canvas-note" data-testid="wf-no-model-note">
                     {NO_MODEL_NOTE}

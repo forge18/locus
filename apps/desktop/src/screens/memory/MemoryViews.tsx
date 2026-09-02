@@ -9,6 +9,7 @@ import {
   type JSX,
 } from "solid-js";
 import { Button } from "../../ui/Button";
+import { PageProjectFilter } from "../PageProjectFilter";
 import { InlineError } from "../../ui/InlineError";
 import { Tag } from "../../ui/Tag";
 import { fetchArtifactsFromCore } from "../../data/artifacts";
@@ -41,10 +42,18 @@ function UnavailableMemoryView(props: {
   route: string;
   surface: string;
   command: string;
+  projectId?: string;
 }) {
+  const [selectedProjectId, setSelectedProjectId] = createSignal(
+    props.projectId,
+  );
   return (
     <MemoryFrame testId={props.testId} route={props.route}>
       <section class="desktop-memory-main">
+        <PageProjectFilter
+          value={selectedProjectId()}
+          onChange={(projectId) => setSelectedProjectId(projectId)}
+        />
         <InlineError
           cause={`${props.surface} is unavailable`}
           next={`${props.command} has no persisted desktop contract yet.`}
@@ -85,29 +94,34 @@ function FactList(props: { facts: KnowledgeFact[] }) {
   );
 }
 
-export function MemoryShortTermView() {
+export function MemoryShortTermView(props: { projectId?: string } = {}) {
   return (
     <UnavailableMemoryView
       testId="desktop-memory-short-term"
       route="short"
       surface="Short-term memory"
       command="memory_short_term"
+      projectId={props.projectId}
     />
   );
 }
 
-export function MemoryWikiView() {
+export function MemoryWikiView(props: { projectId?: string } = {}) {
   return (
     <UnavailableMemoryView
       testId="desktop-memory-wiki"
       route="wiki"
       surface="Wiki"
       command="wiki_pages"
+      projectId={props.projectId}
     />
   );
 }
 
 export function MemoryLongTermView(props: { projectId?: string } = {}) {
+  const [selectedProjectId, setSelectedProjectId] = createSignal(
+    props.projectId,
+  );
   const [facts, setFacts] = createSignal<Envelope<KnowledgeFact[]>>({
     status: "loading",
   });
@@ -130,12 +144,6 @@ export function MemoryLongTermView(props: { projectId?: string } = {}) {
   const loadFacts = (projectId?: string) => {
     const request = ++requestId;
     setFacts({ status: "loading" });
-    if (!projectId) {
-      setFacts(
-        failed("memory_facts", "an active project is required to read memory"),
-      );
-      return;
-    }
     void fetchLongTermFacts(projectId)
       .then((result) => {
         if (request === requestId) setFacts(result);
@@ -145,21 +153,22 @@ export function MemoryLongTermView(props: { projectId?: string } = {}) {
       });
   };
 
-  createEffect(() => loadFacts(props.projectId));
+  createEffect(() => loadFacts(selectedProjectId()));
 
   const adjudicate = () => {
     const fact = rows()[0];
-    if (!props.projectId || !fact) return;
+    const projectId = selectedProjectId();
+    if (!projectId || !fact) return;
     setMutationStatus("saving");
     setMutationError("");
-    void setMemoryFactConfidence(props.projectId, fact.id, "verified")
+    void setMemoryFactConfidence(projectId, fact.id, "verified")
       .then((result) => {
         if (result.status === "failed") {
           setMutationError(`${result.error.command}: ${result.error.message}`);
           setMutationStatus("failed");
         } else {
           setMutationStatus("saved");
-          loadFacts(props.projectId);
+          loadFacts(projectId);
         }
       })
       .catch((cause) => {
@@ -178,9 +187,13 @@ export function MemoryLongTermView(props: { projectId?: string } = {}) {
           <p>Project facts recalled across runs.</p>
         </header>
         <section class="desktop-memory-scope">
-          <Label>Scope</Label>
-          <span>{props.projectId ?? "No active project"}</span>
-          <small>never cross-project</small>
+          <PageProjectFilter
+            value={selectedProjectId()}
+            onChange={(projectId) => setSelectedProjectId(projectId)}
+          />
+          <small>
+            All projects by default; choose a project to adjudicate.
+          </small>
         </section>
         <div data-testid="memory-facts-state" data-state={facts().status}>
           <Switch>
@@ -270,6 +283,9 @@ export function MemoryLongTermView(props: { projectId?: string } = {}) {
 }
 
 export function MemoryArtifactsView(props: { projectId?: string } = {}) {
+  const [selectedProjectId, setSelectedProjectId] = createSignal(
+    props.projectId,
+  );
   const [artifacts, setArtifacts] = createSignal<Envelope<Artifact[]>>({
     status: "loading",
   });
@@ -286,18 +302,9 @@ export function MemoryArtifactsView(props: { projectId?: string } = {}) {
   let requestId = 0;
 
   createEffect(() => {
-    const projectId = props.projectId;
+    const projectId = selectedProjectId();
     const request = ++requestId;
     setArtifacts({ status: "loading" });
-    if (!projectId) {
-      setArtifacts(
-        failed(
-          "artifacts_list",
-          "an active project is required to read artifacts",
-        ),
-      );
-      return;
-    }
     void fetchArtifactsFromCore(projectId)
       .then((result) => {
         if (request === requestId) setArtifacts(result);
@@ -316,6 +323,10 @@ export function MemoryArtifactsView(props: { projectId?: string } = {}) {
             Review artifacts <code>{rows().length}</code>
           </h1>
           <p>Project-scoped artifacts retained for human review.</p>
+          <PageProjectFilter
+            value={selectedProjectId()}
+            onChange={(projectId) => setSelectedProjectId(projectId)}
+          />
         </header>
         <div
           data-testid="memory-artifacts-state"

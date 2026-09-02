@@ -18,6 +18,7 @@ use crate::harness::{
     },
     registry::HarnessRegistry,
 };
+use crate::services::capabilities::CapabilityPolicies;
 
 #[cfg(test)]
 use crate::store::Store;
@@ -94,6 +95,10 @@ pub struct Frontmatter {
     pub tools: Vec<String>,
     #[serde(default)]
     pub skills: Vec<String>,
+    #[serde(default)]
+    pub commands: Vec<String>,
+    #[serde(default)]
+    pub capabilities: CapabilityPolicies,
     #[serde(default)]
     pub rules: Vec<String>,
     #[serde(default)]

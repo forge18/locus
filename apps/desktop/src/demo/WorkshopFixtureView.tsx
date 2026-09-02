@@ -1,5 +1,4 @@
 import { createSignal, For, Show, onMount } from "solid-js";
-import { isTauri } from "@tauri-apps/api/core";
 import { Button } from "../ui/Button";
 import { FixtureNotice } from "../ui/FixtureNotice";
 import { Input } from "../ui/Input";
@@ -12,6 +11,7 @@ import {
     type CoreAgentDefinition,
 } from "../data/agent-defs";
 import type { Envelope } from "../data/envelope";
+import { dataProvider } from "../data/provider";
 import {
     loadConfiguredWorkItemProviders,
     type WorkItemProviderRecord,
@@ -24,6 +24,10 @@ import {
 } from "../screens/workshop/ExtensionEditor";
 import { WorkflowView } from "../screens/workshop/WorkflowView";
 
+/**
+ * Explicit browser-preview/test host for reviewed Workshop mockups. App.tsx never
+ * mounts this component; production routes use live data accessors instead.
+ */
 export const WORKSHOP_FIXTURES = [
     "agents",
     "cli",
@@ -775,7 +779,7 @@ function Governance() {
 }
 
 export function WorkshopFixtureView(props: WorkshopFixtureViewProps) {
-    if (isTauri()) {
+    if (dataProvider().kind === "live") {
         if (props.fixture === "agents") return <LiveAgents />;
         if (props.fixture === "providers") return <LiveProviders />;
         if (

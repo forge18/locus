@@ -25,7 +25,7 @@ pub fn workspace_clone_branch_command(remote: &str, branch: &str) -> Result<Stri
         bail!("workspace branch is required")
     }
     Ok(format!(
-        "git clone {} /workspace && git -C /workspace checkout {}",
+        "git clone {} /workspace && git -C /workspace remote rename origin locus && git -C /workspace checkout {}",
         shell_quote(remote),
         shell_quote(branch),
     ))

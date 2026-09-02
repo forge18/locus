@@ -1,6 +1,6 @@
 # Planning Workspace and Navigation Plan
 
-**Status:** Proposed. [`PLAN.md`](PLAN.md) remains authoritative until this proposal is accepted and decomposed into `.specs/` contracts.
+**Status:** Accepted. [`PLAN.md`](PLAN.md) is authoritative; this document is the adopted Workstream 4 contract and must be decomposed into `.specs/` contracts before production code changes.
 
 ## Reason for existence
 
@@ -17,10 +17,11 @@ Locus models planning as one project-scoped, seven-stage conversation producing 
 7. Shell has no global project selector; pages and objects own scope.
 8. Plan lists all workspaces. Creation requires an existing project or **New Project**.
 9. Manage defaults to all projects. Review requires a project before loading QA.
-10. Bots becomes **Workers**. Interact route is removed; unique capabilities must move or be explicitly retired.
+10. Bots becomes **Workers**. The Interact route and all Interact-specific disposable-session, branch, research, commit, promote, and discard capabilities are explicitly retired; Workers keeps durable named-agent behavior.
 11. Analytics Overview moves into Telemetry. Dispatch retains Autorun, Schedules, and Runs. Mail is a background project process.
 12. Workshop contains Extensions, Plugins, Knowledge, and Settings. First three have sublinks.
 13. Agent definitions can inherit or restrict CLI tools, commands, and skills independently.
+14. An in-progress workspace freezes its current revision as a resumable checkpoint and creates no board tasks. Approval freezes the exact revision and creates all approved tasks transactionally. Review always asks for a project; deleting a draft hard-deletes it.
 
 ## Product model
 
@@ -58,7 +59,7 @@ UI explains added or omitted activities. Users can deepen, narrow, split, merge,
 7. Decompose every spec into verified, dependency-linked tasks.
 8. Merge child dependencies into one project task graph.
 9. Approve exact workspace revision.
-10. Materialize approved tasks or a selected execution tranche without changing the approved package.
+10. Materialize all approved tasks transactionally without changing the approved package.
 
 Step 4's spec map is scaffolding, not output completion.
 
@@ -86,7 +87,7 @@ Agent `active`, `idle`, and `working` presence is separate. Leaving the screen n
 
 Transcript is provenance, not canonical resumable state. Reopening shows last checkpoint, active spec/activity, pending decisions, completed/failed background work, relevant changes, and recommended next action. Replacement agents receive a structured handoff.
 
-Approval freezes an exact revision. Later edits create amendments/revisions. Shared-decision changes mark dependents potentially stale; they never silently rewrite approved, active, or completed work.
+Approval freezes an exact revision and creates all approved board tasks transactionally. An in-progress workspace freezes its current checkpoint without materializing work; returning users resume it and must explicitly approve before any board task exists. Later edits create amendments/revisions. Shared-decision changes mark dependents potentially stale; they never silently rewrite approved, active, or completed work.
 
 ## Leaf behavior to preserve
 
@@ -181,9 +182,9 @@ No page inherits hidden shell scope. Page filters are independent. Dispatch owns
 
 List routes may use `all`; object routes remain project-owned. Route definitions must support multiple allowed scopes. Production route authority moves out of `apps/desktop/src/fixtures/desktop-screen-inventory.ts`; fixtures derive from production routes.
 
-## Workers and Interact
+## Workers and retired Interact
 
-Workers owns persistent named agents, conversations, branches, routines, and warm-window behavior. Interact route is removed only after deciding where these capabilities go: disposable board-less sessions, changed-file inspection, commit, promote, discard, and session research. No capability disappears because screens look similar.
+Workers owns persistent named agents, durable home conversations, branches, routines, and warm-window behavior. Interact is retired: its disposable board-less sessions, changed-file inspection, commit, promote, discard, and session-research surface are intentionally not carried forward.
 
 ## Agent capability policy
 
@@ -236,7 +237,7 @@ Root [`TODO.md`](TODO.md) changes implementation order:
 6. **Add multi-spec planning** — spec maps, shared decisions, grilling, audit, staleness, unified dependencies.
 7. **Materialize tasks** — freeze revisions and create board work idempotently with provenance.
 8. **Add adaptive depth** after fixed persistence and child planning are reliable.
-9. **Complete Workers/Agent policy** — resolve Interact behavior; add capability inheritance/restriction.
+9. **Complete Workers/Agent policy** — preserve durable Workers behavior; add capability inheritance/restriction. Interact remains retired.
 
 Every phase ships a store → core → Tauri → provider → screen vertical path. Fixture/jsdom tests do not replace live-window coverage.
 
@@ -249,19 +250,18 @@ Every phase ships a store → core → Tauri → provider → screen vertical pa
 5. Plan, Manage, Review, Workers, Telemetry, Knowledge own independent scope.
 6. Rail matches this plan; global project selector and Interact are absent.
 7. Dispatch retains Autorun/Schedules/Runs without rail duplication.
-8. Every unique Interact capability is preserved or explicitly retired.
+8. Interact is absent from the rail, routes, and deep-link resolver; its former capabilities are explicitly retired rather than silently reassigned.
 9. Agent capability resolution cannot exceed project policy; runs record effective snapshots.
 10. Tauri never falls back to fixture planning/navigation after IPC failure.
 11. Rust rejects cross-project identifiers.
 12. Existing bounded synthesis, audit, stable-ID, decomposition, and replanning tests remain valid.
 
-## Open decisions
+## Resolved decisions
 
-- Workers: one home conversation or multiple durable/disposable sessions.
-- Which Interact branch actions Workers retains and where they render.
-- Project approval: materialize all tasks or freeze all and release a selected tranche.
-- Review: remember last local project or always open chooser.
-- Draft deletion: hard delete or tombstone; approved revisions are never hard-deleted.
+- Workers keeps one durable home conversation per named agent; no disposable Interact session type remains.
+- Interact branch, research, commit, promote, and discard actions are retired with the route.
+- In-progress work freezes as a resumable checkpoint; approval creates all approved board tasks.
+- Review always asks for a project, and draft deletion is a hard delete.
 
 ## Verification
 
@@ -277,4 +277,4 @@ rg -q '^## Acceptance criteria$' PLANNING_WORKSPACE_PLAN.md
 
 ## Next step
 
-Resolve open decisions. Once accepted, update `PLAN.md` and write superseding spec/tasks before production code.
+Write the superseding spec/task pairs, update the historical pointers, and only then change production navigation or planning code.

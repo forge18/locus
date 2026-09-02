@@ -1,14 +1,18 @@
-import { For, Show } from "solid-js";
+import { For, Show, createSignal, onMount } from "solid-js";
 import { Button } from "../../ui/Button";
 import { Combobox } from "../../ui/Combobox";
 import { Icon } from "../../ui/Icon";
 import { Input } from "../../ui/Input";
 import {
   EXTENSION_LABELS,
+  fetchHarnesses,
   useExtensionTypes,
   useHarnessSummary,
   useHarnesses,
 } from "../../data/harnesses";
+import { dataProvider } from "../../data/provider";
+import type { Envelope } from "../../data/envelope";
+import type { ExtensionType, HarnessEntry } from "../../data/harnesses";
 import {
   TIERS,
   fallbackMarker,
@@ -33,18 +37,78 @@ export const tuiNote = (count: number) =>
  * argument for the registry being a file rather than a table in the source.
  */
 export function HarnessesView() {
-  const harnesses = useHarnesses();
-  const summary = useHarnessSummary();
-  const types = useExtensionTypes();
+  const liveMode = dataProvider().kind === "live";
+  const fixtureHarnesses = useHarnesses();
+  const [registry, setRegistry] = createSignal<Envelope<HarnessEntry[]>>(
+    liveMode
+      ? { status: "loading" }
+      : fixtureHarnesses.length > 0
+        ? { status: "ready", data: [...fixtureHarnesses] }
+        : { status: "empty" },
+  );
+  const fixtureSummary = useHarnessSummary();
+  const fixtureTypes = useExtensionTypes();
   const tierGrid = useHarnessTierGrid();
+
+  onMount(() => {
+    if (liveMode) void fetchHarnesses().then(setRegistry);
+  });
+
+  const harnesses = (): readonly HarnessEntry[] => {
+    const state = registry();
+    return state.status === "ready" ? state.data : [];
+  };
+  const types = (): readonly ExtensionType[] =>
+    liveMode
+      ? (Array.from(
+          new Set(
+            harnesses().flatMap((harness) =>
+              harness.extensions.map((extension) => extension.type),
+            ),
+          ),
+        ) as ExtensionType[])
+      : fixtureTypes;
+  const summary = () => {
+    if (!liveMode) return fixtureSummary;
+    const entries = harnesses().reduce(
+      (total, harness) => total + harness.extensions.length,
+      0,
+    );
+    const downgrades = harnesses().reduce(
+      (total, harness) =>
+        total +
+        harness.extensions.filter((extension) => extension.weakerThanNative)
+          .length,
+      0,
+    );
+    return {
+      harnesses: harnesses().length,
+      entries,
+      downgrades,
+    };
+  };
 
   return (
     <div class="harnesses" data-testid="harnesses">
+      <Show when={liveMode && registry().status === "loading"}>
+        <p data-testid="harnesses-loading">Loading the harness registry…</p>
+      </Show>
+      <Show when={liveMode && registry().status === "failed"}>
+        <p data-testid="harnesses-error">
+          {(() => {
+            const state = registry();
+            return state.status === "failed" ? state.error.message : "";
+          })()}
+        </p>
+      </Show>
+      <Show when={liveMode && registry().status === "empty"}>
+        <p data-testid="harnesses-empty">No harnesses are registered.</p>
+      </Show>
       <header class="ws-head" data-testid="harnesses-head">
         <span class="ws-title" data-testid="harnesses-title">
           Registered harnesses{" "}
           <span class="mono" data-testid="harnesses-count">
-            {summary.harnesses}
+            {summary().harnesses}
           </span>
         </span>
         <span class="ws-note" data-testid="harnesses-note">
@@ -69,7 +133,7 @@ export function HarnessesView() {
       </header>
 
       <div class="hn-grid" data-testid="harnesses-grid">
-        <For each={harnesses}>
+        <For each={harnesses()}>
           {(harness) => {
             const downgrades = harness.extensions.filter(
               (e) => e.weakerThanNative,
@@ -77,7 +141,15 @@ export function HarnessesView() {
             const heavy = downgrades >= HEAVY;
             const tierSettings = tierGrid.find(
               (row) => row.name === harness.name,
-            )!;
+            ) ?? {
+              name: harness.name,
+              models: null,
+              tiers: TIERS.map((tier) => ({
+                harness: harness.name,
+                tier,
+                model: null,
+              })),
+            };
             return (
               <article
                 class={["hn-card", heavy ? "hn-card-heavy" : ""]
@@ -184,7 +256,7 @@ export function HarnessesView() {
                 </div>
 
                 <div class="hn-bar" data-testid={`hn-bar-${harness.name}`}>
-                  <For each={types}>
+                  <For each={types()}>
                     {(type) => {
                       const entry = harness.extensions.find(
                         (e) => e.type === type,
@@ -208,7 +280,7 @@ export function HarnessesView() {
 
                 <div class="hn-foot">
                   <span data-testid={`hn-extension-count-${harness.name}`}>
-                    {types.length} extensions
+                    {types().length} extensions
                   </span>
                   <span
                     class={["hn-downgrades", heavy ? "hn-downgrades-bad" : ""]
@@ -229,11 +301,11 @@ export function HarnessesView() {
 
       <footer class="harnesses-foot" data-testid="harnesses-foot">
         <span data-testid="harnesses-downgrade-line">
-          {summary.downgrades} of {summary.entries} entries are downgrades — the
-          honest measure of how uneven the field is.
+          {summary().downgrades} of {summary().entries} entries are downgrades —
+          the honest measure of how uneven the field is.
         </span>{" "}
         <span class="mono" data-testid="harnesses-tui-note">
-          {tuiNote(summary.harnesses)}
+          {tuiNote(summary().harnesses)}
         </span>
       </footer>
     </div>

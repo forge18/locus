@@ -1,9 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createNavStore } from "../../src/nav";
-import {
-  NAV_HISTORY_STORAGE_KEY,
-  NAV_STORAGE_KEY,
-} from "../../src/nav/store";
+import { NAV_HISTORY_STORAGE_KEY, NAV_STORAGE_KEY } from "../../src/nav/store";
 
 const resetNavigationStorage = () => {
   localStorage.removeItem(NAV_STORAGE_KEY);
@@ -18,16 +15,20 @@ describe("nav/navigation-persistence", () => {
   it("restores the locator and back/forward stack after a reload", () => {
     const firstWindow = createNavStore();
     firstWindow.go("sessions");
-    firstWindow.go("runs", { sessionId: "8f21", runId: "3c04" });
+    firstWindow.go("runs", {
+      project: "tapestry",
+      sessionId: "8f21",
+      runId: "3c04",
+    });
     firstWindow.back();
     window.dispatchEvent(new Event("pagehide"));
 
     const restartedWindow = createNavStore();
 
-    expect(restartedWindow.locator()).toBe("locus://tapestry/view/sessions");
+    expect(restartedWindow.locator()).toBe("locus://all/view/sessions");
     expect(restartedWindow.history()).toEqual([
       "locus://all/view/inbox",
-      "locus://tapestry/view/sessions",
+      "locus://all/view/sessions",
       "locus://tapestry/session/8f21/run/3c04",
     ]);
     expect(restartedWindow.canBack()).toBe(true);
@@ -48,9 +49,7 @@ describe("nav/navigation-persistence", () => {
     nav.go("sessions");
     const sessionsState = history.state;
 
-    window.dispatchEvent(
-      new PopStateEvent("popstate", { state: planState }),
-    );
+    window.dispatchEvent(new PopStateEvent("popstate", { state: planState }));
     expect(nav.view()).toBe("plan");
     expect(nav.canForward()).toBe(true);
 
@@ -58,6 +57,7 @@ describe("nav/navigation-persistence", () => {
       new PopStateEvent("popstate", { state: sessionsState }),
     );
     expect(nav.view()).toBe("sessions");
+    expect(nav.params()).toEqual({});
     expect(nav.canForward()).toBe(false);
   });
 });

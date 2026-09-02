@@ -9,7 +9,7 @@ describe("bots/list", () => {
       "tapestry",
     );
     expect(view.getByTestId("bot-row-keeper").textContent).toContain("Keeper");
-    expect(view.getByTestId("bot-row-keeper").textContent).toContain("pi");
+    expect(view.getByTestId("bot-row-keeper").textContent).toContain("unknown");
     expect(
       view.getByTestId("bot-list").querySelectorAll("button"),
     ).toHaveLength(2);

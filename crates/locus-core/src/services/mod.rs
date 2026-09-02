@@ -16,6 +16,7 @@ pub mod board;
 pub mod bots;
 pub mod browse;
 pub mod calibration;
+pub mod capabilities;
 pub mod compact;
 pub mod condition;
 pub mod handoff;

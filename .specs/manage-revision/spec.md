@@ -1,5 +1,7 @@
 # manage-revision
 
+> **Scope revision:** `planning-workspace` supersedes this spec's inherited global project/shell scope. Manage remains task-centric and owns its own local project filter.
+
 **Milestone** M0.7 · **Depends on** `design-revision`, `shell-revision`, `plan-revision` · **Blocks** M5 project management
 
 ## Purpose

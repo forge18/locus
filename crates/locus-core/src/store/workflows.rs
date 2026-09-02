@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::{ids::ProjectId, services::workflow::CompiledWorkflow, store::Store};
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, sqlx::FromRow)]
 pub struct PersistedWorkflowDefinition {
     pub id: Uuid,
     pub project_id: Uuid,
@@ -108,6 +108,22 @@ impl Store {
         .fetch_all(self.pool())
         .await
         .context("load workflow definition summaries")
+    }
+
+    /// Load one immutable workflow version with its authored graph and derived spec.
+    pub async fn workflow_definition(
+        &self,
+        workflow_def_id: Uuid,
+    ) -> Result<Option<PersistedWorkflowDefinition>> {
+        sqlx::query_as::<_, PersistedWorkflowDefinition>(
+            "SELECT id, project_id, name, version, graph, spec, verify_command
+             FROM workflows.workflow_defs
+             WHERE id = $1",
+        )
+        .bind(workflow_def_id)
+        .fetch_optional(self.pool())
+        .await
+        .context("load workflow definition")
     }
 
     /// Save graph, derived spec, version, and derived verify command atomically. Definitions are

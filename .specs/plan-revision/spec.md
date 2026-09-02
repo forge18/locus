@@ -1,5 +1,7 @@
 # plan-revision
 
+> **Workspace wrapper revision:** `planning-workspace` now governs durable workspace lifecycle, page-owned scope, and approval/materialization. This spec remains authoritative for the seven-stage child-spec profile.
+
 **Milestone** M0.7 · **Depends on** `design-revision`, `shell-revision` · **Blocks** M1 planning runtime changes and `manage-revision`
 
 ## Purpose

@@ -39,7 +39,7 @@ export type {
 
 /** Live project-scoped plan list. */
 export function fetchPlans(
-  projectId: string,
+  projectId?: string,
 ): Promise<Envelope<PlanSummary[]>> {
   return dataProvider().query<PlanSummary>("plans_list", { projectId });
 }

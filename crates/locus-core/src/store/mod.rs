@@ -10,7 +10,10 @@ pub mod backup;
 pub mod board;
 pub mod bots;
 pub mod bus;
+pub mod capabilities;
+pub mod cli_tools;
 pub mod dispatch;
+pub mod extensions;
 pub mod guardrails;
 pub mod handoff;
 pub mod interact;
@@ -19,6 +22,7 @@ pub mod market;
 pub mod memory;
 pub mod model_tiers;
 pub mod planning;
+pub mod planning_workspace;
 pub mod projects;
 pub mod providers;
 pub mod qa;
@@ -26,6 +30,7 @@ pub mod restore;
 pub mod routing;
 pub mod runtime;
 pub mod schedules;
+pub mod search;
 pub mod session_controls;
 pub mod wiki;
 pub mod work_items;
@@ -571,15 +576,14 @@ mod container_lifecycle {
 
     #[tokio::test]
     async fn container_lifecycle() {
-        use crate::testkit::postgres::{serialize_postgres, unused_port, DockerCleanup};
+        use crate::testkit::postgres::{unused_port, DockerCleanup};
 
-        // This test drives start/stop itself, so it cannot use `start_postgres` — but it
-        // still needs the same serialization, or a parallel container test collides.
-        let _serialized = serialize_postgres().await;
+        // This test drives start/stop itself, so it cannot use `start_postgres`.
+
         let suffix = format!("{}-{}", std::process::id(), unused_port());
         let container_name = format!("locus-postgres-test-{suffix}");
         let volume_name = format!("locus-postgres-test-data-{suffix}");
-        let _cleanup = DockerCleanup::new(container_name.clone(), volume_name.clone());
+        let _cleanup = DockerCleanup::new(container_name.clone(), volume_name.clone()).await;
         let container = PostgresContainer::new(PostgresConfig::for_test(
             container_name.clone(),
             volume_name,
@@ -669,7 +673,8 @@ mod migrate_runs {
             _container: crate::testkit::postgres::DockerCleanup::new(
                 container_name.clone(),
                 volume_name.clone(),
-            ),
+            )
+            .await,
             migrations_directory: migrations_directory.clone(),
         };
         let container = PostgresContainer::new(PostgresConfig::for_test(

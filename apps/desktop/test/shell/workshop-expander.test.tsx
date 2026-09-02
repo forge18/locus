@@ -7,7 +7,7 @@ describe("shell/workshop-expander", () => {
     const { getByRole, getByTestId } = render(() => (
       <ProjectRail selectedProject="locus" />
     ));
-    const workshop = getByRole("button", { name: "Workshop" });
+    const workshop = getByRole("button", { name: "Extensions / Plugins" });
 
     expect(getByTestId("workshop-rail-links").hidden).toBe(true);
     fireEvent.click(workshop);

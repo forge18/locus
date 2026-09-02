@@ -90,6 +90,12 @@ impl RoutineRow {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct BotRunContext {
+    pub bot_id: BotId,
+    pub routine_execution_id: Option<RoutineId>,
+}
+
 impl Store {
     /// Create the immutable definition version and bind it to one durable bot home session.
     pub async fn create_bot(
@@ -156,6 +162,19 @@ impl Store {
 
     pub async fn bot(&self, bot_id: BotId) -> Result<Option<Bot>> {
         query_as_bot(self.pool(), bot_id).await
+    }
+
+    pub async fn bot_harness(&self, bot_id: BotId) -> Result<Option<String>> {
+        query_scalar(
+            "SELECT definitions.frontmatter ->> 'harness'
+             FROM bots.bots bot
+             JOIN agents.agent_defs definitions ON definitions.id = bot.agent_def_id
+             WHERE bot.id = $1",
+        )
+        .bind(bot_id)
+        .fetch_optional(self.pool())
+        .await
+        .context("read bot harness")
     }
 
     pub async fn bot_by_name(&self, project_id: ProjectId, name: &str) -> Result<Option<Bot>> {
@@ -236,6 +255,30 @@ impl Store {
             .await?
             .bots()
             .warm_window()
+    }
+
+    /// Return the bot and optional routine execution that own one run.
+    pub async fn bot_run_context(&self, run_id: RunId) -> Result<Option<BotRunContext>> {
+        let row = query(
+            "SELECT bot.id AS bot_id, execution.id AS routine_execution_id
+             FROM bots.bots bot
+             JOIN agents.runs run ON run.session_id = bot.home_session_id
+             LEFT JOIN bots.routine_executions execution ON execution.run_id = run.id
+             WHERE run.id = $1",
+        )
+        .bind(run_id)
+        .fetch_optional(self.pool())
+        .await
+        .context("read bot run context")?;
+        row.map(|row| {
+            Ok(BotRunContext {
+                bot_id: row.try_get::<Uuid, _>("bot_id")?.into(),
+                routine_execution_id: row
+                    .try_get::<Option<Uuid>, _>("routine_execution_id")?
+                    .map(Into::into),
+            })
+        })
+        .transpose()
     }
 
     /// Start one run in the bot's home session. Latest definition resolution happens here, at
@@ -619,6 +662,26 @@ impl Store {
         rows.into_iter().map(RoutineRow::into_routine).collect()
     }
 
+    pub async fn bot_routine_belongs_to_project(
+        &self,
+        routine_id: RoutineId,
+        project_id: ProjectId,
+    ) -> Result<bool> {
+        query_scalar(
+            "SELECT EXISTS (
+                 SELECT 1
+                 FROM bots.routines routine
+                 JOIN bots.bots bot ON bot.id = routine.bot_id
+                 WHERE routine.id = $1 AND bot.project_id = $2
+             )",
+        )
+        .bind(routine_id)
+        .bind(project_id)
+        .fetch_one(self.pool())
+        .await
+        .context("check bot routine project")
+    }
+
     /// All routines for the headless scheduler. The bot id remains on each
     /// row so the scheduler can claim overlap atomically in the store.
     pub async fn all_bot_routines(&self) -> Result<Vec<BotRoutine>> {
@@ -870,6 +933,62 @@ impl Store {
             test_run,
             headless: true,
         }))
+    }
+
+    pub async fn test_bot_routine(
+        &self,
+        routine_id: RoutineId,
+        resolved_model_id: &str,
+    ) -> Result<(RoutineId, BotId, RunId)> {
+        let claim = self
+            .claim_bot_routine(routine_id, OffsetDateTime::now_utc(), true)
+            .await?;
+        let RoutineClaimResult::Started(start) = claim else {
+            bail!("test bot routine was unexpectedly skipped")
+        };
+        let run_id = RunId::generate();
+        if let Err(error) = self
+            .start_bot_run_in_container_with_mode(
+                start.bot_id,
+                run_id,
+                resolved_model_id,
+                format!("locus-agent-{run_id}"),
+                false,
+            )
+            .await
+        {
+            let _ = self
+                .complete_bot_routine_execution(
+                    start.execution_id,
+                    RoutineResult::failed(error.to_string()),
+                    None,
+                )
+                .await;
+            return Err(error);
+        }
+        query("UPDATE bots.routine_executions SET run_id = $2 WHERE id = $1")
+            .bind(start.execution_id)
+            .bind(run_id)
+            .execute(self.pool())
+            .await
+            .context("link test routine execution to home run")?;
+        Ok((start.execution_id, start.bot_id, run_id))
+    }
+
+    pub async fn bot_routine_execution(
+        &self,
+        execution_id: RoutineId,
+    ) -> Result<Option<RoutineExecution>> {
+        let row = query(
+            "SELECT id, bot_id, extract(epoch FROM scheduled_for)::bigint AS scheduled_for,
+                    status, result, attribution, test_run
+             FROM bots.routine_executions WHERE id = $1",
+        )
+        .bind(execution_id)
+        .fetch_optional(self.pool())
+        .await
+        .context("read bot routine execution")?;
+        row.map(routine_execution_from_row).transpose()
     }
 
     pub async fn complete_bot_routine_execution(

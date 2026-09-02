@@ -1,5 +1,7 @@
 # bots
 
+> **Renamed by navigation revision:** `planning-workspace` supersedes this spec's Bots route label with **Workers**. Durable named-agent, home-session, branch, routine, and warm-window behavior remains the implementation target; Interact is not a second session type.
+
 **Milestone** M6 · **Depends on** `agent-definitions`, `agent-interface`, `schedules`
 
 ## Purpose

@@ -29,7 +29,7 @@ export type {
 
 /** Live project-scoped long-term facts. */
 export function fetchLongTermFacts(
-  projectId: string,
+  projectId?: string,
 ): Promise<Envelope<KnowledgeFact[]>> {
   return dataProvider().query<KnowledgeFact>("memory_facts", { projectId });
 }

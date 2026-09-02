@@ -1,5 +1,7 @@
 # Desktop data integration
 
+> **Navigation revision:** `planning-workspace` supersedes this spec's global project-switcher and Interact/legacy route assumptions. Its provider, envelope, live-boundary, and explicit-demo rules remain authoritative.
+
 **Status:** planned  
 **Milestone:** M2 follow-up / desktop runtime  
 **Depends on:** `shell-revision`, `desktop-project-operations`, `desktop-workshop-runtime`, and the

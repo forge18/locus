@@ -107,14 +107,14 @@ the strongest available argument that skipping VSCodium costs less than it would
 | Review surface | **Artifacts**, not transcripts. Plans, diffs, diagrams, screenshots, recordings, and a walkthrough on completion — all commentable, and a comment steers the agent that made it. |
 | Harness contract | **A capability-based plugin.** A trusted manifest and one JSON-RPC 2.0 executable over stdio describe launch, session, ACP events, materialization, and optional capabilities. The first-party roster contains Pi only; user-written harness plugins add others without a core match. |
 | Tokens | **A design constraint, not a bill.** Prefix stability is a rule the materializer obeys, tool output is compacted before it reaches context, and every surface hands an agent a summary with a handle rather than a body. Cache rate and payload-by-tool are dashboard metrics because both are already columns. |
-| Navigation | **A project-scoped rail, in two groups.** The selected project owns Setup, Plan, Manage, Interact, and Review. Analytics, Memory, Settings, and Workshop are cross-project. Workshop has exactly two subgroups: Plugins (CLI Tool, Harness, Provider) and Extensions (the eight extension types plus Workflows). Inbox and Dispatch are title-bar pills, each opening a popover, because "does anything need me?" and "is anything happening?" are questions you ask from every screen. One locator scheme addresses everything. |
+| Navigation | **Page-owned scope with a fixed rail.** Projects, Workers, Telemetry, and Workshop are app-level or cross-project surfaces; Plan, Manage, Review, Knowledge, and Dispatch own their own filters. The rail has Projects, Workers, Telemetry, Automation (Plan, Manage, Review), and Workshop (Extensions, Plugins, Knowledge, Settings). There is no global project selector and no Interact route. Inbox and Dispatch remain title-bar pills. |
 | Handoffs | **Ownership transfers with a payload, never a transcript.** `done`, `remaining`, `attempted`, `decisions`, `open` — the successor reads that, not the predecessor's history. Kill-and-reassign already existed; this is what it hands over. |
 | Tools | **Just-in-time documentation, eager installation.** The enabled CLI catalog is baked into the image; project and workflow roles only narrow it. A one-line catalog per allowlisted tool arrives only when an agent asks for it. |
 | Filesystem | **No virtual filesystem.** Docker layers and `git clone --reference` already give copy-on-write; exposing Locus state as files is the thing the store exists to stop. |
 | Artifacts on disk | **Text in Postgres, media as files the row points at.** Media is stored once for you and **derived on demand for a model** — OCR before pixels, keyframes before clips. Two representations, because a human and a model want opposite things. |
 | Plugins | **One common manifest + one executable speaking JSON-RPC 2.0 over stdio**, in any language, for CLI tools, harnesses, model providers, and external work-item providers. The host negotiates namespaced capabilities (`work_item.*` for normalized source items) and bounded calls; optional capabilities do not make the contract brittle. Core services stay internal and are never plugins. **Data-driven: a plugin declares and returns data; the first-party UI knows how to render it.** No third-party UI code, ever. |
 | Board | **Fixed columns across every project**, not configurable: Ready → In Progress → Testing → Reviewing → Waiting For Approval → Done. **`blocked` is a status, not a column.** Two gating rules only. |
-| Planning | **Three agents** — interviewer, researcher, auditor — over ACP, across **seven stages**: Inputs, Orient, Converse, Synthesis, Recommend, Decompose, Approved. Goal is an input, not an output. Requirement ids are stable, so a card keeps pointing at the requirement it came from. The approved spec is decomposed into board cards explicitly: spec-only, every task, or spec plus selected carve-outs. Nothing reaches the board until the single final approval. |
+| Planning | **Durable Planning Workspaces** — amendment, feature, or project — use interviewer, researcher, and auditor roles over ACP. Each workspace adapts the seven-stage child-spec profile, persists checkpoints and revisions, and freezes incomplete work without creating board tasks. Final approval freezes the exact revision and creates **all** approved tasks transactionally; no work reaches the board before approval. |
 | Testing Locus | **Event-based.** Every run normalizes into `memory.event`, so a test is "run this, assert these events appeared" — identical across the first-party Pi harness and any trusted user harness plugin, with no test-only instrumentation. |
 | Permissions | **Bypass is the default; a job may explicitly opt into gated approval.** What an agent may do is *declared* — the tool allowlist on the agent definition, narrowed per role by the workflow's `Agent` node — and enforced by the container. A gated request blocks as a visible human action; an unexpected bypass request is an alarm. |
 | UI components | **Kobalte** headless primitives + **shadcn-solid** components copied into the repo + **Tailwind**. Headless, because an IDE's chrome is small and its large surfaces are all bespoke or bring their own DOM. |
@@ -162,10 +162,9 @@ Eight product changes are architecture, not paint:
    manifest and its binary must verify before entering the enabled catalog or an image. An unsigned or
    untrusted upload is rejected; read-only access is not a meaningful containment boundary for code
    executed during an image build.
-6. **A session need not have a card.** Interact runs sessions that are a container, a branch and an
-   agent you talk to directly — no card, no plan, no gate. A session is `open`, `promoted`, or
-   `discarded`; promotion attaches a card and from then on its diff takes the normal gate, and
-   discarding destroys the container and branch while the transcript stays.
+6. **Workers own named agent conversations.** Workers provide durable home sessions, branches, routines,
+   and warm-window behavior. The former Interact route and its disposable board-less sessions, research,
+   commit, promote, and discard actions are explicitly retired; no replacement surface is implied.
 7. **Autorun is rate-limited by review, not by agents.** A project switch is not enough: a review slot
    is one change you have not read yet, and autorun drains at the rate you absorb. Five classes never
    autorun whatever the switch says — migrations, any workflow containing a Gate node, anything over
@@ -2155,61 +2154,47 @@ lands at M4; image baking and install land at M8.
 pinned, and who is trusted to publish into it are questions the installer makes real and the resolver
 does not — so they are answered then, not now.
 
-### Navigation — two groups, one address space
+### Navigation — page-owned scope, one address space
 
-A rail in two groups, and two pills in the title bar. The split is **by what you are doing**, not by
-what the data is — which is why agents and workflows appear twice: operated in one place, authored in
-another.
+The rail is fixed and scope is owned by each page or object. There is no global project selector: a
+page that needs a project chooses it locally, and an object route carries its project locator.
 
-**The project group** — what you do to one project, under a switcher that names it:
-
-| Category | Holds | The question it answers |
-| --- | --- | --- |
-| **Setup** | harnesses, repos, extensions, CLI tools, base context; what this project has kept; its own numbers | how is this project configured, and what does it know |
-| **Plan** | the planning module — interviewer, researcher, auditor; the spec and the recommendation | what should we build, and is it understood |
-| **Manage** | the board and its sessions, as kanban, list, dependency graph, or timeline | what is assigned, and what is running |
-| **Interact** | sessions that are yours alone — a container, a branch, and an agent you talk to directly | the hands-on work, mine |
-| **Review** | tests, linters, diagnostics, and agent reviews for this project | what is wrong right now |
-
-**Cross-Project** — what does not belong to one project:
+**Primary rail** — app-level and cross-project entry points:
 
 | Category | Holds | The question it answers |
 | --- | --- | --- |
-| **Analytics** | spend, tokens, cache, run times, task outcomes, memory and extension usage; telemetry as its query half | what happened, and was it any good |
-| **Memory** | short-term, long-term, artifacts, and the wiki | what do we already know, and what disagrees |
-| **Settings** | guardrails and everything else that is per install | what are the defaults |
-| **Workshop** | **Plugins:** CLI Tool, Harness, Provider. **Extensions:** the eight extension types, agent definitions, Workflows | the tools themselves |
+| **Projects** | project list, repositories, and project setup | which projects exist and how are they configured |
+| **Workers** | persistent named agents, home conversations, branches, routines, and warm runs | what can I ask a standing agent to do |
+| **Telemetry** | spend, tokens, cache, run times, task outcomes, and Analytics Overview | what happened and what did it cost |
 
-**Two questions you ask from everywhere, so they are not rail items.** *Does anything need me?* and
-*is anything happening?* do not belong to a screen — they belong to every screen. So the inbox count
-and the running count are pills in the title bar, each opening a popover that answers in place. A rail
-entry would have made the answer somewhere you travel to.
+**Automation** — page-owned filters, not a shared scope:
 
-**A session lives with the thing it belongs to.** A session is one agent's thread of work, so a
-board-driven one lives in Manage, beside the task it serves. The same rule places the others: the
-planning conversation lives in **Plan**, because its purpose is the spec, and a session with no card
-at all lives in **Interact**, because it belongs to you rather than to the board.
+| Category | Holds | The question it answers |
+| --- | --- | --- |
+| **Plan** | durable amendment, feature, and project Planning Workspaces | what should we build and is it approved |
+| **Manage** | the board and task-owned sessions | what is assigned and what is running |
+| **Review** | tests, linters, diagnostics, and agent reviews | what is wrong right now |
 
-**Interact is where work happens that the board never sees.** No card, no plan, no gate — a container,
-a branch, and an agent, so you can try something without first deciding it is worth tracking. That is
-the escape hatch every plan-driven system needs, and it is honest about its cost: nothing there is
-reviewed, so nothing reaches `main` from it until you promote it or land the branch yourself.
+**Workshop** — app-level authoring and knowledge:
 
-**Review is now; Analytics is after.** Review says what is broken in this project — a failing test, a
-diagnostic, a reviewer's finding. Analytics is where you dig into what a run cost and whether the
-system is healthy. Keeping them apart stops Review growing into a query tool and stops the history
-growing a live view nobody watches.
+| Category | Holds | The question it answers |
+| --- | --- | --- |
+| **Extensions** | agents, commands, hooks, linters, styles, rules, skills, context, and workflows | what is authored and materialized |
+| **Plugins** | CLI tools, harnesses, and providers | what integrations are available |
+| **Knowledge** | short-term, long-term, artifacts, and the wiki | what do we already know |
+| **Settings** | installation and guardrail defaults | what are the defaults |
 
-**Manage operates; Workshop authors.** An agent you are assigning work to and an agent definition you
-are editing are different activities on the same object — one is a thing doing work, the other is a
-document under version control. Same for workflows: the canvas is Workshop, a running execution is
-Manage.
+**Two questions stay in the title bar.** Inbox and Dispatch remain pills because they are available
+from every page. Their lists have their own project filters and never inherit a hidden shell scope.
 
-**Workshop is where the meta-harness actually lives.** It has two subgroups: **Plugins** (CLI Tool,
-Harness, Provider) and **Extensions** (skills, rules, commands, hooks, output-styles, linters, agents,
-base-context, and Workflows). Extensions are authored once and materialized into every runtime; Plugins
-are executable, capability-negotiated integrations. That is the product's central claim, and it deserves
-a place rather than a settings page.
+**Workers owns durable conversations.** The planning conversation lives in Plan, a task-owned run lives
+in Manage, and a named agent's home conversation lives in Workers. The former Interact route and its
+board-less disposable sessions are retired explicitly; no rail item or deep link recreates them.
+
+**Manage operates; Workshop authors.** An agent assigned to work and its definition are different
+activities on the same object. A workflow is authored in Workshop and its execution is reached from the
+owning task in Manage. Analytics Overview lives under Telemetry, while Autorun, Schedules, and Runs
+remain Dispatch views reached by its pill, palette, or locator.
 
 #### The inbox
 
@@ -2224,18 +2209,16 @@ notification, not inbox work**, and notifications go to the activity feed behind
 The inbox also keeps what it resolved. A queue that empties leaves no record of how long a loop waited
 on you for a decision, which is the one number that says whether the human is the constraint.
 
-#### One window. A selected project, and views that ignore it
+#### One window. Page-owned filters, and views that ignore hidden global scope
 
 A window per project would rebuild the thing this design exists to remove: one inbox per window, one
 board per window, one place per window to notice an agent has been idle for an hour. Every layer
 beneath the UI was built to be a single surface across every runtime; sharding at the last layer
 throws that away.
 
-So there is **one window, one selected project, and a group of views that are explicitly not scoped to
-it**. The five project views follow the switcher. Analytics ignores it entirely — cross-project
-questions are the useful ones, and a spend chart that silently showed one project would be worse than
-no chart. Memory and Workshop are cross-project because their contents are: definitions are global and
-what varies per project is which of them that project gets.
+So there is **one window and no selected-project mode**. Projects, Workers, and Telemetry can answer
+cross-project questions; Plan, Manage, Review, Knowledge, Inbox, and Dispatch expose their own explicit
+filters when needed. A project switch on one page never changes another page underneath it.
 
 Where a list would be more useful filtered — the inbox above all — the filter is **per view and
 remembered per view**, not a global mode. A single global scope control means every screen changes

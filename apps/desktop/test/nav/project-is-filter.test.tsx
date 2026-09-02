@@ -1,35 +1,23 @@
+import { render } from "@solidjs/testing-library";
 import { describe, expect, it } from "vitest";
-import { fireEvent, render } from "@solidjs/testing-library";
 import { ProjectRail } from "../../src/shell/ProjectRail";
 import { createNavStore } from "../../src/nav";
 
-const PROJECTS = ["tapestry", "weaver"];
-
 describe("nav/project-is-filter", () => {
-  it("shows the selected project and its available matches", () => {
-    const { getByTestId } = render(() => (
-      <ProjectRail selectedProject="tapestry" projects={PROJECTS} />
+  it("does not own a project selector", () => {
+    const { queryByTestId } = render(() => (
+      <ProjectRail
+        selectedProject="tapestry"
+        projects={["tapestry", "weaver"]}
+      />
     ));
-    expect(
-      getByTestId("project-switcher-option-tapestry").textContent,
-    ).toContain("tapestry");
-    expect(getByTestId("project-switcher-results").children).toHaveLength(2);
+    expect(queryByTestId("project-switcher-option-tapestry")).toBeNull();
+    expect(queryByTestId("project-switcher-results")).toBeNull();
   });
 
-  it("filters project choices without changing the current route", () => {
-    const nav = createNavStore({ view: "sessions" });
-    const { getByTestId } = render(() => (
-      <ProjectRail selectedProject="tapestry" projects={PROJECTS} />
-    ));
-    fireEvent.input(getByTestId("project-switcher-filter"), {
-      target: { value: "weaver" },
-    });
-    expect(getByTestId("project-switcher-results").textContent).toBe("weaver");
-    expect(nav.view()).toBe("sessions");
-  });
-
-  it("keeps an explicitly addressed project in its locator", () => {
+  it("uses an all-project locator for page-owned routes", () => {
     const nav = createNavStore({ project: "weaver", view: "sessions" });
-    expect(nav.locator()).toBe("locus://weaver/view/sessions");
+    expect(nav.locator()).toBe("locus://all/view/sessions");
+    expect(nav.params()).toEqual({});
   });
 });

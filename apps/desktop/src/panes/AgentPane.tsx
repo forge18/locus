@@ -141,15 +141,13 @@ export function AgentPane(props: AgentPaneProps) {
 
         // Replay the persisted events from agents.events (the durable record).
         void replayRunEvents(runId)
-            .then((replayed) => {
-                if (stopped) return;
-                const snapshot = eventsForRun(replayed, runId);
-                setProvidedEvents((current) =>
-                    mergeEvents(current, snapshot),
-                );
-                setEvents(mergeEvents(providedEvents(), streamEvents()));
-            })
-            .catch(() => undefined);
+          .then((replayed) => {
+            if (stopped) return;
+            const snapshot = eventsForRun(replayed, runId);
+            setProvidedEvents((current) => mergeEvents(current, snapshot));
+            setEvents(mergeEvents(providedEvents(), streamEvents()));
+          })
+          .catch(() => undefined);
 
         let stopped = false;
         const frames = coalesce<AgentEvent>((items) => {
@@ -289,10 +287,12 @@ export function AgentPane(props: AgentPaneProps) {
     session().permissionPosture;
   const researchOpen = () => props.researchOpen ?? internalResearchOpen();
   const costIsVisible = () => props.showCost ?? internalCostVisible();
-  const contextPercent = () =>
-    session().context.total > 0
-      ? (session().context.used / session().context.total) * 100
+  const contextPercent = () => {
+    const context = session().context;
+    return context && context.total > 0
+      ? (context.used / context.total) * 100
       : 0;
+  };
   const thinkingDisplay = () =>
     props.thinkingDisplay ?? internalThinkingDisplay();
   const toolCallsDisplay = () =>
@@ -457,10 +457,17 @@ export function AgentPane(props: AgentPaneProps) {
         <section class="agent-context-view" data-testid="agent-context-view">
           <strong>Context window</strong>
           <span>Memory catalog · returned tool docs · session research</span>
-          <code>
-            {formatTokens(session().context.used)} used of{" "}
-            {formatTokens(session().context.total)}
-          </code>
+          <Show
+            when={session().context}
+            fallback={<code>Context usage unavailable</code>}
+          >
+            {(context) => (
+              <code>
+                {formatTokens(context().used)} used of{" "}
+                {formatTokens(context().total)}
+              </code>
+            )}
+          </Show>
         </section>
       </Show>
       <div class="agent-pane-layout">
@@ -505,22 +512,28 @@ export function AgentPane(props: AgentPaneProps) {
             class="agent-stream-shell"
             data-scrim={blockerExpanded() ? "true" : "false"}
           >
-            <section class="agent-stream" data-testid="agent-stream" aria-live="polite">
+            <section
+              class="agent-stream"
+              data-testid="agent-stream"
+              aria-live="polite"
+            >
               <AgentEventStream
-              events={events()}
-              posture={posture()}
-              thinkingDisplay={thinkingDisplay()}
-              toolCallsDisplay={toolCallsDisplay()}
-              resolved={resolvedBlockers()}
-              onThinkingDisplay={updateThinkingDisplay}
-              onApprove={(event) => resolvePermission(event, "approve")}
-              onDecline={(event) => resolvePermission(event, "decline")}
-              onApproveRemaining={(event) => resolvePermission(event, "remaining")}
-              onResubmit={props.onResubmit}
-              onCopyPrompt={props.onCopyPrompt}
-              onOpenFile={props.onOpenFile}
-              onPinCitation={pinCitation}
-            />
+                events={events()}
+                posture={posture()}
+                thinkingDisplay={thinkingDisplay()}
+                toolCallsDisplay={toolCallsDisplay()}
+                resolved={resolvedBlockers()}
+                onThinkingDisplay={updateThinkingDisplay}
+                onApprove={(event) => resolvePermission(event, "approve")}
+                onDecline={(event) => resolvePermission(event, "decline")}
+                onApproveRemaining={(event) =>
+                  resolvePermission(event, "remaining")
+                }
+                onResubmit={props.onResubmit}
+                onCopyPrompt={props.onCopyPrompt}
+                onOpenFile={props.onOpenFile}
+                onPinCitation={pinCitation}
+              />
               <Show when={props.checkpoints?.length}>
                 <CheckpointMarkers
                   checkpoints={props.checkpoints ?? []}

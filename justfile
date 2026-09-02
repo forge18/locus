@@ -11,8 +11,9 @@ setup:
 build:
     cargo build && pnpm -C apps/desktop build
 
-# Run the Rust test suite
+# Run the Rust test suite after verifying Docker is reachable
 test:
+    bash scripts/check-docker.sh
     cargo test
 
 # Run the desktop (Node) test suite
@@ -25,10 +26,12 @@ test-named *args:
 
 # Run the real Tauri window against a disposable Postgres store
 test-desktop-integration:
+    bash scripts/check-docker.sh
     bash apps/desktop/scripts/test-desktop-integration.sh
 
 # Run the real Tauri window inside a Linux Docker container with Xvfb
 test-desktop-integration-linux:
+    bash scripts/check-docker.sh
     bash apps/desktop/scripts/test-desktop-integration-linux.sh
 
 # Lint the Rust workspace; a warning is a failure

@@ -1,17 +1,15 @@
-import { For, Show, createMemo, createSignal } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
 import { dataProvider } from "../../data/provider";
 import { Button } from "../../ui/Button";
 import { FixtureNotice } from "../../ui/FixtureNotice";
 import { InlineError } from "../../ui/InlineError";
 import { Textarea } from "../../ui/Input";
+import { PageProjectFilter } from "../PageProjectFilter";
 import {
   MAIL_HANDOFF_COPY,
-  MAIL_MESSAGES,
   MAIL_PARTICIPANT_NOTE,
-  MAIL_PARTICIPANTS,
   MAIL_STORAGE_COPY,
   MAIL_TABS,
-  MAIL_THREADS,
   MAIL_VERBS,
   MAIL_WAIT_BANNER,
   MAIL_WAIT_INVARIANT,
@@ -23,8 +21,15 @@ import type {
   MailStatus,
   MailThreadFixture,
 } from "../../data/mail";
+import {
+  useMailMessages,
+  useMailParticipants,
+  useMailThreads,
+} from "../../data/mail";
 
 export interface MailViewProps {
+  /** Optional page-owned project scope from a compatible deep link. */
+  projectId?: string;
   /** Optional selection seam for a locator or an inbox preview. */
   threadId?: string;
 }
@@ -36,9 +41,25 @@ const statusLabel = (status: MailStatus) => status;
  * not a transcript, so a harness swap does not make the thread disappear.
  */
 export function MailView(props: MailViewProps = {}) {
+  const [selectedProjectId, setSelectedProjectId] = createSignal(
+    props.projectId,
+  );
+  const threadRows = useMailThreads();
+  const participantRows = useMailParticipants();
+
   if (dataProvider().kind === "live") {
     return (
-      <main class="mail-view" data-testid="mail" data-live-state="unavailable">
+      <main
+        class="mail-view"
+        data-testid="mail"
+        data-live-state="unavailable"
+        data-scope={selectedProjectId() ?? "all"}
+      >
+        <PageProjectFilter
+          value={selectedProjectId()}
+          onChange={(projectId) => setSelectedProjectId(projectId)}
+          allLabel="All mail"
+        />
         <InlineError
           cause="Mail is unavailable"
           next="mail_threads has no persisted desktop contract yet."
@@ -47,8 +68,14 @@ export function MailView(props: MailViewProps = {}) {
     );
   }
 
+  const scopedThreads = createMemo(() => {
+    const projectId = selectedProjectId();
+    return projectId
+      ? threadRows.filter((thread) => thread.project === projectId)
+      : threadRows;
+  });
   const [selectedId, setSelectedId] = createSignal(
-    props.threadId ?? SELECTED_MAIL_THREAD_ID,
+    props.threadId ?? scopedThreads()[0]?.id ?? SELECTED_MAIL_THREAD_ID,
   );
   const [tab, setTab] = createSignal<(typeof MAIL_TABS)[number]>("All");
   // The backend does not exist yet (see the fixture notice), so composer actions
@@ -59,10 +86,19 @@ export function MailView(props: MailViewProps = {}) {
     Partial<Record<string, MailStatus>>
   >({});
   const [composerError, setComposerError] = createSignal<string | null>(null);
-  const selected = createMemo(
+  const selected = createMemo<MailThreadFixture>(
     () =>
-      MAIL_THREADS.find((thread) => thread.id === selectedId()) ??
-      MAIL_THREADS[0],
+      scopedThreads().find((thread) => thread.id === selectedId()) ??
+      scopedThreads()[0] ?? {
+        id: "",
+        project: "",
+        status: "open",
+        subject: "No mail thread",
+        from: "",
+        to: "",
+        messageCount: 0,
+        blocking: null,
+      },
   );
   const statusFor = (thread: MailThreadFixture) =>
     statusOverrides()[thread.id] ?? thread.status;
@@ -71,18 +107,30 @@ export function MailView(props: MailViewProps = {}) {
   const visibleThreads = createMemo(() => {
     const currentTab = tab();
     if (currentTab === "Waiting")
-      return MAIL_THREADS.filter((thread) => statusFor(thread) === "waiting");
+      return scopedThreads().filter(
+        (thread) => statusFor(thread) === "waiting",
+      );
     if (currentTab === "To you")
-      return MAIL_THREADS.filter(
+      return scopedThreads().filter(
         (thread) => statusFor(thread) === "you" || thread.to === "you",
       );
-    return MAIL_THREADS;
+    return scopedThreads();
   });
-  const messages = createMemo(() =>
-    [...MAIL_MESSAGES, ...sentReplies()].filter(
-      (message) => message.threadId === selected().id,
-    ),
-  );
+  const messages = createMemo(() => [
+    ...useMailMessages(selected().id),
+    ...sentReplies(),
+  ]);
+  createEffect(() => {
+    const current = scopedThreads();
+    if (
+      current.length > 0 &&
+      !current.some((thread) => thread.id === selectedId())
+    ) {
+      setSelectedId(current[0].id);
+      setDraft("");
+      setComposerError(null);
+    }
+  });
   const selectedIsWaiting = () => selectedStatus() === "waiting";
   const selectedIsDrained = () => selectedStatus() === "drained";
 
@@ -131,8 +179,18 @@ export function MailView(props: MailViewProps = {}) {
   };
 
   return (
-    <main class="mail" data-testid="mail" data-three-pane="true">
+    <main
+      class="mail"
+      data-testid="mail"
+      data-three-pane="true"
+      data-scope={selectedProjectId() ?? "all"}
+    >
       <aside class="mail-left">
+        <PageProjectFilter
+          value={selectedProjectId()}
+          onChange={(projectId) => setSelectedProjectId(projectId)}
+          allLabel="All mail"
+        />
         <nav class="mail-tabs" aria-label="Mail filters">
           <For each={MAIL_TABS}>
             {(item) => (
@@ -257,7 +315,7 @@ export function MailView(props: MailViewProps = {}) {
         <section class="mail-side-section">
           <h2>Participants</h2>
           <p>{MAIL_PARTICIPANT_NOTE}</p>
-          <For each={MAIL_PARTICIPANTS}>
+          <For each={participantRows}>
             {(participant) => (
               <div class="mail-participant">
                 <strong>{participant.name}</strong>

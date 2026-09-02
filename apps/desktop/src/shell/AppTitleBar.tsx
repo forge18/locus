@@ -2,7 +2,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { DispatchPill } from "./DispatchPill";
 import { InboxPill } from "./InboxPill";
 import type { InboxDelivery } from "../data/inbox";
-import type { ActiveSession } from "./RunningPill";
+import type { ActiveSession } from "./session-types";
 import type { StoreHealth } from "../data/health";
 
 export interface AppTitleBarProps {
@@ -67,6 +67,20 @@ export function AppTitleBar(props: AppTitleBarProps) {
                 title={props.storeHealth?.message ?? undefined}
             >
                 {props.storeHealth?.status ?? "not configured"}
+            </span>
+            <span
+                class="sr-only"
+                data-testid="running-count"
+                aria-live="polite"
+            >
+                {props.running} running
+            </span>
+            <span
+                class="sr-only"
+                data-testid="needs-you-count"
+                aria-live="assertive"
+            >
+                {props.needsYou} need your attention
             </span>
             <DispatchPill
                 running={props.running}

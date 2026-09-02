@@ -6,52 +6,52 @@ import {
 } from "../../src/nav/desktop-navigation";
 import { CATEGORIES, RAIL_ITEMS, VIEWS, categoryOf } from "../../src/nav";
 
-describe("M0.7 shell navigation inventory", () => {
-  it("registers the current 30 views and ten rail categories", () => {
-    expect(VIEWS).toHaveLength(30);
-    expect(DESKTOP_ROUTES).toHaveLength(30);
+describe("planning-workspace navigation inventory", () => {
+  it("registers the current routes and page-owned categories", () => {
+    expect(VIEWS).toHaveLength(29);
+    expect(DESKTOP_ROUTES).toHaveLength(29);
     expect([...CATEGORIES]).toEqual([
-      "setup",
+      "projects",
+      "workers",
+      "telemetry",
       "plan",
       "manage",
-      "interact",
-      "bots",
       "review",
-      "analytics",
-      "memory",
+      "extensions",
+      "plugins",
+      "knowledge",
       "settings",
-      "workshop",
     ]);
     expect(RAIL_ITEMS.map((item) => item.firstView)).toEqual([
       "projects",
+      "workers",
+      "telemetry",
       "plan",
       "sessions",
-      "interact",
-      "bots",
       "qa",
-      "status",
+      "agents",
+      "cli",
       "short",
       "settings",
-      "agents",
     ]);
   });
 
-  it("routes every category landing view without retired rail vocabulary", () => {
+  it("routes every category landing view without retired Interact", () => {
     expect(RAIL_ITEMS.map((item) => item.label)).toEqual([
-      "Setup",
+      "Projects",
+      "Workers",
+      "Telemetry",
       "Plan",
       "Manage",
-      "Interact",
-      "Bots",
       "Review",
-      "Analytics",
-      "Memory",
+      "Extensions",
+      "Plugins",
+      "Knowledge",
       "Settings",
-      "Workshop",
     ]);
     expect(
       DESKTOP_ROUTES.some((route) =>
-        ["Develop", "Automate", "Dashboard"].includes(route.label),
+        ["Develop", "Automate", "Dashboard", "Interact"].includes(route.label),
       ),
     ).toBe(false);
     for (const route of DESKTOP_ROUTES) {
@@ -64,15 +64,14 @@ describe("M0.7 shell navigation inventory", () => {
     }
   });
 
-  it("uses the canonical project, all, and app view locators", () => {
-    expect(destinationDesktop("projects", "tapestry")).toBe(
-      "locus://tapestry/view/projects",
-    );
+  it("uses page-owned all, app, and project locators", () => {
+    expect(destinationDesktop("projects")).toBe("locus://all/view/projects");
+    expect(destinationDesktop("workers")).toBe("locus://all/view/workers");
     expect(destinationDesktop("status")).toBe("locus://all/view/status");
     expect(destinationDesktop("settings")).toBe("locus://app/view/settings");
-    expect(navigateDesktop("locus://tapestry/view/plan")).toEqual({
-      route: "plan",
-      scope: { kind: "project", project: "tapestry" },
+    expect(navigateDesktop("locus://all/view/qa")).toEqual({
+      route: "qa",
+      scope: { kind: "all" },
     });
     expect(navigateDesktop("locus://all/view/inbox")).toEqual({
       route: "inbox",
@@ -81,6 +80,11 @@ describe("M0.7 shell navigation inventory", () => {
     expect(navigateDesktop("locus://app/view/workflows")).toEqual({
       route: "workflows",
       scope: { kind: "app" },
+    });
+    expect(navigateDesktop("locus://tapestry/workers/keeper")).toEqual({
+      route: "workers",
+      scope: { kind: "project", project: "tapestry" },
+      botId: "keeper",
     });
   });
 });

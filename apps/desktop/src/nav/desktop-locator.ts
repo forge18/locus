@@ -53,12 +53,12 @@ export function formatDesktopLocator(
   botId?: string,
 ): string {
   const route = routeFor(routeId);
-  if (route.id === "bots") {
+  if (route.id === "workers" && botId !== undefined) {
     const scope = projectFor(project);
-    if (botId !== undefined && (!SEGMENT.test(botId) || !botId)) {
-      throw new DesktopLocatorError(`bot: "${botId}" is not a bot segment`);
+    if (!SEGMENT.test(botId) || !botId) {
+      throw new DesktopLocatorError(`worker: "${botId}" is not a worker segment`);
     }
-    return `${LOCATOR_SCHEME}${scope}/bots${botId ? `/${botId}` : ""}`;
+    return `${LOCATOR_SCHEME}${scope}/workers/${botId}`;
   }
   if (route.scope === "project")
     return `${LOCATOR_SCHEME}${projectFor(project)}/view/${route.id}`;
@@ -76,22 +76,17 @@ export function resolveDesktopLocator(locator: string): DesktopNavTarget {
     throw new DesktopLocatorError(`scheme: expected "${LOCATOR_SCHEME}"`);
   }
   const segments = locator.slice(LOCATOR_SCHEME.length).split("/");
-  if (
-    (segments.length === 2 || segments.length === 3) &&
-    segments[1] === "bots"
-  ) {
+  if (segments.length === 3 && segments[1] === "workers") {
     const project = projectFor(segments[0]);
-    const botId = segments[2];
-    if (botId !== undefined && (!botId || !SEGMENT.test(botId))) {
-      throw new DesktopLocatorError(`bot: "${botId}" is not a bot segment`);
+    const workerId = segments[2];
+    if (!workerId || !SEGMENT.test(workerId)) {
+      throw new DesktopLocatorError(`worker: "${workerId}" is not a worker segment`);
     }
-    return botId === undefined
-      ? { route: "bots", scope: { kind: "project", project } }
-      : { route: "bots", scope: { kind: "project", project }, botId };
+    return { route: "workers", scope: { kind: "project", project }, botId: workerId };
   }
   if (segments.length !== 3 || segments[1] !== "view") {
     throw new DesktopLocatorError(
-      "locator: expected locus://<project|all|app>/view/<route> or locus://<project>/bots[/<bot-id>]",
+      "locator: expected locus://<project|all|app>/view/<route> or locus://<project>/workers/<worker-id>",
     );
   }
   const [scope, , id] = segments;

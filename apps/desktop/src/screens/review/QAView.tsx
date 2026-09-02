@@ -9,6 +9,7 @@ import {
 } from "solid-js";
 import { dataProvider } from "../../data/provider";
 import { InlineError } from "../../ui/InlineError";
+import { PageProjectFilter } from "../PageProjectFilter";
 import { Button } from "../../ui/Button";
 import { FixtureNotice } from "../../ui/FixtureNotice";
 import { Segmented } from "../../ui/Segmented";
@@ -35,6 +36,9 @@ export interface QAViewProps {
 }
 
 function QALive(props: { projectId?: string }) {
+  const [selectedProjectId, setSelectedProjectId] = createSignal(
+    props.projectId,
+  );
   const [findings, setFindings] = createSignal<Envelope<QaFinding[]>>({
     status: "loading",
   });
@@ -51,7 +55,7 @@ function QALive(props: { projectId?: string }) {
 
   let requestId = 0;
   createEffect(() => {
-    const projectId = props.projectId;
+    const projectId = selectedProjectId();
     const request = ++requestId;
     setFindings({ status: "loading" });
     if (!projectId) {
@@ -73,14 +77,17 @@ function QALive(props: { projectId?: string }) {
   });
 
   return (
-    <div class="qa-view" data-testid="qa" data-project={props.projectId}>
+    <div class="qa-view" data-testid="qa" data-project={selectedProjectId()}>
       <header class="qa-header">
         <div>
           <h1>QA</h1>
-          <p>
-            Persisted findings for {props.projectId ?? "the active project"}.
-          </p>
+          <p>Persisted findings for the selected project.</p>
         </div>
+        <PageProjectFilter
+          value={selectedProjectId()}
+          required
+          onChange={(projectId) => setSelectedProjectId(projectId)}
+        />
       </header>
       <main
         class="qa-groups"

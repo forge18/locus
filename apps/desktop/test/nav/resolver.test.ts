@@ -42,12 +42,8 @@ describe("nav/resolver", () => {
     expect(nav.view()).toBe("inbox");
   });
 
-  it("resolves the project out of the path, so a filter is a query not a screen", () => {
-    expect(resolve("locus://weaver/view/sessions").params.project).toBe(
-      "weaver",
-    );
-    expect(resolve("locus://texere/view/sessions").params.project).toBe(
-      "texere",
-    );
+  it("keeps page filters out of the locator", () => {
+    expect(resolve("locus://all/view/sessions").params).toEqual({});
+    expect(() => resolve("locus://weaver/view/sessions")).toThrow(/scope:/);
   });
 });

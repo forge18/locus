@@ -48,7 +48,7 @@ describe("nav/detail-in-place", () => {
     await waitFor(() =>
       expect(document.querySelector('[data-testid="sheet"]')).not.toBe(null),
     );
-    expect(nav.locator()).toBe("locus://tapestry/view/sessions");
+    expect(nav.locator()).toBe("locus://all/view/sessions");
   });
 
   it("resolves the detail through the same resolver as everything else", async () => {
