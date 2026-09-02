@@ -1,6 +1,8 @@
 import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
 import { Avatar } from "../../avatars/Avatar";
 import { AgentPane, type AgentPaneSession } from "../../panes/AgentPane";
+import { PaneManager } from "../../panes/PaneManager";
+import type { Pane } from "../../panes/manager";
 import { destinationDesktop } from "../../nav/desktop-navigation";
 import {
   botRoutines,
@@ -307,6 +309,7 @@ export default function BotsView(props: BotsViewProps) {
   const [newBotError, setNewBotError] = createSignal<string | null>(null);
   const [creatingBot, setCreatingBot] = createSignal(false);
   const [panelError, setPanelError] = createSignal<string | null>(null);
+  let paneSequence = 0;
   const demoRoutines =
     dataProvider().read?.<BotRoutine[]>("bot_routines", {
       botId: selectedId(),
@@ -497,12 +500,27 @@ export default function BotsView(props: BotsViewProps) {
               <Show when={panelError()}>
                 {(error) => <p role="alert">{error()}</p>}
               </Show>
-              <AgentPane
-                runId={bot().activeRunId ?? bot().runId}
-                live={liveMode && Boolean(bot().activeRunId)}
-                showCost
-                session={botSession(bot(), project())}
-                onSend={(prompt) => sendPrompt(bot(), prompt)}
+              <PaneManager
+                initialPane={{
+                  id: bot().id,
+                  kind: "agent",
+                  runId: bot().activeRunId ?? bot().runId,
+                  focusedAt: Date.now(),
+                }}
+                createPane={(source) => ({
+                  ...source,
+                  id: `${source.id}-split-${++paneSequence}`,
+                  focusedAt: Date.now(),
+                })}
+                renderPane={(pane: Pane) => (
+                  <AgentPane
+                    runId={pane.runId ?? bot().runId}
+                    live={liveMode && Boolean(bot().activeRunId)}
+                    showCost
+                    session={botSession(bot(), project())}
+                    onSend={(prompt) => sendPrompt(bot(), prompt)}
+                  />
+                )}
               />
             </>
           )}
