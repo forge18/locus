@@ -23,7 +23,14 @@ describe('plan/avatar-grounds', () => {
   })
 
   it('derives that amber from --ac, so retheming carries it', () => {
-    expect(read('styles/tokens.css')).toContain('--action-attention-deep: color-mix(in srgb, var(--action-attention) 36%, #000000)')
+    expect(
+      read('styles/tokens.css')
+        .replace(/\s+/g, ' ')
+        .replace(/\(\s+/g, '(')
+        .replace(/\s+\)/g, ')'),
+    ).toContain(
+      '--action-attention-deep: color-mix(in srgb, var(--action-attention) 36%, #000000)',
+    )
   })
 
   it('tells the three speakers apart without reading them', () => {
