@@ -441,6 +441,9 @@ export function PermissionCard(props: {
                         data-diff-kind={row.kind}
                         role="row"
                       >
+                        {/* The +/- glyph is decoration; the state is announced
+                            as the word so a reader never needs the glyph. */}
+                        <span class="sr-only">{row.kind}</span>
                         <span class="agent-diff-gutter" aria-hidden="true">
                           {row.kind === "removed"
                             ? "−"

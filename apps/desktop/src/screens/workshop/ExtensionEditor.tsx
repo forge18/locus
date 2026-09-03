@@ -379,28 +379,35 @@ function Frontmatter(props: {
                 <h2>Frontmatter</h2>
                 <span>kind inferred from field name</span>
             </header>
-            <div class="frontmatter-grid">
-                <div class="frontmatter-column-label">Key</div>
-                <div class="frontmatter-column-label">Value</div>
-                <div class="frontmatter-column-label">Kind</div>
+            <div class="frontmatter-grid" role="table" aria-label="Frontmatter fields">
+                <div class="frontmatter-header-row" role="row">
+                    <div class="frontmatter-column-label" role="columnheader">Key</div>
+                    <div class="frontmatter-column-label" role="columnheader">Value</div>
+                    <div class="frontmatter-column-label" role="columnheader">Kind</div>
+                </div>
                 <For each={FIELDS[props.type]}>
                     {([name, value]) => (
                         <div
                             class="frontmatter-row"
+                            role="row"
                             data-testid={`frontmatter-field-${name}`}
                         >
-                            <code>{name}</code>
-                            <FieldControl
-                                name={name}
-                                value={props.values[name] ?? value}
-                                onChange={(next) => props.onChange(name, next)}
-                            />
-                            <Tag
-                                variant="neutral"
-                                data-testid={`frontmatter-kind-${name}`}
-                            >
-                                {inferFrontmatterFieldKind(name)}
-                            </Tag>
+                            <div role="cell"><code>{name}</code></div>
+                            <div role="cell">
+                                <FieldControl
+                                    name={name}
+                                    value={props.values[name] ?? value}
+                                    onChange={(next) => props.onChange(name, next)}
+                                />
+                            </div>
+                            <div role="cell">
+                                <Tag
+                                    variant="neutral"
+                                    data-testid={`frontmatter-kind-${name}`}
+                                >
+                                    {inferFrontmatterFieldKind(name)}
+                                </Tag>
+                            </div>
                         </div>
                     )}
                 </For>

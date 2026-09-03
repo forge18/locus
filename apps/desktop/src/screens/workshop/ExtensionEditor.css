@@ -24,6 +24,7 @@
 .frontmatter-grid { display:grid; grid-template-columns:110px minmax(0,1fr) 80px; align-items:center; }
 .frontmatter-column-label { padding:7px 12px; color:var(--text-muted); font-size:var(--t-label); text-transform:uppercase; letter-spacing:.08em; }
 .frontmatter-row { display:contents; }
+.frontmatter-header-row { display:contents; }
 .frontmatter-row > * { min-width:0; padding:8px 12px; border-top:1px solid var(--border-subtle); }
 .frontmatter-row code { color:var(--text-secondary); font-family:var(--fm); font-size:var(--t-meta); }
 .frontmatter-row .input { width:100%; }

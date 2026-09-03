@@ -64,13 +64,20 @@ export function VirtualTable<T>(props: VirtualTableProps<T>) {
       data-testid={testId()}
       data-state={state()}
       data-table-state={state()}
+      role="table"
+      /* One header row plus every row in the store, not only the loaded window. */
+      aria-rowcount={props.total + 1}
     >
       <table class="table">
-        <thead>
-          <tr>
+        <thead role="rowgroup">
+          <tr role="row">
             <For each={props.columns}>
               {(c) => (
-                <th class={cls(c)} style={c.width ? { width: c.width } : undefined}>
+                <th
+                  role="columnheader"
+                  class={cls(c)}
+                  style={c.width ? { width: c.width } : undefined}
+                >
                   {c.header}
                 </th>
               )}
@@ -126,15 +133,34 @@ export function VirtualTable<T>(props: VirtualTableProps<T>) {
           onLoadMore={hasError() ? undefined : props.onLoadMore}
           testId={`${testId()}-rows`}
         >
-          {(row) => (
+          {(row, index) => (
             <table class="table" style={{ 'table-layout': 'fixed' }}>
-              <tbody>
+              <tbody role="rowgroup">
                 <tr
                   style={{ height: `${props.rowHeight}px` }}
                   data-row-key={props.rowKey(row)}
+                  role="row"
+                  /* Global position in the sparse table: header is row 1. */
+                  aria-rowindex={index + 2}
+                  tabIndex={props.onRowClick ? 0 : undefined}
                   onClick={props.onRowClick ? () => props.onRowClick!(row) : undefined}
+                  onKeyDown={
+                    props.onRowClick
+                      ? (e: KeyboardEvent) => {
+                          if (e.key !== 'Enter' && e.key !== ' ') return
+                          e.preventDefault()
+                          props.onRowClick!(row)
+                        }
+                      : undefined
+                  }
                 >
-                  <For each={props.columns}>{(c) => <td class={cls(c)}>{c.cell(row)}</td>}</For>
+                  <For each={props.columns}>
+                    {(c) => (
+                      <td role="cell" class={cls(c)}>
+                        {c.cell(row)}
+                      </td>
+                    )}
+                  </For>
                 </tr>
               </tbody>
             </table>

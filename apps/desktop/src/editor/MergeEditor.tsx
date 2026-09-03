@@ -43,6 +43,8 @@ export function createMergeView(
       button.type = "button";
       button.className = "locus-merge-revert";
       button.title = "Revert this chunk into the base";
+      // A title is a tooltip, not a reliable accessible name.
+      button.setAttribute("aria-label", "Revert this chunk into the base");
       button.textContent = "←";
       return button;
     },
