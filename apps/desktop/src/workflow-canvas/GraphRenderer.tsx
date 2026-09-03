@@ -52,7 +52,9 @@ export function GraphRenderer(props: GraphRendererProps) {
         width={props.width}
         height={props.height}
         viewBox={`0 0 ${props.width} ${props.height}`}
-        role="img"
+        /* A group, not an image: an img role would hide the clickable nodes
+           inside it from assistive tech. */
+        role="group"
         aria-label="Graph"
         data-testid={`${props.testId ?? 'graph'}-svg`}
       >
@@ -84,7 +86,19 @@ export function GraphRenderer(props: GraphRendererProps) {
                 class={['graph-node', node.focal ? 'graph-node-focal' : ''].filter(Boolean).join(' ')}
                 data-testid={`graph-node-${node.id}`}
                 data-focal={node.focal ? 'true' : undefined}
+                aria-label={node.label}
+                role={props.onSelect ? 'button' : undefined}
+                tabindex={props.onSelect ? 0 : undefined}
                 onClick={props.onSelect ? () => props.onSelect!(node.id) : undefined}
+                onKeyDown={
+                  props.onSelect
+                    ? (e: KeyboardEvent) => {
+                        if (e.key !== 'Enter' && e.key !== ' ') return
+                        e.preventDefault()
+                        props.onSelect!(node.id)
+                      }
+                    : undefined
+                }
               >
                 <circle
                   cx={node.x}

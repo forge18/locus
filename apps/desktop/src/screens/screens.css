@@ -2757,13 +2757,16 @@
 }
 .wf-chip {
  display: flex;
+ width: 100%;
  align-items: center;
  gap: var(--g-3);
  padding: 5px var(--g-3);
  border: 1px solid var(--border-subtle);
  border-radius: var(--r-md);
  background: var(--surface-raised);
+ font-family: inherit;
  font-size: var(--t-body);
+ text-align: left;
  color: var(--text-primary);
  cursor: grab;
 }

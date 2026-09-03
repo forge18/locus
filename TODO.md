@@ -1,6 +1,6 @@
 # TODO
 
-**Remaining:** 27 open rows across 7 workstreams, worked top to bottom.
+**Remaining:** 11 open rows across 3 workstreams, worked top to bottom.
 
 This is the unfinished-work index. [`PLAN.md`](PLAN.md) is the architecture authority. Each feature's
 `spec.md` is its contract; its `tasks.md` is the runnable decomposition and verification source. One
@@ -11,8 +11,8 @@ owning workstream so nothing is tracked twice.
 
 - `feat/planning-workspace` carries the completed work checked off below; this file is the
   current progress record, not a claim that every open row is complete.
-- Active workstream: **7 — Panes & editor**. Workstream 4 is complete; its persistence, navigation,
-  Planning Room, Workers, capability, and secondary-surface rows are done.
+- Active workstream: **10 — Rust correctness & schema debt**. Workstreams 1–9 are complete,
+  including the Section 8 styling batch and the Section 9 accessibility batch.
 
 ## 1 — Desktop data integration (the epic)
 
@@ -194,12 +194,18 @@ The accepted contract is implemented in dependency order.
 
 ## 9 — Accessibility
 
-- [ ] **Make click-only surfaces keyboard-reachable** — Interact session `<article onClick>`,
-  `VirtualTable` rows, `GraphRenderer` nodes, workflow palette `draggable` divs, `Resizable`
-  separator: no keyboard path.
-- [ ] **Fix assistive-tech semantics** — `<svg role="img">` hides clickable nodes; one `<table>` per
-  `VirtualRows` row loses headers; diff state is an `aria-hidden` glyph; frontmatter grid and model
-  table are divs; collapse-sessions `aria-label` never flips; merge revert's only name is a `title`.
+- [x] **Make click-only surfaces keyboard-reachable** — `VirtualTable` rows focus and activate with
+  Enter/Space; `GraphRenderer` nodes are focusable SVG buttons; both workflow palettes render chips
+  as buttons whose activation places the node (drag still works); the `Resizable` separator resizes
+  in 16px arrow-key steps and reports min/max/current. The named Interact `<article onClick>` no
+  longer exists — the Workers session rows are `<button>`s.
+- [x] **Fix assistive-tech semantics** — the graph `<svg>` is a named group, so its nodes stay in
+  the a11y tree; `VirtualTable` renders as one sparse table (`role="table"`, `aria-rowcount`,
+  `aria-rowindex`, header `columnheader`s shared by every row); diff row state is announced as text
+  beside the hidden glyph; the frontmatter grid is a table with `columnheader`/`row`/`cell` roles;
+  the merge revert control carries an `aria-label`, not only a `title`; workflow definition rows
+  use `aria-pressed`. The named collapse-sessions label already flips in Workers, and the projects
+  model table no longer exists.
 
 ## 10 — Rust correctness & schema debt
 

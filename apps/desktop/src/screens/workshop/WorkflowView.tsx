@@ -451,7 +451,7 @@ function LiveWorkflowList(props: { projectId?: string }) {
               <button
                 type="button"
                 data-testid={`workflow-definition-${definition.id}`}
-                aria-selected={
+                aria-pressed={
                   selectedId() === definition.id ? "true" : "false"
                 }
                 onClick={() => setSelectedId(definition.id)}
@@ -493,7 +493,8 @@ function LiveWorkflowList(props: { projectId?: string }) {
               <span class="wf-section">Nodes</span>
               <For each={paletteRows()}>
                 {(node) => (
-                  <div
+                  <button
+                    type="button"
                     class="wf-chip"
                     data-testid={`wf-chip-${node.kind}`}
                     draggable="true"
@@ -503,9 +504,12 @@ function LiveWorkflowList(props: { projectId?: string }) {
                         node.kind,
                       )
                     }
+                    /* Keyboard path: activating a chip places the node, the
+                       same default position the presets use. */
+                    onClick={() => addNode(node.kind, { x: 120, y: 260 })}
                   >
                     {node.label}
-                  </div>
+                  </button>
                 )}
               </For>
               <span class="wf-section">Presets</span>
@@ -717,7 +721,8 @@ export function WorkflowView(props: { projectId?: string } = {}) {
         <span class="wf-section">Nodes</span>
         <For each={palette}>
           {(node) => (
-            <div
+            <button
+              type="button"
               class={[
                 "wf-chip",
                 node.tone === "default" ? "" : `wf-chip-${node.tone}`,
@@ -734,6 +739,7 @@ export function WorkflowView(props: { projectId?: string } = {}) {
                 );
                 event.dataTransfer?.setData("text/plain", node.kind);
               }}
+              onClick={() => addNode(node.kind, { x: 120, y: 260 })}
             >
               <Icon
                 name="dots-six-vertical"
@@ -750,7 +756,7 @@ export function WorkflowView(props: { projectId?: string } = {}) {
                   req
                 </span>
               </Show>
-            </div>
+            </button>
           )}
         </For>
 

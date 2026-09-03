@@ -53,6 +53,18 @@ export function Resizable(props: ResizableProps) {
     document.addEventListener('pointerup', stop)
   }
 
+  // A focused separator resizes in 16px steps. An arrow widens the pane in the
+  // direction the handle would drag: right for a right-edge handle, left for a
+  // left-edge one.
+  const KEYPRESS = 16
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+    e.preventDefault()
+    const current = dragged() ?? (el?.getBoundingClientRect().width || props.width)
+    const widen = e.key === (props.side === 'right' ? 'ArrowRight' : 'ArrowLeft')
+    setDragged(clamp(current + (widen ? KEYPRESS : -KEYPRESS)))
+  }
+
   onCleanup(stop)
 
   return (
@@ -78,7 +90,12 @@ export function Resizable(props: ResizableProps) {
         role="separator"
         aria-orientation="vertical"
         aria-label="Resize"
+        tabIndex={0}
+        aria-valuemin={props.min ?? 160}
+        aria-valuemax={props.max ?? 640}
+        aria-valuenow={dragged() ?? props.width}
         onPointerDown={onPointerDown}
+        onKeyDown={onKeyDown}
       />
     </div>
   )
