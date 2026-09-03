@@ -12,293 +12,371 @@
 /* Accent is a line, never a fill. A filled primary would out-shout the live
    indicators, which are the only thing on screen allowed to demand attention. */
 .btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--g-3);
-  padding: 5px 11px;
-  border: 1px solid transparent;
-  border-radius: var(--r-md);
-  background: transparent;
-  color: var(--text-primary);
-  font-family: inherit;
-  font-size: var(--t-row);
-  font-weight: 500;
-  line-height: 1.2;
-  cursor: default;
+ display: inline-flex;
+ align-items: center;
+ justify-content: center;
+ gap: var(--g-3);
+ padding: 5px 11px;
+ border: 1px solid transparent;
+ border-radius: var(--r-md);
+ background: transparent;
+ color: var(--text-primary);
+ font-family: inherit;
+ font-size: var(--t-row);
+ font-weight: 500;
+ line-height: 1.2;
+ cursor: default;
 }
-.btn:disabled { opacity: .55; pointer-events: none; }
+.btn:disabled {
+ opacity: 0.55;
+ pointer-events: none;
+}
 
-.btn-primary { color: var(--action-attention); border-color: var(--action-attention); }
-.btn-primary:hover { background: color-mix(in srgb, var(--action-attention) 12%, transparent); }
-.btn-primary:active { background: color-mix(in srgb, var(--action-attention) 22%, transparent); }
+.btn-primary {
+ color: var(--action-attention);
+ border-color: var(--action-attention);
+}
+.btn-primary:hover {
+ background: color-mix(in srgb, var(--action-attention) 12%, transparent);
+}
+.btn-primary:active {
+ background: color-mix(in srgb, var(--action-attention) 22%, transparent);
+}
 
-.btn-secondary { border-color: var(--border-strong); color: var(--text-primary); }
-.btn-secondary:hover { background: var(--surface-selected); }
-.btn-secondary:active { background: var(--surface-elevated); }
+.btn-secondary {
+ border-color: var(--border-strong);
+ color: var(--text-primary);
+}
+.btn-secondary:hover {
+ background: var(--surface-selected);
+}
+.btn-secondary:active {
+ background: var(--surface-elevated);
+}
 
-.btn-ghost { color: var(--action-attention); padding-inline: var(--g-2); }
-.btn-ghost:hover { background: color-mix(in srgb, var(--action-attention) 10%, transparent); }
-.btn-ghost:active { background: color-mix(in srgb, var(--action-attention) 18%, transparent); }
+.btn-ghost {
+ color: var(--action-attention);
+ padding-inline: var(--g-2);
+}
+.btn-ghost:hover {
+ background: color-mix(in srgb, var(--action-attention) 10%, transparent);
+}
+.btn-ghost:active {
+ background: color-mix(in srgb, var(--action-attention) 18%, transparent);
+}
 
-.btn-block { width: 100%; }
+.btn-block {
+ width: 100%;
+}
 
 /* ------------------------------------------------------------------- Tag --- */
 .tag {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--g-2);
-  padding: 2px 7px;
-  border: 1px solid transparent;
-  border-radius: var(--r-sm);
-  font-family: var(--fm);
-  font-size: var(--t-label);
-  letter-spacing: .02em;
-  background: var(--action-attention-deep);
-  color: var(--action-attention-pale);
-  white-space: nowrap;
+ display: inline-flex;
+ align-items: center;
+ gap: var(--g-2);
+ padding: 2px 7px;
+ border: 1px solid transparent;
+ border-radius: var(--r-sm);
+ font-family: var(--fm);
+ font-size: var(--t-label);
+ letter-spacing: 0.02em;
+ background: var(--action-attention-deep);
+ color: var(--action-attention-pale);
+ white-space: nowrap;
 }
-.tag-outline { background: transparent; border-color: var(--action-attention); color: var(--action-attention); }
+.tag-outline {
+ background: transparent;
+ border-color: var(--action-attention);
+ color: var(--action-attention);
+}
 /* Neutral tags stack in project columns, so they carry a floor width to line up. */
 .tag-neutral {
-  background: var(--surface-elevated);
-  color: var(--text-primary);
-  min-width: 62px;
-  justify-content: center;
+ background: var(--surface-elevated);
+ color: var(--text-primary);
+ min-width: 62px;
+ justify-content: center;
 }
 
 /* ------------------------------------------------------------------ Card --- */
 .card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--g-3);
-  padding: var(--g-4) 11px;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--r-card);
-  background: var(--surface-raised);
+ display: flex;
+ flex-direction: column;
+ gap: var(--g-3);
+ padding: var(--g-4) 11px;
+ border: 1px solid var(--border-subtle);
+ border-radius: var(--r-card);
+ background: var(--surface-raised);
 }
-.card-interactive:hover { background: var(--surface-selected); }
+.card-interactive:hover {
+ background: var(--surface-selected);
+}
 .card-selected {
-  background: var(--surface-selected);
-  border-color: transparent;
-  box-shadow: var(--ring-sel);
+ background: var(--surface-selected);
+ border-color: transparent;
+ box-shadow: var(--ring-sel);
 }
 
 /* ----------------------------------------------------------------- Table --- */
-.table { width: 100%; border-collapse: collapse; font-size: var(--t-row); }
+.table {
+ width: 100%;
+ border-collapse: collapse;
+ font-size: var(--t-row);
+}
 .table th {
-  padding: 6px var(--g-4);
-  border-bottom: 1px solid var(--border-strong);
-  font-size: var(--t-label);
-  font-weight: 500;
-  letter-spacing: .11em;
-  text-transform: uppercase;
-  color: var(--text-secondary);
-  text-align: left;
+ padding: 6px var(--g-4);
+ border-bottom: 1px solid var(--border-strong);
+ font-size: var(--t-label);
+ font-weight: 500;
+ letter-spacing: 0.11em;
+ text-transform: uppercase;
+ color: var(--text-secondary);
+ text-align: left;
 }
 .table td {
-  padding: 6px var(--g-4);
-  border-bottom: 1px solid var(--border-subtle);
+ padding: 6px var(--g-4);
+ border-bottom: 1px solid var(--border-subtle);
 }
-.table tbody tr:hover td { background: var(--surface-raised); }
+.table tbody tr:hover td {
+ background: var(--surface-raised);
+}
 /* A numeric column is mono and right-aligned by its column type, so no screen
    has to remember to do it. */
-.table th.col-numeric, .table td.col-numeric { text-align: right; }
-.table td.col-numeric, .table td.col-mono { font-family: var(--fm); font-size: var(--t-body); }
-.table th.col-mono { text-align: left; }
+.table th.col-numeric,
+.table td.col-numeric {
+ text-align: right;
+}
+.table td.col-numeric,
+.table td.col-mono {
+ font-family: var(--fm);
+ font-size: var(--t-body);
+}
+.table th.col-mono {
+ text-align: left;
+}
 
 /* ----------------------------------------------------------------- Input --- */
 .input {
-  box-sizing: border-box;
-  width: 100%;
-  padding: 5px var(--g-4);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--r-md);
-  background: var(--surface-raised);
-  color: var(--text-primary);
-  caret-color: var(--action-attention);
-  font-family: inherit;
-  font-size: var(--t-row);
+ box-sizing: border-box;
+ width: 100%;
+ padding: 5px var(--g-4);
+ border: 1px solid var(--border-subtle);
+ border-radius: var(--r-md);
+ background: var(--surface-raised);
+ color: var(--text-primary);
+ caret-color: var(--action-attention);
+ font-family: inherit;
+ font-size: var(--t-row);
 }
-.input::placeholder { color: var(--text-muted); }
-.input:hover { border-color: var(--border-strong); }
-.input:focus-visible { border-color: var(--action-attention); outline-offset: 0; }
-textarea.input { min-height: 64px; resize: vertical; line-height: 1.5; }
+.input::placeholder {
+ color: var(--text-muted);
+}
+.input:hover {
+ border-color: var(--border-strong);
+}
+.input:focus-visible {
+ border-color: var(--action-attention);
+ outline-offset: 0;
+}
+textarea.input {
+ min-height: 64px;
+ resize: vertical;
+ line-height: 1.5;
+}
 
 /* Keep native affordances, but make their accent and inherited typography stable. */
 input[type="checkbox"],
 input[type="radio"] {
-  accent-color: var(--action-attention);
-  font: inherit;
+ accent-color: var(--action-attention);
+ font: inherit;
 }
 
 /* ------------------------------------------------------------- Segmented --- */
 .seg {
-  display: inline-flex;
-  overflow: hidden;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--r-md);
+ display: inline-flex;
+ overflow: hidden;
+ border: 1px solid var(--border-subtle);
+ border-radius: var(--r-md);
 }
 .seg-opt {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--g-3);
-  padding: 3px 10px;
-  font-size: var(--t-body);
-  color: var(--text-secondary);
-  cursor: default;
-  background: transparent;
-  border: 0;
-  font-family: inherit;
+ display: inline-flex;
+ align-items: center;
+ gap: var(--g-3);
+ padding: 3px 10px;
+ font-size: var(--t-body);
+ color: var(--text-secondary);
+ cursor: default;
+ background: transparent;
+ border: 0;
+ font-family: inherit;
 }
-.seg-opt + .seg-opt { border-left: 1px solid var(--border-subtle); }
-.seg-opt:hover { background: var(--surface-selected); }
+.seg-opt + .seg-opt {
+ border-left: 1px solid var(--border-subtle);
+}
+.seg-opt:hover {
+ background: var(--surface-selected);
+}
 .seg-opt[data-selected],
 .seg-opt[data-checked] {
-  color: var(--action-attention);
-  background: var(--surface-elevated);
-  box-shadow: var(--ring-sel-soft);
+ color: var(--action-attention);
+ background: var(--surface-elevated);
+ box-shadow: var(--ring-sel-soft);
 }
 
 /* --------------------------------------------------------------- Tooltip --- */
 .tooltip {
-  padding: 3px 7px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-sm);
-  background: var(--surface-chrome);
-  color: var(--text-primary);
-  font-size: var(--t-meta);
-  box-shadow: var(--sh-node);
-  z-index: 60;
+ padding: 3px 7px;
+ border: 1px solid var(--border-strong);
+ border-radius: var(--r-sm);
+ background: var(--surface-chrome);
+ color: var(--text-primary);
+ font-size: var(--t-meta);
+ box-shadow: var(--sh-node);
+ z-index: 60;
 }
 
 /* ---------------------------------------------------- Dialog and Sheet ----- */
 .overlay {
-  position: absolute;
-  inset: 0;
-  background: color-mix(in srgb, var(--surface-chrome) 62%, transparent);
-  z-index: 50;
+ position: absolute;
+ inset: 0;
+ background: color-mix(in srgb, var(--surface-chrome) 62%, transparent);
+ z-index: 50;
 }
 /* A sheet opens over the category it belongs to, inside this window. Detail
    never becomes a second window — that is reserved for detached panes. */
 .sheet {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 420px;
-  display: flex;
-  flex-direction: column;
-  background: var(--surface-ground);
-  border-left: 1px solid var(--border-strong);
-  box-shadow: var(--sh-node-lift);
-  z-index: 51;
+ position: absolute;
+ top: 0;
+ right: 0;
+ bottom: 0;
+ width: 420px;
+ display: flex;
+ flex-direction: column;
+ background: var(--surface-ground);
+ border-left: 1px solid var(--border-strong);
+ box-shadow: var(--sh-node-lift);
+ z-index: 51;
 }
 .sheet-head {
-  display: flex;
-  align-items: center;
-  gap: var(--g-4);
-  padding: var(--g-4) 12px;
-  border-bottom: 1px solid var(--border-subtle);
+ display: flex;
+ align-items: center;
+ gap: var(--g-4);
+ padding: var(--g-4) 12px;
+ border-bottom: 1px solid var(--border-subtle);
 }
-.sheet-body { flex: 1; overflow: auto; padding: 12px; }
+.sheet-body {
+ flex: 1;
+ overflow: auto;
+ padding: 12px;
+}
 
 /* ------------------------------------------------------------------ Tabs --- */
 .tabs-list {
-  display: flex;
-  align-items: center;
-  gap: var(--g-2);
+ display: flex;
+ align-items: center;
+ gap: var(--g-2);
 }
 .tab {
-  padding: 3px 10px;
-  border: 0;
-  border-radius: var(--r-md);
-  background: transparent;
-  color: var(--text-secondary);
-  font-family: inherit;
-  font-size: var(--t-body);
-  cursor: default;
+ padding: 3px 10px;
+ border: 0;
+ border-radius: var(--r-md);
+ background: transparent;
+ color: var(--text-secondary);
+ font-family: inherit;
+ font-size: var(--t-body);
+ cursor: default;
 }
-.tab:hover { background: var(--surface-raised); }
+.tab:hover {
+ background: var(--surface-raised);
+}
 .tab[data-selected] {
-  background: var(--surface-elevated);
-  color: var(--text-primary);
-  box-shadow: var(--ring-sel-soft);
+ background: var(--surface-elevated);
+ color: var(--text-primary);
+ box-shadow: var(--ring-sel-soft);
 }
 
 /* ---------------------------------------------------- Menus and Combobox --- */
 .menu {
-  min-width: 176px;
-  padding: var(--g-2);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-card);
-  background: var(--surface-chrome);
-  box-shadow: var(--sh-node);
-  z-index: 60;
+ min-width: 176px;
+ padding: var(--g-2);
+ border: 1px solid var(--border-strong);
+ border-radius: var(--r-card);
+ background: var(--surface-chrome);
+ box-shadow: var(--sh-node);
+ z-index: 60;
 }
 .menu-item {
-  display: flex;
-  align-items: center;
-  gap: var(--g-3);
-  padding: 4px var(--g-3);
-  border-radius: var(--r-sm);
-  font-size: var(--t-body);
-  color: var(--text-primary);
-  cursor: default;
+ display: flex;
+ align-items: center;
+ gap: var(--g-3);
+ padding: 4px var(--g-3);
+ border-radius: var(--r-sm);
+ font-size: var(--t-body);
+ color: var(--text-primary);
+ cursor: default;
 }
-.menu-item[data-highlighted] { background: var(--surface-selected); }
-.menu-item[data-disabled] { opacity: .55; }
+.menu-item[data-highlighted] {
+ background: var(--surface-selected);
+}
+.menu-item[data-disabled] {
+ opacity: 0.55;
+}
 .menu-section {
-  padding: 6px var(--g-3) 3px;
-  font-size: var(--t-label);
-  font-weight: 500;
-  letter-spacing: .11em;
-  text-transform: uppercase;
-  color: var(--text-muted);
+ padding: 6px var(--g-3) 3px;
+ font-size: var(--t-label);
+ font-weight: 500;
+ letter-spacing: 0.11em;
+ text-transform: uppercase;
+ color: var(--text-muted);
 }
 
 .combobox-control {
-  display: flex;
-  align-items: center;
-  gap: var(--g-3);
-  border-radius: var(--r-md);
-  background: var(--surface-raised);
-  border: 1px solid var(--border-subtle);
+ display: flex;
+ align-items: center;
+ gap: var(--g-3);
+ border-radius: var(--r-md);
+ background: var(--surface-raised);
+ border: 1px solid var(--border-subtle);
 }
-.combobox-control:focus-within { border-color: var(--action-attention); }
+.combobox-control:focus-within {
+ border-color: var(--action-attention);
+}
 .combobox-input {
-  flex: 1;
-  padding: 4px var(--g-4);
-  border: 0;
-  background: transparent;
-  color: var(--text-primary);
-  caret-color: var(--action-attention);
-  font-family: inherit;
-  font-size: var(--t-row);
+ flex: 1;
+ padding: 4px var(--g-4);
+ border: 0;
+ background: transparent;
+ color: var(--text-primary);
+ caret-color: var(--action-attention);
+ font-family: inherit;
+ font-size: var(--t-row);
 }
 /* The accent ring still draws — pulled inside so it hugs the control's border. */
-.combobox-input:focus-visible { outline-offset: -1px; }
+.combobox-input:focus-visible {
+ outline-offset: -1px;
+}
 
 /* ----------------------------------------------------------------- Toast --- */
 /* Toasts are for something the reader is *not* looking at. Anything on the
    surface in front of them uses InlineError instead. */
 .toast-region {
-  position: fixed;
-  bottom: 58px;
-  right: 14px;
-  display: flex;
-  flex-direction: column;
-  gap: var(--g-3);
-  z-index: 70;
+ position: fixed;
+ bottom: 58px;
+ right: 14px;
+ display: flex;
+ flex-direction: column;
+ gap: var(--g-3);
+ z-index: 70;
 }
 .toast {
-  min-width: 240px;
-  padding: var(--g-4) 11px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-card);
-  background: var(--surface-raised);
-  color: var(--text-primary);
-  font-size: var(--t-body);
-  box-shadow: var(--sh-node);
+ min-width: 240px;
+ padding: var(--g-4) 11px;
+ border: 1px solid var(--border-strong);
+ border-radius: var(--r-card);
+ background: var(--surface-raised);
+ color: var(--text-primary);
+ font-size: var(--t-body);
+ box-shadow: var(--sh-node);
 }
-.toast[data-type='error'] { border-color: var(--status-danger); }
+.toast[data-type="error"] {
+ border-color: var(--status-danger);
+}

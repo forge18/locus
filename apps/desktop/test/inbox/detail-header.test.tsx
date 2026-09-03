@@ -9,11 +9,7 @@ const rule = (sel: string) =>
   rules(read("screens/screens.css")).find((r) => r.selector === sel);
 const mount = (item = gate) =>
   render(() => (
-    <InboxDetail
-      item={item}
-      onApprove={() => {}}
-      onSendBack={() => {}}
-    />
+    <InboxDetail item={item} onApprove={() => {}} onSendBack={() => {}} />
   ));
 
 import { configureProjectsStub } from "../projects/provider-stub";

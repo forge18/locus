@@ -55,7 +55,9 @@ function appendPane(
 ): PaneTree {
   if (!tree) return { type: "leaf", pane };
   const first = panes(tree)[0];
-  return first ? split(tree, first.id, pane, direction) : { type: "leaf", pane };
+  return first
+    ? split(tree, first.id, pane, direction)
+    : { type: "leaf", pane };
 }
 
 function leastRecentlyFocused(items: readonly Pane[]): Pane | undefined {
@@ -76,7 +78,8 @@ function PaneDivider(props: {
   const onMove = (event: PointerEvent) => {
     if (!host) return;
     const bounds = host.getBoundingClientRect();
-    const size = props.direction === "horizontal" ? bounds.width : bounds.height;
+    const size =
+      props.direction === "horizontal" ? bounds.width : bounds.height;
     const position =
       props.direction === "horizontal"
         ? event.clientX - bounds.left
@@ -103,7 +106,9 @@ function PaneDivider(props: {
       class="pane-divider"
       role="separator"
       aria-label="Resize panes"
-      aria-orientation={props.direction === "horizontal" ? "vertical" : "horizontal"}
+      aria-orientation={
+        props.direction === "horizontal" ? "vertical" : "horizontal"
+      }
       onPointerDown={start}
     />
   );
@@ -197,20 +202,15 @@ function PaneTreeView(props: {
       </Match>
       <Match when={props.tree.type === "split"}>
         <div
-          class={`pane-tree pane-tree-${(
-            props.tree as Extract<PaneTree, { type: "split" }>
-          ).direction}`}
+          class={`pane-tree pane-tree-${(props.tree as Extract<PaneTree, { type: "split" }>).direction}`}
           style={{
-            "--pane-ratio": (
-              props.tree as Extract<PaneTree, { type: "split" }>
-            ).ratio,
+            "--pane-ratio": (props.tree as Extract<PaneTree, { type: "split" }>)
+              .ratio,
           }}
         >
           <div class="pane-tree-slot pane-tree-first">
             <PaneTreeView
-              tree={(
-                props.tree as Extract<PaneTree, { type: "split" }>
-              ).first}
+              tree={(props.tree as Extract<PaneTree, { type: "split" }>).first}
               path={[...props.path, "first"]}
               renderPane={props.renderPane}
               onFocus={props.onFocus}
@@ -222,16 +222,14 @@ function PaneTreeView(props: {
             />
           </div>
           <PaneDivider
-            direction={(
-              props.tree as Extract<PaneTree, { type: "split" }>
-            ).direction}
+            direction={
+              (props.tree as Extract<PaneTree, { type: "split" }>).direction
+            }
             onResize={(ratio) => props.onResize(props.path, ratio)}
           />
           <div class="pane-tree-slot pane-tree-second">
             <PaneTreeView
-              tree={(
-                props.tree as Extract<PaneTree, { type: "split" }>
-              ).second}
+              tree={(props.tree as Extract<PaneTree, { type: "split" }>).second}
               path={[...props.path, "second"]}
               renderPane={props.renderPane}
               onFocus={props.onFocus}
@@ -286,12 +284,11 @@ export function PaneManager(props: PaneManagerProps) {
   const splitPane = (id: string, direction: SplitDirection) => {
     const source = focused().find((pane) => pane.id === id);
     if (!source) return;
-    const pane =
-      props.createPane?.(source, direction) ?? {
-        ...source,
-        id: `${source.id}-split-${++generatedPane}`,
-        focusedAt: Date.now(),
-      };
+    const pane = props.createPane?.(source, direction) ?? {
+      ...source,
+      id: `${source.id}-split-${++generatedPane}`,
+      focusedAt: Date.now(),
+    };
     if (
       [...focused(), ...strip()].some((candidate) => candidate.id === pane.id)
     ) {
@@ -345,7 +342,8 @@ export function PaneManager(props: PaneManagerProps) {
       current.length >= 4 ? leastRecentlyFocused(current) : undefined;
     const next = promote(layout(), id, Date.now());
     let nextTree = tree();
-    if (leastRecent) nextTree = nextTree ? close(nextTree, leastRecent.id) : nextTree;
+    if (leastRecent)
+      nextTree = nextTree ? close(nextTree, leastRecent.id) : nextTree;
     nextTree = appendPane(nextTree, { ...promoted, focusedAt: Date.now() });
     setTree(nextTree);
     setStrip(next.strip);
@@ -364,10 +362,7 @@ export function PaneManager(props: PaneManagerProps) {
     }
   };
 
-  const resizePane = (
-    path: readonly ("first" | "second")[],
-    ratio: number,
-  ) => {
+  const resizePane = (path: readonly ("first" | "second")[], ratio: number) => {
     const current = tree();
     if (current) setTree(resizeAt(current, path, ratio));
   };

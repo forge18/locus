@@ -92,11 +92,31 @@
  --ok-solid: #4fa07f;
  --bad-solid: #d4614f;
 
- --action-attention-ring: color-mix(in srgb, var(--action-attention) 55%, transparent);
- --action-attention-ring-soft: color-mix(in srgb, var(--action-attention) 50%, transparent);
- --action-attention-wash: color-mix(in srgb, var(--action-attention) 16%, transparent);
- --action-attention-deep: color-mix(in srgb, var(--action-attention) 36%, #000000);
- --action-attention-pale: color-mix(in srgb, var(--action-attention) 18%, #ffffff);
+ --action-attention-ring: color-mix(
+  in srgb,
+  var(--action-attention) 55%,
+  transparent
+ );
+ --action-attention-ring-soft: color-mix(
+  in srgb,
+  var(--action-attention) 50%,
+  transparent
+ );
+ --action-attention-wash: color-mix(
+  in srgb,
+  var(--action-attention) 16%,
+  transparent
+ );
+ --action-attention-deep: color-mix(
+  in srgb,
+  var(--action-attention) 36%,
+  #000000
+ );
+ --action-attention-pale: color-mix(
+  in srgb,
+  var(--action-attention) 18%,
+  #ffffff
+ );
  --action-attention-ink: var(--surface-ground);
  --ac-ring: var(--action-attention-ring);
  --ac-ring-soft: var(--action-attention-ring-soft);
@@ -168,10 +188,26 @@
  --ok-solid: #2a7c5a;
  --bad-solid: #b73d33;
 
- --action-attention-ring: color-mix(in srgb, var(--action-attention) 55%, transparent);
- --action-attention-ring-soft: color-mix(in srgb, var(--action-attention) 50%, transparent);
- --action-attention-wash: color-mix(in srgb, var(--action-attention) 16%, transparent);
- --action-attention-deep: color-mix(in srgb, var(--action-attention) 38%, #ffffff);
+ --action-attention-ring: color-mix(
+  in srgb,
+  var(--action-attention) 55%,
+  transparent
+ );
+ --action-attention-ring-soft: color-mix(
+  in srgb,
+  var(--action-attention) 50%,
+  transparent
+ );
+ --action-attention-wash: color-mix(
+  in srgb,
+  var(--action-attention) 16%,
+  transparent
+ );
+ --action-attention-deep: color-mix(
+  in srgb,
+  var(--action-attention) 38%,
+  #ffffff
+ );
  /* Dark ink keeps text readable on the light attention wash. */
  --action-attention-pale: #16212b;
  --action-attention-ink: var(--surface-ground);

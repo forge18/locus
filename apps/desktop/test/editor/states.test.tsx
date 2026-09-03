@@ -28,7 +28,9 @@ describe("editor states", () => {
   beforeEach(() => mocks.attachTauriLsp.mockReset());
 
   it("marks an empty file separately from a loaded file", () => {
-    const empty = render(() => <EditorPane file={file("")} language={language} />);
+    const empty = render(() => (
+      <EditorPane file={file("")} language={language} />
+    ));
     expect(empty.getByTestId("editor-surface").getAttribute("data-state")).toBe(
       "empty",
     );
@@ -38,9 +40,9 @@ describe("editor states", () => {
     const loaded = render(() => (
       <EditorPane file={file("const answer = 42;")} language={language} />
     ));
-    expect(loaded.getByTestId("editor-surface").getAttribute("data-state")).toBe(
-      "loaded",
-    );
+    expect(
+      loaded.getByTestId("editor-surface").getAttribute("data-state"),
+    ).toBe("loaded");
     loaded.unmount();
   });
 
@@ -90,9 +92,9 @@ describe("editor states", () => {
       />
     ));
     await waitFor(() =>
-      expect(view.getByTestId("editor-surface").getAttribute("data-state")).toBe(
-        "error",
-      ),
+      expect(
+        view.getByTestId("editor-surface").getAttribute("data-state"),
+      ).toBe("error"),
     );
 
     setSelectedFile({
@@ -100,9 +102,7 @@ describe("editor states", () => {
       uri: "file:///workspace/other.ts",
       path: "other.ts",
     });
-    await waitFor(() =>
-      expect(mocks.attachTauriLsp).toHaveBeenCalledTimes(2),
-    );
+    await waitFor(() => expect(mocks.attachTauriLsp).toHaveBeenCalledTimes(2));
     await waitFor(() =>
       expect(view.getByTestId("editor-surface").textContent).toContain(
         "const second = false;",
@@ -133,9 +133,9 @@ describe("editor states", () => {
     expect(view.getByTestId("editor-loading")).toBeTruthy();
 
     await waitFor(() =>
-      expect(view.getByTestId("editor-surface").getAttribute("data-state")).toBe(
-        "error",
-      ),
+      expect(
+        view.getByTestId("editor-surface").getAttribute("data-state"),
+      ).toBe("error"),
     );
     expect(view.getByTestId("inline-error-cause").textContent).toBe(
       "LSP unavailable",
