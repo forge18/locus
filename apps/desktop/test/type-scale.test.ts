@@ -28,6 +28,11 @@ describe('type-scale', () => {
     expect(mono.body).toContain('font-family: var(--fm)')
   })
 
+  it('keeps semantic emphasis at the vendored 500 weight', () => {
+    const emphasis = rules(type).find((r) => r.selector === 'strong, b')!
+    expect(emphasis.body).toContain('font-weight: 500')
+  })
+
   it('uses 500 as the only emphasis weight, bar the one named exception', () => {
     // .rail-badge is 700 by ruling in .specs/app-shell/spec.md: it is a 15px accent
     // pill with a numeral in it, not text. It is excised by name rather than by a

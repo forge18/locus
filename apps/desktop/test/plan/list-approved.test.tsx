@@ -8,14 +8,14 @@ const mount = () => render(() => <PlanView />)
 const approved = usePlans().filter((p) => p.state === 'approved')
 
 describe('plan/list-approved', () => {
-  it('dims the approved cards', () => {
+  it('uses muted semantic color for approved cards', () => {
     const { getByTestId } = mount()
     for (const plan of approved) {
       expect(getByTestId(`plan-card-${plan.id}`).className, plan.id).toContain('plan-card-approved')
     }
     expect(
       rules(read('screens/screens.css')).find((r) => r.selector === '.plan-card-approved')!.body,
-    ).toMatch(/opacity:\s*\.62/)
+    ).toContain('color: var(--text-muted)')
   })
 
   it('states what landed, in --ok', () => {

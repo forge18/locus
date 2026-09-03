@@ -266,7 +266,7 @@ export function UserCard(props: {
         <Show
           when={!editing()}
           fallback={
-            <textarea
+            <textarea class="input"
               aria-label="Edit user prompt"
               value={draft()}
               onInput={(event) => setDraft(event.currentTarget.value)}

@@ -574,7 +574,7 @@ export function MemoryLongTermFixture(props: { projectId?: string } = {}) {
               Edit recalled fact
             </Button>
             <Show when={editing()}>
-              <textarea
+              <textarea class="input"
                 data-testid="memory-recalled-fact-editor"
                 aria-label="Recalled fact correction"
                 value={correction()}
@@ -879,7 +879,7 @@ export function MemoryArtifactsFixture(props: { projectId?: string } = {}) {
           missing row and a test that deletes before the listener wakes.
         </div>
         <footer class="desktop-memory-comment-form">
-          <textarea placeholder="Comment on line 62…" />
+          <textarea class="input" placeholder="Comment on line 62…" />
           <Button variant="primary">Send to session</Button>
           <Button>Resolve</Button>
         </footer>

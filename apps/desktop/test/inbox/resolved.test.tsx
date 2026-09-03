@@ -27,11 +27,12 @@ describe("inbox/resolved", () => {
     );
   });
 
-  it("dims the rows to .6 — done is context, not work", () => {
+  it("uses muted semantic color — done is context, not work", () => {
     const rule = rules(read("screens/screens.css")).find(
       (r) => r.selector === ".inbox-resolved-row",
     )!;
-    expect(rule.body).toMatch(/opacity:\s*\.6/);
+    expect(rule.body).toContain("color: var(--text-muted)");
+    expect(rule.body).not.toMatch(/opacity:\s*\.6/);
   });
 
   it("shows the subject and the age on each row", async () => {

@@ -29,6 +29,11 @@
  --g-3: 6px;
  --g-4: 9px;
  --g-5: 14px;
+ --g-6: 16px;
+ --g-7: 18px;
+ --g-8: 20px;
+ --g-9: 24px;
+ --g-10: 32px;
 
  --sh-node: 0 8px 22px rgba(0, 0, 0, 0.45);
  --sh-node-lift: 0 10px 26px rgba(0, 0, 0, 0.5);
@@ -119,7 +124,8 @@
  --surface-chrome: #e8eef3;
  --surface-raised: #ffffff;
  --surface-selected: #e3edf5;
- --surface-elevated: #d8e2ee;
+ /* Elevated light surfaces stay pale enough for attention and muted text to clear AA. */
+ --surface-elevated: #e6eef6;
  --scrim: rgb(22 33 43);
  --avatar-ground: #c6dced;
  --avatar-ground-lit: #a9c9e3;
@@ -166,7 +172,8 @@
  --action-attention-ring-soft: color-mix(in srgb, var(--action-attention) 50%, transparent);
  --action-attention-wash: color-mix(in srgb, var(--action-attention) 16%, transparent);
  --action-attention-deep: color-mix(in srgb, var(--action-attention) 38%, #ffffff);
- --action-attention-pale: color-mix(in srgb, var(--action-attention) 14%, #ffffff);
+ /* Dark ink keeps text readable on the light attention wash. */
+ --action-attention-pale: #16212b;
  --action-attention-ink: var(--surface-ground);
  --ac-ring: var(--action-attention-ring);
  --ac-ring-soft: var(--action-attention-ring-soft);

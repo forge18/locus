@@ -17,7 +17,9 @@ describe('design/desktop-accent-roles', () => {
   })
 
   it('uses the data ramp rather than attention for magnitude bars', () => {
-    expect(rule('.sparkline-bar')?.body).toContain('background: var(--data-2)')
+    expect(rule('.sparkline-bar')?.body).toContain(
+      'background: color-mix(in srgb, var(--data-2) 85%, var(--surface-raised))',
+    )
     expect(rule('.bar-fill')?.body).toContain('background: var(--data-3)')
 
     for (const selector of ['.sparkline-bar', '.bar-fill']) {

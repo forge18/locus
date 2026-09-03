@@ -14,10 +14,12 @@ describe('telemetry/sparkline', () => {
     expect(useSparkline().length).toBe(16)
   })
 
-  it('draws them with the data ramp at 85% opacity', () => {
+  it('draws them with a muted data-ramp color', () => {
     const body = rule('.sparkline-bar').body
-    expect(body).toContain('background: var(--data-2)')
-    expect(body).toMatch(/opacity:\s*\.85/)
+    expect(body).toContain(
+      'background: color-mix(in srgb, var(--data-2) 85%, var(--surface-raised))',
+    )
+    expect(body).not.toMatch(/opacity:\s*\.85/)
   })
 
   it('sizes each bar from the data', () => {

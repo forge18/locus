@@ -91,7 +91,7 @@ function StagePanel(props: {
                         </p>
                         <label>
                               Goal
-                              <textarea
+                              <textarea class="input"
                                     data-testid="plan-goal"
                                     value={props.goal}
                                     placeholder="Describe the outcome this plan should produce"
@@ -112,7 +112,7 @@ function StagePanel(props: {
                                           </span>
                                     }
                               >
-                                    <select
+                                    <select class="input"
                                           data-testid="plan-project"
                                           value="tapestry"
                                     >

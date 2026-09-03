@@ -109,6 +109,7 @@
 
 /* ----------------------------------------------------------------- Input --- */
 .input {
+  box-sizing: border-box;
   width: 100%;
   padding: 5px var(--g-4);
   border: 1px solid var(--border-subtle);
@@ -123,6 +124,13 @@
 .input:hover { border-color: var(--border-strong); }
 .input:focus-visible { border-color: var(--action-attention); outline-offset: 0; }
 textarea.input { min-height: 64px; resize: vertical; line-height: 1.5; }
+
+/* Keep native affordances, but make their accent and inherited typography stable. */
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--action-attention);
+  font: inherit;
+}
 
 /* ------------------------------------------------------------- Segmented --- */
 .seg {

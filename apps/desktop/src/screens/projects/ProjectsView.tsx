@@ -594,7 +594,7 @@ export function ProjectsView(props: ProjectsViewProps = {}) {
                         <strong>{name}</strong>
                         <small>{count}</small>
                         <button
-                          class="toggle"
+                          class="project-toggle"
                           aria-label={`Enable ${name}`}
                           data-on={enabledExtensions().has(name)}
                           onClick={() => toggleExtension(name)}

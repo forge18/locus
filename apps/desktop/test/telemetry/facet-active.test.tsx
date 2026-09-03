@@ -19,16 +19,16 @@ describe("telemetry/facet-active", () => {
     ).toBe("false");
   });
 
-  it("gives it the accent tint and an accent inset ring", () => {
+  it("uses a contrasting accent fill and an inset ring", () => {
     const body = rule('.facet[aria-pressed="true"]').body;
-    expect(body).toContain("background: var(--action-attention-wash)");
+    expect(body).toContain("background: var(--action-attention)");
     expect(body).toContain("box-shadow: var(--ring-sel-soft)");
-    expect(body).toContain("color: var(--action-attention)");
+    expect(body).toContain("color: var(--action-attention-ink)");
   });
 
-  it("accents its count too", () => {
+  it("uses contrasting ink for its count too", () => {
     expect(rule('.facet[aria-pressed="true"] .facet-count').body).toContain(
-      "color: var(--action-attention)",
+      "color: var(--action-attention-ink)",
     );
   });
 

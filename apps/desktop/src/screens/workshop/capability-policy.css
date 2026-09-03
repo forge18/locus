@@ -1,5 +1,5 @@
-.capability-policy-panel { display: flex; flex-direction: column; gap: 14px; margin-top: 18px; padding: 16px; border: 1px solid var(--border-subtle); border-radius: var(--r-card); background: var(--surface-raised); }
-.capability-policy-panel header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.capability-policy-panel { display: flex; flex-direction: column; gap: 14px; margin-top: var(--g-7); padding: var(--g-6); border: 1px solid var(--border-subtle); border-radius: var(--r-card); background: var(--surface-raised); }
+.capability-policy-panel header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--g-8); }
 .capability-policy-panel h2 { margin: 0; color: var(--text-primary); font-size: var(--t-row); font-weight: 500; }
 .capability-policy-panel p { margin: 5px 0 0; color: var(--text-muted); font-size: var(--t-meta); }
 .capability-policy-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }

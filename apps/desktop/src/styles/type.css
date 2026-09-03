@@ -20,6 +20,7 @@ html, body {
 
 /* Emphasis. The only step up from 400 anywhere in the app. */
 .em { font-weight: 500; }
+strong, b { font-weight: 500; }
 
 /* 9-10px uppercase section labels, .11-.12em tracking */
 .t-section {

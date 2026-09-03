@@ -15,12 +15,12 @@ describe('telemetry/branch-invariant', () => {
     expect(chip.querySelector('.facet-count')!.textContent).toBe('0')
   })
 
-  it('dims it, because the zero is by design rather than by chance', () => {
+  it('uses muted semantic color because the zero is by design', () => {
     const { getByTestId } = mount()
     expect(getByTestId('facet-branch-main').className).toContain('facet-invariant')
-    expect(
-      rules(read('screens/screens.css')).find((r) => r.selector === '.facet-invariant')!.body,
-    ).toMatch(/opacity:\s*\.5/)
+    const body = rules(read('screens/screens.css')).find((r) => r.selector === '.facet-invariant')!.body
+    expect(body).toContain('color: var(--text-muted)')
+    expect(body).toContain('background: var(--surface-ground)')
   })
 
   it('shows every other branch under agent/*', () => {

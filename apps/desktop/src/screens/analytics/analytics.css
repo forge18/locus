@@ -1,4 +1,4 @@
-.analytics-view { display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: auto; padding: 15px 18px; gap: var(--g-4); }
+.analytics-view { display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: auto; padding: 15px var(--g-7); gap: var(--g-4); }
 .analytics-header, .analytics-range { display: flex; align-items: center; gap: var(--g-5); }
 .analytics-header > div { flex: 1; }
 .analytics-header h1 { margin: 0; font-size: var(--t-lead); font-weight: 500; }
