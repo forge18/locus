@@ -451,9 +451,7 @@ function LiveWorkflowList(props: { projectId?: string }) {
               <button
                 type="button"
                 data-testid={`workflow-definition-${definition.id}`}
-                aria-pressed={
-                  selectedId() === definition.id ? "true" : "false"
-                }
+                aria-pressed={selectedId() === definition.id ? "true" : "false"}
                 onClick={() => setSelectedId(definition.id)}
               >
                 <strong>{definition.name}</strong>

@@ -345,7 +345,8 @@ function FieldControl(props: {
             ]),
         );
         return (
-            <select class="input"
+            <select
+                class="input"
                 aria-label={props.name}
                 data-testid={`frontmatter-control-${props.name}`}
                 value={props.value}
@@ -379,11 +380,21 @@ function Frontmatter(props: {
                 <h2>Frontmatter</h2>
                 <span>kind inferred from field name</span>
             </header>
-            <div class="frontmatter-grid" role="table" aria-label="Frontmatter fields">
+            <div
+                class="frontmatter-grid"
+                role="table"
+                aria-label="Frontmatter fields"
+            >
                 <div class="frontmatter-header-row" role="row">
-                    <div class="frontmatter-column-label" role="columnheader">Key</div>
-                    <div class="frontmatter-column-label" role="columnheader">Value</div>
-                    <div class="frontmatter-column-label" role="columnheader">Kind</div>
+                    <div class="frontmatter-column-label" role="columnheader">
+                        Key
+                    </div>
+                    <div class="frontmatter-column-label" role="columnheader">
+                        Value
+                    </div>
+                    <div class="frontmatter-column-label" role="columnheader">
+                        Kind
+                    </div>
                 </div>
                 <For each={FIELDS[props.type]}>
                     {([name, value]) => (
@@ -392,12 +403,16 @@ function Frontmatter(props: {
                             role="row"
                             data-testid={`frontmatter-field-${name}`}
                         >
-                            <div role="cell"><code>{name}</code></div>
+                            <div role="cell">
+                                <code>{name}</code>
+                            </div>
                             <div role="cell">
                                 <FieldControl
                                     name={name}
                                     value={props.values[name] ?? value}
-                                    onChange={(next) => props.onChange(name, next)}
+                                    onChange={(next) =>
+                                        props.onChange(name, next)
+                                    }
                                 />
                             </div>
                             <div role="cell">
@@ -478,7 +493,8 @@ function HarnessDetails(props: { onAddConfigKey: () => void }) {
                                     <span>
                                         {index() === 4 ? "—" : "sonnet"}
                                     </span>
-                                    <select class="input"
+                                    <select
+                                        class="input"
                                         aria-label={`${band} effort`}
                                         value={routingEfforts()[index()]}
                                         onChange={(event) =>
@@ -950,7 +966,8 @@ function LiveExtensionEditor(props: { type: ExtensionEditorType }) {
                                 <h2>Rendered file body</h2>
                                 <Tag variant="neutral">markdown</Tag>
                             </header>
-                            <textarea class="input"
+                            <textarea
+                                class="input"
                                 value={current().body}
                                 aria-label="Extension body"
                                 data-testid="extension-body-input"
