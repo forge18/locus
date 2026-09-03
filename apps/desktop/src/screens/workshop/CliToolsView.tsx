@@ -71,12 +71,7 @@ export function CliToolsView() {
   const upload = async () => {
     const manifest = manifestFile();
     const binary = binaryFile();
-    if (
-      !manifest ||
-      !binary ||
-      !manifestSignature() ||
-      !binarySignature()
-    ) {
+    if (!manifest || !binary || !manifestSignature() || !binarySignature()) {
       setError("Manifest, binary, and both Minisign signatures are required.");
       return;
     }

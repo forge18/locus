@@ -129,7 +129,7 @@ function TaskDraft(props: {
       >
         <label>
           Workflow
-          <select
+          <select class="input"
             data-testid="manage-task-workflow"
             value={workflowDefId()}
             onChange={(event) => setWorkflowDefId(event.currentTarget.value)}
@@ -339,7 +339,7 @@ function TaskImport(props: {
             </article>
             <label>
               Workflow
-              <select
+              <select class="input"
                 aria-label="Import workflow"
                 data-testid="automate-import-workflow"
                 value={workflowDefId()}

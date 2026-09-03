@@ -345,7 +345,7 @@ function FieldControl(props: {
             ]),
         );
         return (
-            <select
+            <select class="input"
                 aria-label={props.name}
                 data-testid={`frontmatter-control-${props.name}`}
                 value={props.value}
@@ -471,7 +471,7 @@ function HarnessDetails(props: { onAddConfigKey: () => void }) {
                                     <span>
                                         {index() === 4 ? "—" : "sonnet"}
                                     </span>
-                                    <select
+                                    <select class="input"
                                         aria-label={`${band} effort`}
                                         value={routingEfforts()[index()]}
                                         onChange={(event) =>
@@ -943,7 +943,7 @@ function LiveExtensionEditor(props: { type: ExtensionEditorType }) {
                                 <h2>Rendered file body</h2>
                                 <Tag variant="neutral">markdown</Tag>
                             </header>
-                            <textarea
+                            <textarea class="input"
                                 value={current().body}
                                 aria-label="Extension body"
                                 data-testid="extension-body-input"

@@ -1,4 +1,4 @@
-.qa-view { display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: auto; padding: 15px 18px; gap: var(--g-5); }
+.qa-view { display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: auto; padding: 15px var(--g-7); gap: var(--g-5); }
 .qa-header { display: flex; align-items: center; gap: var(--g-5); padding-bottom: 2px; }
 .qa-header > div { flex: 1; min-width: 0; }
 .qa-header h1 { margin: 0; font-size: var(--t-lead); font-weight: 500; }

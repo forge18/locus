@@ -84,7 +84,7 @@ export function AgentHeader(props: {
       <div class="agent-pane-selectors" aria-label="Session configuration">
         <label>
           <span class="sr-only">Harness</span>
-          <select
+          <select class="input"
             aria-label="Harness"
             value={props.session.harness}
             onChange={(event) =>
@@ -103,7 +103,7 @@ export function AgentHeader(props: {
         </label>
         <label>
           <span class="sr-only">Model</span>
-          <select
+          <select class="input"
             aria-label="Model"
             value={props.session.model}
             onChange={(event) =>
@@ -119,7 +119,7 @@ export function AgentHeader(props: {
         </label>
         <label>
           <span class="sr-only">Effort</span>
-          <select
+          <select class="input"
             aria-label="Effort"
             value={props.session.effort}
             onChange={(event) =>
@@ -340,7 +340,7 @@ export function ElicitationCard(props: {
                     {field.label}
                     <Switch>
                       <Match when={field.type === "enum"}>
-                        <select
+                        <select class="input"
                           aria-label={field.label}
                           value={values()[field.id]}
                           onChange={(event) =>
@@ -576,7 +576,7 @@ export function Composer(props: {
         </div>
       </Show>
       <div class="agent-composer-row">
-        <textarea
+        <textarea class="input"
           aria-label="Message agent"
           aria-controls="agent-composer-suggestions"
           placeholder="Message this session…"

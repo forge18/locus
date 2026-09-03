@@ -173,24 +173,24 @@ The accepted contract is implemented in dependency order.
 
 ## 8 — Styling
 
-- [ ] **Stop synthesizing bold** — only Inter/JetBrains 400 and 500 are vendored; `font-weight:700`
-  at [shell.css:351](apps/desktop/src/shell/shell.css#L351) and eleven `strong` selectors
-  ([screens.css:323,3566,3623,3713,3958,4009](apps/desktop/src/screens/screens.css#L323),
-  [dispatch.css:33,69,74](apps/desktop/src/screens/dispatch/dispatch.css#L33), [bots.css:137](apps/desktop/src/screens/bots/bots.css#L137))
-  fake it. [type.css:22](apps/desktop/src/styles/type.css#L22): 500 is the only emphasis weight.
-- [ ] **Reset native selects, textareas, checkboxes** — no `appearance:none` anywhere; eight `<select>`
-  keep OS chrome, three carry no class; two raw `<textarea>` skip the primitive; no
-  `accent-color` on 12 checkbox/radio sites.
-- [ ] **Resolve duplicate global class definitions** — `.toggle` in screens.css vs projects.css;
-  `.materialization-figures` flex vs grid. Which wins depends on import order.
-- [ ] **Extend the spacing scale** — `--g-1..--g-5` stops at 14px vs the mockup's 32px; ~180 magic
-  values ≥16px. Do after the epic's screen slices so migrated screens don't re-add literals.
-- [ ] **Delete dead theme scaffolding and alias tokens** — `THEME_REGISTRY`/`registerThemes`
-  duplicate 18 hex values with no caller; 26 alias tokens referenced nowhere; `--data-blue`/
-  `--text-link` used only as fallback-bearing names.
-- [ ] **Fix the theme-system contrast gate** — `check-contrast.sh` exits 1 with 246 "below AA" lines
-  (`.tag` at 1.44:1; buttons and much of screens.css at 3.4–4.5:1).
-  [theme-system](.specs/theme-system/spec.md) acceptance 5 was closed with its own gate red.
+- [x] **Stop synthesizing bold** — the shared type layer pins semantic `strong`/`b` emphasis to
+  vendored weight 500; `check-no-bold.sh` permits only the documented compact `.rail-badge` pill at
+  weight 700.
+- [x] **Reset native selects, textareas, checkboxes** — all native selects and textareas use the
+  shared `.input` control styling without suppressing OS affordances; checkbox/radio accents and
+  inherited typography come from one semantic rule.
+- [x] **Resolve duplicate global class definitions** — project extension toggles use
+  `.project-toggle`, and the legacy Extensions screen uses `.extensions-materialization-figures`; the
+  remaining `.toggle` and `.materialization-figures` selectors each have one owner.
+- [x] **Extend the spacing scale** — `--g-6..--g-10` now cover 16–32px, and recurring large
+  spacing literals across screen and component styles use the shared scale.
+- [x] **Delete dead theme scaffolding and alias tokens** — removed the unused literal
+  `THEME_REGISTRY`, while retaining `registerThemes` as the theme-registration contract test uses;
+  replaced the `--data-blue`/`--text-link` fallback names with semantic roles. Compatibility aliases
+  remain only in `tokens.css` because the theme-system contract requires them during migration.
+- [x] **Fix the theme-system contrast gate** — raised the light elevated surface and corrected
+  attention badge ink/background pairings, replaced opacity-based text dimming with semantic colors,
+  and updated token verification; `check-contrast.sh` now reports 1,915 pairings at or above 4.5:1.
 
 ## 9 — Accessibility
 

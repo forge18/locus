@@ -30,7 +30,7 @@ describe("harnesses/mechanism-badges", () => {
     const acp = useHarnesses()[0]!;
     expect(getByTestId(`hn-badge-${acp.name}`).textContent).toBe("ACP");
     expect(rule(".hn-badge-acp").body).toContain(
-      "background: color-mix(in srgb, var(--code-keyword) 18%, transparent)",
+      "background: var(--surface-elevated)",
     );
     expect(rule(".hn-badge-acp").body).toContain("color: var(--code-keyword)");
   });

@@ -9,11 +9,7 @@ const rule = (sel: string) =>
   rules(read("screens/screens.css")).find((r) => r.selector === sel);
 const mount = (item = gate) =>
   render(() => (
-    <InboxDetail
-      item={item}
-      onApprove={() => {}}
-      onSendBack={() => {}}
-    />
+    <InboxDetail item={item} onApprove={() => {}} onSendBack={() => {}} />
   ));
 
 import { configureProjectsStub } from "../projects/provider-stub";
@@ -24,10 +20,10 @@ describe("inbox/detail-header", () => {
     const { getByTestId } = mount();
     expect(getByTestId("inbox-detail-kind").textContent).toContain("Agent");
     expect(rule(".inbox-detail-kind")!.body).toContain(
-      "color: var(--action-attention)",
+      "color: var(--action-attention-ink)",
     );
     expect(rule(".inbox-detail-kind")!.body).toContain(
-      "background: var(--action-attention-wash)",
+      "background: var(--action-attention)",
     );
   });
 

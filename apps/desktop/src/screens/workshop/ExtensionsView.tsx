@@ -146,7 +146,7 @@ export function ExtensionsView(props: ExtensionsViewProps) {
         >
           {DETERMINISM_NOTE}
         </span>
-        <div class="materialization-figures">
+        <div class="extensions-materialization-figures">
           <div
             class="materialization-figure"
             data-testid="materialization-entries"

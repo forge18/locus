@@ -66,7 +66,9 @@ function canonicalCss(value: string): string {
       /\b(rgba?)\(([^)]*)\)/g,
       (_, fn: string, body: string) => `${fn}(${body.replace(/,\s*/g, ",")})`,
     )
-    .replace(/(^|[^\d])0+\.(\d+)/g, "$1.$2");
+    .replace(/(^|[^\d])0+\.(\d+)/g, "$1.$2")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 /** Flat list of `selector { body }` pairs. Good enough for a hand-written stylesheet. */

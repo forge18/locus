@@ -4,7 +4,7 @@
 .dispatch-header { flex: none; display: flex; align-items: center; gap: var(--g-4); padding: var(--g-4) 15px; border-bottom: 1px solid var(--border-subtle); }
 .dispatch-header-note { font-size: var(--t-meta); color: var(--text-muted); }
 .dispatch-header .btn:first-of-type { margin-left: auto; }
-.dispatch-scroll { flex: 1; min-height: 0; overflow: auto; padding: 16px 18px; }
+.dispatch-scroll { flex: 1; min-height: 0; overflow: auto; padding: var(--g-6) var(--g-7); }
 .dispatch-section h1, .schedule-intro h1 { margin: 0; font-size: var(--t-lead); font-weight: 500; }
 .dispatch-section > p, .schedule-intro > p { max-width: 760px; margin: var(--g-3) 0 0; color: var(--text-secondary); font-size: var(--t-body); line-height: 1.55; }
 .autorun-projects { display: flex; flex-direction: column; gap: var(--g-3); margin-top: 12px; }
@@ -19,7 +19,7 @@
 .dispatch-switch[data-on='true'] { box-shadow: inset 0 0 0 1px var(--status-working); background: color-mix(in srgb, var(--status-working) 28%, var(--surface-elevated)); }
 .dispatch-switch[data-on='true'] span { transform: translateX(12px); background: var(--status-working); }
 .dispatch-switch:disabled { cursor: not-allowed; opacity: .55; }
-.dispatch-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr); gap: var(--g-5); margin-top: 16px; }
+.dispatch-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr); gap: var(--g-5); margin-top: var(--g-6); }
 .dispatch-card { padding: 15px 17px; border: 1px solid var(--border-subtle); border-radius: var(--r-card); background: var(--surface-raised); }
 .dispatch-card h2, .schedule-executions h2 { margin: 0; font-size: var(--t-label); letter-spacing: .13em; text-transform: uppercase; color: var(--text-secondary); }
 .dispatch-card p, .dispatch-card li { font-size: var(--t-meta); line-height: 1.55; color: var(--text-secondary); }
@@ -29,18 +29,18 @@
 .dispatch-slots { display: flex; gap: 5px; margin-top: 11px; }
 .dispatch-slots i { flex: 1; height: 9px; border-radius: 4px; background: var(--data-1); }
 .dispatch-slots i:nth-child(-n + 3) { background: var(--data-3); }
-.dispatch-stopped { display: flex; align-items: center; gap: var(--g-4); padding: 11px 18px; border-bottom: 1px solid var(--status-danger); background: color-mix(in srgb, var(--status-danger) 14%, var(--surface-ground)); font-size: var(--t-meta); color: var(--text-secondary); }
+.dispatch-stopped { display: flex; align-items: center; gap: var(--g-4); padding: 11px var(--g-7); border-bottom: 1px solid var(--status-danger); background: color-mix(in srgb, var(--status-danger) 14%, var(--surface-ground)); font-size: var(--t-meta); color: var(--text-secondary); }
 .dispatch-stopped strong { color: var(--text-primary); }
 .dispatch-stopped .btn { margin-left: auto; }
 /* Stop-everything is a blocking modal: modal tier (80) on the ui.css ladder, so
    the confirmation sits above toasts and popups until it is answered. */
-.dispatch-dialog-backdrop { position: absolute; inset: 0; z-index: 80; display: grid; place-items: center; padding: 24px; background: color-mix(in srgb, var(--scrim) 62%, transparent); }
+.dispatch-dialog-backdrop { position: absolute; inset: 0; z-index: 80; display: grid; place-items: center; padding: var(--g-9); background: color-mix(in srgb, var(--scrim) 62%, transparent); }
 .dispatch-dialog { width: min(520px, 100%); border: 1px solid var(--status-danger); border-radius: var(--r-win); background: var(--surface-raised); box-shadow: var(--sh-window); overflow: hidden; }
-.dispatch-dialog h2 { margin: 0; padding: 15px 18px 13px; border-bottom: 1px solid var(--border-subtle); font-size: var(--t-title); font-weight: 500; }
-.dispatch-dialog > p, .dispatch-dialog > ul, .dispatch-handoff { margin: 15px 18px; color: var(--text-secondary); font-size: var(--t-body); line-height: 1.55; }
-.dispatch-dialog > ul { display: flex; flex-direction: column; gap: var(--g-3); padding-left: 18px; }
+.dispatch-dialog h2 { margin: 0; padding: 15px var(--g-7) 13px; border-bottom: 1px solid var(--border-subtle); font-size: var(--t-title); font-weight: 500; }
+.dispatch-dialog > p, .dispatch-dialog > ul, .dispatch-handoff { margin: 15px var(--g-7); color: var(--text-secondary); font-size: var(--t-body); line-height: 1.55; }
+.dispatch-dialog > ul { display: flex; flex-direction: column; gap: var(--g-3); padding-left: var(--g-7); }
 .dispatch-handoff { display: block; padding: 11px 12px; border: 1px solid var(--border-subtle); border-radius: var(--r-card); background: var(--surface-selected); color: var(--text-primary); }
-.dispatch-dialog footer { display: flex; align-items: center; gap: var(--g-3); padding: 13px 18px; border-top: 1px solid var(--border-subtle); background: var(--surface-chrome); }
+.dispatch-dialog footer { display: flex; align-items: center; gap: var(--g-3); padding: 13px var(--g-7); border-top: 1px solid var(--border-subtle); background: var(--surface-chrome); }
 .dispatch-dialog footer span { margin-right: auto; font-size: var(--t-meta); color: var(--text-muted); }
 .schedule-create { display: flex; align-items: center; gap: var(--g-4); flex-wrap: wrap; margin-top: 14px; padding: 12px 13px; border: 1px solid var(--border-subtle); border-radius: var(--r-card); background: var(--surface-chrome); }
 .schedule-create strong { padding: 5px 10px; border: 1px solid var(--status-working); border-radius: var(--r-sm); font-family: var(--fm); font-size: var(--t-body); color: var(--text-primary); }
@@ -49,7 +49,7 @@
 .schedule-warning { display: flex; flex-direction: column; gap: var(--g-2); margin: 14px 0; padding: 13px 15px; border: 1px solid var(--action-attention); border-radius: var(--r-card); background: var(--surface-selected); font-size: var(--t-body); }
 .schedule-warning span { color: var(--text-secondary); font-size: var(--t-meta); }
 .schedule-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-.schedule-card { display: flex; flex-direction: column; gap: var(--g-3); padding: 14px 16px; border: 1px solid var(--border-subtle); border-radius: var(--r-lg); background: var(--surface-raised); }
+.schedule-card { display: flex; flex-direction: column; gap: var(--g-3); padding: 14px var(--g-6); border: 1px solid var(--border-subtle); border-radius: var(--r-lg); background: var(--surface-raised); }
 .schedule-card header, .schedule-card footer { display: flex; align-items: center; gap: var(--g-3); font-size: var(--t-meta); }
 .schedule-card header i { width: 7px; height: 7px; border-radius: 50%; background: var(--text-muted); }
 .schedule-card header i[data-live='true'] { background: var(--status-working); }
@@ -59,7 +59,7 @@
 .schedule-card footer { margin-top: auto; justify-content: space-between; color: var(--text-muted); }
 .schedule-last-passed { color: var(--status-success); }
 .schedule-last-skipped, .schedule-last-paused { color: var(--text-muted); }
-.schedule-executions { margin-top: 16px; padding: 13px; border: 1px solid var(--border-subtle); border-radius: var(--r-card); background: var(--surface-raised); overflow: auto; }
+.schedule-executions { margin-top: var(--g-6); padding: 13px; border: 1px solid var(--border-subtle); border-radius: var(--r-card); background: var(--surface-raised); overflow: auto; }
 .schedule-executions > header { display: flex; gap: var(--g-4); align-items: baseline; margin-bottom: var(--g-4); }
 .schedule-executions > header span { font-size: var(--t-label); color: var(--text-muted); }
 .schedule-executions table, .dispatch-runs-table table { width: 100%; border-collapse: collapse; font-size: var(--t-meta); }
@@ -82,7 +82,7 @@
 .dispatch-card li { display: flex; flex-direction: column; gap: 2px; }
 .dispatch-card li strong { color: var(--text-primary); font-weight: 500; }
 .dispatch-card li span { color: var(--text-muted); }
-.dispatch-handoff-note { margin: -6px 18px 15px !important; color: var(--text-muted) !important; font-size: var(--t-meta) !important; }
+.dispatch-handoff-note { margin: -6px var(--g-7) 15px !important; color: var(--text-muted) !important; font-size: var(--t-meta) !important; }
 .schedule-builder { display: flex; flex-direction: column; gap: var(--g-4); margin: 15px 0; padding: 14px 15px; border: 1px solid var(--border-subtle); border-radius: var(--r-card); background: var(--surface-raised); }
 .schedule-builder h2 { margin: 0; font-size: var(--t-label); text-transform: uppercase; letter-spacing: .12em; color: var(--text-secondary); }
 .schedule-builder fieldset { display: flex; align-items: center; flex-wrap: wrap; gap: var(--g-3); margin: 0; padding: 0; border: 0; font-size: var(--t-meta); color: var(--text-secondary); }

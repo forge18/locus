@@ -44,7 +44,7 @@ describe('ui/segmented', () => {
   it('draws the active segment in accent — line and text, no fill', () => {
     const css = read('ui/ui.css')
     const rule = rules(css).find(
-      (r) => r.selector === '.seg-opt[data-selected],\n.seg-opt[data-checked]',
+      (r) => r.selector === '.seg-opt[data-selected], .seg-opt[data-checked]',
     )!
     expect(rule.body).toContain('color: var(--action-attention)')
     expect(rule.body).toContain('box-shadow: var(--ring-sel-soft)')

@@ -7,496 +7,496 @@
    rather than constants that overflow. */
 
 .window {
-  width: 100%;
-  height: 100%;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: var(--surface-ground);
-  font-size: var(--t-lead);
+ width: 100%;
+ height: 100%;
+ min-width: 0;
+ display: flex;
+ flex-direction: column;
+ overflow: hidden;
+ background: var(--surface-ground);
+ font-size: var(--t-lead);
 }
 
 /* ------------------------------------------------------------- Title bar --- */
 .titlebar {
-  height: 42px;
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: var(--g-5);
-  padding: 0 12px;
-  background: var(--surface-chrome);
-  border-bottom: 1px solid var(--border-subtle);
+ height: 42px;
+ flex: none;
+ display: flex;
+ align-items: center;
+ gap: var(--g-5);
+ padding: 0 12px;
+ background: var(--surface-chrome);
+ border-bottom: 1px solid var(--border-subtle);
 }
 
 .traffic {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+ display: flex;
+ align-items: center;
+ gap: 8px;
 }
 /* The traffic lights are real window controls — the custom title bar owns the
    chrome now that native decorations are off. A UA button reset, then the dot. */
 .traffic button {
-  appearance: none;
-  width: 11px;
-  height: 11px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  cursor: default;
+ appearance: none;
+ width: 11px;
+ height: 11px;
+ padding: 0;
+ border: 0;
+ border-radius: 50%;
+ cursor: default;
 }
 .traffic button:hover {
-  box-shadow: 0 0 0 3px var(--surface-selected);
+ box-shadow: 0 0 0 3px var(--surface-selected);
 }
 .traffic-close {
-  background: var(--tl-close);
+ background: var(--tl-close);
 }
 .traffic-min {
-  background: var(--tl-min);
+ background: var(--tl-min);
 }
 .traffic-max {
-  background: var(--tl-max);
+ background: var(--tl-max);
 }
 
 .wordmark {
-  margin-left: var(--g-3);
-  font-size: var(--t-row);
-  font-weight: 500;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--text-secondary);
+ margin-left: var(--g-3);
+ font-size: var(--t-row);
+ font-weight: 500;
+ letter-spacing: 0.14em;
+ text-transform: uppercase;
+ color: var(--text-secondary);
 }
 
 .title-context {
-  display: flex;
-  gap: var(--g-3);
-  font-size: var(--t-body);
-  color: var(--text-secondary);
+ display: flex;
+ gap: var(--g-3);
+ font-size: var(--t-body);
+ color: var(--text-secondary);
 }
 .title-context span + span {
-  color: var(--text-muted);
+ color: var(--text-muted);
 }
 
 .locator-bar {
-  width: clamp(240px, 40vw, 520px);
-  height: 26px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 var(--g-4);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--r-md);
-  background: var(--surface-raised);
+ width: clamp(240px, 40vw, 520px);
+ height: 26px;
+ display: flex;
+ align-items: center;
+ gap: 8px;
+ padding: 0 var(--g-4);
+ border: 1px solid var(--border-subtle);
+ border-radius: var(--r-md);
+ background: var(--surface-raised);
 }
 .locator-scheme {
-  font-family: var(--fm);
-  font-size: var(--t-body);
-  color: var(--text-muted);
+ font-family: var(--fm);
+ font-size: var(--t-body);
+ color: var(--text-muted);
 }
 .locator-path {
-  font-family: var(--fm);
-  font-size: var(--t-body);
-  color: var(--text-secondary);
+ font-family: var(--fm);
+ font-size: var(--t-body);
+ color: var(--text-secondary);
 }
 .locator-key {
-  margin-left: auto;
-  padding: 1px 5px;
-  border: 1px solid var(--border-strong);
-  border-radius: 4px;
-  font-family: var(--fm);
-  font-size: var(--t-meta);
-  color: var(--text-muted);
+ margin-left: auto;
+ padding: 1px 5px;
+ border: 1px solid var(--border-strong);
+ border-radius: 4px;
+ font-family: var(--fm);
+ font-size: var(--t-meta);
+ color: var(--text-muted);
 }
 
 .project-filter {
-  display: flex;
-  align-items: center;
-  gap: var(--g-3);
-  padding: 3px 8px;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--r-md);
-  background: var(--surface-raised);
-  font-family: inherit;
-  font-size: var(--t-body);
-  color: var(--text-primary);
-  cursor: default;
+ display: flex;
+ align-items: center;
+ gap: var(--g-3);
+ padding: 3px 8px;
+ border: 1px solid var(--border-subtle);
+ border-radius: var(--r-md);
+ background: var(--surface-raised);
+ font-family: inherit;
+ font-size: var(--t-body);
+ color: var(--text-primary);
+ cursor: default;
 }
 .project-filter-count {
-  font-size: var(--t-meta);
-  color: var(--text-muted);
+ font-size: var(--t-meta);
+ color: var(--text-muted);
 }
 
 .running-pill-wrap {
-  position: relative;
+ position: relative;
 }
 .running-count {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: var(--t-body);
-  color: var(--text-secondary);
+ display: flex;
+ align-items: center;
+ gap: 5px;
+ font-size: var(--t-body);
+ color: var(--text-secondary);
 }
 .live-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--status-working);
+ width: 6px;
+ height: 6px;
+ border-radius: 50%;
+ background: var(--status-working);
 }
 .running-popover,
 .activity-popover {
-  position: absolute;
-  top: calc(100% + var(--g-2));
-  right: 0;
-  z-index: 5;
-  min-width: 300px;
-  padding: var(--g-3);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-md);
-  background: var(--surface-selected);
-  box-shadow: 0 8px 24px color-mix(in srgb, var(--scrim) 25%, transparent);
+ position: absolute;
+ top: calc(100% + var(--g-2));
+ right: 0;
+ z-index: 5;
+ min-width: 300px;
+ padding: var(--g-3);
+ border: 1px solid var(--border-strong);
+ border-radius: var(--r-md);
+ background: var(--surface-selected);
+ box-shadow: 0 8px 24px color-mix(in srgb, var(--scrim) 25%, transparent);
 }
 .title-pill-wrap {
-  position: relative;
+ position: relative;
 }
 .title-pill {
-  display: flex;
-  align-items: center;
-  gap: var(--g-2);
-  padding: 4px 8px;
-  border: 1px solid var(--border-subtle);
-  border-radius: 999px;
-  background: var(--surface-raised);
-  color: var(--text-secondary);
-  font: inherit;
+ display: flex;
+ align-items: center;
+ gap: var(--g-2);
+ padding: 4px 8px;
+ border: 1px solid var(--border-subtle);
+ border-radius: 999px;
+ background: var(--surface-raised);
+ color: var(--text-secondary);
+ font: inherit;
 }
 .title-pill-badge {
-  min-width: 16px;
-  padding: 0 4px;
-  border-radius: 999px;
-  background: var(--action-attention);
-  color: var(--action-attention-ink);
-  text-align: center;
+ min-width: 16px;
+ padding: 0 4px;
+ border-radius: 999px;
+ background: var(--action-attention);
+ color: var(--action-attention-ink);
+ text-align: center;
 }
 .activity-tabs {
-  display: flex;
-  gap: var(--g-2);
+ display: flex;
+ gap: var(--g-2);
 }
 .activity-popover p {
-  color: var(--text-secondary);
-  font-size: var(--t-body);
+ color: var(--text-secondary);
+ font-size: var(--t-body);
 }
 .activity-popover ul {
-  display: grid;
-  gap: var(--g-2);
-  margin: var(--g-3) 0 0;
-  padding: 0;
-  list-style: none;
+ display: grid;
+ gap: var(--g-2);
+ margin: var(--g-3) 0 0;
+ padding: 0;
+ list-style: none;
 }
 .activity-popover li {
-  display: grid;
-  grid-template-columns: 16px minmax(0, 1fr) auto;
-  gap: var(--g-2);
-  align-items: center;
-  color: var(--text-secondary);
-  font-size: var(--t-meta);
+ display: grid;
+ grid-template-columns: 16px minmax(0, 1fr) auto;
+ gap: var(--g-2);
+ align-items: center;
+ color: var(--text-secondary);
+ font-size: var(--t-meta);
 }
 .activity-popover li strong {
-  overflow: hidden;
-  color: var(--text-primary);
-  font-size: var(--t-body);
-  font-weight: 500;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+ overflow: hidden;
+ color: var(--text-primary);
+ font-size: var(--t-body);
+ font-weight: 500;
+ text-overflow: ellipsis;
+ white-space: nowrap;
 }
 .activity-popover li small {
-  color: var(--text-muted);
+ color: var(--text-muted);
 }
 .dispatch-project-tag {
-  padding: 1px 4px;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--r-sm);
-  color: var(--text-muted);
-  font-family: var(--fm);
-  font-size: var(--t-meta);
+ padding: 1px 4px;
+ border: 1px solid var(--border-subtle);
+ border-radius: var(--r-sm);
+ color: var(--text-muted);
+ font-family: var(--fm);
+ font-size: var(--t-meta);
 }
 .inbox-popover li {
-  grid-template-columns: 1fr;
-  gap: 1px;
+ grid-template-columns: 1fr;
+ gap: 1px;
 }
 .activity-popover footer {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--g-3);
-  margin-top: var(--g-3);
+ display: flex;
+ justify-content: space-between;
+ gap: var(--g-3);
+ margin-top: var(--g-3);
 }
 .rail-group-label {
-  margin-bottom: var(--g-2);
-  color: var(--text-muted);
-  font-size: var(--t-label);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+ margin-bottom: var(--g-2);
+ color: var(--text-muted);
+ font-size: var(--t-label);
+ text-transform: uppercase;
+ letter-spacing: 0.08em;
 }
 .project-switcher {
-  font-family: var(--fm);
+ font-family: var(--fm);
 }
 .merge-scrim {
-  position: fixed;
-  inset: 0;
-  z-index: 10;
-  display: grid;
-  place-items: center;
-  background: color-mix(in srgb, var(--scrim) 52%, transparent);
+ position: fixed;
+ inset: 0;
+ z-index: 10;
+ display: grid;
+ place-items: center;
+ background: color-mix(in srgb, var(--scrim) 52%, transparent);
 }
 .merge-modal {
-  width: min(680px, calc(100vw - 32px));
-  padding: 20px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-lg);
-  background: var(--surface-ground);
+ width: min(680px, calc(100vw - 32px));
+ padding: var(--g-8);
+ border: 1px solid var(--border-strong);
+ border-radius: var(--r-lg);
+ background: var(--surface-ground);
 }
 .merge-modal header,
 .merge-modal footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--g-3);
+ display: flex;
+ align-items: center;
+ justify-content: space-between;
+ gap: var(--g-3);
 }
 .merge-columns {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--g-4);
+ display: grid;
+ grid-template-columns: 1fr 1fr;
+ gap: var(--g-4);
 }
 .merge-warning {
-  padding: var(--g-3);
-  border: 1px solid var(--status-danger);
-  color: var(--status-danger);
+ padding: var(--g-3);
+ border: 1px solid var(--status-danger);
+ color: var(--status-danger);
 }
 .merge-modal h3 {
-  font-size: var(--t-row);
-  color: var(--text-secondary);
+ font-size: var(--t-row);
+ color: var(--text-secondary);
 }
 
 /* ------------------------------------------------------------------ Rail --- */
 .project-rail {
-  width: 212px;
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  gap: var(--g-4);
-  padding: var(--g-4);
-  background: var(--surface-chrome);
-  border-right: 1px solid var(--border-subtle);
+ width: 212px;
+ flex: none;
+ display: flex;
+ flex-direction: column;
+ gap: var(--g-4);
+ padding: var(--g-4);
+ background: var(--surface-chrome);
+ border-right: 1px solid var(--border-subtle);
 }
 .project-rail button {
-  appearance: none;
-  background: transparent;
-  border: 0;
-  border-radius: var(--r-card);
-  color: var(--text-secondary);
-  font-family: var(--fm);
-  display: block;
-  width: 100%;
-  padding: var(--g-2) var(--g-3);
-  text-align: left;
-  cursor: default;
+ appearance: none;
+ background: transparent;
+ border: 0;
+ border-radius: var(--r-card);
+ color: var(--text-secondary);
+ font-family: var(--fm);
+ display: block;
+ width: 100%;
+ padding: var(--g-2) var(--g-3);
+ text-align: left;
+ cursor: default;
 }
 .project-rail button:hover {
-  background: var(--surface-raised);
+ background: var(--surface-raised);
 }
 .project-rail button[aria-current="true"] {
-  background: var(--surface-selected);
-  color: var(--action-attention);
+ background: var(--surface-selected);
+ color: var(--action-attention);
 }
 .project-rail section {
-  padding: var(--g-3);
-  border-radius: var(--r-card);
-  background: var(--surface-selected);
+ padding: var(--g-3);
+ border-radius: var(--r-card);
+ background: var(--surface-selected);
 }
 
 .body {
-  flex: 1;
-  display: flex;
-  min-height: 0;
+ flex: 1;
+ display: flex;
+ min-height: 0;
 }
 
 .rail {
-  width: clamp(68px, 6vw, 92px);
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: var(--g-1);
-  padding: 8px var(--g-3);
-  background: var(--surface-chrome);
-  border-right: 1px solid var(--border-subtle);
+ width: clamp(68px, 6vw, 92px);
+ flex: none;
+ display: flex;
+ flex-direction: column;
+ align-items: stretch;
+ gap: var(--g-1);
+ padding: 8px var(--g-3);
+ background: var(--surface-chrome);
+ border-right: 1px solid var(--border-subtle);
 }
 
 .rail-item {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--g-2);
-  padding: 8px 0 6px;
-  border: 0;
-  border-radius: var(--r-card);
-  background: transparent;
-  color: var(--text-secondary);
-  font-family: inherit;
-  cursor: default;
+ position: relative;
+ display: flex;
+ flex-direction: column;
+ align-items: center;
+ gap: var(--g-2);
+ padding: 8px 0 6px;
+ border: 0;
+ border-radius: var(--r-card);
+ background: transparent;
+ color: var(--text-secondary);
+ font-family: inherit;
+ cursor: default;
 }
 .rail-item:hover {
-  background: var(--surface-raised);
+ background: var(--surface-raised);
 }
 .rail-item-label {
-  font-size: var(--t-label);
-  letter-spacing: 0.02em;
+ font-size: var(--t-label);
+ letter-spacing: 0.02em;
 }
 .rail-item[aria-current="true"] {
-  background: var(--surface-selected);
-  box-shadow: var(--ring-sel-soft);
-  color: var(--action-attention);
+ background: var(--surface-selected);
+ box-shadow: var(--ring-sel-soft);
+ color: var(--action-attention);
 }
 
 /* The badge is a pill, not text — the one weight above 500 in the whole app. */
 .rail-badge {
-  position: absolute;
-  top: 5px;
-  right: 9px;
-  min-width: 15px;
-  height: 15px;
-  display: grid;
-  place-items: center;
-  padding: 0 3px;
-  border-radius: 8px;
-  background: var(--action-attention);
-  color: var(--action-attention-ink);
-  font-size: var(--t-label);
-  font-weight: 700;
+ position: absolute;
+ top: 5px;
+ right: 9px;
+ min-width: 15px;
+ height: 15px;
+ display: grid;
+ place-items: center;
+ padding: 0 3px;
+ border-radius: 8px;
+ background: var(--action-attention);
+ color: var(--action-attention-ink);
+ font-size: var(--t-label);
+ font-weight: 700;
 }
 
 .rail-foot {
-  margin-top: auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--g-4);
-  padding: var(--g-4) 0 var(--g-2);
-  color: var(--text-muted);
+ margin-top: auto;
+ display: flex;
+ align-items: center;
+ justify-content: center;
+ gap: var(--g-4);
+ padding: var(--g-4) 0 var(--g-2);
+ color: var(--text-muted);
 }
 
 /* --------------------------------------------------------------- Tab bar --- */
 .main {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
+ flex: 1;
+ display: flex;
+ flex-direction: column;
+ min-width: 0;
 }
 
 .tabbar {
-  height: 40px;
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: var(--g-4);
-  padding: 0 12px;
-  background: linear-gradient(var(--surface-raised), var(--surface-ground));
-  border-bottom: 1px solid var(--border-subtle);
+ height: 40px;
+ flex: none;
+ display: flex;
+ align-items: center;
+ gap: var(--g-4);
+ padding: 0 12px;
+ background: linear-gradient(var(--surface-raised), var(--surface-ground));
+ border-bottom: 1px solid var(--border-subtle);
 }
 .tabbar-category {
-  font-size: var(--t-row);
-  font-weight: 500;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text-secondary);
+ font-size: var(--t-row);
+ font-weight: 500;
+ letter-spacing: 0.1em;
+ text-transform: uppercase;
+ color: var(--text-secondary);
 }
 .tabbar-locator {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: var(--g-3);
-  font-family: var(--fm);
-  font-size: var(--t-meta);
-  color: var(--text-muted);
+ margin-left: auto;
+ display: flex;
+ align-items: center;
+ gap: var(--g-3);
+ font-family: var(--fm);
+ font-size: var(--t-meta);
+ color: var(--text-muted);
 }
 
 .screen {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
+ flex: 1;
+ min-height: 0;
+ overflow: auto;
 }
 
 /* ----------------------------------------------------------------- Strip --- */
 .strip {
-  height: 54px;
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: var(--g-4);
-  padding: 0 12px;
-  background: var(--surface-chrome);
-  border-top: 1px solid var(--border-subtle);
+ height: 54px;
+ flex: none;
+ display: flex;
+ align-items: center;
+ gap: var(--g-4);
+ padding: 0 12px;
+ background: var(--surface-chrome);
+ border-top: 1px solid var(--border-subtle);
 }
 .strip-label {
-  writing-mode: vertical-rl;
-  font-size: var(--t-micro);
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--text-muted);
+ writing-mode: vertical-rl;
+ font-size: var(--t-micro);
+ letter-spacing: 0.16em;
+ text-transform: uppercase;
+ color: var(--text-muted);
 }
 .strip-cards {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: var(--g-3);
-  min-width: 0;
-  overflow: hidden;
+ flex: 1;
+ display: flex;
+ align-items: center;
+ gap: var(--g-3);
+ min-width: 0;
+ overflow: hidden;
 }
 .strip-card {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  padding: 4px var(--g-4);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--r-card);
-  background: var(--surface-raised);
-  white-space: nowrap;
+ min-width: 0;
+ display: flex;
+ flex-direction: column;
+ gap: 1px;
+ padding: 4px var(--g-4);
+ border: 1px solid var(--border-subtle);
+ border-radius: var(--r-card);
+ background: var(--surface-raised);
+ white-space: nowrap;
 }
 .strip-card-top {
-  font-size: var(--t-meta);
-  color: var(--text-primary);
+ font-size: var(--t-meta);
+ color: var(--text-primary);
 }
 .strip-card-bottom {
-  font-size: var(--t-label);
-  color: var(--text-muted);
+ font-size: var(--t-label);
+ color: var(--text-muted);
 }
 .strip-task-link {
-  margin-right: var(--g-2);
-  color: var(--action-attention);
-  text-decoration: none;
+ margin-right: var(--g-2);
+ color: var(--action-attention);
+ text-decoration: none;
 }
 .strip-card-stuck {
-  border-color: var(--status-danger);
+ border-color: var(--status-danger);
 }
 .strip-card-shell {
-  opacity: 0.6;
+ color: var(--text-muted);
 }
 .strip-note {
-  margin-left: auto;
-  font-size: var(--t-label);
-  color: var(--text-muted);
-  white-space: nowrap;
+ margin-left: auto;
+ font-size: var(--t-label);
+ color: var(--text-muted);
+ white-space: nowrap;
 }
 
 .sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
+ position: absolute;
+ width: 1px;
+ height: 1px;
+ padding: 0;
+ margin: -1px;
+ overflow: hidden;
+ clip: rect(0, 0, 0, 0);
+ white-space: nowrap;
+ border: 0;
 }

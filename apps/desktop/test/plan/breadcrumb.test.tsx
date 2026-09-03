@@ -41,7 +41,7 @@ describe("plan/breadcrumb", () => {
   it("checks the done steps in --ok, pills the current one in accent, dims the rest", () => {
     expect(rule(".crumb-done").body).toContain("color: var(--status-success)");
     expect(rule(".crumb-current").body).toContain(
-      "color: var(--action-attention)",
+      "color: var(--action-attention-ink)",
     );
     expect(rule(".crumb-current").body).toContain(
       "box-shadow: var(--ring-sel-soft)",

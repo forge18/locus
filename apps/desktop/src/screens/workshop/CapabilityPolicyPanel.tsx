@@ -128,7 +128,7 @@ export function CapabilityPolicyPanel() {
               {(key) => (
                 <label>
                   <span>{LABELS[key]}</span>
-                  <select
+                  <select class="input"
                     value={isDeferred(draft()[key]) ? "inherit" : "allow"}
                     onChange={(event) =>
                       updatePolicy(
@@ -142,7 +142,7 @@ export function CapabilityPolicyPanel() {
                     <option value="allow">Allow only</option>
                   </select>
                   <Show when={!isDeferred(draft()[key])}>
-                    <textarea
+                    <textarea class="input"
                       value={allowedValues(draft()[key])}
                       placeholder="one capability per line"
                       onInput={(event) =>

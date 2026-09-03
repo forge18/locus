@@ -134,7 +134,9 @@ export function ProjectsView(props: ProjectsViewProps = {}) {
     if (!id) return;
     const content = editedContent() ?? setupView.data()?.baseContext ?? "";
     const budget =
-      content.trim() === "" ? undefined : setupView.data()?.baseContextTokenBudget ?? undefined;
+      content.trim() === ""
+        ? undefined
+        : (setupView.data()?.baseContextTokenBudget ?? undefined);
     setSavingBaseContext(true);
     try {
       const envelope = await saveBaseContext(id, content, budget);
@@ -324,7 +326,10 @@ export function ProjectsView(props: ProjectsViewProps = {}) {
                 }}
                 aria-label="Project name"
               />
-              <button class="btn btn-primary" onClick={() => void confirmRename()}>
+              <button
+                class="btn btn-primary"
+                onClick={() => void confirmRename()}
+              >
                 Save name
               </button>
               <button
@@ -594,7 +599,7 @@ export function ProjectsView(props: ProjectsViewProps = {}) {
                         <strong>{name}</strong>
                         <small>{count}</small>
                         <button
-                          class="toggle"
+                          class="project-toggle"
                           aria-label={`Enable ${name}`}
                           data-on={enabledExtensions().has(name)}
                           onClick={() => toggleExtension(name)}

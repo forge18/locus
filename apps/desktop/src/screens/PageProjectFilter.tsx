@@ -24,7 +24,7 @@ export function PageProjectFilter(props: PageProjectFilterProps) {
   return (
     <label class="page-project-filter" data-testid="page-project-filter">
       <span>Project</span>
-      <select
+      <select class="input"
         value={props.value ?? ""}
         aria-required={props.required ? "true" : undefined}
         onChange={(event) =>

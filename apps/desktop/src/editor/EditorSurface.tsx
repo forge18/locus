@@ -6,11 +6,7 @@ import {
   drawSelection,
   EditorView,
 } from "@codemirror/view";
-import {
-  Annotation,
-  EditorState,
-  type Extension,
-} from "@codemirror/state";
+import { Annotation, EditorState, type Extension } from "@codemirror/state";
 import type { HostLspSupervisor, LspDiagnostics } from "./lsp";
 import { createLspClient, languageExtensions } from "./lsp";
 import { attachTauriLsp } from "./tauriLsp";
@@ -155,7 +151,11 @@ export function EditorSurface(props: EditorSurfaceProps) {
         // A failed LSP setup must not prevent the file from being edited.
         ...(plainText
           ? []
-          : (languageExtensions(language, editorClient, file.uri) as Extension[])),
+          : (languageExtensions(
+              language,
+              editorClient,
+              file.uri,
+            ) as Extension[])),
         ...(editorClient ? [semanticTokensExtension()] : []),
         EditorView.updateListener.of((update) => {
           const external = update.transactions.some((transaction) =>
@@ -186,7 +186,8 @@ export function EditorSurface(props: EditorSurfaceProps) {
         await dispose();
         if (activeView === view) activeView = undefined;
       };
-      if (editorClient) void editorClient.initializing.then(refreshSemanticTokens);
+      if (editorClient)
+        void editorClient.initializing.then(refreshSemanticTokens);
     };
 
     try {
@@ -227,9 +228,7 @@ export function EditorSurface(props: EditorSurfaceProps) {
       const currentFile = props.file;
       syncFileContent(currentFile);
       setError(undefined);
-      setSurfaceState(
-        currentFile.content.length === 0 ? "empty" : "loaded",
-      );
+      setSurfaceState(currentFile.content.length === 0 ? "empty" : "loaded");
     } catch (cause) {
       if (!isCurrent()) {
         client?.disconnect();
@@ -313,9 +312,7 @@ export function EditorSurface(props: EditorSurfaceProps) {
     const pendingCleanup = cleanup();
     cleanup = async () => {};
     activeView = undefined;
-    lifecycle = lifecycle
-      .then(() => pendingCleanup)
-      .catch(() => undefined);
+    lifecycle = lifecycle.then(() => pendingCleanup).catch(() => undefined);
   });
   return (
     <div

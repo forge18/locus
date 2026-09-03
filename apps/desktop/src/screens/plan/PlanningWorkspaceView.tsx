@@ -309,7 +309,7 @@ export function PlanningWorkspaceView(props: Props) {
             <h2>New workspace</h2>
             <label>
               Project
-              <select
+              <select class="input"
                 value={projectId()}
                 onChange={(event) => setProjectId(event.currentTarget.value)}
               >
@@ -323,7 +323,7 @@ export function PlanningWorkspaceView(props: Props) {
             </label>
             <label>
               Scope
-              <select
+              <select class="input"
                 value={scope()}
                 onChange={(event) =>
                   setScope(event.currentTarget.value as PlanningWorkspaceScope)
@@ -336,7 +336,7 @@ export function PlanningWorkspaceView(props: Props) {
             </label>
             <label>
               Brief
-              <textarea
+              <textarea class="input"
                 value={brief()}
                 onInput={(event) => setBrief(event.currentTarget.value)}
                 placeholder="What should this workspace plan?"
@@ -563,7 +563,7 @@ export function PlanningWorkspaceView(props: Props) {
                       <Show when={currentRevision()}>
                         <label class="planning-room-raw">
                           Raw checkpoint state
-                          <textarea
+                          <textarea class="input"
                             value={stateText()}
                             onInput={(event) =>
                               setStateText(event.currentTarget.value)

@@ -210,7 +210,6 @@
  padding: var(--g-2) var(--g-3);
  font-size: var(--t-body);
  color: var(--text-muted);
- opacity: 0.6;
 }
 
 .inbox-detail {
@@ -223,14 +222,14 @@
  display: flex;
  flex-direction: column;
  gap: var(--g-3);
- padding: 15px 18px 12px;
+ padding: 15px var(--g-7) 12px;
 }
 .inbox-detail-kind {
  align-self: flex-start;
  padding: 1px 7px;
  border-radius: var(--r-sm);
- background: var(--action-attention-wash);
- color: var(--action-attention);
+ background: var(--action-attention);
+ color: var(--action-attention-ink);
  font-size: var(--t-label);
  letter-spacing: 0.06em;
  text-transform: lowercase;
@@ -264,7 +263,7 @@
 .inbox-detail-body {
  flex: 1;
  overflow: auto;
- padding: 0 18px 14px;
+ padding: 0 var(--g-7) 14px;
 }
 .inbox-body-label {
  font-size: var(--t-label);
@@ -276,7 +275,7 @@
 }
 .inbox-steps {
  margin: 0;
- padding-left: 18px;
+ padding-left: var(--g-7);
  display: flex;
  flex-direction: column;
  gap: var(--g-3);
@@ -331,7 +330,7 @@
  display: flex;
  align-items: center;
  gap: var(--g-4);
- padding: var(--g-4) 18px;
+ padding: var(--g-4) var(--g-7);
  background: var(--surface-chrome);
  border-top: 1px solid var(--border-subtle);
 }
@@ -346,7 +345,7 @@
  display: flex;
  flex-direction: column;
  gap: var(--g-5);
- padding: 15px 18px;
+ padding: 15px var(--g-7);
  overflow: auto;
  height: 100%;
 }
@@ -597,7 +596,6 @@
 }
 .plan-card-approved {
  color: var(--text-muted);
- opacity: 0.62;
 }
 .plan-card-approved .plan-card-title {
  color: var(--text-secondary);
@@ -661,9 +659,9 @@
 .crumb-current {
  padding: 1px 7px;
  border-radius: var(--r-sm);
- background: var(--action-attention-wash);
+ background: var(--action-attention);
  box-shadow: var(--ring-sel-soft);
- color: var(--action-attention);
+ color: var(--action-attention-ink);
 }
 
 .plan-messages {
@@ -977,13 +975,13 @@
  display: flex;
  align-items: center;
  gap: var(--g-4);
- padding: 15px 18px var(--g-3);
+ padding: 15px var(--g-7) var(--g-3);
 }
 .wiki-kind {
  padding: 1px 7px;
  border-radius: var(--r-sm);
- background: var(--action-attention-wash);
- color: var(--action-attention);
+ background: var(--action-attention);
+ color: var(--action-attention-ink);
  font-size: var(--t-label);
  letter-spacing: 0.06em;
 }
@@ -995,7 +993,7 @@
  display: flex;
  align-items: center;
  gap: var(--g-4);
- padding: 0 18px var(--g-5);
+ padding: 0 var(--g-7) var(--g-5);
  font-size: var(--t-meta);
  color: var(--text-muted);
 }
@@ -1003,18 +1001,17 @@
  font-size: var(--t-meta);
 }
 .wiki-prose {
- opacity: 0.88;
  display: flex;
  flex-direction: column;
  gap: var(--g-5);
- padding: 0 18px;
+ padding: 0 var(--g-7);
  max-width: 720px;
  font-size: var(--t-lead);
  line-height: 1.68;
- color: var(--text-primary);
+ color: var(--text-secondary);
 }
 .wiki-section {
- padding: var(--g-5) 18px var(--g-3);
+ padding: var(--g-5) var(--g-7) var(--g-3);
  font-size: var(--t-label);
  font-weight: 500;
  letter-spacing: 0.12em;
@@ -1025,7 +1022,7 @@
  display: flex;
  flex-wrap: wrap;
  gap: var(--g-3);
- padding: 0 18px;
+ padding: 0 var(--g-7);
 }
 .wikilink {
  padding: 2px 8px;
@@ -1045,7 +1042,7 @@
  display: flex;
  flex-direction: column;
  gap: var(--g-3);
- padding: 0 18px 18px;
+ padding: 0 var(--g-7) var(--g-7);
 }
 .wiki-provenance-row {
  display: flex;
@@ -1710,7 +1707,7 @@
  box-shadow: var(--ring-sel-soft);
 }
 .task-card-done {
- opacity: 0.86;
+ color: var(--text-secondary);
 }
 .task-card-done .task-card-title {
  color: var(--text-secondary);
@@ -1855,7 +1852,6 @@
 .session-task {
  font-size: var(--t-body);
  color: var(--text-secondary);
- opacity: 0.76;
  overflow: hidden;
  text-overflow: ellipsis;
  white-space: nowrap;
@@ -2105,8 +2101,7 @@
 }
 .sparkline-bar {
  flex: 1;
- background: var(--data-2);
- opacity: 0.85;
+ background: color-mix(in srgb, var(--data-2) 85%, var(--surface-raised));
  border-radius: 1px;
 }
 
@@ -2173,18 +2168,17 @@
  color: var(--text-muted);
 }
 .facet[aria-pressed="true"] {
- background: var(--action-attention-wash);
+ background: var(--action-attention);
  box-shadow: var(--ring-sel-soft);
- color: var(--action-attention);
+ color: var(--action-attention-ink);
 }
 .facet[aria-pressed="true"] .facet-count {
- color: var(--action-attention);
+ color: var(--action-attention-ink);
 }
 /* Zero by invariant, not by chance: Locus never works in main. */
 .facet-invariant {
  color: var(--text-muted);
- background: var(--surface-raised);
- opacity: 0.5;
+ background: var(--surface-ground);
 }
 
 .bar-row {
@@ -2329,7 +2323,6 @@
 }
 .artifact-group-reference {
  color: var(--text-muted);
- opacity: 0.55;
 }
 .artifact-entry {
  display: flex;
@@ -2418,7 +2411,7 @@
 }
 .udiff-hunk {
  color: var(--text-muted);
- background: var(--diff-fold);
+ background: var(--surface-raised);
 }
 .udiff-added {
  background: var(--diff-add);
@@ -2596,7 +2589,7 @@
  box-shadow: inset 0 0 0 1px var(--action-attention-ring);
  border-color: transparent;
 }
-.materialization-figures {
+.extensions-materialization-figures {
  display: flex;
  gap: var(--g-5);
 }
@@ -3132,15 +3125,15 @@
  font-size: var(--t-micro);
 }
 .hn-badge-native {
- background: var(--action-attention-wash);
- color: var(--action-attention);
+ background: var(--action-attention);
+ color: var(--action-attention-ink);
 }
 .hn-badge-bridged {
  background: var(--surface-elevated);
  color: var(--text-secondary);
 }
 .hn-badge-acp {
- background: color-mix(in srgb, var(--code-keyword) 18%, transparent);
+ background: var(--surface-elevated);
  color: var(--code-keyword);
 }
 .hn-injection {
@@ -3304,7 +3297,7 @@
  flex: 1;
  min-width: 0;
  overflow: auto;
- padding: 18px 24px 28px;
+ padding: var(--g-7) var(--g-9) 28px;
 }
 .settings-content {
  max-width: 820px;
@@ -3334,7 +3327,7 @@
 .settings-row {
  display: flex;
  align-items: flex-start;
- gap: 24px;
+ gap: var(--g-9);
  padding: 14px 0;
  border-bottom: 1px solid var(--border-subtle);
 }
@@ -3587,7 +3580,7 @@
  min-height: 0;
 }
 .desktop-inbox-detail > header {
- padding: 13px 18px 11px;
+ padding: 13px var(--g-7) 11px;
  border-bottom: 1px solid var(--border-subtle);
 }
 .desktop-inbox-detail > header > div {
@@ -3621,7 +3614,7 @@
  gap: 13px;
  min-height: 0;
  overflow: auto;
- padding: 15px 18px;
+ padding: 15px var(--g-7);
 }
 .desktop-inbox-detail-body h2,
 .desktop-inbox-comment,
@@ -3639,7 +3632,7 @@
  flex-direction: column;
  gap: var(--g-3);
  margin: 0;
- padding-left: 20px;
+ padding-left: var(--g-8);
  color: var(--text-secondary);
  font-size: var(--t-body);
  line-height: 1.6;
@@ -3726,7 +3719,7 @@
  flex-direction: column;
  gap: var(--g-5);
  overflow: auto;
- padding: 18px 20px 20px;
+ padding: var(--g-7) var(--g-8) var(--g-8);
 }
 .desktop-dashboard-head {
  display: flex;
